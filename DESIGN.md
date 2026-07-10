@@ -37,6 +37,7 @@ The landing hero uses one load sequence: rule, headline, then protocol strip. Pr
 ## Components
 
 - Buttons: heavy label, rectangular fill or rule-only treatment, 48px minimum height.
+- Provider actions: one explicit GitHub action; never imply additional upstream providers.
 - Identity rows: label, human-readable value, copyable protocol value.
 - Consent disclosure: explicit recipient, exact claims, retention statement, approve/deny controls.
 - Status: text plus shape/icon treatment; never color alone.

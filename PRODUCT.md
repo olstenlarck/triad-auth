@@ -14,7 +14,7 @@ Developers building web, CLI, TV, console, and device applications. They need on
 
 ## Product Purpose
 
-Triad brokers Google, GitHub, and X authentication. It gives applications both a stable global provider identity and a stable app-scoped identity, supports explicit cross-provider account linking, and provides authorization-code and device flows. Success means a developer can understand the identity model in seconds and integrate without adopting a large auth platform.
+Triad brokers GitHub authentication. It gives applications a globally correlatable GitHub identity, a broker account identity, and a stable app-scoped identity through authorization-code and device flows. Success means a developer can understand the identity model in seconds and integrate without adopting a large auth platform.
 
 ## Positioning
 

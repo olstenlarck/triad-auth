@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro build --watch & wrangler dev",
+    "dev": "pnpm build && wrangler dev",
     "build": "astro build && node scripts/generate-csp-hashes.mjs",
     "deploy": "pnpm build && wrangler deploy",
     "db:local": "wrangler d1 migrations apply triad-auth --local",
     "db:remote": "wrangler d1 migrations apply triad-auth --remote",
     "keygen": "node scripts/generate-key.mjs",
+    "check:config": "node scripts/check-config.mjs",
+    "check:deploy": "wrangler deploy --dry-run",
+    "check": "pnpm typecheck && pnpm test && pnpm build && pnpm check:deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

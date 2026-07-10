@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
+import app from "../src/index";
 import { cspScriptHashes } from "../src/generated/csp-script-hashes";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken, noStore, securityHeaders } from "../src/security";
+import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
 
 function cspDirectives(response: Response): Map<string, string> {
@@ -19,6 +21,25 @@ async function cspHash(source: string): Promise<string> {
 }
 
 describe("browser and response safety", () => {
+  it("applies security headers to static assets served through the Worker fallback", async () => {
+    let requestedUrl = "";
+    const env = {
+      ASSETS: {
+        fetch: async (request: Request) => {
+          requestedUrl = request.url;
+          return new Response("<h1>static page</h1>", { headers: { "content-type": "text/html" } });
+        },
+      } as Fetcher,
+    } as Env;
+
+    const response = await app.request("https://auth.example/demo/", {}, env);
+
+    expect(requestedUrl).toBe("https://auth.example/demo/");
+    await expect(response.text()).resolves.toBe("<h1>static page</h1>");
+    expect(response.headers.get("content-security-policy")).toContain("default-src 'self'");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
   it("accepts the canonical origin and rejects cross-origin mutation", () => {
     const canonical = new Request("https://auth.example/api", {
       method: "POST",

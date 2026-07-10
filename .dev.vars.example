@@ -1,0 +1,9 @@
+# GitHub OAuth App credentials. Keep local values in .dev.vars only.
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# Paste the one-line JSON emitted by `pnpm keygen`; quote it in .dev.vars.
+SIGNING_PRIVATE_JWK=
+
+# Use at least 32 high-entropy characters, for example output from `openssl rand -base64 32`.
+PAIRWISE_SECRET=
