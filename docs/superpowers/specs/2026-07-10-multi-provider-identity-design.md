@@ -84,7 +84,7 @@ Provider setup links documented in README:
 
 ## Data Migration
 
-Add `migrations/0002_multi_provider.sql` for the already-deployed database. It adds `device_grants.provider` with a GitHub default for existing grants and changes built-in client provider allowlists to `google`, `github`, and `twitter`. Fresh installations apply both migrations in order.
+Add `migrations/0002_multi_provider.sql` for the already-deployed database. It invalidates short-lived consent, transaction, authorization-code, and device-grant rows so no in-flight grant can emit the old raw `provider_sub`; adds `device_grants.provider`; and changes built-in client provider allowlists to `google`, `github`, and `twitter`. Fresh installations apply both migrations in order.
 
 Existing raw GitHub identity mappings remain valid. Newly issued GitHub tokens switch from raw `github:<id>` claims to opaque `prv_github_*` claims; this is an intentional privacy change and downstream clients must treat it as an identifier migration.
 
