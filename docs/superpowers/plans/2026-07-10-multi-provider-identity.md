@@ -239,12 +239,15 @@ git commit -m "feat: add privacy-scoped claims"
 
 **Files:**
 - Modify: `src/db.ts`
+- Modify: `src/pre-auth.ts`
+- Modify: `src/providers.ts`
 - Modify: `src/routes/oauth.ts`
 - Modify: `src/routes/device.ts`
 - Modify: `src/routes/account.ts`
 - Modify: `migrations/0001_init.sql`
 - Create: `migrations/0002_multi_provider.sql`
 - Modify: `test/oauth.test.ts`
+- Modify: `test/providers.test.ts`
 - Modify: `test/device.test.ts`
 - Modify: `test/account.test.ts`
 - Modify: `test/d1.ts`
@@ -323,7 +326,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/db.ts src/routes migrations test/oauth.test.ts test/device.test.ts test/account.test.ts test/d1.ts
+git add src/db.ts src/pre-auth.ts src/providers.ts src/routes migrations test/oauth.test.ts test/providers.test.ts test/device.test.ts test/account.test.ts test/d1.ts
 git commit -m "feat: route scoped Triad identities"
 ```
 
