@@ -1,5 +1,5 @@
-import { Hono } from "hono";
-import { setCookie } from "hono/cookie";
+import { Hono, type Context } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
 import { randomToken, sha256, timingSafeEqual } from "../crypto";
 import {
   approveDeviceGrant,
@@ -17,6 +17,7 @@ import {
 } from "../db";
 import { finishProvider, startProvider } from "../providers";
 import { parseScope, validatePkceChallenge, validatePkceVerifier } from "../protocol";
+import { enforceRequestRateLimit } from "../rate-limit";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken } from "../security";
 import { issueIdToken, publicJwk } from "../tokens";
 import type { Env, ProviderName } from "../types";
@@ -114,6 +115,30 @@ export function rejectDuplicateParameters(form: URLSearchParams, names: readonly
 
 export const oauthRoutes = new Hono<{ Bindings: Env }>();
 
+async function rotateBrowserSession(
+  c: Context<{ Bindings: Env }>,
+  accountId: string,
+): Promise<void> {
+  const session = randomToken();
+  const oldSession = getCookie(c, "triad_session");
+  const statements = [];
+  if (oldSession) {
+    statements.push(c.env.DB.prepare("DELETE FROM browser_sessions WHERE session_hash = ?")
+      .bind(await sha256(oldSession)));
+  }
+  statements.push(c.env.DB.prepare(`INSERT INTO browser_sessions
+    (session_hash, account_id, expires_at, created_at) VALUES (?, ?, ?, ?)`)
+    .bind(await sha256(session), accountId, now() + 60 * 60 * 24 * 30, now()));
+  await c.env.DB.batch(statements);
+  setCookie(c, "triad_session", session, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+}
+
 oauthRoutes.use("*", async (c, next) => {
   await next();
   c.header("cache-control", "no-store");
@@ -136,6 +161,9 @@ oauthRoutes.get("/.well-known/openid-configuration", (c) => c.json({
 oauthRoutes.get("/.well-known/jwks.json", async (c) => c.json({ keys: [await publicJwk(c.env)] }));
 
 oauthRoutes.get("/authorize", async (c) => {
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, "authorization-start", 20))) {
+    return oauthError("temporarily_unavailable", undefined, 429);
+  }
   const q = c.req.query();
   if (q.provider !== "github") return oauthError("invalid_request", "unsupported provider");
   if (!q.client_id || !q.redirect_uri || !q.state || !q.code_challenge) {
@@ -230,6 +258,9 @@ oauthRoutes.post("/api/consent/:request/deny", async (c) => {
 });
 
 oauthRoutes.get("/callback/:provider", async (c) => {
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, "provider-callback", 30))) {
+    return oauthError("temporarily_unavailable", undefined, 429);
+  }
   const provider = c.req.param("provider");
   const state = c.req.query("state");
   const providerError = c.req.query("error");
@@ -261,23 +292,17 @@ oauthRoutes.get("/callback/:provider", async (c) => {
   const identity = await finishProvider(c.env, code!);
   const accountId = await resolveIdentity(c.env.DB, identity);
   const providerSub = `${identity.provider}:${identity.id}`;
-  const session = randomToken();
-  await c.env.DB.prepare("INSERT INTO browser_sessions (session_hash, account_id, expires_at, created_at) VALUES (?, ?, ?, ?)")
-    .bind(await sha256(session), accountId, now() + 60 * 60 * 24 * 30, now()).run();
-  setCookie(c, "triad_session", session, {
-    httpOnly: true,
-    secure: c.env.ISSUER.startsWith("https://"),
-    sameSite: "Lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
 
-  if (tx.kind === "session") return c.redirect(`${c.env.ISSUER}/me/`, 302);
+  if (tx.kind === "session") {
+    await rotateBrowserSession(c, accountId);
+    return c.redirect(`${c.env.ISSUER}/me/`, 302);
+  }
   if (tx.kind === "device") {
     if (!tx.device_code_hash
       || !(await approveDeviceGrant(c.env.DB, tx.device_code_hash, accountId, providerSub))) {
       return oauthError("invalid_grant", "device request expired");
     }
+    await rotateBrowserSession(c, accountId);
     return c.html("<!doctype html><meta charset=utf-8><title>Authorized</title><h1>Authorized</h1><p>You can return to your device.</p>");
   }
 
@@ -288,6 +313,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(
       await sha256(authCode), tx.client_id, tx.redirect_uri, accountId, providerSub, tx.code_challenge, now() + 120,
     ).run();
+  await rotateBrowserSession(c, accountId);
   const target = new URL(tx.redirect_uri);
   target.searchParams.set("code", authCode);
   if (tx.app_state) target.searchParams.set("state", tx.app_state);
@@ -297,6 +323,11 @@ oauthRoutes.get("/callback/:provider", async (c) => {
 oauthRoutes.post("/token", async (c) => {
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) return form;
+  const grantType = form.get("grant_type") ?? "";
+  if (grantType === "urn:ietf:params:oauth:grant-type:device_code"
+    && !(await enforceRequestRateLimit(c.env.DB, c.req.raw, "device-poll", 60))) {
+    return oauthError("slow_down");
+  }
   const duplicateError = rejectDuplicateParameters(form, [
     "grant_type",
     "client_id",
@@ -306,7 +337,6 @@ oauthRoutes.post("/token", async (c) => {
     "device_code",
   ]);
   if (duplicateError) return duplicateError;
-  const grantType = form.get("grant_type") ?? "";
   const clientId = form.get("client_id") ?? "";
   const client = clientId && clientId.length <= clientIdLimit ? await getClient(c.env.DB, clientId) : null;
   if (!client) {
@@ -371,7 +401,7 @@ oauthRoutes.post("/token", async (c) => {
   return oauthError("unsupported_grant_type");
 });
 
-oauthRoutes.onError((error, c) => {
-  console.error(error);
+oauthRoutes.onError((_error, c) => {
+  console.error("OAuth route failed");
   return c.json({ error: "server_error" }, 500, { "cache-control": "no-store", pragma: "no-cache" });
 });

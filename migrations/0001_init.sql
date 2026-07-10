@@ -90,6 +90,15 @@ CREATE TABLE browser_sessions (
 );
 CREATE INDEX browser_sessions_account_idx ON browser_sessions(account_id);
 
+CREATE TABLE rate_limits (
+  bucket TEXT NOT NULL,
+  key_hash TEXT NOT NULL,
+  window_start INTEGER NOT NULL,
+  count INTEGER NOT NULL,
+  PRIMARY KEY (bucket, key_hash, window_start)
+);
+CREATE INDEX rate_limits_cleanup_idx ON rate_limits(bucket, window_start);
+
 CREATE TABLE csrf_tokens (
   token_hash TEXT PRIMARY KEY,
   purpose TEXT NOT NULL UNIQUE,

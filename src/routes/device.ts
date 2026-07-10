@@ -3,6 +3,7 @@ import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto"
 import { getClient, validateClient } from "../db";
 import { startProvider } from "../providers";
 import { parseScope } from "../protocol";
+import { enforceRequestRateLimit } from "../rate-limit";
 import { oauthError, parseOAuthForm, rejectDuplicateParameters, requireSameOrigin } from "./oauth";
 import { consumeCsrfToken, createCsrfToken } from "../security";
 import type { Env } from "../types";
@@ -30,6 +31,9 @@ deviceRoutes.use("*", async (c, next) => {
 });
 
 deviceRoutes.post("/device/code", async (c) => {
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, "device-issue", 10))) {
+    return oauthError("temporarily_unavailable", undefined, 429);
+  }
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) return form;
   const duplicateError = rejectDuplicateParameters(form, ["client_id", "provider", "scope"]);
@@ -87,6 +91,9 @@ deviceRoutes.post("/device/code", async (c) => {
 deviceRoutes.get("/device/verify", (c) => c.env.ASSETS.fetch(c.req.raw));
 
 deviceRoutes.get("/api/device/:code", async (c) => {
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, "device-inspect", 30))) {
+    return oauthError("temporarily_unavailable", undefined, 429);
+  }
   const code = validUserCode(c.req.param("code"));
   if (!code) return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
   const row = await c.env.DB.prepare(`SELECT d.device_code_hash, d.client_id, c.name AS client_name, d.expires_at
@@ -150,7 +157,7 @@ deviceRoutes.post("/device/verify", async (c) => {
   return c.json({ redirect_to: start.url });
 });
 
-deviceRoutes.onError((error, c) => {
-  console.error(error);
+deviceRoutes.onError((_error, c) => {
+  console.error("device route failed");
   return c.json({ error: "server_error" }, 500, { "cache-control": "no-store", pragma: "no-cache" });
 });

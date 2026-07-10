@@ -30,6 +30,9 @@ import Shell from "../components/Shell.astro";
         <div class="panel-heading"><h2 id="apps-title">AUTHORIZED APPS</h2><span id="app-count">0</span></div>
         <div id="authorized-apps" class="authorized-apps"></div>
       </section>
+      <div class="actions">
+        <button id="logout" class="button danger" type="button">SIGN OUT</button>
+      </div>
     </div>
     <p id="me-error" class="error-message" role="alert" hidden></p>
   </section>
@@ -38,6 +41,9 @@ import Shell from "../components/Shell.astro";
     const content = document.querySelector<HTMLElement>("#account-content")!;
     const signedOut = document.querySelector<HTMLElement>("#signed-out")!;
     const error = document.querySelector<HTMLElement>("#me-error")!;
+    const logout = document.querySelector<HTMLButtonElement>("#logout")!;
+    const appCount = document.querySelector<HTMLElement>("#app-count")!;
+    let csrfToken = "";
 
     async function load() {
       const response = await fetch("/api/me");
@@ -50,6 +56,7 @@ import Shell from "../components/Shell.astro";
         account_sub?: string;
         identities?: string[];
         clients?: Array<{ client_id: string; name: string; updated_at: number }>;
+        csrf_token?: string;
         error?: string;
       };
       if (!response.ok) throw new Error(body.error ?? "Could not load your session.");
@@ -57,7 +64,9 @@ import Shell from "../components/Shell.astro";
       document.querySelector("#account-sub")!.textContent = body.account_sub ?? "NONE";
       document.querySelector("#identity-list")!.textContent = body.identities?.join(" · ") || "NONE";
       const clients = body.clients ?? [];
-      document.querySelector("#app-count")!.textContent = String(clients.length);
+      csrfToken = body.csrf_token ?? "";
+      appCount.textContent = String(clients.length);
+      let remainingClients = clients.length;
       const list = document.querySelector<HTMLElement>("#authorized-apps")!;
       if (!clients.length) list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;
       for (const client of clients) {
@@ -72,14 +81,35 @@ import Shell from "../components/Shell.astro";
         button.textContent = "REVOKE";
         button.addEventListener("click", async () => {
           button.disabled = true;
-          const revoked = await fetch(`/api/me/clients/${encodeURIComponent(client.client_id)}`, { method: "DELETE" });
-          if (revoked.ok) row.remove(); else button.disabled = false;
+          const revoked = await fetch(`/api/me/clients/${encodeURIComponent(client.client_id)}`, {
+            method: "DELETE",
+            headers: { "content-type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ csrf_token: csrfToken }),
+          });
+          if (revoked.ok) {
+            csrfToken = (await revoked.json() as { csrf_token: string }).csrf_token;
+            row.remove();
+            appCount.textContent = String(--remainingClients);
+            if (!remainingClients) list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;
+          } else {
+            button.disabled = false;
+          }
         });
         row.append(title, id, button);
         list.append(row);
       }
       content.hidden = false;
     }
+    logout.addEventListener("click", async () => {
+      logout.disabled = true;
+      const response = await fetch("/session/logout", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ csrf_token: csrfToken }),
+      });
+      if (response.ok) location.reload();
+      else logout.disabled = false;
+    });
     load().catch((reason: Error) => { error.textContent = reason.message; error.hidden = false; });
   </script>
 </Shell>
