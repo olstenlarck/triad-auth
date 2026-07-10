@@ -1,48 +1,30 @@
 import { secureHeaders } from "hono/secure-headers";
 import type { MiddlewareHandler } from "hono";
 import { randomToken, sha256 } from "./crypto";
+import { cspScriptHashes } from "./generated/csp-script-hashes";
 
 const csrfLifetimeSeconds = 10 * 60;
 
 export function securityHeaders(): MiddlewareHandler {
-  return async (context, next) => {
-    const nonce = randomToken(16);
-    const headers = secureHeaders({
-      contentSecurityPolicy: {
-        defaultSrc: ["'self'"],
-        baseUri: ["'self'"],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
-        formAction: ["'self'"],
-        frameAncestors: ["'none'"],
-        imgSrc: ["'self'", "data:"],
-        objectSrc: ["'none'"],
-        scriptSrc: ["'self'", `'nonce-${nonce}'`],
-        styleSrc: ["'self'", `'nonce-${nonce}'`],
-      },
-      permissionsPolicy: {
-        camera: [],
-        microphone: [],
-        geolocation: [],
-      },
-    });
-
-    await headers(context, next);
-    if (context.res.headers.get("content-type")?.toLowerCase().startsWith("text/html")) {
-      context.res = new HTMLRewriter()
-        .on("script", {
-          element(element) {
-            if (!element.hasAttribute("src")) element.setAttribute("nonce", nonce);
-          },
-        })
-        .on("style", {
-          element(element) {
-            element.setAttribute("nonce", nonce);
-          },
-        })
-        .transform(context.res);
-    }
-  };
+  return secureHeaders({
+    contentSecurityPolicy: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      imgSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      scriptSrc: ["'self'", ...cspScriptHashes],
+      styleSrc: ["'self'"],
+    },
+    permissionsPolicy: {
+      camera: [],
+      microphone: [],
+      geolocation: [],
+    },
+  });
 }
 
 export function assertSameOrigin(request: Request, issuer: string): void {

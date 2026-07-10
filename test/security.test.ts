@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { cspScriptHashes } from "../src/generated/csp-script-hashes";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken, noStore, securityHeaders } from "../src/security";
 
 interface StoredCsrfToken {
@@ -44,57 +45,19 @@ class FakeD1 {
   }
 }
 
-class TestHTMLRewriter {
-  private readonly handlers = new Map<string, HTMLRewriterElementContentHandlers>();
-
-  on(selector: string, handlers: HTMLRewriterElementContentHandlers): TestHTMLRewriter {
-    this.handlers.set(selector, handlers);
-    return this;
+function cspDirectives(response: Response): Map<string, string> {
+  const directives = new Map<string, string>();
+  for (const directive of (response.headers.get("content-security-policy") ?? "").split(";")) {
+    const [name, ...values] = directive.trim().split(/\s+/);
+    if (name) directives.set(name, values.join(" "));
   }
-
-  transform(response: Response): Response {
-    const handlers = this.handlers;
-    const body = new ReadableStream({
-      async start(controller) {
-        let html = await response.text();
-        for (const tagName of ["script", "style"]) {
-          const handler = handlers.get(tagName);
-          if (!handler?.element) continue;
-          html = html.replace(new RegExp(`<${tagName}([^>]*)>`, "gi"), (_tag, rawAttributes: string) => {
-            let attributes = rawAttributes;
-            const element = {
-              hasAttribute(name: string) {
-                return new RegExp(`(?:^|\\s)${name}(?:\\s*=|\\s|$)`, "i").test(attributes);
-              },
-              setAttribute(name: string, value: string) {
-                attributes += ` ${name}="${value}"`;
-                return this;
-              },
-            } as unknown as Element;
-            handler.element?.(element);
-            return `<${tagName}${attributes}>`;
-          });
-        }
-        controller.enqueue(new TextEncoder().encode(html));
-        controller.close();
-      },
-    });
-    const headers = new Headers(response.headers);
-    headers.delete("content-length");
-    return new Response(body, { status: response.status, statusText: response.statusText, headers });
-  }
+  return directives;
 }
 
-function extractNonce(response: Response): string {
-  const csp = response.headers.get("content-security-policy") ?? "";
-  const match = csp.match(/script-src 'self' 'nonce-([^']+)'/);
-  expect(match).not.toBeNull();
-  const nonce = match?.[1] ?? "";
-  expect(csp).toContain(`style-src 'self' 'nonce-${nonce}'`);
-  return nonce;
+async function cspHash(source: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source)));
+  return `'sha256-${btoa(String.fromCharCode(...digest))}'`;
 }
-
-afterEach(() => vi.unstubAllGlobals());
 
 describe("browser and response safety", () => {
   it("accepts the canonical origin and rejects cross-origin mutation", () => {
@@ -112,17 +75,23 @@ describe("browser and response safety", () => {
     expect(() => assertSameOrigin(new Request("https://auth.example/api"), "https://auth.example")).toThrow("invalid_origin");
   });
 
-  it("sets restrictive browser security headers with a nonce and no unsafe-inline", async () => {
+  it("allows only self and generated script hashes without nonces or unsafe-inline", async () => {
     const app = new Hono();
     app.use("*", securityHeaders());
     app.get("/", (context) => context.text("Triad"));
 
     const response = await app.request("/");
     const csp = response.headers.get("content-security-policy");
+    const directives = cspDirectives(response);
 
-    extractNonce(response);
+    expect(cspScriptHashes.length).toBeGreaterThan(0);
+    expect(cspScriptHashes).toEqual([...new Set(cspScriptHashes)].sort());
+    expect(directives.get("script-src")).toBe(["'self'", ...cspScriptHashes].join(" "));
+    expect(directives.get("style-src")).toBe("'self'");
+    expect(csp?.match(/'sha256-[^']+'/g) ?? []).toEqual(cspScriptHashes);
     expect(csp).toContain("default-src 'self'");
     expect(csp).not.toContain("'unsafe-inline'");
+    expect(csp).not.toContain("'nonce-");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
@@ -130,35 +99,18 @@ describe("browser and response safety", () => {
     expect(response.headers.get("permissions-policy")).toBe("camera=(), microphone=(), geolocation=()");
   });
 
-  it("uses a fresh nonce for every response", async () => {
+  it("does not rewrite or authorize arbitrary response markup", async () => {
+    const script = "window.untrusted = true";
+    const html = `<script>${script}</script><style>body { color: red; }</style>`;
     const app = new Hono();
     app.use("*", securityHeaders());
-    app.get("/", (context) => context.text("Triad"));
-
-    const first = extractNonce(await app.request("/"));
-    const second = extractNonce(await app.request("/"));
-
-    expect(first).not.toBe(second);
-  });
-
-  it("injects the response nonce into inline script and style elements", async () => {
-    vi.stubGlobal("HTMLRewriter", TestHTMLRewriter);
-    const app = new Hono();
-    app.use("*", securityHeaders());
-    app.get("/", () => new Response(
-      '<script>window.ready = true</script><script src="/app.js"></script><style>body { color: black; }</style>',
-      { headers: { "content-type": "text/html; charset=UTF-8", "x-route": "kept" } },
-    ));
+    app.get("/", (context) => context.html(html));
 
     const response = await app.request("/");
-    const nonce = extractNonce(response);
-    const html = await response.text();
+    const csp = response.headers.get("content-security-policy") ?? "";
 
-    expect(html).toContain(`<script nonce="${nonce}">window.ready = true</script>`);
-    expect(html).toContain('<script src="/app.js"></script>');
-    expect(html).toContain(`<style nonce="${nonce}">body { color: black; }</style>`);
-    expect(response.headers.get("x-route")).toBe("kept");
-    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    await expect(response.text()).resolves.toBe(html);
+    expect(csp).not.toContain(await cspHash(script));
   });
 
   it("clones a response with no-store cache controls", async () => {

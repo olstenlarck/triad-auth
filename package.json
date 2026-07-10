@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro build --watch & wrangler dev",
-    "build": "astro build",
+    "build": "astro build && node scripts/generate-csp-hashes.mjs",
     "deploy": "pnpm build && wrangler deploy",
     "db:local": "wrangler d1 migrations apply triad-auth --local",
     "db:remote": "wrangler d1 migrations apply triad-auth --remote",
