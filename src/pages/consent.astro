@@ -1,0 +1,77 @@
+---
+import Shell from "../components/Shell.astro";
+---
+
+<Shell title="Authorize app — Triad" mode="product">
+  <section class="transaction shell narrow" aria-labelledby="consent-title">
+    <div class="transaction-head">
+      <p>IDENTITY HANDSHAKE</p>
+      <h1 id="consent-title">CHECK THE<br /><span>CONNECTION.</span></h1>
+      <p id="consent-summary" class="lede">Loading the authorization request…</p>
+    </div>
+
+    <div id="consent-panel" class="transaction-panel" aria-live="polite" aria-busy="true">
+      <div class="request-party">
+        <div class="app-glyph" aria-hidden="true">?</div>
+        <div><span>APPLICATION</span><strong id="client-name">LOADING…</strong></div>
+        <div><span>PROVIDER</span><strong id="provider-name">—</strong></div>
+      </div>
+      <div class="disclosure-list">
+        <div><span>GLOBAL ID</span><strong>provider_sub</strong><small>Stable across apps for this provider.</small></div>
+        <div><span>APP ID</span><strong>pairwise_sub</strong><small>Unique to this application.</small></div>
+        <div><span>PROFILE DATA</span><strong>NONE</strong><small>No email, name, avatar, or provider token.</small></div>
+      </div>
+    </div>
+
+    <p id="consent-error" class="error-message" role="alert" hidden></p>
+    <div class="actions transaction-actions">
+      <button id="approve" class="button primary" type="button" disabled>CONTINUE</button>
+      <button id="deny" class="button secondary" type="button" disabled>CANCEL</button>
+    </div>
+    <p class="fine-print">The app receives signed identifiers, not access to your provider account.</p>
+  </section>
+
+  <script>
+    const request = new URLSearchParams(location.search).get("request");
+    const panel = document.querySelector<HTMLElement>("#consent-panel")!;
+    const approve = document.querySelector<HTMLButtonElement>("#approve")!;
+    const deny = document.querySelector<HTMLButtonElement>("#deny")!;
+    const error = document.querySelector<HTMLElement>("#consent-error")!;
+
+    function fail(message: string) {
+      error.textContent = message;
+      error.hidden = false;
+      panel.setAttribute("aria-busy", "false");
+    }
+
+    async function act(action: "approve" | "deny") {
+      approve.disabled = true;
+      deny.disabled = true;
+      const response = await fetch(`/api/consent/${encodeURIComponent(request ?? "")}/${action}`, { method: "POST" });
+      const body = await response.json() as { redirect_to?: string; error_description?: string };
+      if (!response.ok || !body.redirect_to) return fail(body.error_description ?? "This request could not be completed.");
+      location.assign(body.redirect_to);
+    }
+
+    if (!request) {
+      fail("This authorization request is missing its ticket.");
+    } else {
+      fetch(`/api/consent/${encodeURIComponent(request)}`)
+        .then(async (response) => ({ response, body: await response.json() as { client_name?: string; provider?: string; error_description?: string } }))
+        .then(({ response, body }) => {
+          if (!response.ok) return fail(body.error_description ?? "This authorization request expired.");
+          document.querySelector("#client-name")!.textContent = body.client_name ?? "UNKNOWN APP";
+          document.querySelector("#provider-name")!.textContent = (body.provider ?? "—").toUpperCase();
+          document.querySelector("#consent-summary")!.textContent = `${body.client_name} wants you to sign in with ${body.provider}.`;
+          document.querySelector(".app-glyph")!.textContent = (body.client_name ?? "A").slice(0, 1).toUpperCase();
+          approve.textContent = `CONTINUE WITH ${(body.provider ?? "PROVIDER").toUpperCase()}`;
+          panel.setAttribute("aria-busy", "false");
+          approve.disabled = false;
+          deny.disabled = false;
+        })
+        .catch(() => fail("The broker could not load this request."));
+    }
+    approve.addEventListener("click", () => act("approve"));
+    deny.addEventListener("click", () => act("deny"));
+  </script>
+</Shell>

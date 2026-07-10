@@ -1,0 +1,79 @@
+---
+import Shell from "../components/Shell.astro";
+---
+
+<Shell title="Triad — global and pairwise identity" description="A small OAuth broker for Google, GitHub, and X with global, account, and per-app identifiers.">
+  <section class="hero shell">
+    <p class="hero-signal">THREE PROVIDERS. TWO USEFUL IDS.</p>
+    <h1>IDENTITY,<br /><span>BOTH WAYS.</span></h1>
+    <div class="hero-bottom">
+      <p>
+        Global when your apps need continuity. Pairwise when they need isolation.
+        One small broker for Google, GitHub, X, and devices without keyboards.
+      </p>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/olstenlarck/triad-auth">VIEW SOURCE ↗</a>
+        <a class="button secondary" href="#quickstart">QUICKSTART ↓</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="identity-model shell" aria-labelledby="identity-title">
+    <div class="section-heading">
+      <h2 id="identity-title">ONE LOGIN.<br />NO IDENTITY GUESSING.</h2>
+      <p>Email is profile data, not a key. Every token names exactly which identity contract it carries.</p>
+    </div>
+    <dl class="claim-ledger">
+      <div>
+        <dt>provider_sub</dt>
+        <dd>google:107691503…</dd>
+        <p>Stable across apps. Namespaced to the upstream provider.</p>
+      </div>
+      <div>
+        <dt>account_sub</dt>
+        <dd>acct_oD4s93…</dd>
+        <p>Broker-global. Shared across providers only after explicit linking.</p>
+      </div>
+      <div class="signal-row">
+        <dt>pairwise_sub</dt>
+        <dd>ps_9cqUe7…</dd>
+        <p>Stable inside one app. Different client, different identifier.</p>
+      </div>
+    </dl>
+  </section>
+
+  <section class="provider-band" aria-label="Supported identity providers">
+    <div class="shell provider-list">
+      <span>GOOGLE</span><span>GITHUB</span><span>X / TWITTER</span><span>+ DEVICE FLOW</span>
+    </div>
+  </section>
+
+  <section id="quickstart" class="quickstart shell" aria-labelledby="quickstart-title">
+    <div class="section-heading compact">
+      <h2 id="quickstart-title">POINT. REDIRECT. VERIFY.</h2>
+      <p>Authorization Code + mandatory S256 PKCE. ES256 tokens. Standard JWKS.</p>
+    </div>
+    <div class="code-window" role="region" aria-label="Authorization request example" tabindex="0">
+      <div class="code-meta"><span>GET /authorize</span><span>01 / 03</span></div>
+      <pre><code>?client_id=my-app
+&amp;provider=github
+&amp;redirect_uri=https://app.example/callback
+&amp;code_challenge=...
+&amp;code_challenge_method=S256</code></pre>
+    </div>
+    <ol class="flow-list">
+      <li><strong>Broker the provider.</strong><span>Triad handles Google, GitHub, or X and discards upstream access tokens.</span></li>
+      <li><strong>Exchange once.</strong><span>Your app exchanges the short-lived code with its PKCE verifier.</span></li>
+      <li><strong>Verify locally.</strong><span>Check ES256, issuer, audience, and expiry against the published JWKS.</span></li>
+    </ol>
+  </section>
+
+  <section class="device-callout shell" aria-labelledby="device-title">
+    <p class="device-code" aria-hidden="true">F7KQ—2M9X</p>
+    <div>
+      <h2 id="device-title">NO KEYBOARD?<br /><span>NO PROBLEM.</span></h2>
+      <p>Issue a device code, let the user approve it in any browser, then poll the standard token endpoint.</p>
+      <a class="text-link" href="/device/verify/">OPEN DEVICE VERIFICATION →</a>
+    </div>
+  </section>
+</Shell>

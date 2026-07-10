@@ -1,0 +1,62 @@
+---
+import Shell from "../../components/Shell.astro";
+---
+
+<Shell title="Authorize device — Triad" mode="product">
+  <section class="transaction shell narrow" aria-labelledby="device-title">
+    <div class="transaction-head">
+      <p>DEVICE FLOW</p>
+      <h1 id="device-title">PAIR THIS<br /><span>DEVICE.</span></h1>
+      <p class="lede">Enter the code shown on your device, check the requesting app, then choose a provider.</p>
+    </div>
+
+    <form class="device-form" method="post" action="/device/verify">
+      <label for="user-code">DEVICE CODE</label>
+      <input id="user-code" name="user_code" inputmode="text" autocomplete="one-time-code" maxlength="9" placeholder="ABCD—2345" required />
+      <div id="device-app" class="device-app" aria-live="polite" hidden>
+        <span>REQUESTING APP</span><strong id="device-client">—</strong>
+      </div>
+      <fieldset>
+        <legend>CONTINUE WITH</legend>
+        <label><input type="radio" name="provider" value="google" checked /><span>GOOGLE</span></label>
+        <label><input type="radio" name="provider" value="github" /><span>GITHUB</span></label>
+        <label><input type="radio" name="provider" value="x" /><span>X</span></label>
+      </fieldset>
+      <button class="button primary" type="submit">AUTHORIZE DEVICE</button>
+    </form>
+    <p id="device-error" class="error-message" role="alert" hidden></p>
+    <p class="fine-print">Only continue if this code exactly matches the one on your device.</p>
+  </section>
+
+  <script>
+    const input = document.querySelector<HTMLInputElement>("#user-code")!;
+    const box = document.querySelector<HTMLElement>("#device-app")!;
+    const error = document.querySelector<HTMLElement>("#device-error")!;
+    const fromUrl = new URLSearchParams(location.search).get("user_code") ?? "";
+
+    function format(value: string) {
+      const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+      return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+    }
+
+    async function inspect() {
+      if (input.value.replace(/[^A-Z0-9]/gi, "").length !== 8) return;
+      const response = await fetch(`/api/device/${encodeURIComponent(input.value)}`);
+      const body = await response.json() as { client_name?: string; error_description?: string };
+      if (!response.ok) {
+        box.hidden = true;
+        error.textContent = body.error_description ?? "That device code is invalid or expired.";
+        error.hidden = false;
+        return;
+      }
+      document.querySelector("#device-client")!.textContent = body.client_name ?? "UNKNOWN APP";
+      error.hidden = true;
+      box.hidden = false;
+    }
+
+    input.value = format(fromUrl);
+    input.addEventListener("input", () => { input.value = format(input.value); box.hidden = true; error.hidden = true; });
+    input.addEventListener("change", inspect);
+    if (fromUrl) inspect();
+  </script>
+</Shell>

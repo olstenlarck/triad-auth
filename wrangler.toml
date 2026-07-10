@@ -1,0 +1,25 @@
+name = "triad-auth-broker"
+main = "src/index.ts"
+compatibility_date = "2026-07-10"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "triad-auth"
+database_id = "REPLACE_ME"
+migrations_dir = "migrations"
+
+[vars]
+ISSUER = "http://localhost:8787"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
+run_worker_first = ["/authorize", "/callback/*", "/token", "/device/code", "/device/verify", "/session/*", "/api/*", "/.well-known/*"]
+
+# Add secrets with `wrangler secret put NAME`:
+# SIGNING_PRIVATE_JWK, PAIRWISE_SECRET
+# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+# GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
+# X_CLIENT_ID, X_CLIENT_SECRET

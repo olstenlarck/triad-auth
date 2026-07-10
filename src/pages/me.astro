@@ -1,0 +1,87 @@
+---
+import Shell from "../components/Shell.astro";
+---
+
+<Shell title="Your identity — Triad" mode="product">
+  <section class="account shell" aria-labelledby="account-title">
+    <div class="account-heading">
+      <p>YOUR BROKER SESSION</p>
+      <h1 id="account-title">YOUR<br /><span>IDENTITY.</span></h1>
+      <p id="account-summary" class="lede">Loading your broker session…</p>
+    </div>
+
+    <div id="signed-out" class="signed-out" hidden>
+      <p>Sign in to inspect your broker account, linked providers, and authorized applications.</p>
+      <div class="actions">
+        <a class="button primary" href="/session/start/google">GOOGLE</a>
+        <a class="button secondary" href="/session/start/github">GITHUB</a>
+        <a class="button secondary" href="/session/start/x">X</a>
+      </div>
+    </div>
+
+    <div id="account-content" hidden>
+      <section class="account-panel" aria-labelledby="ids-title">
+        <h2 id="ids-title">IDENTIFIERS</h2>
+        <dl class="account-ids">
+          <div><dt>ACCOUNT SUB</dt><dd id="account-sub">—</dd></div>
+          <div><dt>LINKED IDENTITIES</dt><dd id="identity-list">—</dd></div>
+        </dl>
+      </section>
+
+      <section class="account-panel" aria-labelledby="apps-title">
+        <div class="panel-heading"><h2 id="apps-title">AUTHORIZED APPS</h2><span id="app-count">0</span></div>
+        <div id="authorized-apps" class="authorized-apps"></div>
+      </section>
+    </div>
+    <p id="me-error" class="error-message" role="alert" hidden></p>
+  </section>
+
+  <script>
+    const content = document.querySelector<HTMLElement>("#account-content")!;
+    const signedOut = document.querySelector<HTMLElement>("#signed-out")!;
+    const error = document.querySelector<HTMLElement>("#me-error")!;
+
+    async function load() {
+      const response = await fetch("/api/me");
+      if (response.status === 401) {
+        document.querySelector("#account-summary")!.textContent = "No active broker session on this browser.";
+        signedOut.hidden = false;
+        return;
+      }
+      const body = await response.json() as {
+        account_sub?: string;
+        identities?: string[];
+        clients?: Array<{ client_id: string; name: string; updated_at: number }>;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(body.error ?? "Could not load your session.");
+      document.querySelector("#account-summary")!.textContent = "This is the identity map Triad holds for you.";
+      document.querySelector("#account-sub")!.textContent = body.account_sub ?? "—";
+      document.querySelector("#identity-list")!.textContent = body.identities?.join(" · ") || "NONE";
+      const clients = body.clients ?? [];
+      document.querySelector("#app-count")!.textContent = String(clients.length);
+      const list = document.querySelector<HTMLElement>("#authorized-apps")!;
+      if (!clients.length) list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;
+      for (const client of clients) {
+        const row = document.createElement("article");
+        row.className = "authorized-app";
+        const title = document.createElement("h3");
+        title.textContent = client.name;
+        const id = document.createElement("code");
+        id.textContent = client.client_id;
+        const button = document.createElement("button");
+        button.className = "button danger";
+        button.textContent = "REVOKE";
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          const revoked = await fetch(`/api/me/clients/${encodeURIComponent(client.client_id)}`, { method: "DELETE" });
+          if (revoked.ok) row.remove(); else button.disabled = false;
+        });
+        row.append(title, id, button);
+        list.append(row);
+      }
+      content.hidden = false;
+    }
+    load().catch((reason: Error) => { error.textContent = reason.message; error.hidden = false; });
+  </script>
+</Shell>

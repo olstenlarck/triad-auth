@@ -1,0 +1,45 @@
+---
+import "@fontsource-variable/archivo";
+import "@fontsource-variable/jetbrains-mono";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description?: string;
+  mode?: "brand" | "product";
+}
+
+const {
+  title,
+  description = "A small identity broker for Google, GitHub, and X.",
+  mode = "brand",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-mode={mode}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="oklch(0.08 0 0)" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <header class="site-header shell">
+      <a class="wordmark" href="/" aria-label="Triad home">triad<span>/</span></a>
+      <nav aria-label="Main navigation">
+        <a href="/.well-known/openid-configuration">DISCOVERY</a>
+        <a href="/me/">ME</a>
+        <a href="https://github.com/olstenlarck/triad-auth">GITHUB ↗</a>
+      </nav>
+    </header>
+    <main id="content"><slot /></main>
+    <footer class="site-footer shell">
+      <span>GOOGLE · GITHUB · X</span>
+      <span>AUTHORIZATION CODE + DEVICE FLOW</span>
+      <span>OPEN SOURCE</span>
+    </footer>
+  </body>
+</html>
