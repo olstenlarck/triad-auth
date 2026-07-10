@@ -260,6 +260,20 @@ import Shell from "../../components/Shell.astro";
       deviceController.abort();
     }
 
+    function clearDevicePresentation() {
+      deviceInstructions.hidden = true;
+      deviceIdentity.hidden = true;
+      document.querySelector<HTMLElement>("#demo-user-code")!.textContent = "";
+      document.querySelector<HTMLElement>("#device-expiry")!.textContent = "";
+      document.querySelector<HTMLAnchorElement>("#verification-link")!.href = "/device/verify/";
+      document.querySelector<HTMLElement>("#device-pairwise")!.textContent = "";
+      document.querySelector<HTMLElement>("#device-account")!.textContent = "";
+      document.querySelector<HTMLElement>("#device-provider")!.textContent = "";
+      const profileClaims = document.querySelector<HTMLElement>("#device-profile-claims")!;
+      profileClaims.replaceChildren();
+      profileClaims.parentElement!.hidden = true;
+    }
+
     function renderIdentity(identity: VerifiedIdentity) {
       document.querySelector<HTMLElement>("#device-pairwise")!.textContent = identity.pairwiseSub;
       document.querySelector<HTMLElement>("#device-account")!.textContent = identity.accountSub;
@@ -434,9 +448,30 @@ import Shell from "../../components/Shell.astro";
       }
     });
 
+    function resetRestoredPage() {
+      stopDeviceFlow();
+      activeFlow = null;
+      activeDeviceCode = "";
+      tokenEndpoint = "";
+      expiresAt = 0;
+      intervalMs = 5_000;
+      deviceController = new AbortController();
+      clearDevicePresentation();
+      sessionStorage.removeItem("triad_demo_state");
+      sessionStorage.removeItem("triad_demo_verifier");
+      deviceStart.textContent = "START DEVICE FLOW";
+      updateRequestControls(false);
+      message(browserStatus, "This page was restored from browser history. Start a new flow.");
+      message(deviceStatus, "Browser history restored. No previous device request was resumed. Start a new flow.");
+    }
+
     providerOptions.addEventListener("change", () => updateRequestControls());
     providerRetry.addEventListener("click", () => { void loadProviderControls(); });
     window.addEventListener("pagehide", stopDeviceFlow);
+    window.addEventListener("pageshow", (event) => {
+      if (!event.persisted) return;
+      resetRestoredPage();
+    });
     void loadProviderControls();
   </script>
 </Shell>

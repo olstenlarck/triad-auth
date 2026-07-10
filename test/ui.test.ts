@@ -172,6 +172,32 @@ it("locks the shared provider request while either demo flow is active", async (
   expect(demo.match(/finishFlow\("device"\)/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
 });
 
+it("resets stale demo state after persisted pageshow without resuming a grant", async () => {
+  const demo = await readFile("src/pages/demo/index.astro", "utf8");
+  const reset = demo.slice(
+    demo.indexOf("function resetRestoredPage"),
+    demo.indexOf('providerOptions.addEventListener("change"'),
+  );
+
+  expect(demo).toContain('window.addEventListener("pageshow", (event) => {');
+  expect(demo).toContain("if (!event.persisted) return;");
+  expect(demo).toContain("resetRestoredPage();");
+  expect(reset).toContain("stopDeviceFlow();");
+  expect(reset).toContain("activeFlow = null;");
+  expect(reset).toContain('activeDeviceCode = "";');
+  expect(reset).toContain('tokenEndpoint = "";');
+  expect(reset).toContain("expiresAt = 0;");
+  expect(reset).toContain("deviceController = new AbortController();");
+  expect(reset).toContain("clearDevicePresentation();");
+  expect(reset).toContain('sessionStorage.removeItem("triad_demo_state")');
+  expect(reset).toContain('sessionStorage.removeItem("triad_demo_verifier")');
+  expect(reset).toContain('deviceStart.textContent = "START DEVICE FLOW";');
+  expect(reset).toContain("updateRequestControls(false);");
+  expect(reset).toContain("Start a new flow.");
+  expect(reset).not.toContain("schedulePoll");
+  expect(reset).not.toContain("pollDevice");
+});
+
 it("offers keyboard-accessible provider retries on demo and account errors", async () => {
   const [demo, account, css] = await Promise.all([
     readFile("src/pages/demo/index.astro", "utf8"),
