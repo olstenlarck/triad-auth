@@ -17,6 +17,9 @@
 - ID tokens and token response `expires_in` values are exactly 300 seconds; device-code lifetime remains 600 seconds.
 - Google requests only `openid`; GitHub requests no profile scope; Twitter requests only scopes required for `/2/users/me`.
 - Missing provider credentials exclude that provider from `/api/providers` and reject transactional starts before state creation.
+- Default scope is `openid`; optional mandatory request scopes are exactly `email`, `handle`, `name`, and `avatar`.
+- Requested profile scopes are all-or-nothing at consent and map to standard JWT claims; no unrequested profile claim may be fetched, stored, or emitted.
+- Transient profile claims are AES-GCM encrypted in D1 and bound to their grant hash; consents persist only scope names.
 - Product-level UI and copy describe Triad, not a GitHub broker; provider names appear only for support, selection, consent, and setup.
 - Preserve the existing near-black/olive, square-rule switchboard visual system and accessibility behavior.
 - Never commit or print client secrets.
@@ -152,7 +155,87 @@ git add src/types.ts src/providers.ts src/routes/oauth.ts src/routes/device.ts s
 git commit -m "feat: add Google and Twitter adapters"
 ```
 
-### Task 3: Persist Provider Choice Through Browser And Device Flows
+### Task 3: Privacy Scopes, Provider Claims, And Encrypted Transit
+
+**Files:**
+- Create: `src/claims.ts`
+- Modify: `src/crypto.ts`
+- Modify: `src/providers.ts`
+- Modify: `src/tokens.ts`
+- Modify: `src/types.ts`
+- Create: `test/claims.test.ts`
+- Modify: `test/providers.test.ts`
+- Modify: `test/tokens.test.ts`
+
+**Interfaces:**
+- Produces: `ProfileScope = "email" | "handle" | "name" | "avatar"` and canonical `Scope` lists.
+- Produces: `parseScopes(value?: string): Scope[]`, `serializeScopes(scopes): string`, `providerScopes(provider): ProfileScope[]`, and `validateProviderScopes(provider, scopes): void`.
+- Produces: `sealClaims(secret, context, claims): Promise<string>` and `openClaims(secret, context, ciphertext): Promise<ProfileClaims>`.
+- Changes: provider start/finish accept canonical scopes and finish returns only requested standard claims.
+- Changes: `issueIdToken` accepts optional `ProfileClaims` and emits no unrequested fields.
+
+- [ ] **Step 1: Write failing scope, encryption, provider, and token tests**
+
+```ts
+it("defaults to identity only and canonicalizes requested scopes", () => {
+  expect(parseScopes()).toEqual(["openid"]);
+  expect(parseScopes("avatar openid email")).toEqual(["openid", "email", "avatar"]);
+  expect(() => parseScopes("email")).toThrow("invalid_scope");
+  expect(() => parseScopes("openid phone")).toThrow("invalid_scope");
+});
+
+it("enforces provider capabilities", () => {
+  expect(() => validateProviderScopes("google", parseScopes("openid handle"))).toThrow("invalid_scope");
+  expect(() => validateProviderScopes("twitter", parseScopes("openid email"))).toThrow("invalid_scope");
+  expect(() => validateProviderScopes("github", parseScopes("openid email handle name avatar"))).not.toThrow();
+});
+
+it("encrypts claims with grant-bound authenticated data", async () => {
+  const sealed = await sealClaims("s".repeat(32), "code:abc", { email: "user@example.com", email_verified: true });
+  expect(sealed).not.toContain("user@example.com");
+  await expect(openClaims("s".repeat(32), "code:abc", sealed)).resolves.toEqual({ email: "user@example.com", email_verified: true });
+  await expect(openClaims("s".repeat(32), "code:other", sealed)).rejects.toThrow();
+});
+```
+
+Provider tests assert Google requests only mapped `email`/`profile`, GitHub requests `user:email` only for email and chooses verified primary, Twitter requests only mapped user fields, and a missing mandatory account value fails. Token tests assert standard claims appear only when passed.
+
+- [ ] **Step 2: Run focused tests and verify RED**
+
+Run: `pnpm vitest run test/claims.test.ts test/providers.test.ts test/tokens.test.ts`
+Expected: FAIL because claim interfaces, encryption, and scope-aware adapters are absent.
+
+- [ ] **Step 3: Implement canonical mandatory scopes and encrypted claims**
+
+Canonical order is `openid email handle name avatar`. Map scopes to claims:
+
+```ts
+export interface ProfileClaims {
+  email?: string;
+  email_verified?: boolean;
+  preferred_username?: string;
+  name?: string;
+  picture?: string;
+}
+```
+
+Derive an AES-256-GCM key from `PAIRWISE_SECRET` using HKDF-SHA256 with salt `triad-auth-claims-v1` and info `claims-encryption`. Use a fresh 12-byte IV and the supplied row context as additional authenticated data. Encode a versioned base64url payload containing IV and ciphertext.
+
+Update adapter scope mapping and reject a successful upstream response missing any mandatory requested claim. Extend `issueIdToken` by spreading only validated profile claims into the signed payload.
+
+- [ ] **Step 4: Run focused/full tests and typecheck**
+
+Run: `pnpm vitest run test/claims.test.ts test/providers.test.ts test/tokens.test.ts && pnpm test && pnpm typecheck`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/claims.ts src/crypto.ts src/providers.ts src/tokens.ts src/types.ts test/claims.test.ts test/providers.test.ts test/tokens.test.ts
+git commit -m "feat: add privacy-scoped claims"
+```
+
+### Task 4: Persist Provider Choice And Mandatory Scopes Through Flows
 
 **Files:**
 - Modify: `src/db.ts`
@@ -171,6 +254,7 @@ git commit -m "feat: add Google and Twitter adapters"
 - Persists: provider verifier/nonce in `oauth_transactions` and provider in `device_grants`.
 - Requires: device verification provider must equal stored grant provider.
 - Produces: account API identity values as opaque `provider_sub` values, never raw upstream IDs.
+- Persists: canonical requested scopes and grant-bound encrypted profile claims through one-time code and device exchanges.
 
 - [ ] **Step 1: Write failing route and migration tests**
 
@@ -185,6 +269,13 @@ it("persists the selected Twitter provider on a device grant", async () => {
   const row = await db.prepare("SELECT provider FROM device_grants").first<{ provider: string }>();
   expect(row?.provider).toBe("twitter");
 });
+
+it("returns only requested mandatory claims and scope at token exchange", async () => {
+  const token = await completeAuthorization({ scope: "openid email name" });
+  expect(token.scope).toBe("openid email name");
+  expect(token.claims).toMatchObject({ email: "user@example.com", name: "User" });
+  expect(token.claims).not.toHaveProperty("preferred_username");
+});
 ```
 
 Cover unconfigured-provider rejection before inserts, Google nonce persistence, Twitter verifier persistence, callback provider matching, all three session starts, and migration allowlists.
@@ -196,14 +287,19 @@ Expected: FAIL on provider selection and missing migration column.
 
 - [ ] **Step 3: Implement provider-aware routes and migration**
 
-Pass provider into every adapter call. Store `start.verifier` and `start.nonce` in transactions and forward both to callback completion. Require `/device/code` provider, store it in the grant, return it during inspection, and reject mismatches at verification. Add `0002_multi_provider.sql`:
+Pass provider and canonical scopes into every adapter call. Store `start.verifier`, `start.nonce`, and scopes in transactions and forward them to callback completion. Require `/device/code` provider, store provider and scopes in the grant, return both during inspection, and reject mismatches at verification. Encrypt callback claims with authorization-code hash or device-code hash AAD; decrypt only after atomic grant consumption; return canonical `scope`; and persist only scope names in consent. Add `0002_multi_provider.sql` with required `scopes` and `claims_ciphertext` columns:
 
 ```sql
 DELETE FROM consent_requests;
 DELETE FROM oauth_transactions;
 DELETE FROM authorization_codes;
 DELETE FROM device_grants;
+ALTER TABLE oauth_transactions ADD COLUMN scopes TEXT NOT NULL DEFAULT '["openid"]';
+ALTER TABLE authorization_codes ADD COLUMN scopes TEXT NOT NULL DEFAULT '["openid"]';
+ALTER TABLE authorization_codes ADD COLUMN claims_ciphertext TEXT;
 ALTER TABLE device_grants ADD COLUMN provider TEXT NOT NULL DEFAULT 'github';
+ALTER TABLE device_grants ADD COLUMN scopes TEXT NOT NULL DEFAULT '["openid"]';
+ALTER TABLE device_grants ADD COLUMN claims_ciphertext TEXT;
 UPDATE clients SET providers = '["google","github","twitter"]'
 WHERE client_id IN ('triad-demo', 'triad-account');
 ```
@@ -219,10 +315,10 @@ Expected: PASS.
 
 ```bash
 git add src/db.ts src/routes migrations test/oauth.test.ts test/device.test.ts test/account.test.ts test/d1.ts
-git commit -m "feat: route all Triad providers"
+git commit -m "feat: route scoped Triad identities"
 ```
 
-### Task 4: Provider-Neutral Triad UI
+### Task 5: Provider-Neutral Triad UI And Mandatory Consent
 
 **Files:**
 - Modify: `src/components/Shell.astro`
@@ -239,7 +335,7 @@ git commit -m "feat: route all Triad providers"
 
 **Interfaces:**
 - Consumes: `/api/providers` and persisted provider from consent/device inspection.
-- Produces: accessible provider selector and dynamic transactional copy.
+- Produces: accessible provider/scope request controls in the demo and fixed all-or-nothing disclosure in consent/device verification.
 
 - [ ] **Step 1: Write failing static UI tests**
 
@@ -259,7 +355,7 @@ it("uses twitter and never x as provider vocabulary", async () => {
 });
 ```
 
-Assert demo/account fetch `/api/providers`, consent/device render API provider values, and no raw `github:<id>` examples remain.
+Assert demo/account fetch `/api/providers`, demo sends selected optional scopes, consent/device render API provider values and every mandatory requested claim without editable claim checkboxes, and no raw `github:<id>` examples remain.
 
 - [ ] **Step 2: Run UI tests and verify RED**
 
@@ -268,7 +364,7 @@ Expected: FAIL on GitHub-only copy and controls.
 
 - [ ] **Step 3: Implement neutral copy and provider controls**
 
-Keep the existing design system. Add one square ruled provider selector to the demo; use the selected enabled provider for browser and device requests. Populate account sign-in actions from `/api/providers`. Device inspection returns and locks its provider. Consent uses `body.provider` for heading, action, disclosure, and no-profile copy. Replace product copy with provider-neutral language and opaque examples such as `prv_twitter_R4...`.
+Keep the existing design system. Add one square ruled provider selector and client-request scope controls to the demo; scope controls default off and express what the demo client requests, not a user consent subset. Use selected enabled provider and capability data for browser and device requests. Populate account sign-in actions from `/api/providers`. Device inspection returns and locks provider/scopes. Consent lists every requested claim as mandatory and offers one approve or deny action with no editable checkboxes. Replace product copy with provider-neutral language and opaque examples such as `prv_twitter_R4...`.
 
 - [ ] **Step 4: Build and run UI tests**
 
@@ -279,10 +375,10 @@ Expected: PASS and CSP hashes regenerate.
 
 ```bash
 git add src/components src/pages src/styles src/scripts PRODUCT.md DESIGN.md test/ui.test.ts src/generated/csp-script-hashes.ts
-git commit -m "feat: present provider-neutral Triad"
+git commit -m "feat: present privacy-first Triad consent"
 ```
 
-### Task 5: Configuration, Provider Setup Links, Deployment, And Verification
+### Task 6: Configuration, Provider Setup Links, Deployment, And Verification
 
 **Files:**
 - Modify: `.dev.vars.example`
