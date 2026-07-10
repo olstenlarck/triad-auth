@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
-import { parseScopes, serializeScopes, validateProviderScopes } from "../claims";
+import { parseScopes, providerScopes, serializeScopes, validateProviderScopes } from "../claims";
 import { cleanupExpiredState } from "../cleanup";
 import { openClaims, providerSubject, randomToken, sealClaims, sha256, timingSafeEqual } from "../crypto";
 import {
@@ -17,7 +17,7 @@ import {
   resolveIdentity,
   validateClient,
 } from "../db";
-import { enabledProviders, finishProvider, startProvider } from "../providers";
+import { enabledProviders, finishProvider, MandatoryProfileValueError, startProvider } from "../providers";
 import {
   clearPreAuthCookie,
   createPreAuthBinding,
@@ -28,7 +28,7 @@ import { validatePkceChallenge, validatePkceVerifier } from "../protocol";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken } from "../security";
 import { issueIdToken, publicJwk } from "../tokens";
-import type { Env, ProviderName, Scope } from "../types";
+import type { Env, ProviderName, Scope, TransactionRow } from "../types";
 
 const now = () => Math.floor(Date.now() / 1000);
 const consentPurpose = (requestHash: string) => `consent:${requestHash}`;
@@ -163,6 +163,26 @@ async function rotateBrowserSession(
   });
 }
 
+async function finishAccessDenied(
+  c: Context<{ Bindings: Env }>,
+  tx: TransactionRow,
+): Promise<Response> {
+  if (tx.kind === "device") {
+    if (!tx.device_code_hash || !(await denyDeviceGrant(c.env.DB, tx.device_code_hash))) {
+      return oauthError("invalid_grant", "device request expired");
+    }
+    return c.html("<!doctype html><meta charset=utf-8><title>Denied</title><h1>Denied</h1><p>You can return to your device.</p>");
+  }
+  if (tx.kind === "authorization_code") {
+    if (!tx.redirect_uri || !tx.app_state) return oauthError("server_error", undefined, 500);
+    const target = new URL(tx.redirect_uri);
+    target.searchParams.set("error", "access_denied");
+    target.searchParams.set("state", tx.app_state);
+    return c.redirect(target.toString(), 302);
+  }
+  return c.redirect(`${c.env.ISSUER}/me/?error=access_denied`, 302);
+}
+
 oauthRoutes.use("*", async (c, next) => {
   await next();
   c.header("cache-control", "no-store");
@@ -189,7 +209,9 @@ oauthRoutes.get("/.well-known/openid-configuration", (c) => c.json({
 
 oauthRoutes.get("/.well-known/jwks.json", async (c) => c.json({ keys: [await publicJwk(c.env)] }));
 
-oauthRoutes.get("/api/providers", (c) => c.json({ providers: enabledProviders(c.env) }));
+oauthRoutes.get("/api/providers", (c) => c.json({
+  providers: enabledProviders(c.env).map((provider) => ({ id: provider, scopes: providerScopes(provider) })),
+}));
 
 oauthRoutes.get("/authorize", async (c) => {
   if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "authorization-start", 20))) {
@@ -278,7 +300,7 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
       row.code_challenge, start.verifier ?? null, start.nonce ?? null, row.scopes,
       binding.hash, now() + 600, now(),
     ).run();
-  setPreAuthCookie(c, stateHash, binding.token);
+  setPreAuthCookie(c, stateHash, binding.token, row.provider);
   return c.json({ redirect_to: start.url });
 });
 
@@ -318,34 +340,25 @@ oauthRoutes.get("/callback/:provider", async (c) => {
   if (!browserBinding) return oauthError("invalid_grant", "expired or invalid state");
   const tx = await consumeTransaction(c.env.DB, stateHash, await sha256(browserBinding));
   if (!tx || tx.provider !== provider) return oauthError("invalid_grant", "expired or invalid state");
-  clearPreAuthCookie(c, stateHash);
+  clearPreAuthCookie(c, stateHash, tx.provider);
 
-  if (denied) {
-    if (tx.kind === "device") {
-      if (!tx.device_code_hash || !(await denyDeviceGrant(c.env.DB, tx.device_code_hash))) {
-        return oauthError("invalid_grant", "device request expired");
-      }
-      return c.html("<!doctype html><meta charset=utf-8><title>Denied</title><h1>Denied</h1><p>You can return to your device.</p>");
-    }
-    if (tx.kind === "authorization_code") {
-      if (!tx.redirect_uri || !tx.app_state) return oauthError("server_error", undefined, 500);
-      const target = new URL(tx.redirect_uri);
-      target.searchParams.set("error", "access_denied");
-      target.searchParams.set("state", tx.app_state);
-      return c.redirect(target.toString(), 302);
-    }
-    return oauthError("access_denied");
-  }
+  if (denied) return finishAccessDenied(c, tx);
 
   const scopes = parseStoredScopes(tx.scopes);
-  const identity = await finishProvider(
-    tx.provider,
-    c.env,
-    code!,
-    tx.provider_verifier ?? undefined,
-    tx.provider_nonce ?? undefined,
-    scopes,
-  );
+  let identity;
+  try {
+    identity = await finishProvider(
+      tx.provider,
+      c.env,
+      code!,
+      tx.provider_verifier ?? undefined,
+      tx.provider_nonce ?? undefined,
+      scopes,
+    );
+  } catch (error) {
+    if (error instanceof MandatoryProfileValueError) return finishAccessDenied(c, tx);
+    throw error;
+  }
   const accountId = await resolveIdentity(c.env.DB, identity);
   const providerSub = await providerSubject(c.env.PAIRWISE_SECRET, identity.provider, identity.id);
 
@@ -373,10 +386,10 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     : null;
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO authorization_codes
-    (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge,
+    (code_hash, client_id, redirect_uri, account_id, provider, provider_sub, code_challenge,
       scopes, claims_ciphertext, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
-      codeHash, tx.client_id, tx.redirect_uri, accountId, providerSub, tx.code_challenge,
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      codeHash, tx.client_id, tx.redirect_uri, accountId, tx.provider, providerSub, tx.code_challenge,
       tx.scopes, claimsCiphertext, now() + 120,
     ).run();
   await rotateBrowserSession(c, accountId);
@@ -423,6 +436,11 @@ oauthRoutes.post("/token", async (c) => {
     const candidate = await getAuthorizationCode(c.env.DB, codeHash, clientId, redirectUri);
     if (!candidate || !timingSafeEqual(await sha256(verifier), candidate.code_challenge)) {
       return oauthError("invalid_grant");
+    }
+    try {
+      validateClient(client, redirectUri, candidate.provider, c.env.ISSUER);
+    } catch {
+      return oauthError("invalid_client");
     }
     const row = await consumeAuthorizationCode(c.env.DB, codeHash, clientId, redirectUri);
     if (!row) return oauthError("invalid_grant");

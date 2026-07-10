@@ -3,13 +3,14 @@ import type { ClientRow, ProviderIdentity, ProviderName, Scope, TransactionRow }
 
 export interface AuthorizationCodeRow {
   account_id: string;
+  provider: ProviderName;
   provider_sub: string;
   code_challenge: string;
   scopes: string;
   claims_ciphertext: string | null;
 }
 
-type AuthorizationCodeCandidateRow = Pick<AuthorizationCodeRow, "code_challenge">;
+type AuthorizationCodeCandidateRow = Pick<AuthorizationCodeRow, "code_challenge" | "provider">;
 
 export interface DeviceGrantStateRow {
   client_id: string;
@@ -73,7 +74,7 @@ export async function getAuthorizationCode(
   clientId: string,
   redirectUri: string,
 ): Promise<AuthorizationCodeCandidateRow | null> {
-  return db.prepare(`SELECT account_id, provider_sub, code_challenge FROM authorization_codes
+  return db.prepare(`SELECT code_challenge, provider FROM authorization_codes
     WHERE code_hash = ? AND client_id = ? AND redirect_uri = ? AND consumed_at IS NULL AND expires_at > unixepoch()`)
     .bind(codeHash, clientId, redirectUri).first<AuthorizationCodeCandidateRow>();
 }
@@ -86,7 +87,7 @@ export async function consumeAuthorizationCode(
 ): Promise<AuthorizationCodeRow | null> {
   return db.prepare(`UPDATE authorization_codes SET consumed_at = unixepoch()
     WHERE code_hash = ? AND client_id = ? AND redirect_uri = ? AND consumed_at IS NULL AND expires_at > unixepoch()
-    RETURNING account_id, provider_sub, code_challenge, scopes, claims_ciphertext`)
+    RETURNING account_id, provider, provider_sub, code_challenge, scopes, claims_ciphertext`)
     .bind(codeHash, clientId, redirectUri).first<AuthorizationCodeRow>();
 }
 

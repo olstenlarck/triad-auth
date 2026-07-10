@@ -69,7 +69,7 @@ accountRoutes.get("/session/start/:provider", async (c) => {
     VALUES (?, 'session', 'triad-account', ?, ?, ?, '["openid"]', ?, ?, ?)`).bind(
       stateHash, provider, start.verifier ?? null, start.nonce ?? null, binding.hash, now() + 600, now(),
     ).run();
-  setPreAuthCookie(c, stateHash, binding.token);
+  setPreAuthCookie(c, stateHash, binding.token, provider);
   return c.redirect(start.url, 302);
 });
 

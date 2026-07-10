@@ -200,7 +200,7 @@ deviceRoutes.post("/device/verify", async (c) => {
       stateHash, grant.client_id, provider, start.verifier ?? null, start.nonce ?? null,
       grant.device_code_hash, grant.scopes, binding.hash, now() + 600, now(),
     ).run();
-  setPreAuthCookie(c, stateHash, binding.token);
+  setPreAuthCookie(c, stateHash, binding.token, provider);
   return c.json({ redirect_to: start.url });
 });
 

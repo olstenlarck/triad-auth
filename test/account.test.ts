@@ -100,6 +100,9 @@ describe("account sessions", () => {
     expect(new URL(responses[0].headers.get("location")!).hostname).toBe("accounts.google.com");
     expect(new URL(responses[1].headers.get("location")!).hostname).toBe("github.com");
     expect(new URL(responses[2].headers.get("location")!).hostname).toBe("x.com");
+    for (const [index, provider] of ["google", "github", "twitter"].entries()) {
+      expect(responses[index].headers.get("set-cookie")).toContain(`Path=/callback/${provider}`);
+    }
     const rows = await env.DB.prepare(`SELECT provider, provider_verifier, provider_nonce, scopes
       FROM oauth_transactions ORDER BY provider`).all();
     expect(rows.results).toEqual([
@@ -107,6 +110,31 @@ describe("account sessions", () => {
       { provider: "google", provider_verifier: null, provider_nonce: expect.any(String), scopes: '["openid"]' },
       { provider: "twitter", provider_verifier: expect.any(String), provider_nonce: null, scopes: '["openid"]' },
     ]);
+  });
+
+  it("recovers a session mandatory-profile failure without creating a session", async () => {
+    const env = await testEnv();
+    const state = "mandatory-session-state";
+    const stateHash = await sha256(state);
+    const binding = "mandatory-session-binding";
+    await env.DB.prepare(`INSERT INTO oauth_transactions
+      (state_hash, kind, client_id, provider, scopes, browser_binding_hash, expires_at, created_at)
+      VALUES (?, 'session', 'triad-account', 'github', '["openid","name"]', ?, unixepoch() + 600, unixepoch())`)
+      .bind(stateHash, await sha256(binding)).run();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, name: null }), { status: 200 })));
+
+    const response = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: { cookie: `${preAuthCookieName(stateHash)}=${binding}` },
+    }, env);
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(`${issuer}/me/?error=access_denied`);
+    expect(response.headers.get("set-cookie")).toContain("Path=/callback/github");
+    expect(logged).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM browser_sessions").first("count")).toBe(0);
   });
 
   it("rejects an unavailable session provider before creating state", async () => {

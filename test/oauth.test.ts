@@ -5,7 +5,7 @@ import { openClaims, sha256 } from "../src/crypto";
 import { preAuthCookieName } from "../src/pre-auth";
 import { createCsrfToken } from "../src/security";
 import type { Env } from "../src/types";
-import { createTestDb } from "./d1";
+import { createTestDb, SqliteD1 } from "./d1";
 
 const issuer = "https://auth.example";
 const redirectUri = `${issuer}/demo/callback/`;
@@ -82,13 +82,18 @@ async function approveConsent(
   env: Env,
   request: string,
   csrf: string,
-): Promise<{ state: string; binding: string; cookieName: string }> {
+): Promise<{ state: string; binding: string; cookieName: string; setCookie: string }> {
   const response = await consentMutation(env, request, csrf, "approve");
   expect(response.status).toBe(200);
   const body = await response.json<{ redirect_to: string }>();
   const state = new URL(body.redirect_to).searchParams.get("state")!;
   const cookieName = preAuthCookieName(await sha256(state));
-  return { state, cookieName, binding: responseCookie(response, cookieName) };
+  return {
+    state,
+    cookieName,
+    binding: responseCookie(response, cookieName),
+    setCookie: response.headers.get("set-cookie") ?? "",
+  };
 }
 
 function stubGithub(id = 42) {
@@ -192,7 +197,12 @@ describe("authorization-code routes", () => {
     const response = await app.request("/api/providers", undefined, env);
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ providers: ["google", "github"] });
+    await expect(response.json()).resolves.toEqual({
+      providers: [
+        { id: "google", scopes: ["email", "name", "avatar"] },
+        { id: "github", scopes: ["email", "handle", "name", "avatar"] },
+      ],
+    });
   });
 
   it("applies fresh migrations sequentially with multi-provider columns and allowlists", async () => {
@@ -205,13 +215,108 @@ describe("authorization-code routes", () => {
     }
 
     expect(columns.get("oauth_transactions")).toContain("scopes");
-    expect(columns.get("authorization_codes")).toEqual(expect.arrayContaining(["scopes", "claims_ciphertext"]));
+    expect(columns.get("authorization_codes")).toEqual(expect.arrayContaining([
+      "provider",
+      "scopes",
+      "claims_ciphertext",
+    ]));
     expect(columns.get("device_grants")).toEqual(expect.arrayContaining(["provider", "scopes", "claims_ciphertext"]));
     const clients = await env.DB.prepare("SELECT client_id, providers FROM clients ORDER BY client_id").all();
     expect(clients.results).toEqual([
       { client_id: "triad-account", providers: '["google","github","twitter"]' },
       { client_id: "triad-demo", providers: '["google","github","twitter"]' },
     ]);
+  });
+
+  it("upgrades a populated 0001 database without losing durable identity or consent data", async () => {
+    const sqlite = await SqliteD1.create(["0001_init.sql"]);
+    const db = sqlite as unknown as D1Database;
+    try {
+      await db.batch([
+        db.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_durable', 1)"),
+        db.prepare(`INSERT INTO identities (provider, provider_user_id, account_id, created_at)
+          VALUES ('github', '42', 'acct_durable', 1)`),
+        db.prepare(`INSERT INTO consents (account_id, client_id, scopes, updated_at)
+          VALUES ('acct_durable', 'triad-demo', '["openid"]', 1)`),
+        db.prepare(`INSERT INTO consent_requests
+          (request_hash, client_id, redirect_uri, app_state, provider, code_challenge, scopes, expires_at, created_at)
+          VALUES ('request', 'triad-demo', 'https://app.example/callback', 'state', 'github', 'challenge',
+            '["openid"]', 9999999999, 1)`),
+        db.prepare(`INSERT INTO oauth_transactions
+          (state_hash, kind, client_id, provider, browser_binding_hash, expires_at, created_at)
+          VALUES ('state', 'session', 'triad-account', 'github', 'binding', 9999999999, 1)`),
+        db.prepare(`INSERT INTO authorization_codes
+          (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at)
+          VALUES ('code', 'triad-demo', 'https://app.example/callback', 'acct_durable', 'raw', 'challenge',
+            9999999999)`),
+        db.prepare(`INSERT INTO device_grants
+          (device_code_hash, user_code, client_id, status, expires_at, interval_seconds, created_at)
+          VALUES ('device', 'ABCD2345', 'triad-demo', 'pending', 9999999999, 5, 1)`),
+      ]);
+
+      sqlite.applyMigration("0002_multi_provider.sql");
+
+      await expect(db.prepare("SELECT id, created_at FROM accounts").all()).resolves.toMatchObject({
+        results: [{ id: "acct_durable", created_at: 1 }],
+      });
+      await expect(db.prepare("SELECT provider, provider_user_id, account_id FROM identities").all())
+        .resolves.toMatchObject({
+          results: [{ provider: "github", provider_user_id: "42", account_id: "acct_durable" }],
+        });
+      await expect(db.prepare("SELECT account_id, client_id, scopes FROM consents").all()).resolves.toMatchObject({
+        results: [{ account_id: "acct_durable", client_id: "triad-demo", scopes: '["openid"]' }],
+      });
+      for (const table of ["consent_requests", "oauth_transactions", "authorization_codes", "device_grants"]) {
+        expect(await db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first("count")).toBe(0);
+      }
+      const codeColumns = await db.prepare("PRAGMA table_info(authorization_codes)").all<{ name: string }>();
+      expect(codeColumns.results.map(({ name }) => name)).toContain("provider");
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  it.each([
+    ["google", { GOOGLE_CLIENT_ID: "google-client", GOOGLE_CLIENT_SECRET: "google-secret" }],
+    ["github", {}],
+    ["twitter", { TWITTER_CLIENT_ID: "twitter-client", TWITTER_CLIENT_SECRET: "twitter-secret" }],
+  ] as const)("sets and clears the %s callback-bound pre-auth cookie exactly", async (provider, overrides) => {
+    const env = await testEnv(issuer, overrides);
+    const { request, csrf } = await beginConsent(env, { provider });
+    const approved = await approveConsent(env, request, csrf);
+    expect(approved.setCookie).toContain(`Path=/callback/${provider}`);
+
+    const denied = await app.request(`/callback/${provider}?state=${approved.state}&error=access_denied`, {
+      headers: { cookie: approved.binding },
+    }, env);
+
+    expect(denied.status).toBe(302);
+    const cleared = denied.headers.get("set-cookie") ?? "";
+    expect(cleared).toContain(`${approved.cookieName}=;`);
+    expect(cleared).toContain(`Path=/callback/${provider}`);
+    expect(cleared).toMatch(/Max-Age=0/i);
+  });
+
+  it("redirects a mandatory profile-value failure as access_denied without issuing a code", async () => {
+    const env = await testEnv();
+    const { request, csrf } = await beginConsent(env, { scope: "openid name" });
+    const approved = await approveConsent(env, request, csrf);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, name: null }), { status: 200 })));
+
+    const callback = await app.request(`/callback/github?state=${approved.state}&code=provider-code`, {
+      headers: { cookie: approved.binding },
+    }, env);
+
+    expect(callback.status).toBe(302);
+    const target = new URL(callback.headers.get("location")!);
+    expect(target.origin + target.pathname).toBe(redirectUri);
+    expect(Object.fromEntries(target.searchParams)).toEqual({ error: "access_denied", state: "client-state" });
+    expect(logged).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM authorization_codes").first("count")).toBe(0);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
   });
 
   it("rejects unavailable providers and provider-incompatible scopes before consent creation", async () => {
@@ -289,9 +394,14 @@ describe("authorization-code routes", () => {
     }, env);
     const code = new URL(callback.headers.get("location")!).searchParams.get("code")!;
     const codeHash = await sha256(code);
-    const stored = await env.DB.prepare(`SELECT scopes, claims_ciphertext FROM authorization_codes
-      WHERE code_hash = ?`).bind(codeHash).first<{ scopes: string; claims_ciphertext: string }>();
+    const stored = await env.DB.prepare(`SELECT provider, scopes, claims_ciphertext FROM authorization_codes
+      WHERE code_hash = ?`).bind(codeHash).first<{
+        provider: string;
+        scopes: string;
+        claims_ciphertext: string;
+      }>();
 
+    expect(stored?.provider).toBe("github");
     expect(stored?.scopes).toBe('["openid","email","name"]');
     expect(stored?.claims_ciphertext).toMatch(/^v1\./);
     expect(stored?.claims_ciphertext).not.toContain("user@example.com");
@@ -308,6 +418,39 @@ describe("authorization-code routes", () => {
     expect(body.scope).toBe("openid email name");
     expect(decodeJwt(body.id_token)).toMatchObject({ email: "user@example.com", name: "User" });
     expect(decodeJwt(body.id_token)).not.toHaveProperty("preferred_username");
+  });
+
+  it("persists the selected Twitter provider on the authorization code", async () => {
+    const env = await testEnv(issuer, {
+      TWITTER_CLIENT_ID: "twitter-client",
+      TWITTER_CLIENT_SECRET: "twitter-secret",
+    });
+    const { request, csrf } = await beginConsent(env, { provider: "twitter" });
+    const approved = await approveConsent(env, request, csrf);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: "2244994945" } }), { status: 200 })));
+
+    const callback = await app.request(`/callback/twitter?state=${approved.state}&code=provider-code`, {
+      headers: { cookie: approved.binding },
+    }, env);
+
+    expect(callback.status).toBe(302);
+    expect(await env.DB.prepare("SELECT provider FROM authorization_codes").first("provider")).toBe("twitter");
+  });
+
+  it("revalidates the authorization-code provider allowlist before atomic consumption", async () => {
+    const env = await testEnv();
+    const code = "provider-revalidation-code";
+    const verifier = "V".repeat(43);
+    await seedAuthorizationCode(env, { code, verifier });
+    await env.DB.prepare("UPDATE clients SET providers = '[\"google\"]' WHERE client_id = 'triad-demo'").run();
+
+    const response = await app.request("/token", tokenRequest(code, verifier), env);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_client" });
+    expect(await env.DB.prepare("SELECT consumed_at FROM authorization_codes").first("consumed_at")).toBeNull();
   });
 
   it("consumes an authorization code before decrypting its claim payload", async () => {

@@ -464,6 +464,31 @@ describe("device authorization", () => {
     expect(decodeJwt(body.id_token)).not.toHaveProperty("email");
   });
 
+  it("denies a device grant when a mandatory profile value is unavailable", async () => {
+    const env = await testEnv();
+    const { deviceCode, userCode } = await seedGrant(env, { scopes: ["openid", "name"] });
+    const csrf = await inspectDevice(env, userCode);
+    const verified = await app.request("/device/verify", verifyDevice(userCode, csrf), env);
+    const state = new URL((await verified.json<{ redirect_to: string }>()).redirect_to).searchParams.get("state")!;
+    const stateHash = await sha256(state);
+    const binding = responseCookie(verified, preAuthCookieName(stateHash));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, name: null }), { status: 200 })));
+
+    const callback = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: { cookie: binding },
+    }, env);
+
+    expect(callback.status).toBe(200);
+    expect(await callback.text()).toContain("<h1>Denied</h1>");
+    expect(logged).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT status FROM device_grants").first("status")).toBe("denied");
+    const poll = await app.request("/token", deviceTokenRequest(deviceCode), env);
+    await expect(poll.json()).resolves.toMatchObject({ error: "access_denied" });
+  });
+
   it("rejects invalid or oversized user codes without issuing CSRF", async () => {
     const env = await testEnv();
     for (const code of ["short", "a".repeat(33)]) {

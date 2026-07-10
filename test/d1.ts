@@ -12,13 +12,12 @@ interface SqliteDatabase {
 
 declare const process: {
   getBuiltinModule(name: "node:fs"): {
-    existsSync(path: URL): boolean;
     readFileSync(path: URL, encoding: "utf8"): string;
   };
   getBuiltinModule(name: "node:sqlite"): { DatabaseSync: new (location: string) => SqliteDatabase };
 };
 
-const { existsSync, readFileSync } = process.getBuiltinModule("node:fs");
+const { readFileSync } = process.getBuiltinModule("node:fs");
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 
 class SqliteD1Statement {
@@ -59,13 +58,14 @@ class SqliteD1Statement {
 export class SqliteD1 {
   private readonly database = new DatabaseSync(":memory:");
 
-  static async create(): Promise<SqliteD1> {
+  static async create(migrations = ["0001_init.sql", "0002_multi_provider.sql"]): Promise<SqliteD1> {
     const d1 = new SqliteD1();
-    for (const name of ["0001_init.sql", "0002_multi_provider.sql"]) {
-      const path = new URL(`../migrations/${name}`, import.meta.url);
-      if (existsSync(path)) d1.database.exec(readFileSync(path, "utf8"));
-    }
+    for (const name of migrations) d1.applyMigration(name);
     return d1;
+  }
+
+  applyMigration(name: string): void {
+    this.database.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
   }
 
   prepare(query: string): D1PreparedStatement {

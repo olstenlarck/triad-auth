@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { validateProviderScopes } from "./claims";
 import { randomToken, sha256 } from "./crypto";
-import type { Env, ProfileClaims, ProviderIdentity, ProviderName, Scope } from "./types";
+import type { Env, ProfileClaims, ProfileScope, ProviderIdentity, ProviderName, Scope } from "./types";
 
 interface ProviderStart {
   url: string;
@@ -17,6 +17,24 @@ interface ProviderCredentials {
 interface ProviderResult {
   id: string;
   claims: ProfileClaims;
+}
+
+const providerLabels: Record<ProviderName, string> = {
+  google: "Google",
+  github: "GitHub",
+  twitter: "Twitter",
+};
+
+export class MandatoryProfileValueError extends Error {
+  readonly name = "MandatoryProfileValueError";
+
+  constructor(
+    readonly provider: ProviderName,
+    readonly scope: ProfileScope,
+    claim: string = scope,
+  ) {
+    super(`${providerLabels[provider]} response missing mandatory ${claim} claim`);
+  }
 }
 
 const googleJwks = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
@@ -137,20 +155,20 @@ async function finishGoogle(
   }
   const claims: ProfileClaims = {};
   if (scopes.includes("email")) {
-    claims.email = mandatoryString("Google", "email", payload.email);
+    claims.email = mandatoryString("google", "email", payload.email);
     if (typeof payload.email_verified !== "boolean") {
-      throw new Error("Google response missing mandatory email_verified claim");
+      throw new MandatoryProfileValueError("google", "email", "email_verified");
     }
     claims.email_verified = payload.email_verified;
   }
-  if (scopes.includes("name")) claims.name = mandatoryString("Google", "name", payload.name);
-  if (scopes.includes("avatar")) claims.picture = mandatoryString("Google", "avatar", payload.picture);
+  if (scopes.includes("name")) claims.name = mandatoryString("google", "name", payload.name);
+  if (scopes.includes("avatar")) claims.picture = mandatoryString("google", "avatar", payload.picture);
   return { id: payload.sub, claims };
 }
 
-function mandatoryString(provider: string, scope: string, value: unknown): string {
+function mandatoryString(provider: ProviderName, scope: ProfileScope, value: unknown): string {
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${provider} response missing mandatory ${scope} claim`);
+    throw new MandatoryProfileValueError(provider, scope);
   }
   return value;
 }
@@ -186,10 +204,10 @@ async function finishGitHub(
 
   const claims: ProfileClaims = {};
   if (scopes.includes("handle")) {
-    claims.preferred_username = mandatoryString("GitHub", "handle", user.login);
+    claims.preferred_username = mandatoryString("github", "handle", user.login);
   }
-  if (scopes.includes("name")) claims.name = mandatoryString("GitHub", "name", user.name);
-  if (scopes.includes("avatar")) claims.picture = mandatoryString("GitHub", "avatar", user.avatar_url);
+  if (scopes.includes("name")) claims.name = mandatoryString("github", "name", user.name);
+  if (scopes.includes("avatar")) claims.picture = mandatoryString("github", "avatar", user.avatar_url);
   if (scopes.includes("email")) {
     const emailsResponse = await fetch("https://api.github.com/user/emails", {
       headers: githubHeaders(token.access_token),
@@ -202,7 +220,7 @@ async function finishGitHub(
         && (entry as Record<string, unknown>).verified === true)
       : undefined;
     claims.email = mandatoryString(
-      "GitHub",
+      "github",
       "email",
       primary && (primary as Record<string, unknown>).email,
     );
@@ -247,11 +265,11 @@ async function finishTwitter(
   }
   const claims: ProfileClaims = {};
   if (scopes.includes("handle")) {
-    claims.preferred_username = mandatoryString("Twitter", "handle", user.data.username);
+    claims.preferred_username = mandatoryString("twitter", "handle", user.data.username);
   }
-  if (scopes.includes("name")) claims.name = mandatoryString("Twitter", "name", user.data.name);
+  if (scopes.includes("name")) claims.name = mandatoryString("twitter", "name", user.data.name);
   if (scopes.includes("avatar")) {
-    claims.picture = mandatoryString("Twitter", "avatar", user.data.profile_image_url);
+    claims.picture = mandatoryString("twitter", "avatar", user.data.profile_image_url);
   }
   return { id: user.data.id, claims };
 }

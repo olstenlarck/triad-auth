@@ -307,14 +307,20 @@ describe("GitHub provider", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, name: null }), { status: 200 })));
 
-    await expect(finishProvider(
+    const failure = await finishProvider(
       "github",
       env(),
       "provider-code",
       undefined,
       undefined,
       parseScopes("openid name"),
-    )).rejects.toThrow("mandatory name claim");
+    ).catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({
+      name: "MandatoryProfileValueError",
+      provider: "github",
+      scope: "name",
+    });
   });
 
   it("requests only GitHub identity and returns the immutable numeric id", async () => {
