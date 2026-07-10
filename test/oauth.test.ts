@@ -418,6 +418,8 @@ describe("authorization-code routes", () => {
     expect(body.scope).toBe("openid email name");
     expect(decodeJwt(body.id_token)).toMatchObject({ email: "user@example.com", name: "User" });
     expect(decodeJwt(body.id_token)).not.toHaveProperty("preferred_username");
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM authorization_codes WHERE code_hash = ?")
+      .bind(codeHash).first("count")).toBe(0);
   });
 
   it("persists the selected Twitter provider on the authorization code", async () => {
@@ -453,7 +455,7 @@ describe("authorization-code routes", () => {
     expect(await env.DB.prepare("SELECT consumed_at FROM authorization_codes").first("consumed_at")).toBeNull();
   });
 
-  it("consumes an authorization code before decrypting its claim payload", async () => {
+  it("deletes an authorization code before decrypting its claim payload", async () => {
     const env = await testEnv();
     const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const code = "claim-code";
@@ -467,8 +469,8 @@ describe("authorization-code routes", () => {
 
     expect(response.status).toBe(500);
     expect(logged).toHaveBeenCalledWith("OAuth route failed");
-    expect(await env.DB.prepare("SELECT consumed_at FROM authorization_codes WHERE code_hash = ?")
-      .bind(await sha256(code)).first("consumed_at")).not.toBeNull();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM authorization_codes WHERE code_hash = ?")
+      .bind(await sha256(code)).first("count")).toBe(0);
     const replay = await app.request("/token", tokenRequest(code, verifier), env);
     await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
   });
@@ -722,6 +724,7 @@ describe("authorization-code routes", () => {
     expect(exchanged.headers.get("cache-control")).toBe("no-store");
     await expect(exchanged.json()).resolves.toMatchObject({ token_type: "Bearer", expires_in: 300 });
     await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM authorization_codes").first("count")).toBe(0);
   });
 
   it("returns a five-minute lifetime for an approved device token", async () => {

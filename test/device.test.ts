@@ -172,7 +172,7 @@ function transitionAfterDeviceStateRead(env: Env, transition: (db: D1Database) =
       }
       return (query: string) => {
         const statement = target.prepare(query);
-        if (!query.includes("SELECT client_id, status, expires_at, consumed_at, provider FROM device_grants")) {
+        if (!query.includes("SELECT client_id, status, expires_at, provider FROM device_grants")) {
           return statement;
         }
         return new Proxy(statement, {
@@ -462,6 +462,8 @@ describe("device authorization", () => {
       name: "Device User",
     });
     expect(decodeJwt(body.id_token)).not.toHaveProperty("email");
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants WHERE device_code_hash = ?")
+      .bind(deviceHash).first("count")).toBe(0);
   });
 
   it("denies a device grant when a mandatory profile value is unavailable", async () => {
@@ -800,6 +802,7 @@ describe("device token exchange", () => {
     await expect(rejected.json()).resolves.toMatchObject({ error: "invalid_grant" });
     expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM consents WHERE account_id = 'acct_device'")
       .first("count")).toBe(1);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants").first("count")).toBe(0);
   });
 
   it("rejects token exchange after the client loses GitHub permission", async () => {

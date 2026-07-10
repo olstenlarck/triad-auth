@@ -487,7 +487,7 @@ oauthRoutes.post("/token", async (c) => {
       const state = await getDeviceGrantState(c.env.DB, hash);
       if (!state || state.client_id !== clientId) return oauthError("invalid_grant");
       if (state.expires_at <= now()) return oauthError("expired_token");
-      if (state.consumed_at || state.status === "approved") return oauthError("invalid_grant");
+      if (state.status === "approved") return oauthError("invalid_grant");
       if (state.status === "denied") return oauthError("access_denied");
       const polling = await pollPendingDeviceGrant(c.env.DB, hash, clientId);
       if (polling) return oauthError(polling);

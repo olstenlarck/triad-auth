@@ -16,8 +16,8 @@ export interface Env {
   ISSUER: string;
   SIGNING_PRIVATE_JWK: string;
   PAIRWISE_SECRET: string;
-  GITHUB_CLIENT_ID: string;
-  GITHUB_CLIENT_SECRET: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   TWITTER_CLIENT_ID?: string;

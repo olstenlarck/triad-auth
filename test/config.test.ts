@@ -33,6 +33,11 @@ const providerPairs = {
   GITHUB: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
   TWITTER: ["TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET"],
 } as const;
+const secretNames = [
+  ...Object.values(providerPairs).flat(),
+  "SIGNING_PRIVATE_JWK",
+  "PAIRWISE_SECRET",
+].sort();
 
 function runCheck(cwd: string, env: Record<string, string> = {}) {
   return spawnSync(process.execPath, [checker], { cwd, encoding: "utf8", env });
@@ -200,34 +205,78 @@ describe("deployment configuration", () => {
     }
   });
 
-  it("lists every provider credential in local and Wrangler examples", () => {
+  it("keeps the exact eight secret names aligned across Env, checker, example, and Wrangler", () => {
+    const types = readFileSync("src/types.ts", "utf8");
+    const checkerSource = readFileSync("scripts/check-config.mjs", "utf8");
     const example = readFileSync(".dev.vars.example", "utf8");
     const wrangler = readFileSync("wrangler.toml", "utf8");
+    const envFields = [...types.matchAll(/^  ([A-Z][A-Z0-9_]*)(\?)?: string;$/gm)]
+      .filter((match) => /(?:_CLIENT_(?:ID|SECRET)|_PRIVATE_JWK|PAIRWISE_SECRET)$/.test(match[1]))
+      .map((match) => ({ name: match[1], optional: match[2] === "?" }));
+    const checkerNames = [...checkerSource.matchAll(/"([A-Z][A-Z0-9_]+)"/g)]
+      .map((match) => match[1])
+      .filter((name) => /(?:_CLIENT_(?:ID|SECRET)|_PRIVATE_JWK|PAIRWISE_SECRET)$/.test(name));
+    const exampleNames = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]);
+    const wranglerNames = [...wrangler.slice(wrangler.indexOf("# Add required secrets"))
+      .matchAll(/\b[A-Z][A-Z0-9_]+\b/g)]
+      .map((match) => match[0])
+      .filter((name) => name !== "NAME");
 
-    for (const pair of Object.values(providerPairs)) {
-      for (const name of pair) {
-        expect(example).toContain(`${name}=`);
-        expect(wrangler).toContain(name);
-      }
-    }
+    expect(envFields.map(({ name }) => name).sort()).toEqual(secretNames);
+    expect(envFields.filter(({ optional }) => optional).map(({ name }) => name).sort())
+      .toEqual(Object.values(providerPairs).flat().sort());
+    expect([...new Set(checkerNames)].sort()).toEqual(secretNames);
+    expect(exampleNames.sort()).toEqual(secretNames);
+    expect(wranglerNames.sort()).toEqual(secretNames);
   });
 
-  it("documents exact provider setup links, callbacks, and identity guarantees", () => {
+  it("documents exact provider links and local and production callbacks", () => {
     const readme = readFileSync("README.md", "utf8");
+    const setupCallbacks = [...readme.matchAll(
+      /^- (?:Local|Production)(?: callback)?: `([^`]+\/callback\/(?:google|github|twitter))`$/gm,
+    )].map((match) => match[1]);
+    const issuer = "https://triad-auth-broker.equator-owl-studio.workers.dev";
 
     expect(readme).toContain("https://console.cloud.google.com/auth/clients");
     expect(readme).toContain("https://console.cloud.google.com/auth/overview");
     expect(readme).toContain("https://github.com/settings/applications/new");
     expect(readme).toContain("https://developer.x.com/en/portal/dashboard");
     expect(readme).toContain("https://developer.x.com/en/portal/projects-and-apps");
-    expect(readme).toContain("/callback/google");
-    expect(readme).toContain("/callback/github");
-    expect(readme).toContain("/callback/twitter");
+    expect(setupCallbacks).toEqual([
+      "http://localhost:8787/callback/google",
+      "<ISSUER>/callback/google",
+      "http://localhost:8787/callback/github",
+      "<ISSUER>/callback/github",
+      "http://localhost:8787/callback/twitter",
+      "<ISSUER>/callback/twitter",
+    ]);
+    for (const provider of ["google", "github", "twitter"]) {
+      expect(readme).toContain(`${issuer}/callback/${provider}`);
+    }
+  });
+
+  it("documents the exact capability matrix, mandatory scopes, and Twitter upstream scopes", () => {
+    const readme = readFileSync("README.md", "utf8");
+
+    expect(readme).toContain("| Google | Yes | No | Yes | Yes |");
+    expect(readme).toContain("| GitHub | Yes | Yes | Yes | Yes |");
+    expect(readme).toContain("| Twitter | No | Yes | Yes | Yes |");
     expect(readme).toContain("every requested scope is mandatory");
+    expect(readme).toContain("Triad requests only `tweet.read users.read`; it does not request offline access.");
     expect(readme).toContain("encrypted");
     expect(readme).toContain("opaque provider-global identifier");
     expect(readme).toContain("five minutes");
     expect(readme).toContain("X branding");
+  });
+
+  it("documents migration before deployment and exact post-deploy smoke checks", () => {
+    const readme = readFileSync("README.md", "utf8");
+
+    expect(readme).toContain("pnpm check\npnpm db:remote\npnpm deploy");
+    expect(readme).toContain('curl --fail "$ISSUER/api/providers"');
+    expect(readme).toContain('curl --fail "$ISSUER/.well-known/openid-configuration"');
+    expect(readme).toContain("Supported callback paths on this issuer are:");
+    expect(readme).toContain("`/api/providers` is authoritative for which providers are currently enabled");
   });
 
   it("loads .dev.vars as data without evaluating shell syntax", async () => {

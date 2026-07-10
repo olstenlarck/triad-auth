@@ -16,7 +16,6 @@ export interface DeviceGrantStateRow {
   client_id: string;
   status: "pending" | "approved" | "denied";
   expires_at: number;
-  consumed_at: number | null;
   provider: ProviderName;
 }
 
@@ -85,7 +84,7 @@ export async function consumeAuthorizationCode(
   clientId: string,
   redirectUri: string,
 ): Promise<AuthorizationCodeRow | null> {
-  return db.prepare(`UPDATE authorization_codes SET consumed_at = unixepoch()
+  return db.prepare(`DELETE FROM authorization_codes
     WHERE code_hash = ? AND client_id = ? AND redirect_uri = ? AND consumed_at IS NULL AND expires_at > unixepoch()
     RETURNING account_id, provider, provider_sub, code_challenge, scopes, claims_ciphertext`)
     .bind(codeHash, clientId, redirectUri).first<AuthorizationCodeRow>();
@@ -117,7 +116,7 @@ export async function consumeApprovedDeviceGrant(
   deviceCodeHash: string,
   clientId: string,
 ): Promise<ApprovedDeviceGrantRow | null> {
-  return db.prepare(`UPDATE device_grants SET consumed_at = unixepoch()
+  return db.prepare(`DELETE FROM device_grants
     WHERE device_code_hash = ? AND client_id = ? AND status = 'approved'
       AND consumed_at IS NULL AND account_id IS NOT NULL AND provider_sub IS NOT NULL
       AND expires_at > unixepoch()
@@ -129,7 +128,7 @@ export async function getDeviceGrantState(
   db: D1Database,
   deviceCodeHash: string,
 ): Promise<DeviceGrantStateRow | null> {
-  return db.prepare(`SELECT client_id, status, expires_at, consumed_at, provider FROM device_grants
+  return db.prepare(`SELECT client_id, status, expires_at, provider FROM device_grants
     WHERE device_code_hash = ?`)
     .bind(deviceCodeHash).first<DeviceGrantStateRow>();
 }

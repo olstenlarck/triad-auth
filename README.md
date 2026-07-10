@@ -14,7 +14,7 @@ Every ID token uses the app-scoped identity as both `sub` and `pairwise_sub`.
 
 Identity-only authentication is the default. Clients may request the optional scopes `email`, `handle`, `name`, and `avatar`; every requested scope is mandatory for that transaction and is shown before approval. Their standard ID-token claims are `email` plus `email_verified`, `preferred_username`, `name`, and `picture` respectively. These values are mutable profile data, not identity keys.
 
-Consent records retain approved scope names, not profile values. Requested profile values are encrypted until the one-time exchange or expiry, then removed; D1 stores them with row-bound authenticated encryption. Authorization-code claim ciphertext is retained for at most two minutes; device-flow claim ciphertext is retained only until its ten-minute grant expires or is consumed. Upstream access tokens are discarded after the provider response is mapped.
+Consent records retain approved scope names, not profile values. Requested profile values are encrypted until the one-time exchange or expiry, then removed; D1 stores them with row-bound authenticated encryption. Authorization-code and approved device-grant rows are atomically deleted at exchange before their claims are decrypted or a token is issued, physically removing the ciphertext while preserving one-winner redemption. Abandoned authorization-code ciphertext is retained for at most two minutes; abandoned device-flow ciphertext is retained only until its ten-minute grant expires. Bounded cleanup deletes expired rows. Upstream access tokens are discarded after the provider response is mapped.
 
 Provider capabilities are:
 
@@ -137,7 +137,7 @@ The public broker is deployed at:
 https://triad-auth-broker.equator-owl-studio.workers.dev
 ```
 
-Its provider OAuth callbacks are:
+Supported callback paths on this issuer are:
 
 ```text
 https://triad-auth-broker.equator-owl-studio.workers.dev/callback/google
@@ -145,7 +145,9 @@ https://triad-auth-broker.equator-owl-studio.workers.dev/callback/github
 https://triad-auth-broker.equator-owl-studio.workers.dev/callback/twitter
 ```
 
-The Worker uses the `triad-auth` D1 database and the remote `triad-demo` registration allows only the same-origin `/demo/callback/` URI. Discovery, JWKS, static pages, security headers, and device-code issuance are live.
+These callback paths describe adapter support, not provider enablement. `/api/providers` is authoritative for which providers are currently enabled; only providers with complete credential pairs appear there or in provider controls.
+
+The Worker uses the `triad-auth` D1 database and the remote `triad-demo` registration allows only the same-origin `/demo/callback/` URI.
 
 To set or rotate runtime values, use Wrangler's interactive secret prompt so values do not enter shell history:
 
@@ -162,21 +164,26 @@ pnpm exec wrangler secret put PAIRWISE_SECRET
 
 `SIGNING_PRIVATE_JWK` and `PAIRWISE_SECRET` are always required. Upload both values in a provider pair before expecting that provider to appear in `/api/providers` or any provider control.
 
-After changing secrets, deploy the canonical configuration:
+After changing secrets, verify locally, apply pending remote migrations, and only then deploy the canonical configuration:
 
 ```sh
 pnpm check
+pnpm db:remote
 pnpm deploy
 ```
+
+`pnpm db:remote` must succeed before `pnpm deploy`; do not serve code that expects a schema migration before that migration is applied.
 
 Verify the deployment:
 
 ```sh
 ISSUER="https://triad-auth-broker.equator-owl-studio.workers.dev"
-curl -i "$ISSUER/"
-curl -i "$ISSUER/.well-known/openid-configuration"
-curl -i "$ISSUER/.well-known/jwks.json"
+curl --fail "$ISSUER/api/providers"
+curl --fail "$ISSUER/.well-known/openid-configuration"
+curl --fail "$ISSUER/.well-known/jwks.json"
 ```
+
+Treat the `/api/providers` response as the enabled-provider list for that deployment. A supported callback path can exist while its provider is absent because its complete credential pair has not been uploaded.
 
 After the controller has configured an external provider, complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, opaque `provider_sub` starts with `prv_<provider>_`, `account_sub` starts with `acct_`, and `exp - iat` is 300 seconds. Requested profile claims must appear only when their scopes were included.
 

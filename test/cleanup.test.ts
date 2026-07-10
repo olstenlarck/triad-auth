@@ -43,15 +43,17 @@ async function seedCleanupRows(db: D1Database): Promise<void> {
   await db.prepare(`WITH RECURSIVE sequence(value) AS (
     VALUES (1) UNION ALL SELECT value + 1 FROM sequence WHERE value < 101
   ) INSERT INTO authorization_codes
-    (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at, consumed_at)
+    (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge,
+      claims_ciphertext, expires_at, consumed_at)
     SELECT 'code-' || value, 'triad-demo', 'https://expired.example', 'acct_cleanup', 'github:42',
-      'challenge', unixepoch() + 600, 1 FROM sequence`).run();
+      'challenge', 'v1.expired', 0, NULL FROM sequence`).run();
   await db.prepare(`WITH RECURSIVE sequence(value) AS (
     VALUES (1) UNION ALL SELECT value + 1 FROM sequence WHERE value < 101
   ) INSERT INTO device_grants
-    (device_code_hash, user_code, client_id, status, expires_at, interval_seconds, consumed_at, created_at)
+    (device_code_hash, user_code, client_id, status, claims_ciphertext,
+      expires_at, interval_seconds, consumed_at, created_at)
     SELECT 'device-' || value, printf('USER%04d', value), 'triad-demo', 'pending',
-      unixepoch() + 600, 5, 1, 0 FROM sequence`).run();
+      'v1.expired', 0, 5, NULL, 0 FROM sequence`).run();
   await db.prepare(`WITH RECURSIVE sequence(value) AS (
     VALUES (1) UNION ALL SELECT value + 1 FROM sequence WHERE value < 101
   ) INSERT INTO browser_sessions (session_hash, account_id, expires_at, created_at)
