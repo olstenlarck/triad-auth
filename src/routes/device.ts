@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
 import { getClient, validateClient } from "../db";
 import { startProvider } from "../providers";
+import { parseScope } from "../protocol";
 import { oauthError, parseOAuthForm, rejectDuplicateParameters, requireSameOrigin } from "./oauth";
 import { consumeCsrfToken, createCsrfToken } from "../security";
 import type { Env } from "../types";
@@ -31,13 +32,18 @@ deviceRoutes.use("*", async (c, next) => {
 deviceRoutes.post("/device/code", async (c) => {
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) return form;
-  const duplicateError = rejectDuplicateParameters(form, ["client_id", "provider"]);
+  const duplicateError = rejectDuplicateParameters(form, ["client_id", "provider", "scope"]);
   if (duplicateError) return duplicateError;
   const clientId = form.get("client_id") ?? "";
   if (!clientId || clientId.length > clientIdLimit) return oauthError("invalid_client");
   const provider = form.get("provider");
   if (provider && (provider.length > providerLimit || provider !== "github")) {
     return oauthError("invalid_request", "unsupported provider");
+  }
+  try {
+    parseScope(form.get("scope") ?? undefined);
+  } catch {
+    return oauthError("invalid_scope");
   }
   const client = await getClient(c.env.DB, clientId);
   if (!client) return oauthError("invalid_client");

@@ -272,14 +272,27 @@ describe("device authorization", () => {
     expect(userCodeCalls).toBe(5);
   });
 
-  it.each(["client_id", "provider"])("rejects duplicate device issuance %s parameters", async (duplicate) => {
+  it.each(["client_id", "provider", "scope"])("rejects duplicate device issuance %s parameters", async (duplicate) => {
     const env = await testEnv();
-    const body = new URLSearchParams({ client_id: "local-dev", provider: "github" });
+    const body = new URLSearchParams({ client_id: "local-dev", provider: "github", scope: "openid" });
     body.append(duplicate, body.get(duplicate)!);
 
     const response = await app.request("/device/code", rawFormRequest(body), env);
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants").first("count")).toBe(0);
+  });
+
+  it("rejects an unsupported device scope", async () => {
+    const env = await testEnv();
+    const response = await app.request("/device/code", formRequest({
+      client_id: "local-dev",
+      scope: "openid email",
+    }), env);
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_scope" });
     expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants").first("count")).toBe(0);
   });
 

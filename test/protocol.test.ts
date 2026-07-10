@@ -20,6 +20,8 @@ describe("protocol validation", () => {
 
   it("supports only openid scope", () => {
     expect(parseScope(undefined)).toBe("openid");
+    expect(parseScope("openid")).toBe("openid");
+    expect(() => parseScope("")).toThrow("unsupported_scope");
     expect(() => parseScope("openid email")).toThrow("unsupported_scope");
   });
 
