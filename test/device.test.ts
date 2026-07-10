@@ -17,6 +17,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
@@ -43,6 +44,17 @@ function formRequest(values: Record<string, string>, origin?: string): RequestIn
       ...(origin ? { origin } : {}),
     },
     body: new URLSearchParams(values),
+  };
+}
+
+function rawFormRequest(body: URLSearchParams, origin?: string): RequestInit {
+  return {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      ...(origin ? { origin } : {}),
+    },
+    body,
   };
 }
 
@@ -130,6 +142,54 @@ function stubGithub(): void {
   }));
 }
 
+function transitionAfterDeviceStateRead(env: Env, transition: (db: D1Database) => Promise<void>): void {
+  const db = env.DB;
+  let transitioned = false;
+  env.DB = new Proxy(db, {
+    get(target, property, receiver) {
+      if (property !== "prepare") {
+        const value = Reflect.get(target, property, receiver) as unknown;
+        return typeof value === "function" ? value.bind(target) : value;
+      }
+      return (query: string) => {
+        const statement = target.prepare(query);
+        if (!query.includes("SELECT client_id, status, expires_at, consumed_at FROM device_grants")) {
+          return statement;
+        }
+        return new Proxy(statement, {
+          get(statementTarget, statementProperty, statementReceiver) {
+            if (statementProperty !== "bind") {
+              const value = Reflect.get(statementTarget, statementProperty, statementReceiver) as unknown;
+              return typeof value === "function" ? value.bind(statementTarget) : value;
+            }
+            return (...values: unknown[]) => {
+              const bound = statementTarget.bind(...values);
+              return new Proxy(bound, {
+                get(boundTarget, boundProperty, boundReceiver) {
+                  if (boundProperty !== "first") {
+                    const value = Reflect.get(boundTarget, boundProperty, boundReceiver) as unknown;
+                    return typeof value === "function" ? value.bind(boundTarget) : value;
+                  }
+                  return async <T>(column?: string): Promise<T | null> => {
+                    const row = column === undefined
+                      ? await boundTarget.first<T>()
+                      : await boundTarget.first<T>(column);
+                    if (!transitioned) {
+                      transitioned = true;
+                      await transition(db);
+                    }
+                    return row;
+                  };
+                },
+              });
+            };
+          },
+        });
+      };
+    },
+  });
+}
+
 describe("device authorization", () => {
   it("issues RFC-shaped random codes and stores only the device-code hash", async () => {
     const env = await testEnv();
@@ -175,6 +235,52 @@ describe("device authorization", () => {
         error: clientId === "blocked" ? "unauthorized_client" : "invalid_client",
       });
     }
+  });
+
+  it("regenerates a colliding user code and inserts the next candidate", async () => {
+    const env = await testEnv();
+    await seedGrant(env, { deviceCode: "e".repeat(43), userCode: "AAAAAAAA" });
+    let userCodeCalls = 0;
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      const bytes = array as Uint8Array;
+      bytes.fill(bytes.length === 8 && userCodeCalls++ === 0 ? 0 : 1);
+      return array;
+    });
+
+    const response = await app.request("/device/code", formRequest({ client_id: "local-dev" }), env);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ user_code: "BBBB-BBBB" });
+    expect(userCodeCalls).toBe(2);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants").first("count")).toBe(2);
+  });
+
+  it("bounds user-code collision retries", async () => {
+    const env = await testEnv();
+    await seedGrant(env, { deviceCode: "e".repeat(43), userCode: "AAAAAAAA" });
+    let userCodeCalls = 0;
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      const bytes = array as Uint8Array;
+      if (bytes.length === 8) userCodeCalls++;
+      bytes.fill(0);
+      return array;
+    });
+
+    const response = await app.request("/device/code", formRequest({ client_id: "local-dev" }), env);
+    expect(response.status).toBe(500);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toMatchObject({ error: "server_error" });
+    expect(userCodeCalls).toBe(5);
+  });
+
+  it.each(["client_id", "provider"])("rejects duplicate device issuance %s parameters", async (duplicate) => {
+    const env = await testEnv();
+    const body = new URLSearchParams({ client_id: "local-dev", provider: "github" });
+    body.append(duplicate, body.get(duplicate)!);
+
+    const response = await app.request("/device/code", rawFormRequest(body), env);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants").first("count")).toBe(0);
   });
 
   it("enforces form encoding and the 4096-byte body limit on device POSTs", async () => {
@@ -258,6 +364,22 @@ describe("device authorization", () => {
       .toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize\?/);
   });
 
+  it.each(["user_code", "provider", "csrf_token"])(
+    "rejects duplicate device verification %s parameters",
+    async (duplicate) => {
+      const env = await testEnv();
+      const { userCode } = await seedGrant(env);
+      const csrf = await inspectDevice(env, userCode);
+      const body = new URLSearchParams({ user_code: userCode, provider: "github", csrf_token: csrf });
+      body.append(duplicate, body.get(duplicate)!);
+
+      const response = await app.request("/device/verify", rawFormRequest(body, issuer), env);
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
+      expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
+    },
+  );
+
   it("revalidates the client provider allowlist during browser verification", async () => {
     const env = await testEnv();
     await env.DB.prepare(`INSERT INTO clients
@@ -299,9 +421,49 @@ describe("device authorization", () => {
       .bind(deviceHash).first();
     expect(grant).toEqual({ status: "approved", account_id: "acct_device", provider_sub: "github:42" });
   });
+
+  it("consumes a GitHub denial callback and makes the device poll return access_denied", async () => {
+    const env = await testEnv();
+    const { deviceCode, deviceHash } = await seedGrant(env);
+    const state = "device-denial-state";
+    await env.DB.prepare(`INSERT INTO oauth_transactions
+      (state_hash, kind, client_id, provider, device_code_hash, expires_at, created_at)
+      VALUES (?, 'device', 'local-dev', 'github', ?, unixepoch() + 600, unixepoch())`)
+      .bind(await sha256(state), deviceHash).run();
+
+    const denied = await app.request(
+      `/callback/github?state=${state}&error=access_denied`, undefined, env,
+    );
+    expect(denied.status).toBe(200);
+    expect(denied.headers.get("cache-control")).toBe("no-store");
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
+
+    const poll = await app.request("/token", deviceTokenRequest(deviceCode), env);
+    await expect(poll.json()).resolves.toMatchObject({ error: "access_denied" });
+  });
 });
 
 describe("device token exchange", () => {
+  it.each(["grant_type", "client_id", "code", "code_verifier", "redirect_uri", "device_code"])(
+    "rejects duplicate token %s parameters",
+    async (duplicate) => {
+      const env = await testEnv();
+      const body = new URLSearchParams({
+        grant_type: deviceGrantType,
+        client_id: "local-dev",
+        device_code: "f".repeat(43),
+        code: "code",
+        code_verifier: "A".repeat(43),
+        redirect_uri: "http://localhost:3000/callback",
+      });
+      body.append(duplicate, body.get(duplicate)!);
+
+      const response = await app.request("/token", rawFormRequest(body), env);
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
+    },
+  );
+
   it.each([
     ["pending", "authorization_pending"],
     ["denied", "access_denied"],
@@ -325,6 +487,19 @@ describe("device token exchange", () => {
     await expect(oversized.json()).resolves.toMatchObject({ error: "invalid_grant" });
   });
 
+  it("distinguishes fabricated and client-mismatched device codes from expired grants", async () => {
+    const env = await testEnv();
+    await env.DB.prepare(`INSERT INTO clients
+      (client_id, name, redirect_uris, providers, created_at)
+      VALUES ('other-client', 'Other', '[]', '["github"]', unixepoch())`).run();
+    const { deviceCode } = await seedGrant(env);
+
+    const fabricated = await app.request("/token", deviceTokenRequest("f".repeat(43)), env);
+    await expect(fabricated.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    const mismatched = await app.request("/token", deviceTokenRequest(deviceCode, "other-client"), env);
+    await expect(mismatched.json()).resolves.toMatchObject({ error: "invalid_grant" });
+  });
+
   it("adds five seconds after an early poll", async () => {
     const env = await testEnv();
     const { deviceCode, deviceHash } = await seedGrant(env, { lastPolled: true });
@@ -334,6 +509,61 @@ describe("device token exchange", () => {
     expect(await env.DB.prepare("SELECT interval_seconds FROM device_grants WHERE device_code_hash = ?")
       .bind(deviceHash).first("interval_seconds")).toBe(10);
   });
+
+  it("allows one concurrent first poll and slows the other", async () => {
+    const env = await testEnv();
+    const { deviceCode, deviceHash } = await seedGrant(env);
+
+    const responses = await Promise.all([
+      app.request("/token", deviceTokenRequest(deviceCode), env),
+      app.request("/token", deviceTokenRequest(deviceCode), env),
+    ]);
+    const errors = await Promise.all(responses.map((response) => response.json<{ error: string }>()));
+    expect(errors.map(({ error }) => error).sort()).toEqual(["authorization_pending", "slow_down"]);
+    expect(await env.DB.prepare("SELECT interval_seconds FROM device_grants WHERE device_code_hash = ?")
+      .bind(deviceHash).first("interval_seconds")).toBe(10);
+  });
+
+  it("adds five seconds for every repeated early poll", async () => {
+    const env = await testEnv();
+    const { deviceCode, deviceHash } = await seedGrant(env, { lastPolled: true });
+
+    for (const expectedInterval of [10, 15]) {
+      const response = await app.request("/token", deviceTokenRequest(deviceCode), env);
+      await expect(response.json()).resolves.toMatchObject({ error: "slow_down" });
+      expect(await env.DB.prepare("SELECT interval_seconds FROM device_grants WHERE device_code_hash = ?")
+        .bind(deviceHash).first("interval_seconds")).toBe(expectedInterval);
+    }
+  });
+
+  it.each(["approved", "denied"] as const)(
+    "reclassifies a pending grant that becomes %s immediately after state read",
+    async (status) => {
+      const env = await testEnv();
+      const { deviceCode, deviceHash } = await seedGrant(env);
+      if (status === "approved") {
+        await env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_device', unixepoch())").run();
+      }
+      transitionAfterDeviceStateRead(env, async (db) => {
+        await db.prepare(`UPDATE device_grants SET status = ?, account_id = ?, provider_sub = ?
+          WHERE device_code_hash = ?`).bind(
+            status,
+            status === "approved" ? "acct_device" : null,
+            status === "approved" ? "github:42" : null,
+            deviceHash,
+          ).run();
+      });
+
+      const response = await app.request("/token", deviceTokenRequest(deviceCode), env);
+      if (status === "approved") {
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toMatchObject({ token_type: "Bearer" });
+      } else {
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toMatchObject({ error: "access_denied" });
+      }
+    },
+  );
 
   it("atomically consumes an approved grant before issuing one token", async () => {
     const env = await testEnv();

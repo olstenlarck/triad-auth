@@ -6,6 +6,7 @@ import {
   consumeAuthorizationCode,
   consumeApprovedDeviceGrant,
   consumeTransaction,
+  denyDeviceGrant,
   getAuthorizationCode,
   getClient,
   getDeviceGrantState,
@@ -103,6 +104,12 @@ export async function parseOAuthForm(request: Request): Promise<URLSearchParams 
     offset += chunk.byteLength;
   }
   return new URLSearchParams(new TextDecoder().decode(body));
+}
+
+export function rejectDuplicateParameters(form: URLSearchParams, names: readonly string[]): Response | null {
+  return names.some((name) => form.getAll(name).length > 1)
+    ? oauthError("invalid_request", "duplicate parameter")
+    : null;
 }
 
 export const oauthRoutes = new Hono<{ Bindings: Env }>();
@@ -225,12 +232,33 @@ oauthRoutes.post("/api/consent/:request/deny", async (c) => {
 oauthRoutes.get("/callback/:provider", async (c) => {
   const provider = c.req.param("provider");
   const state = c.req.query("state");
+  const providerError = c.req.query("error");
   const code = c.req.query("code");
-  if (provider !== "github" || !state || !code) return oauthError("invalid_request");
+  const denied = providerError === "access_denied";
+  if (provider !== "github" || !state || (providerError && !denied) || (!denied && !code)) {
+    return oauthError("invalid_request");
+  }
   const tx = await consumeTransaction(c.env.DB, await sha256(state));
   if (!tx || tx.provider !== "github") return oauthError("invalid_grant", "expired or invalid state");
 
-  const identity = await finishProvider(c.env, code);
+  if (denied) {
+    if (tx.kind === "device") {
+      if (!tx.device_code_hash || !(await denyDeviceGrant(c.env.DB, tx.device_code_hash))) {
+        return oauthError("invalid_grant", "device request expired");
+      }
+      return c.html("<!doctype html><meta charset=utf-8><title>Denied</title><h1>Denied</h1><p>You can return to your device.</p>");
+    }
+    if (tx.kind === "authorization_code") {
+      if (!tx.redirect_uri || !tx.app_state) return oauthError("server_error", undefined, 500);
+      const target = new URL(tx.redirect_uri);
+      target.searchParams.set("error", "access_denied");
+      target.searchParams.set("state", tx.app_state);
+      return c.redirect(target.toString(), 302);
+    }
+    return oauthError("access_denied");
+  }
+
+  const identity = await finishProvider(c.env, code!);
   const accountId = await resolveIdentity(c.env.DB, identity);
   const providerSub = `${identity.provider}:${identity.id}`;
   const session = randomToken();
@@ -269,6 +297,15 @@ oauthRoutes.get("/callback/:provider", async (c) => {
 oauthRoutes.post("/token", async (c) => {
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) return form;
+  const duplicateError = rejectDuplicateParameters(form, [
+    "grant_type",
+    "client_id",
+    "code",
+    "code_verifier",
+    "redirect_uri",
+    "device_code",
+  ]);
+  if (duplicateError) return duplicateError;
   const grantType = form.get("grant_type") ?? "";
   const clientId = form.get("client_id") ?? "";
   const client = clientId && clientId.length <= clientIdLimit ? await getClient(c.env.DB, clientId) : null;
@@ -309,31 +346,26 @@ oauthRoutes.post("/token", async (c) => {
     const deviceCode = form.get("device_code") ?? "";
     if (!deviceCode || deviceCode.length > deviceCodeLimit) return oauthError("invalid_grant");
     const hash = await sha256(deviceCode);
-    const approved = await consumeApprovedDeviceGrant(c.env.DB, hash, clientId);
-    if (approved) {
-      await rememberConsent(c.env.DB, approved.account_id, clientId);
-      return c.json({
-        token_type: "Bearer",
-        expires_in: 600,
-        id_token: await issueIdToken(c.env, clientId, approved.account_id, approved.provider_sub),
-      });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const approved = await consumeApprovedDeviceGrant(c.env.DB, hash, clientId);
+      if (approved) {
+        await rememberConsent(c.env.DB, approved.account_id, clientId);
+        return c.json({
+          token_type: "Bearer",
+          expires_in: 600,
+          id_token: await issueIdToken(c.env, clientId, approved.account_id, approved.provider_sub),
+        });
+      }
+
+      const state = await getDeviceGrantState(c.env.DB, hash);
+      if (!state || state.client_id !== clientId) return oauthError("invalid_grant");
+      if (state.expires_at <= now()) return oauthError("expired_token");
+      if (state.consumed_at || state.status === "approved") return oauthError("invalid_grant");
+      if (state.status === "denied") return oauthError("access_denied");
+      const polling = await pollPendingDeviceGrant(c.env.DB, hash, clientId);
+      if (polling) return oauthError(polling);
     }
-
-    const state = await getDeviceGrantState(c.env.DB, hash, clientId);
-    if (!state || state.expires_at <= now()) return oauthError("expired_token");
-    if (state.consumed_at || state.status === "approved") return oauthError("invalid_grant");
-    if (state.status === "denied") return oauthError("access_denied");
-    const polling = await pollPendingDeviceGrant(c.env.DB, hash, clientId);
-    if (polling) return oauthError(polling);
-
-    const changed = await consumeApprovedDeviceGrant(c.env.DB, hash, clientId);
-    if (!changed) return oauthError("invalid_grant");
-    await rememberConsent(c.env.DB, changed.account_id, clientId);
-    return c.json({
-      token_type: "Bearer",
-      expires_in: 600,
-      id_token: await issueIdToken(c.env, clientId, changed.account_id, changed.provider_sub),
-    });
+    return oauthError("invalid_grant");
   }
 
   return oauthError("unsupported_grant_type");

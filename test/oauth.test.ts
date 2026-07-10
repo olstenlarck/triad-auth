@@ -288,6 +288,29 @@ describe("authorization-code routes", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("consumes a GitHub denial without a code and redirects an authorization request exactly", async () => {
+    const env = await testEnv();
+    const { request, csrf } = await beginConsent(env);
+    const upstreamState = await approveConsent(env, request, csrf);
+
+    const denied = await app.request(
+      `/callback/github?state=${upstreamState}&error=access_denied`, undefined, env,
+    );
+    expect(denied.status).toBe(302);
+    expect(denied.headers.get("cache-control")).toBe("no-store");
+    const target = new URL(denied.headers.get("location")!);
+    expect(target.origin + target.pathname).toBe(redirectUri);
+    expect(Object.fromEntries(target.searchParams)).toEqual({
+      error: "access_denied",
+      state: "client-state",
+    });
+
+    const replay = await app.request(
+      `/callback/github?state=${upstreamState}&error=access_denied`, undefined, env,
+    );
+    await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
+  });
+
   it("requires a valid 128-character verifier and consumes once under concurrent redemption", async () => {
     const env = await testEnv();
     const verifier = `${"A-._~".repeat(25)}A-.`;

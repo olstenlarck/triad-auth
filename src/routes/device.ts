@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
 import { getClient, validateClient } from "../db";
 import { startProvider } from "../providers";
-import { oauthError, parseOAuthForm, requireSameOrigin } from "./oauth";
+import { oauthError, parseOAuthForm, rejectDuplicateParameters, requireSameOrigin } from "./oauth";
 import { consumeCsrfToken, createCsrfToken } from "../security";
 import type { Env } from "../types";
 
@@ -10,6 +10,7 @@ const now = () => Math.floor(Date.now() / 1000);
 const clientIdLimit = 128;
 const userCodeInputLimit = 32;
 const providerLimit = 32;
+const userCodeAttempts = 5;
 const userCodePattern = /^[A-HJ-NP-Z2-9]{8}$/;
 const devicePurpose = (deviceCodeHash: string) => `device:${deviceCodeHash}`;
 
@@ -30,6 +31,8 @@ deviceRoutes.use("*", async (c, next) => {
 deviceRoutes.post("/device/code", async (c) => {
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) return form;
+  const duplicateError = rejectDuplicateParameters(form, ["client_id", "provider"]);
+  if (duplicateError) return duplicateError;
   const clientId = form.get("client_id") ?? "";
   if (!clientId || clientId.length > clientIdLimit) return oauthError("invalid_client");
   const provider = form.get("provider");
@@ -45,12 +48,26 @@ deviceRoutes.post("/device/code", async (c) => {
   }
 
   const deviceCode = randomToken(32);
-  const userCode = makeUserCode();
-  await c.env.DB.prepare(`INSERT INTO device_grants
-    (device_code_hash, user_code, client_id, status, expires_at, interval_seconds, created_at)
-    VALUES (?, ?, ?, 'pending', ?, 5, ?)`).bind(
-      await sha256(deviceCode), normalizeUserCode(userCode), clientId, now() + 600, now(),
-    ).run();
+  const deviceCodeHash = await sha256(deviceCode);
+  let userCode = "";
+  let inserted = false;
+  for (let attempt = 0; attempt < userCodeAttempts; attempt++) {
+    userCode = makeUserCode();
+    const normalized = normalizeUserCode(userCode);
+    const result = await c.env.DB.prepare(`INSERT OR IGNORE INTO device_grants
+      (device_code_hash, user_code, client_id, status, expires_at, interval_seconds, created_at)
+      VALUES (?, ?, ?, 'pending', ?, 5, ?)`).bind(
+        deviceCodeHash, normalized, clientId, now() + 600, now(),
+      ).run();
+    if (result.meta.changes === 1) {
+      inserted = true;
+      break;
+    }
+    const collision = await c.env.DB.prepare("SELECT 1 FROM device_grants WHERE user_code = ?")
+      .bind(normalized).first();
+    if (!collision) return oauthError("server_error", undefined, 500);
+  }
+  if (!inserted) return oauthError("server_error", undefined, 500);
   return c.json({
     device_code: deviceCode,
     user_code: userCode,
@@ -90,6 +107,8 @@ deviceRoutes.post("/device/verify", async (c) => {
   if (originError) return originError;
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) return form;
+  const duplicateError = rejectDuplicateParameters(form, ["user_code", "provider", "csrf_token"]);
+  if (duplicateError) return duplicateError;
   const userCode = validUserCode(form.get("user_code") ?? "");
   const provider = form.get("provider") ?? "";
   if (!userCode) return oauthError("invalid_grant", "invalid or expired user code");

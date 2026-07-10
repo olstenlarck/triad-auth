@@ -8,6 +8,7 @@ export interface AuthorizationCodeRow {
 }
 
 export interface DeviceGrantStateRow {
+  client_id: string;
   status: "pending" | "approved" | "denied";
   expires_at: number;
   consumed_at: number | null;
@@ -82,6 +83,13 @@ export async function approveDeviceGrant(
   return result.meta.changes === 1;
 }
 
+export async function denyDeviceGrant(db: D1Database, deviceCodeHash: string): Promise<boolean> {
+  const result = await db.prepare(`UPDATE device_grants SET status = 'denied'
+    WHERE device_code_hash = ? AND status = 'pending' AND expires_at > unixepoch()`)
+    .bind(deviceCodeHash).run();
+  return result.meta.changes === 1;
+}
+
 export async function consumeApprovedDeviceGrant(
   db: D1Database,
   deviceCodeHash: string,
@@ -98,11 +106,10 @@ export async function consumeApprovedDeviceGrant(
 export async function getDeviceGrantState(
   db: D1Database,
   deviceCodeHash: string,
-  clientId: string,
 ): Promise<DeviceGrantStateRow | null> {
-  return db.prepare(`SELECT status, expires_at, consumed_at FROM device_grants
-    WHERE device_code_hash = ? AND client_id = ?`)
-    .bind(deviceCodeHash, clientId).first<DeviceGrantStateRow>();
+  return db.prepare(`SELECT client_id, status, expires_at, consumed_at FROM device_grants
+    WHERE device_code_hash = ?`)
+    .bind(deviceCodeHash).first<DeviceGrantStateRow>();
 }
 
 export async function pollPendingDeviceGrant(
