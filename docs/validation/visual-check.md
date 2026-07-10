@@ -5,8 +5,10 @@ Validated on 2026-07-10 against the local Worker at `http://localhost:8787` with
 ## Environment
 
 - Required setup completed with `pnpm db:local` and `pnpm build`.
-- `pnpm wrangler dev --local` initially failed because `wrangler.toml` uses compatibility date `2026-07-10`, while locked `workerd@1.20260702.1` supports through `2026-07-09`.
-- Browser validation used the local-only equivalent `pnpm wrangler dev --local --compatibility-date 2026-07-09`. No deployment configuration was changed.
+- `pnpm wrangler dev --local` initially failed because `wrangler.toml` used compatibility date `2026-07-10`, while locked `workerd@1.20260702.1` supports through `2026-07-09`.
+- The committed compatibility date is now `2026-07-09`. Locked Wrangler 4.107.1 starts without a date override and serves the built application.
+- Follow-up runtime validation used a fresh migrated persistence directory because an earlier temporary newer-runtime test changed ignored Miniflare internal state. The repository's default ignored state was not deleted.
+- An ignored mode-600 `.dev.vars` supplied a generated ES256 signing JWK and pairwise secret. GitHub credential fields remain empty for the user and the file was not staged.
 - Viewports: desktop `1440x900`; mobile `390x844`.
 - Normal and `prefers-reduced-motion: reduce` media states were tested at both sizes.
 
@@ -75,11 +77,13 @@ Static regression assertions for the responsive caps and target dimensions were 
 ## Safe interactions
 
 - Entered invalid device code `ABCD-2345`: the form cleared busy state, kept submission disabled, exposed `That device code is invalid or expired.`, and announced an error status without overflow.
-- Started the demo's local device-code request without following any provider redirect: the local API returned an error, and the UI restored the enabled `START DEVICE FLOW` action with a visible error status.
+- The original demo device-code error was traced to an absent required `PAIRWISE_SECRET`, not an application or D1 defect. With valid ignored local signing and pairwise values, `POST /device/code` returned 200 and inserted the expected limiter and pending grant rows.
 - Used callback and consent `RETURN TO DEMO` recovery links and confirmed navigation to `/demo/`.
 - Did not activate GitHub sign-in, consent approval, account sign-in, or any external provider interaction.
 
-## Residual observations
+## Resolved follow-up and residual observations
 
-- Local device API requests returned HTTP 500 in this environment after the migration, while the inspected UI recovery states behaved correctly. This is outside the Task 9 UI/accessibility correction scope and no provider flow was attempted.
-- Chromium requested `/favicon.ico`, which returned 404. This produced no browser console or page error and has no P0/P1/P2 UI or accessibility impact.
+- The prior local device API 500 is resolved under valid required local configuration. The issued grant used `triad-demo`, `pending`, a 5-second interval, and a 600-second TTL; the limiter row used bucket `device-issue`, count 1, and a 60-second window.
+- The prior favicon 404 is resolved with `public/favicon.svg` and an explicit Shell icon link. Worker and browser checks returned 200 for `/favicon.svg` with no console or page errors.
+- GitHub credentials intentionally remain empty, so `pnpm check:config` still reports only `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. No provider redirect was attempted.
+- The default ignored Miniflare state contains an internal `_cf_ALARM` schema written by the temporary newer runtime. Final validation used a fresh isolated persistence directory rather than deleting local state without approval.

@@ -14,6 +14,7 @@ declare const process: {
   getBuiltinModule(name: "node:fs"): {
     existsSync(path: string): boolean;
     mkdtempSync(prefix: string): string;
+    readFileSync(path: string, encoding: "utf8"): string;
     rmSync(path: string, options: { recursive: true; force: true }): void;
     writeFileSync(path: string, data: string): void;
   };
@@ -22,7 +23,7 @@ declare const process: {
 };
 
 const { spawnSync } = process.getBuiltinModule("node:child_process");
-const { existsSync, mkdtempSync, rmSync, writeFileSync } = process.getBuiltinModule("node:fs");
+const { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = process.getBuiltinModule("node:fs");
 const { tmpdir } = process.getBuiltinModule("node:os");
 const { join, resolve } = process.getBuiltinModule("node:path");
 const checker = resolve(process.cwd(), "scripts/check-config.mjs");
@@ -50,6 +51,20 @@ function validAmbientConfig(privateJwk: string): Record<string, string> {
 }
 
 describe("deployment configuration", () => {
+  it("uses a compatibility date supported by the locked workerd baseline", () => {
+    const config = readFileSync("wrangler.toml", "utf8");
+    const lockfile = readFileSync("pnpm-lock.yaml", "utf8");
+    const compatibilityDate = config.match(/^compatibility_date = "([^"]+)"$/m)?.[1];
+    const workerdVersion = lockfile.match(/^  workerd@(\d+\.\d+\.\d+):$/m)?.[1];
+    const latestSupportedDate: Record<string, string> = {
+      "1.20260702.1": "2026-07-09",
+    };
+
+    expect(workerdVersion).toBe("1.20260702.1");
+    expect(compatibilityDate).toBeDefined();
+    expect(compatibilityDate! <= latestSupportedDate[workerdVersion!]).toBe(true);
+  });
+
   it("reports every missing variable without printing values", () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     try {

@@ -1,6 +1,6 @@
 name = "triad-auth-broker"
 main = "src/index.ts"
-compatibility_date = "2026-07-10"
+compatibility_date = "2026-07-09"
 
 [[d1_databases]]
 binding = "DB"

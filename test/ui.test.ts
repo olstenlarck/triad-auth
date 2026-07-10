@@ -1,15 +1,25 @@
 import { expect, it } from "vitest";
 
 declare const process: {
-  getBuiltinModule(name: "node:fs"): { readFileSync(path: string, encoding: "utf8"): string };
+  getBuiltinModule(name: "node:fs"): {
+    existsSync(path: string): boolean;
+    readFileSync(path: string, encoding: "utf8"): string;
+  };
 };
 
-const { readFileSync } = process.getBuiltinModule("node:fs");
+const { existsSync, readFileSync } = process.getBuiltinModule("node:fs");
 const readFile = async (path: string, _encoding: "utf8") => readFileSync(path, "utf8");
 
 it("builds both demo entry points", async () => {
   await expect(readFile("dist/demo/index.html", "utf8")).resolves.toContain("TRY THE BROKER");
   await expect(readFile("dist/demo/callback/index.html", "utf8")).resolves.toContain("VERIFYING IDENTITY");
+});
+
+it("ships and links a local switchboard favicon", async () => {
+  const shell = await readFile("src/components/Shell.astro", "utf8");
+
+  expect(existsSync("public/favicon.svg")).toBe(true);
+  expect(shell).toContain('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />');
 });
 
 it("seeds only the exact local downstream demo client", async () => {
