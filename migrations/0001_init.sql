@@ -90,6 +90,13 @@ CREATE TABLE browser_sessions (
 );
 CREATE INDEX browser_sessions_account_idx ON browser_sessions(account_id);
 
+CREATE TABLE csrf_tokens (
+  token_hash TEXT PRIMARY KEY,
+  purpose TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
 -- Development client. Replace this before deployment.
 INSERT INTO clients (client_id, name, redirect_uris, providers, created_at)
 VALUES ('local-dev', 'Local development', '["http://localhost:3000/callback"]', '["google","github","x"]', unixepoch());

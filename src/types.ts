@@ -31,6 +31,13 @@ export interface TransactionRow {
   expires_at: number;
 }
 
+export interface CsrfTokenRow {
+  token_hash: string;
+  purpose: string;
+  expires_at: number;
+  created_at: number;
+}
+
 export interface ProviderIdentity {
   provider: ProviderName;
   id: string;
