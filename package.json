@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm build && wrangler dev",
+    "dev": "pnpm build && wrangler dev --var ISSUER:http://localhost:8787",
     "build": "astro build && node scripts/generate-csp-hashes.mjs",
     "deploy": "pnpm build && wrangler deploy",
     "db:local": "wrangler d1 migrations apply triad-auth --local",

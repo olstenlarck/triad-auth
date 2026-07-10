@@ -79,7 +79,7 @@ pnpm dev
 
 Open `http://localhost:8787/demo/` for the built-in PKCE and device demos. The account surface is at `http://localhost:8787/me/`.
 
-`pnpm dev` performs a complete Astro build and regenerates the inline-script CSP hashes before Wrangler starts. It intentionally does not run a stale build watcher. Restart `pnpm dev` after changing Astro pages or browser scripts.
+`pnpm dev` performs a complete Astro build and regenerates the inline-script CSP hashes before Wrangler starts. It passes `--var ISSUER:http://localhost:8787` to Wrangler, overriding only `ISSUER` for the local process; `ISSUER` is not a secret and does not belong in `.dev.vars`. The production `pnpm deploy` command passes no override and continues to use the canonical HTTPS `ISSUER` from `wrangler.toml`. Local development intentionally does not run a stale build watcher, so restart `pnpm dev` after changing Astro pages or browser scripts.
 
 ## Checks
 

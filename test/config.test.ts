@@ -51,6 +51,19 @@ function validAmbientConfig(privateJwk: string): Record<string, string> {
 }
 
 describe("deployment configuration", () => {
+  it("overrides only the local dev issuer while preserving canonical production deployment", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    const config = readFileSync("wrangler.toml", "utf8");
+
+    expect(packageJson.scripts.dev).toBe(
+      "pnpm build && wrangler dev --var ISSUER:http://localhost:8787",
+    );
+    expect(packageJson.scripts.deploy).toBe("pnpm build && wrangler deploy");
+    expect(config).toContain('ISSUER = "https://triad-auth-broker.equator-owl-studio.workers.dev"');
+  });
+
   it("uses a compatibility date supported by the locked workerd baseline", () => {
     const config = readFileSync("wrangler.toml", "utf8");
     const lockfile = readFileSync("pnpm-lock.yaml", "utf8");
