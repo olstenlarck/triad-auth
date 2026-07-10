@@ -1,7 +1,7 @@
 import { exportJWK, generateKeyPair } from "jose";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import app from "../src/index";
-import { sha256 } from "../src/crypto";
+import { providerSubject, sha256 } from "../src/crypto";
 import { preAuthCookieName } from "../src/pre-auth";
 import { createCsrfToken } from "../src/security";
 import type { Env } from "../src/types";
@@ -468,7 +468,11 @@ describe("device authorization", () => {
       .resolves.toMatchObject({ error: "invalid_grant" });
     const grant = await env.DB.prepare("SELECT status, account_id, provider_sub FROM device_grants WHERE device_code_hash = ?")
       .bind(deviceHash).first();
-    expect(grant).toEqual({ status: "approved", account_id: "acct_device", provider_sub: "github:42" });
+    expect(grant).toEqual({
+      status: "approved",
+      account_id: "acct_device",
+      provider_sub: await providerSubject("p".repeat(32), "github", "42"),
+    });
   });
 
   it("consumes a GitHub denial callback and makes the device poll return access_denied", async () => {
@@ -640,7 +644,7 @@ describe("device token exchange", () => {
     expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
     const token = responses.find((response) => response.status === 200)!;
     const rejected = responses.find((response) => response.status === 400)!;
-    await expect(token.json()).resolves.toMatchObject({ token_type: "Bearer", expires_in: 600 });
+    await expect(token.json()).resolves.toMatchObject({ token_type: "Bearer", expires_in: 300 });
     await expect(rejected.json()).resolves.toMatchObject({ error: "invalid_grant" });
     expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM consents WHERE account_id = 'acct_device'")
       .first("count")).toBe(1);
