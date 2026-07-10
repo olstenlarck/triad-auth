@@ -25,7 +25,7 @@ Downstream clients are registered in D1 with exact redirect URI and provider all
 
 ## Requirements
 
-- Node.js 24 or a compatible release with `process.loadEnvFile`
+- Node.js 22.12 or newer
 - pnpm 11
 - A GitHub account for creating an OAuth App
 - A Cloudflare account for D1 and deployment
@@ -68,7 +68,7 @@ Validate the file without sourcing it in a shell:
 pnpm check:config
 ```
 
-The validator uses Node's dotenv loader, prints variable names and generic validation errors only, and never prints configured values.
+The validator parses only `.dev.vars` into an isolated in-memory map, ignores ambient environment values, trims each parsed value for validation, and never prints configured values.
 
 Initialize local D1 and start the Worker:
 

@@ -64,3 +64,39 @@ The first full suite exposed an existing contract in `account.test.ts`: `GET /se
 ## Commit
 
 Subject: `docs: make GitHub broker deployable`
+
+## Review Follow-Up
+
+The configuration checker no longer calls `process.loadEnvFile` or reads `process.env`. It reads `.dev.vars` as text, parses it with `node:util.parseEnv` into an isolated map, and derives a separate trimmed in-memory map for every presence, JWK, and pairwise-secret validation. It does not mutate the parsed values, write configuration, or include values in output.
+
+Regression tests prove that:
+
+- Valid ambient variables cannot supply values missing from `.dev.vars`.
+- Valid ambient variables cannot replace an invalid file JWK or short file pairwise secret.
+- Quoted whitespace padding cannot raise a 28-character pairwise secret to the 32-character minimum.
+- Padded valid JWK JSON is parsed after trimming.
+
+TDD red phase:
+
+```text
+pnpm test test/config.test.ts
+3 failed, 3 passed
+```
+
+All three new tests incorrectly received exit 0 before the fix.
+
+Review-fix verification:
+
+```text
+pnpm test test/config.test.ts
+1 test file passed, 6 tests passed
+
+pnpm check
+12 test files passed, 144 tests passed
+6 Astro pages built, 3 CSP hashes generated
+Wrangler 4.107.1 dry-run passed
+```
+
+The local `.dev.vars` remains unpopulated, and Task 10 still owns all real credentials, the D1 identifier, and the production issuer.
+
+Follow-up commit subject: `fix: isolate local config validation`

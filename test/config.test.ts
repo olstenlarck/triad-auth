@@ -27,12 +27,26 @@ const { tmpdir } = process.getBuiltinModule("node:os");
 const { join, resolve } = process.getBuiltinModule("node:path");
 const checker = resolve(process.cwd(), "scripts/check-config.mjs");
 
-function runCheck(cwd: string) {
-  return spawnSync(process.execPath, [checker], { cwd, encoding: "utf8", env: {} });
+function runCheck(cwd: string, env: Record<string, string> = {}) {
+  return spawnSync(process.execPath, [checker], { cwd, encoding: "utf8", env });
 }
 
 function envLine(name: string, value: string): string {
   return `${name}=${value}`;
+}
+
+async function generatePrivateJwk(): Promise<string> {
+  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+  return JSON.stringify(await exportJWK(privateKey));
+}
+
+function validAmbientConfig(privateJwk: string): Record<string, string> {
+  return {
+    GITHUB_CLIENT_ID: "ambient-id",
+    GITHUB_CLIENT_SECRET: "ambient-secret",
+    SIGNING_PRIVATE_JWK: privateJwk,
+    PAIRWISE_SECRET: "a".repeat(32),
+  };
 }
 
 describe("deployment configuration", () => {
@@ -54,8 +68,7 @@ describe("deployment configuration", () => {
   it("loads .dev.vars as data without evaluating shell syntax", async () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     const marker = join(directory, "shell-command-ran");
-    const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-    const privateJwk = JSON.stringify(await exportJWK(privateKey));
+    const privateJwk = await generatePrivateJwk();
     try {
       writeFileSync(join(directory, ".dev.vars"), [
         envLine("GITHUB_CLIENT_ID", '"github-client"'),
@@ -97,6 +110,77 @@ describe("deployment configuration", () => {
       expect(output).toContain("PAIRWISE_SECRET must be at least 32 characters");
       expect(output).not.toContain("github-secret");
       expect(output).not.toContain("too-short");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not use ambient values for variables missing from .dev.vars", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
+    const ambient = validAmbientConfig(await generatePrivateJwk());
+    try {
+      writeFileSync(join(directory, ".dev.vars"), "# intentionally empty\n");
+
+      const result = runCheck(directory, ambient);
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status).toBe(1);
+      expect(result.stderr.trim()).toBe(
+        "Missing required configuration: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SIGNING_PRIVATE_JWK, PAIRWISE_SECRET",
+      );
+      expect(output).not.toContain("ambient-id");
+      expect(output).not.toContain("ambient-secret");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not let ambient values replace invalid .dev.vars values", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
+    const ambient = validAmbientConfig(await generatePrivateJwk());
+    try {
+      writeFileSync(join(directory, ".dev.vars"), [
+        envLine("GITHUB_CLIENT_ID", "file-id"),
+        envLine("GITHUB_CLIENT_SECRET", "file-secret"),
+        envLine("SIGNING_PRIVATE_JWK", "'{}'"),
+        envLine("PAIRWISE_SECRET", "short"),
+        "",
+      ].join("\n"));
+
+      const result = runCheck(directory, ambient);
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status).toBe(1);
+      expect(output).toContain("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+      expect(output).toContain("PAIRWISE_SECRET must be at least 32 characters");
+      expect(output).not.toContain("ambient-secret");
+      expect(output).not.toContain("file-secret");
+      expect(output).not.toContain("short");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("does not count whitespace padding toward pairwise-secret length", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
+    const privateJwk = await generatePrivateJwk();
+    try {
+      writeFileSync(join(directory, ".dev.vars"), [
+        envLine("GITHUB_CLIENT_ID", "file-id"),
+        envLine("GITHUB_CLIENT_SECRET", "file-secret"),
+        envLine("SIGNING_PRIVATE_JWK", `'  ${privateJwk}  '`),
+        envLine("PAIRWISE_SECRET", `'  ${"p".repeat(28)}  '`),
+        "",
+      ].join("\n"));
+
+      const result = runCheck(directory);
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status).toBe(1);
+      expect(output).toContain("PAIRWISE_SECRET must be at least 32 characters");
+      expect(output).not.toContain("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+      expect(output).not.toContain("file-secret");
+      expect(output).not.toContain("p".repeat(28));
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

@@ -1,19 +1,21 @@
-import { existsSync } from "node:fs";
-import { loadEnvFile } from "node:process";
+import { existsSync, readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 import { importJWK } from "jose";
 
 const required = ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SIGNING_PRIVATE_JWK", "PAIRWISE_SECRET"];
+let fileValues = {};
 
 if (existsSync(".dev.vars")) {
   try {
-    loadEnvFile(".dev.vars");
+    fileValues = parseEnv(readFileSync(".dev.vars", "utf8"));
   } catch {
     console.error("Unable to load .dev.vars. Check its dotenv syntax.");
     process.exit(1);
   }
 }
 
-const missing = required.filter((name) => !process.env[name]?.trim());
+const config = Object.fromEntries(required.map((name) => [name, fileValues[name]?.trim() ?? ""]));
+const missing = required.filter((name) => !config[name]);
 if (missing.length > 0) {
   console.error(`Missing required configuration: ${missing.join(", ")}`);
   process.exit(1);
@@ -21,7 +23,7 @@ if (missing.length > 0) {
 
 const errors = [];
 try {
-  const jwk = JSON.parse(process.env.SIGNING_PRIVATE_JWK);
+  const jwk = JSON.parse(config.SIGNING_PRIVATE_JWK);
   if (
     !jwk ||
     jwk.kty !== "EC" ||
@@ -37,7 +39,7 @@ try {
   errors.push("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
 }
 
-if (process.env.PAIRWISE_SECRET.length < 32) {
+if (config.PAIRWISE_SECRET.length < 32) {
   errors.push("PAIRWISE_SECRET must be at least 32 characters");
 }
 
