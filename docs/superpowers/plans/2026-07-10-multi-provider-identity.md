@@ -250,18 +250,26 @@ git commit -m "feat: add privacy-scoped claims"
 - Modify: `test/d1.ts`
 
 **Interfaces:**
-- Produces: GET `/api/providers` returning `{ providers: ProviderName[] }`.
+- Produces: GET `/api/providers` returning `{ providers: Array<{ id: ProviderName; scopes: ProfileScope[] }> }`.
 - Persists: provider verifier/nonce in `oauth_transactions` and provider in `device_grants`.
 - Requires: device verification provider must equal stored grant provider.
 - Produces: account API identity values as opaque `provider_sub` values, never raw upstream IDs.
 - Persists: canonical requested scopes and grant-bound encrypted profile claims through one-time code and device exchanges.
+- Persists: provider on authorization codes and revalidates the client/provider allowlist at redemption.
+- Requires: transaction pre-auth cookies use the exact selected provider callback path.
+- Requires: a supported but missing mandatory account claim ends as `access_denied`, never `server_error`.
 
 - [ ] **Step 1: Write failing route and migration tests**
 
 ```ts
 it("returns only configured providers", async () => {
   const response = await app.request("/api/providers", {}, envWithGoogleAndGitHub());
-  await expect(response.json()).resolves.toEqual({ providers: ["google", "github"] });
+  await expect(response.json()).resolves.toEqual({
+    providers: [
+      { id: "google", scopes: ["email", "name", "avatar"] },
+      { id: "github", scopes: ["email", "handle", "name", "avatar"] },
+    ],
+  });
 });
 
 it("persists the selected Twitter provider on a device grant", async () => {
@@ -278,7 +286,7 @@ it("returns only requested mandatory claims and scope at token exchange", async 
 });
 ```
 
-Cover unconfigured-provider rejection before inserts, Google nonce persistence, Twitter verifier persistence, callback provider matching, all three session starts, and migration allowlists.
+Cover unconfigured-provider rejection before inserts, Google nonce persistence, Twitter verifier persistence, callback provider matching, provider-specific pre-auth cookie paths, all three session starts, mandatory-claim `access_denied`, authorization-code provider revalidation, capability metadata, migration allowlists, and a populated `0001` database upgraded through `0002`.
 
 - [ ] **Step 2: Run route suites and verify RED**
 
@@ -295,6 +303,7 @@ DELETE FROM oauth_transactions;
 DELETE FROM authorization_codes;
 DELETE FROM device_grants;
 ALTER TABLE oauth_transactions ADD COLUMN scopes TEXT NOT NULL DEFAULT '["openid"]';
+ALTER TABLE authorization_codes ADD COLUMN provider TEXT NOT NULL DEFAULT 'github';
 ALTER TABLE authorization_codes ADD COLUMN scopes TEXT NOT NULL DEFAULT '["openid"]';
 ALTER TABLE authorization_codes ADD COLUMN claims_ciphertext TEXT;
 ALTER TABLE device_grants ADD COLUMN provider TEXT NOT NULL DEFAULT 'github';
@@ -304,7 +313,7 @@ UPDATE clients SET providers = '["google","github","twitter"]'
 WHERE client_id IN ('triad-demo', 'triad-account');
 ```
 
-Keep `0001_init.sql` compatible with sequential fresh migration application. Derive opaque identity values in `/api/me` before returning them.
+Keep `0001_init.sql` compatible with sequential fresh migration application. Add an upgrade test that applies `0001`, inserts durable account/identity/consent rows plus transient rows, applies `0002`, and proves durable data survives while transient data is cleared. Derive opaque identity values in `/api/me` before returning them.
 
 - [ ] **Step 4: Run route suites, migration, and typecheck**
 
