@@ -98,6 +98,15 @@ button { color: inherit; }
 
 .wordmark span { color: var(--signal); }
 
+.wordmark,
+.site-header nav a,
+.text-link {
+  display: inline-flex;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  align-items: center;
+}
+
 .site-header nav {
   display: flex;
   gap: clamp(0.8rem, 2vw, 2rem);
@@ -460,6 +469,8 @@ h1, h2, h3 { text-wrap: balance; }
 
 @media (max-width: 760px) {
   .site-header nav .nav-secondary { display: none; }
+  #consent-title { font-size: clamp(2.2rem, 11vw, 3.7rem); }
+  #callback-title { font-size: clamp(2.8rem, 14vw, 3.7rem); }
   .site-footer { align-items: flex-start; flex-direction: column; justify-content: center; }
   .hero { min-height: auto; }
   .hero-bottom,

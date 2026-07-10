@@ -117,3 +117,20 @@ it("keeps all navigation and product copy GitHub-only", async () => {
   expect(ui).not.toMatch(/Google|Twitter|GOOGLE|TWITTER|session\/start\/x|>X<|value="x"/);
   expect(ui).not.toContain("—");
 });
+
+it("caps long transaction headings at narrow viewports", async () => {
+  const css = await readFile("src/styles/global.css", "utf8");
+  const mobile = css.slice(
+    css.indexOf("@media (max-width: 760px)"),
+    css.indexOf("@media (prefers-reduced-motion: reduce)"),
+  );
+
+  expect(mobile).toContain("#consent-title { font-size: clamp(2.2rem, 11vw, 3.7rem); }");
+  expect(mobile).toContain("#callback-title { font-size: clamp(2.8rem, 14vw, 3.7rem); }");
+});
+
+it("gives header and standalone links a minimum touch size", async () => {
+  const css = await readFile("src/styles/global.css", "utf8");
+
+  expect(css).toMatch(/\.wordmark,\s*\.site-header nav a,\s*\.text-link\s*\{[^}]*min-width: 2\.75rem;[^}]*min-height: 2\.75rem;/s);
+});
