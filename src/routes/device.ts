@@ -152,13 +152,15 @@ deviceRoutes.post("/device/verify", async (c) => {
 
   const upstreamState = randomToken();
   const stateHash = await sha256(upstreamState);
-  const start = startProvider(c.env, upstreamState);
+  const start = await startProvider("github", c.env, upstreamState);
   const binding = await createPreAuthBinding();
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
-    (state_hash, kind, client_id, provider, device_code_hash, browser_binding_hash, expires_at, created_at)
-    VALUES (?, 'device', ?, 'github', ?, ?, ?, ?)`).bind(
-      stateHash, grant.client_id, grant.device_code_hash, binding.hash, now() + 600, now(),
+    (state_hash, kind, client_id, provider, provider_verifier, provider_nonce,
+      device_code_hash, browser_binding_hash, expires_at, created_at)
+    VALUES (?, 'device', ?, 'github', ?, ?, ?, ?, ?, ?)`).bind(
+      stateHash, grant.client_id, start.verifier ?? null, start.nonce ?? null,
+      grant.device_code_hash, binding.hash, now() + 600, now(),
     ).run();
   setPreAuthCookie(c, stateHash, binding.token);
   return c.json({ redirect_to: start.url });

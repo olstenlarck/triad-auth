@@ -243,15 +243,15 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
   if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
   const upstreamState = randomToken();
   const stateHash = await sha256(upstreamState);
-  const start = startProvider(c.env, upstreamState);
+  const start = await startProvider("github", c.env, upstreamState);
   const binding = await createPreAuthBinding();
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
     (state_hash, kind, client_id, redirect_uri, app_state, provider, code_challenge,
-      browser_binding_hash, expires_at, created_at)
-    VALUES (?, 'authorization_code', ?, ?, ?, 'github', ?, ?, ?, ?)`).bind(
+      provider_verifier, provider_nonce, browser_binding_hash, expires_at, created_at)
+    VALUES (?, 'authorization_code', ?, ?, ?, 'github', ?, ?, ?, ?, ?, ?)`).bind(
       stateHash, row.client_id, row.redirect_uri, row.app_state,
-      row.code_challenge, binding.hash, now() + 600, now(),
+      row.code_challenge, start.verifier ?? null, start.nonce ?? null, binding.hash, now() + 600, now(),
     ).run();
   setPreAuthCookie(c, stateHash, binding.token);
   return c.json({ redirect_to: start.url });
@@ -312,7 +312,13 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     return oauthError("access_denied");
   }
 
-  const identity = await finishProvider(c.env, code!);
+  const identity = await finishProvider(
+    "github",
+    c.env,
+    code!,
+    tx.provider_verifier ?? undefined,
+    tx.provider_nonce ?? undefined,
+  );
   const accountId = await resolveIdentity(c.env.DB, identity);
   const providerSub = await providerSubject(c.env.PAIRWISE_SECRET, identity.provider, identity.id);
 
