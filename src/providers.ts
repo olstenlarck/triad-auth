@@ -20,6 +20,9 @@ const callback = (provider: ProviderName, env: Env) => `${env.ISSUER}/callback/$
 const configured = (clientId?: string, clientSecret?: string) =>
   Boolean(clientId?.trim() && clientSecret?.trim());
 
+const formEncode = (value: string) =>
+  new URLSearchParams({ value }).toString().slice("value=".length);
+
 function providerCredentials(provider: ProviderName, env: Env): ProviderCredentials {
   const [clientId, clientSecret] = provider === "google"
     ? [env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET]
@@ -144,7 +147,7 @@ async function finishTwitter(
   verifier?: string,
 ): Promise<string> {
   if (!verifier) throw new Error("Twitter PKCE verifier is required");
-  const basicCredentials = `${encodeURIComponent(credentials.clientId)}:${encodeURIComponent(credentials.clientSecret)}`;
+  const basicCredentials = `${formEncode(credentials.clientId)}:${formEncode(credentials.clientSecret)}`;
   const token = await tokenRequest("https://api.x.com/2/oauth2/token", new URLSearchParams({
     code,
     grant_type: "authorization_code",

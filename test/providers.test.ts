@@ -312,6 +312,31 @@ describe("Twitter provider", () => {
     }));
   });
 
+  it("form-encodes each Basic credential component before joining them", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        token_type: "bearer",
+        expires_in: 7200,
+        access_token: "temporary-twitter-token",
+        scope: "tweet.read users.read",
+      }), { status: 200, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: { id: "2244994945", name: "Mutable Name", username: "mutable_name" },
+      }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await finishProvider("twitter", env({
+      TWITTER_CLIENT_ID: "client !'()*~+&=",
+      TWITTER_CLIENT_SECRET: "secret !'()*~+&=",
+    }), "provider-code", "upstream-verifier");
+
+    const tokenRequest = fetch.mock.calls[0] as [string, RequestInit];
+    const authorization = new Headers(tokenRequest[1].headers).get("authorization")!;
+    expect(atob(authorization.slice("Basic ".length))).toBe(
+      "client+%21%27%28%29*%7E%2B%26%3D:secret+%21%27%28%29*%7E%2B%26%3D",
+    );
+  });
+
   it.each([undefined, null, 42, "", "42.0", "-42"])(
     "rejects an invalid Twitter data.id: %s",
     async (id) => {
