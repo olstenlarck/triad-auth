@@ -10,12 +10,15 @@ afterEach(() => {
 });
 
 describe("identity contract", () => {
-  it("derives stable separated opaque provider subjects", async () => {
-    const secret = "s".repeat(32);
+  it("matches stable separated opaque provider subject vectors", async () => {
+    const secret = "0123456789abcdef0123456789abcdef";
+    // Independently calculated for provider-sub\0github:277398031 and provider-sub\0google:277398031.
     const github = await providerSubject(secret, "github", "277398031");
-    expect(github).toMatch(/^prv_github_[A-Za-z0-9_-]{22}$/);
+    const google = await providerSubject(secret, "google", "277398031");
+    expect(github).toBe("prv_github_0u6Y5KwzzMY4exV8ftB_W8");
+    expect(google).toBe("prv_google_Zi-AIj7d_CJ-T4VPqJI5E8");
     expect(await providerSubject(secret, "github", "277398031")).toBe(github);
-    expect(await providerSubject(secret, "google", "277398031")).not.toBe(github);
+    expect(google.slice("prv_google_".length)).not.toBe(github.slice("prv_github_".length));
     expect(github).not.toContain("277398031");
   });
 
