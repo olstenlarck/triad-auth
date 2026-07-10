@@ -125,3 +125,18 @@ The remaining low-severity review items were addressed in one final fix commit; 
 - Remote D1 contention tests remain deployment evidence; the local SQLite adapter verifies SQL behavior but not Cloudflare's distributed execution.
 - HTTPS browser smoke testing remains necessary for concurrent cross-site callback cookies and full account DOM interaction.
 - Already-migrated environments still require the additive schema migration identified above.
+
+## Task 7 Cleanup Capacity Follow-Up
+
+The sampled cleanup capacity quality finding was addressed in one additional non-amended commit; its SHA is returned in the task handoff.
+
+- Increased the cleanup trigger from random byte `=== 0` to random byte `< 8`, changing the sampling probability from 1/256 to 8/256, or 1/32.
+- Retained the existing hard cap of 100 expired rowids per sampled DELETE.
+- Expected cleanup capacity is now `100 / 32 = 3.125` stale rows per limiter request, exceeding the worst-case one newly inserted rate-limit row per request.
+- Deterministic boundary tests use byte `7` to require the capped cleanup and byte `8` to require no cleanup. The byte-7 test failed first with all 150 stale rows retained, then passed with exactly 50 retained; byte 8 executes no DELETE.
+- `pnpm vitest run test/rate-limit.test.ts`: PASS, 14 tests.
+- `pnpm test`: PASS, 11 files and 137 tests.
+- `pnpm typecheck`: PASS, zero TypeScript errors.
+- `git diff --check`: PASS, no whitespace errors.
+
+Remote D1 contention and cleanup behavior remain deployment evidence; local SQLite verifies the deterministic threshold and bounded SQL behavior.

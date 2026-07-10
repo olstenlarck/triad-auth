@@ -102,7 +102,7 @@ describe("D1 rate limiter", () => {
       },
     });
     vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
-      (array as Uint8Array).fill(1);
+      (array as Uint8Array).fill(8);
       return array;
     });
 
@@ -127,7 +127,7 @@ describe("D1 rate limiter", () => {
     await db.prepare(`INSERT INTO rate_limits (bucket, key_hash, window_start, count, expires_at)
       VALUES ('active', 'active-key', ?, 1, ?)`).bind(now, now + 60).run();
     vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
-      (array as Uint8Array).fill(0);
+      (array as Uint8Array).fill(7);
       return array;
     });
 
