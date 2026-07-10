@@ -1,22 +1,16 @@
-import type { Env, ProviderIdentity, ProviderName } from "./types";
+import type { Env, ProviderIdentity } from "./types";
 
 interface ProviderStart {
   url: string;
-  verifier?: string;
-  nonce?: string;
 }
 
-const callback = (env: Env, provider: ProviderName) => `${env.ISSUER}/callback/${provider}`;
+const callback = (env: Env) => `${env.ISSUER}/callback/github`;
 
-export async function startProvider(
-  provider: ProviderName,
-  env: Env,
-  state: string,
-): Promise<ProviderStart> {
+export function startProvider(env: Env, state: string): ProviderStart {
   const url = new URL("https://github.com/login/oauth/authorize");
   url.search = new URLSearchParams({
     client_id: env.GITHUB_CLIENT_ID,
-    redirect_uri: callback(env, provider),
+    redirect_uri: callback(env),
     state,
   }).toString();
   return { url: url.toString() };
@@ -32,25 +26,26 @@ async function tokenRequest(url: string, body: URLSearchParams, headers?: Header
   return response.json<Record<string, unknown>>();
 }
 
-export async function finishProvider(
-  provider: ProviderName,
-  env: Env,
-  code: string,
-  verifier?: string | null,
-  nonce?: string | null,
-): Promise<ProviderIdentity> {
-  const token = await tokenRequest("https://github.com/login/oauth/access_token", new URLSearchParams({
-    code,
-    client_id: env.GITHUB_CLIENT_ID,
-    client_secret: env.GITHUB_CLIENT_SECRET,
-    redirect_uri: callback(env, provider),
-  }));
-  if (typeof token.access_token !== "string") throw new Error("GitHub response missing access token");
+async function githubUserId(accessToken: string): Promise<string> {
   const response = await fetch("https://api.github.com/user", {
-    headers: { authorization: `Bearer ${token.access_token}`, accept: "application/vnd.github+json", "user-agent": "triad-auth" },
+    headers: { authorization: `Bearer ${accessToken}`, accept: "application/json", "user-agent": "triad-auth" },
   });
   if (!response.ok) throw new Error(`GitHub user lookup failed (${response.status})`);
   const user = await response.json<{ id?: number }>();
   if (!Number.isSafeInteger(user.id)) throw new Error("GitHub response missing numeric id");
-  return { provider, id: String(user.id) };
+  return String(user.id);
+}
+
+export async function finishProvider(env: Env, code: string): Promise<ProviderIdentity> {
+  const id = await (async () => {
+    const token = await tokenRequest("https://github.com/login/oauth/access_token", new URLSearchParams({
+      code,
+      client_id: env.GITHUB_CLIENT_ID,
+      client_secret: env.GITHUB_CLIENT_SECRET,
+      redirect_uri: callback(env),
+    }));
+    if (typeof token.access_token !== "string") throw new Error("GitHub response missing access token");
+    return githubUserId(token.access_token);
+  })();
+  return { provider: "github", id };
 }
