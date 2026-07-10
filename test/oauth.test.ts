@@ -2,6 +2,7 @@ import { exportJWK, generateKeyPair } from "jose";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import app from "../src/index";
 import { sha256 } from "../src/crypto";
+import { createCsrfToken } from "../src/security";
 import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
 
@@ -49,25 +50,33 @@ function authorizeUrl(overrides: Record<string, string> = {}): string {
   return `/authorize?${query}`;
 }
 
+async function inspectConsent(env: Env, request: string): Promise<string> {
+  const consent = await app.request(`/api/consent/${encodeURIComponent(request)}`, undefined, env);
+  expect(consent.status).toBe(200);
+  const body = await consent.json<{ csrf_token: string }>();
+  return body.csrf_token;
+}
+
 async function beginConsent(env: Env, overrides: Record<string, string> = {}): Promise<{ request: string; csrf: string }> {
   const authorization = await app.request(authorizeUrl(overrides), undefined, env);
   expect(authorization.status).toBe(302);
   const request = new URL(authorization.headers.get("location")!).searchParams.get("request")!;
-  const consent = await app.request(`/api/consent/${encodeURIComponent(request)}`, undefined, env);
-  expect(consent.status).toBe(200);
-  const body = await consent.json<{ csrf_token: string }>();
-  return { request, csrf: body.csrf_token };
+  return { request, csrf: await inspectConsent(env, request) };
 }
 
-async function approveConsent(env: Env, request: string, csrf: string): Promise<string> {
-  const response = await app.request(`/api/consent/${encodeURIComponent(request)}/approve`, {
+async function consentMutation(env: Env, request: string, csrf: string, action: "approve" | "deny", origin = issuer) {
+  return app.request(`/api/consent/${encodeURIComponent(request)}/${action}`, {
     method: "POST",
     headers: {
-      origin: issuer,
+      origin,
       "content-type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({ csrf_token: csrf }),
   }, env);
+}
+
+async function approveConsent(env: Env, request: string, csrf: string): Promise<string> {
+  const response = await consentMutation(env, request, csrf, "approve");
   expect(response.status).toBe(200);
   const body = await response.json<{ redirect_to: string }>();
   return new URL(body.redirect_to).searchParams.get("state")!;
@@ -96,12 +105,17 @@ async function issueAuthorizationCode(env: Env, verifier: string): Promise<strin
   return new URL(callback.headers.get("location")!).searchParams.get("code")!;
 }
 
-function tokenRequest(code: string, verifier?: string): RequestInit {
+function tokenRequest(
+  code: string,
+  verifier?: string,
+  overrides: Partial<Record<"client_id" | "redirect_uri" | "grant_type", string>> = {},
+): RequestInit {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: "local-dev",
     redirect_uri: redirectUri,
     code,
+    ...overrides,
   });
   if (verifier !== undefined) body.set("code_verifier", verifier);
   return {
@@ -109,6 +123,25 @@ function tokenRequest(code: string, verifier?: string): RequestInit {
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
   };
+}
+
+async function seedAuthorizationCode(env: Env, values: {
+  code: string;
+  verifier: string;
+  clientId?: string;
+  redirect?: string;
+}): Promise<void> {
+  const clientId = values.clientId ?? "local-dev";
+  const target = values.redirect ?? redirectUri;
+  if (clientId !== "local-dev") {
+    await env.DB.prepare("INSERT INTO clients (client_id, name, redirect_uris, providers, created_at) VALUES (?, 'Length test', ?, '[\"github\"]', unixepoch())")
+      .bind(clientId, JSON.stringify([target])).run();
+  }
+  await env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_length', unixepoch())").run();
+  await env.DB.prepare(`INSERT INTO authorization_codes
+    (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at)
+    VALUES (?, ?, ?, 'acct_length', 'github:42', ?, unixepoch() + 120)`)
+    .bind(await sha256(values.code), clientId, target, await sha256(values.verifier)).run();
 }
 
 describe("authorization-code routes", () => {
@@ -141,49 +174,121 @@ describe("authorization-code routes", () => {
     expect(response.status).toBe(status);
   });
 
-  it("requires exact origin and one-time CSRF before consuming consent", async () => {
+  it("keeps one CSRF row while repeated consent inspection rotates the token", async () => {
     const env = await testEnv();
-    const { request, csrf } = await beginConsent(env);
-    const path = `/api/consent/${encodeURIComponent(request)}/approve`;
-    const body = (token: string) => new URLSearchParams({ csrf_token: token });
+    const { request, csrf: first } = await beginConsent(env);
+    const second = await inspectConsent(env, request);
+    const purpose = `consent:${await sha256(request)}`;
+    const row = await env.DB.prepare("SELECT COUNT(*) AS count FROM csrf_tokens WHERE purpose = ?")
+      .bind(purpose).first<{ count: number }>();
 
-    const missingOrigin = await app.request(path, { method: "POST", body: body(csrf) }, env);
-    expect(missingOrigin.status).toBe(403);
-
-    const invalidCsrf = await app.request(path, {
-      method: "POST",
-      headers: { origin: issuer },
-      body: body("wrong-token"),
-    }, env);
-    expect(invalidCsrf.status).toBe(403);
-
-    const upstreamState = await approveConsent(env, request, csrf);
-    expect(upstreamState).toHaveLength(43);
-
-    const replay = await app.request(path, {
-      method: "POST",
-      headers: { origin: issuer },
-      body: body(csrf),
-    }, env);
-    expect(replay.status).toBe(403);
+    expect(second).not.toBe(first);
+    expect(row?.count).toBe(1);
+    const stale = await consentMutation(env, request, first, "approve");
+    expect(stale.status).toBe(403);
   });
 
-  it("consumes callback state before the upstream exchange", async () => {
+  it.each(["approve", "deny"] as const)("requires origin and rotated CSRF for consent %s with an exact redirect", async (action) => {
+    const env = await testEnv();
+    const { request, csrf: first } = await beginConsent(env);
+    const crossOrigin = await consentMutation(env, request, first, action, "https://evil.example");
+    expect(crossOrigin.status).toBe(403);
+
+    const current = await inspectConsent(env, request);
+    const invalidCsrf = await consentMutation(env, request, "wrong-token", action);
+    expect(invalidCsrf.status).toBe(403);
+
+    const accepted = await consentMutation(env, request, current, action);
+    expect(accepted.status).toBe(200);
+    const target = new URL((await accepted.json<{ redirect_to: string }>()).redirect_to);
+    if (action === "approve") {
+      expect(target.origin + target.pathname).toBe("https://github.com/login/oauth/authorize");
+      expect(target.searchParams.get("redirect_uri")).toBe(`${issuer}/callback/github`);
+      expect(target.searchParams.get("state")).toHaveLength(43);
+    } else {
+      expect(target.origin + target.pathname).toBe(redirectUri);
+      expect(Object.fromEntries(target.searchParams)).toEqual({ error: "access_denied", state: "client-state" });
+    }
+
+    const independent = await createCsrfToken(env.DB, `consent:${await sha256(request)}`);
+    const replay = await consentMutation(env, request, independent, action);
+    expect(replay.status).toBe(404);
+  });
+
+  it("checks consent origin before reading the request body", async () => {
+    const env = await testEnv();
+    const { request } = await beginConsent(env);
+    const unreadable = new ReadableStream({
+      pull(controller) {
+        controller.error(new Error("body must not be read"));
+      },
+    });
+    const response = await app.request(`/api/consent/${request}/approve`, {
+      method: "POST",
+      headers: { origin: "https://evil.example", "content-type": "application/x-www-form-urlencoded" },
+      body: unreadable,
+      duplex: "half",
+    } as unknown as RequestInit, env);
+
+    expect(response.status).toBe(403);
+  });
+
+  it.each([
+    "/api/consent/ticket/approve",
+    "/api/consent/ticket/deny",
+    "/token",
+  ])("rejects an oversized OAuth POST before parsing: %s", async (path) => {
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { origin: issuer, "content-type": "application/x-www-form-urlencoded" },
+      body: `value=${"a".repeat(4097)}`,
+    }, await testEnv());
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
+  });
+
+  it("returns invalid_client for an unknown token client", async () => {
+    const response = await app.request("/token", tokenRequest("code", "a".repeat(43), { client_id: "unknown" }), await testEnv());
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_client" });
+  });
+
+  it.each([
+    ["client_id", "a".repeat(129), "code", "A".repeat(43), redirectUri, "invalid_client"],
+    ["code", "local-dev", "a".repeat(129), "A".repeat(43), redirectUri, "invalid_grant"],
+    ["verifier", "local-dev", "code", "A".repeat(129), redirectUri, "invalid_grant"],
+    ["redirect_uri", "local-dev", "code", "A".repeat(43), `https://app.example/${"a".repeat(2049)}`, "invalid_grant"],
+  ])("rejects an oversized token %s", async (_name, clientId, code, verifier, target, error) => {
+    const env = await testEnv();
+    await seedAuthorizationCode(env, { code, verifier, clientId, redirect: target });
+    const response = await app.request("/token", tokenRequest(code, verifier, {
+      client_id: clientId,
+      redirect_uri: target,
+    }), env);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error });
+  });
+
+  it("consumes callback state once under concurrent redemption", async () => {
     const env = await testEnv();
     const { request, csrf } = await beginConsent(env);
     const upstreamState = await approveConsent(env, request, csrf);
     const fetch = stubGithub();
+    const callback = `/callback/github?state=${upstreamState}&code=provider-code`;
 
-    const first = await app.request(`/callback/github?state=${upstreamState}&code=provider-code`, undefined, env);
-    expect(first.status).toBe(302);
-
-    const replay = await app.request(`/callback/github?state=${upstreamState}&code=provider-code`, undefined, env);
-    expect(replay.status).toBe(400);
-    await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    const responses = await Promise.all([
+      app.request(callback, undefined, env),
+      app.request(callback, undefined, env),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([302, 400]);
+    const rejected = responses.find((response) => response.status === 400)!;
+    await expect(rejected.json()).resolves.toMatchObject({ error: "invalid_grant" });
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("requires a valid 128-character verifier, consumes once, and rejects replay", async () => {
+  it("requires a valid 128-character verifier and consumes once under concurrent redemption", async () => {
     const env = await testEnv();
     const verifier = `${"A-._~".repeat(25)}A-.`;
     expect(verifier).toHaveLength(128);
@@ -197,13 +302,15 @@ describe("authorization-code routes", () => {
     expect(oversized.status).toBe(400);
     await expect(oversized.json()).resolves.toMatchObject({ error: "invalid_grant" });
 
-    const exchanged = await app.request("/token", tokenRequest(code, verifier), env);
-    expect(exchanged.status).toBe(200);
+    const responses = await Promise.all([
+      app.request("/token", tokenRequest(code, verifier), env),
+      app.request("/token", tokenRequest(code, verifier), env),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
+    const exchanged = responses.find((response) => response.status === 200)!;
+    const replay = responses.find((response) => response.status === 400)!;
     expect(exchanged.headers.get("cache-control")).toBe("no-store");
     await expect(exchanged.json()).resolves.toMatchObject({ token_type: "Bearer", expires_in: 600 });
-
-    const replay = await app.request("/token", tokenRequest(code, verifier), env);
-    expect(replay.status).toBe(400);
     await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
   });
 });

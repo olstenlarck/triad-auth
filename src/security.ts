@@ -35,9 +35,15 @@ export function assertSameOrigin(request: Request, issuer: string): void {
 export async function createCsrfToken(db: D1Database, purpose: string): Promise<string> {
   const token = randomToken();
   const createdAt = Math.floor(Date.now() / 1000);
-  await db.prepare("INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, ?, ?)")
-    .bind(await sha256(token), purpose, createdAt + csrfLifetimeSeconds, createdAt)
-    .run();
+  await db.batch([
+    db.prepare("DELETE FROM csrf_tokens WHERE expires_at <= ?").bind(createdAt),
+    db.prepare(`INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(purpose) DO UPDATE SET
+        token_hash = excluded.token_hash,
+        expires_at = excluded.expires_at,
+        created_at = excluded.created_at`)
+      .bind(await sha256(token), purpose, createdAt + csrfLifetimeSeconds, createdAt),
+  ]);
   return token;
 }
 

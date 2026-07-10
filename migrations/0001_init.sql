@@ -92,7 +92,7 @@ CREATE INDEX browser_sessions_account_idx ON browser_sessions(account_id);
 
 CREATE TABLE csrf_tokens (
   token_hash TEXT PRIMARY KEY,
-  purpose TEXT NOT NULL,
+  purpose TEXT NOT NULL UNIQUE,
   expires_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL
 );

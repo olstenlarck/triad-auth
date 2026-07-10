@@ -2,48 +2,7 @@ import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { cspScriptHashes } from "../src/generated/csp-script-hashes";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken, noStore, securityHeaders } from "../src/security";
-
-interface StoredCsrfToken {
-  purpose: string;
-  expiresAt: number;
-}
-
-const insertCsrfToken = "INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, ?, ?)";
-const consumeCsrfTokenOnce = "DELETE FROM csrf_tokens WHERE token_hash = ? AND purpose = ? AND expires_at > ?";
-
-class FakeD1 {
-  readonly tokens = new Map<string, StoredCsrfToken>();
-
-  prepare(query: string): D1PreparedStatement {
-    return {
-      bind: (...values: unknown[]) => {
-        if (query === insertCsrfToken) {
-          return {
-            run: async () => {
-              const [tokenHash, purpose, expiresAt] = values as [string, string, number, number];
-              this.tokens.set(tokenHash, { purpose, expiresAt });
-              return { meta: { changes: 1 } } as D1Result;
-            },
-          } as D1PreparedStatement;
-        }
-
-        if (query === consumeCsrfTokenOnce) {
-          return {
-            run: async () => {
-              const [tokenHash, purpose, now] = values as [string, string, number];
-              const token = this.tokens.get(tokenHash);
-              const consumed = token?.purpose === purpose && token.expiresAt > now;
-              if (consumed) this.tokens.delete(tokenHash);
-              return { meta: { changes: consumed ? 1 : 0 } } as D1Result;
-            },
-          } as D1PreparedStatement;
-        }
-
-        throw new Error(`Unexpected query: ${query}`);
-      },
-    } as D1PreparedStatement;
-  }
-}
+import { createTestDb } from "./d1";
 
 function cspDirectives(response: Response): Map<string, string> {
   const directives = new Map<string, string>();
@@ -126,23 +85,37 @@ describe("browser and response safety", () => {
   });
 
   it("stores only a hash and consumes a purpose-bound CSRF token once", async () => {
-    const fake = new FakeD1();
-    const db = fake as unknown as D1Database;
-    const token = await createCsrfToken(db, "consent");
+    const { db, close } = await createTestDb();
+    try {
+      const token = await createCsrfToken(db, "consent");
+      const stored = await db.prepare("SELECT token_hash FROM csrf_tokens WHERE purpose = ?")
+        .bind("consent").first<{ token_hash: string }>();
 
-    expect(fake.tokens.has(token)).toBe(false);
-    await expect(consumeCsrfToken(db, token, "other-purpose")).resolves.toBe(false);
-    await expect(consumeCsrfToken(db, token, "consent")).resolves.toBe(true);
-    await expect(consumeCsrfToken(db, token, "consent")).resolves.toBe(false);
+      expect(stored?.token_hash).not.toBe(token);
+      await expect(consumeCsrfToken(db, token, "other-purpose")).resolves.toBe(false);
+      await expect(consumeCsrfToken(db, token, "consent")).resolves.toBe(true);
+      await expect(consumeCsrfToken(db, token, "consent")).resolves.toBe(false);
+    } finally {
+      close();
+    }
   });
 
-  it("does not consume an expired CSRF token", async () => {
-    const fake = new FakeD1();
-    const db = fake as unknown as D1Database;
-    const token = await createCsrfToken(db, "device");
-    const stored = [...fake.tokens.values()][0];
-    stored.expiresAt = 0;
+  it("rotates one active token per purpose and prunes expired rows during issuance", async () => {
+    const { db, close } = await createTestDb();
+    try {
+      const first = await createCsrfToken(db, "consent");
+      await db.prepare("INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, 0, 0)")
+        .bind("expired-hash", "expired-purpose").run();
+      const second = await createCsrfToken(db, "consent");
+      const count = await db.prepare("SELECT COUNT(*) AS count FROM csrf_tokens")
+        .first<{ count: number }>();
 
-    await expect(consumeCsrfToken(db, token, "device")).resolves.toBe(false);
+      expect(second).not.toBe(first);
+      expect(count?.count).toBe(1);
+      await expect(consumeCsrfToken(db, first, "consent")).resolves.toBe(false);
+      await expect(consumeCsrfToken(db, second, "consent")).resolves.toBe(true);
+    } finally {
+      close();
+    }
   });
 });

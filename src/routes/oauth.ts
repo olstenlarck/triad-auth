@@ -18,6 +18,10 @@ import type { Env, ProviderName } from "../types";
 
 const now = () => Math.floor(Date.now() / 1000);
 const consentPurpose = (requestHash: string) => `consent:${requestHash}`;
+const oauthBodyLimit = 4096;
+const clientIdLimit = 128;
+const authorizationCodeLimit = 128;
+const redirectUriLimit = 2048;
 
 export const oauthError = (error: string, description?: string, status = 400) =>
   new Response(JSON.stringify({ error, ...(description ? { error_description: description } : {}) }), {
@@ -45,20 +49,55 @@ async function consumeConsentRequest(db: D1Database, requestHash: string): Promi
 }
 
 async function requireConsentMutation(
-  request: Request,
-  issuer: string,
   db: D1Database,
   ticket: string,
   csrfToken: string,
 ): Promise<string | Response> {
+  const requestHash = await sha256(ticket);
+  const valid = await consumeCsrfToken(db, csrfToken, consentPurpose(requestHash));
+  return valid ? requestHash : oauthError("invalid_request", "invalid CSRF token", 403);
+}
+
+function requireSameOrigin(request: Request, issuer: string): Response | null {
   try {
     assertSameOrigin(request, issuer);
   } catch {
     return oauthError("invalid_request", "invalid origin", 403);
   }
-  const requestHash = await sha256(ticket);
-  const valid = await consumeCsrfToken(db, csrfToken, consentPurpose(requestHash));
-  return valid ? requestHash : oauthError("invalid_request", "invalid CSRF token", 403);
+  return null;
+}
+
+async function parseOAuthForm(request: Request): Promise<URLSearchParams | Response> {
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null && Number(contentLength) > oauthBodyLimit) {
+    return oauthError("invalid_request", "request body too large", 413);
+  }
+  if (request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase()
+    !== "application/x-www-form-urlencoded") {
+    return oauthError("invalid_request", "form encoding required");
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) return new URLSearchParams();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > oauthBodyLimit) {
+      await reader.cancel().catch(() => undefined);
+      return oauthError("invalid_request", "request body too large", 413);
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new URLSearchParams(new TextDecoder().decode(body));
 }
 
 export const oauthRoutes = new Hono<{ Bindings: Env }>();
@@ -94,7 +133,7 @@ oauthRoutes.get("/authorize", async (c) => {
   if (q.code_challenge_method !== "S256" || !validatePkceChallenge(q.code_challenge)) {
     return oauthError("invalid_request", "valid S256 PKCE is required");
   }
-  if (q.client_id.length > 128 || q.redirect_uri.length > 2048 || q.state.length > 512) {
+  if (q.client_id.length > clientIdLimit || q.redirect_uri.length > redirectUriLimit || q.state.length > 512) {
     return oauthError("invalid_request", "authorization parameter is too long");
   }
   try {
@@ -136,13 +175,14 @@ oauthRoutes.get("/api/consent/:request", async (c) => {
 });
 
 oauthRoutes.post("/api/consent/:request/approve", async (c) => {
-  const form = await c.req.parseBody();
+  const originError = requireSameOrigin(c.req.raw, c.env.ISSUER);
+  if (originError) return originError;
+  const form = await parseOAuthForm(c.req.raw);
+  if (form instanceof Response) return form;
   const authorized = await requireConsentMutation(
-    c.req.raw,
-    c.env.ISSUER,
     c.env.DB,
     c.req.param("request"),
-    String(form.csrf_token ?? ""),
+    form.get("csrf_token") ?? "",
   );
   if (authorized instanceof Response) return authorized;
   const row = await consumeConsentRequest(c.env.DB, authorized);
@@ -159,13 +199,14 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
 });
 
 oauthRoutes.post("/api/consent/:request/deny", async (c) => {
-  const form = await c.req.parseBody();
+  const originError = requireSameOrigin(c.req.raw, c.env.ISSUER);
+  if (originError) return originError;
+  const form = await parseOAuthForm(c.req.raw);
+  if (form instanceof Response) return form;
   const authorized = await requireConsentMutation(
-    c.req.raw,
-    c.env.ISSUER,
     c.env.DB,
     c.req.param("request"),
-    String(form.csrf_token ?? ""),
+    form.get("csrf_token") ?? "",
   );
   if (authorized instanceof Response) return authorized;
   const row = await consumeConsentRequest(c.env.DB, authorized);
@@ -221,16 +262,23 @@ oauthRoutes.get("/callback/:provider", async (c) => {
 });
 
 oauthRoutes.post("/token", async (c) => {
-  const form = await c.req.parseBody();
-  const grantType = String(form.grant_type ?? "");
-  const clientId = String(form.client_id ?? "");
-  if (!(await getClient(c.env.DB, clientId))) return oauthError("unauthorized_client");
+  const form = await parseOAuthForm(c.req.raw);
+  if (form instanceof Response) return form;
+  const grantType = form.get("grant_type") ?? "";
+  const clientId = form.get("client_id") ?? "";
+  if (!clientId || clientId.length > clientIdLimit || !(await getClient(c.env.DB, clientId))) {
+    return oauthError("invalid_client");
+  }
 
   if (grantType === "authorization_code") {
-    const code = String(form.code ?? "");
-    const verifier = String(form.code_verifier ?? "");
-    const redirectUri = String(form.redirect_uri ?? "");
-    if (!validatePkceVerifier(verifier)) return oauthError("invalid_grant");
+    const code = form.get("code") ?? "";
+    const verifier = form.get("code_verifier") ?? "";
+    const redirectUri = form.get("redirect_uri") ?? "";
+    if (!code || code.length > authorizationCodeLimit
+      || !validatePkceVerifier(verifier)
+      || !redirectUri || redirectUri.length > redirectUriLimit) {
+      return oauthError("invalid_grant");
+    }
     const codeHash = await sha256(code);
     const candidate = await getAuthorizationCode(c.env.DB, codeHash, clientId, redirectUri);
     if (!candidate || !timingSafeEqual(await sha256(verifier), candidate.code_challenge)) {
@@ -247,7 +295,7 @@ oauthRoutes.post("/token", async (c) => {
   }
 
   if (grantType === "urn:ietf:params:oauth:grant-type:device_code") {
-    const hash = await sha256(String(form.device_code ?? ""));
+    const hash = await sha256(form.get("device_code") ?? "");
     const row = await c.env.DB.prepare("SELECT * FROM device_grants WHERE device_code_hash = ? AND client_id = ?")
       .bind(hash, clientId).first<{ status: string; account_id: string | null; provider_sub: string | null; expires_at: number; interval_seconds: number; last_polled_at: number | null; consumed_at: number | null }>();
     if (!row || row.expires_at <= now()) return oauthError("expired_token");
