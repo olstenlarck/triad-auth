@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { normalizeUserCode, pairwiseSubject } from "../src/crypto";
+import { normalizeUserCode, pairwiseSubject, providerSubject } from "../src/crypto";
 import { resolveIdentity } from "../src/db";
 import { createTestDb } from "./d1";
 
@@ -10,6 +10,15 @@ afterEach(() => {
 });
 
 describe("identity contract", () => {
+  it("derives stable separated opaque provider subjects", async () => {
+    const secret = "s".repeat(32);
+    const github = await providerSubject(secret, "github", "277398031");
+    expect(github).toMatch(/^prv_github_[A-Za-z0-9_-]{22}$/);
+    expect(await providerSubject(secret, "github", "277398031")).toBe(github);
+    expect(await providerSubject(secret, "google", "277398031")).not.toBe(github);
+    expect(github).not.toContain("277398031");
+  });
+
   it("keeps pairwise IDs stable within and distinct across clients", async () => {
     const first = await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a");
     expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a")).toBe(first);

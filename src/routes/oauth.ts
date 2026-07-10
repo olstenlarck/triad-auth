@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { cleanupExpiredState } from "../cleanup";
-import { randomToken, sha256, timingSafeEqual } from "../crypto";
+import { providerSubject, randomToken, sha256, timingSafeEqual } from "../crypto";
 import {
   approveDeviceGrant,
   consumeAuthorizationCode,
@@ -314,7 +314,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
 
   const identity = await finishProvider(c.env, code!);
   const accountId = await resolveIdentity(c.env.DB, identity);
-  const providerSub = `${identity.provider}:${identity.id}`;
+  const providerSub = await providerSubject(c.env.PAIRWISE_SECRET, identity.provider, identity.id);
 
   if (tx.kind === "session") {
     await rotateBrowserSession(c, accountId);
@@ -387,7 +387,7 @@ oauthRoutes.post("/token", async (c) => {
     await rememberConsent(c.env.DB, row.account_id, clientId);
     return c.json({
       token_type: "Bearer",
-      expires_in: 600,
+      expires_in: 300,
       id_token: await issueIdToken(c.env, clientId, row.account_id, row.provider_sub),
     });
   }
@@ -407,7 +407,7 @@ oauthRoutes.post("/token", async (c) => {
         await rememberConsent(c.env.DB, approved.account_id, clientId);
         return c.json({
           token_type: "Bearer",
-          expires_in: 600,
+          expires_in: 300,
           id_token: await issueIdToken(c.env, clientId, approved.account_id, approved.provider_sub),
         });
       }

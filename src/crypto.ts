@@ -1,3 +1,5 @@
+import type { ProviderName } from "./types";
+
 const encoder = new TextEncoder();
 
 export function base64url(bytes: Uint8Array): string {
@@ -28,6 +30,15 @@ export async function hmacSha256(secret: string, value: string): Promise<string>
 
 export async function pairwiseSubject(secret: string, accountId: string, clientId: string): Promise<string> {
   return `ps_${await hmacSha256(secret, `${accountId}\0${clientId}`)}`;
+}
+
+export async function providerSubject(
+  secret: string,
+  provider: ProviderName,
+  providerUserId: string,
+): Promise<string> {
+  const digest = await hmacSha256(secret, `provider-sub\0${provider}:${providerUserId}`);
+  return `prv_${provider}_${digest.slice(0, 22)}`;
 }
 
 export function normalizeUserCode(value: string): string {

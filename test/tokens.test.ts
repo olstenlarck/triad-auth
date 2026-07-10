@@ -73,6 +73,31 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
   expect(payload.sub).not.toBe(payload.provider_sub);
 });
 
+it("issues a five minute ID token", async () => {
+  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  const env = {
+    ISSUER: "https://issuer.example",
+    PAIRWISE_SECRET: "s".repeat(32),
+    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+  } as never;
+  const token = await issueIdToken(env, "triad-demo", "acct_123", "prv_github_opaque");
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    await publicJwk(env),
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["verify"],
+  );
+
+  const { payload } = await jwtVerify(token, key, {
+    issuer: "https://issuer.example",
+    audience: "triad-demo",
+  });
+
+  expect(payload.exp! - payload.iat!).toBe(300);
+});
+
 it("rejects a pairwise secret shorter than 32 characters", async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };

@@ -408,7 +408,31 @@ describe("authorization-code routes", () => {
     const exchanged = responses.find((response) => response.status === 200)!;
     const replay = responses.find((response) => response.status === 400)!;
     expect(exchanged.headers.get("cache-control")).toBe("no-store");
-    await expect(exchanged.json()).resolves.toMatchObject({ token_type: "Bearer", expires_in: 600 });
+    await expect(exchanged.json()).resolves.toMatchObject({ token_type: "Bearer", expires_in: 300 });
     await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
+  });
+
+  it("returns a five-minute lifetime for an approved device token", async () => {
+    const env = await testEnv();
+    const deviceCode = "d".repeat(43);
+    await env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_device', unixepoch())").run();
+    await env.DB.prepare(`INSERT INTO device_grants
+      (device_code_hash, user_code, client_id, status, account_id, provider_sub, expires_at,
+        interval_seconds, created_at)
+      VALUES (?, 'ABCD2345', 'triad-demo', 'approved', 'acct_device', 'prv_github_opaque',
+        unixepoch() + 600, 5, unixepoch())`).bind(await sha256(deviceCode)).run();
+
+    const response = await app.request("/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        client_id: "triad-demo",
+        device_code: deviceCode,
+      }),
+    }, env);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ token_type: "Bearer", expires_in: 300 });
   });
 });

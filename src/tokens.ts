@@ -24,7 +24,7 @@ export async function issueIdToken(
     .setAudience(clientId)
     .setSubject(pairwiseSub)
     .setIssuedAt()
-    .setExpirationTime("10m")
+    .setExpirationTime("5m")
     .setJti(crypto.randomUUID())
     .sign(key);
 }
