@@ -5,7 +5,15 @@ import {
   serializeScopes,
   validateProviderScopes,
 } from "../src/claims";
-import { openClaims, sealClaims } from "../src/crypto";
+import { base64url, openClaims, sealClaims } from "../src/crypto";
+
+const base64urlAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+function decodeBase64url(value: string): Uint8Array {
+  const standard = value.replaceAll("-", "+").replaceAll("_", "/");
+  const binary = atob(standard.padEnd(Math.ceil(standard.length / 4) * 4, "="));
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
 
 describe("privacy scopes", () => {
   it("defaults to identity only and canonicalizes requested scopes", () => {
@@ -45,12 +53,28 @@ describe("transient profile claims", () => {
   it("rejects malformed, tampered, or non-profile claim payloads", async () => {
     const secret = "s".repeat(32);
     const sealed = await sealClaims(secret, "code:abc", { name: "User" });
-    const replacement = sealed.endsWith("A") ? "B" : "A";
+    const payload = decodeBase64url(sealed.slice(3));
+    payload[payload.length - 1] ^= 1;
 
-    await expect(openClaims(secret, "code:abc", sealed.slice(0, -1) + replacement)).rejects.toThrow();
+    await expect(openClaims(secret, "code:abc", `v1.${base64url(payload)}`)).rejects.toThrow();
     await expect(openClaims(secret, "code:abc", "v2.not-supported")).rejects.toThrow();
     await expect(sealClaims(secret, "code:abc", { role: "admin" } as never)).rejects.toThrow(
       "invalid profile claims",
+    );
+  });
+
+  it("rejects noncanonical base64url pad bits", async () => {
+    const secret = "s".repeat(32);
+    const sealed = await sealClaims(secret, "code:abc", { name: "User" });
+    const canonical = sealed.slice(3);
+    const finalIndex = base64urlAlphabet.indexOf(canonical.at(-1)!);
+    const noncanonical = canonical.slice(0, -1) + base64urlAlphabet[finalIndex + 1];
+
+    expect(canonical.length % 4).toBe(2);
+    expect(finalIndex % 16).toBe(0);
+    expect(decodeBase64url(noncanonical)).toEqual(decodeBase64url(canonical));
+    await expect(openClaims(secret, "code:abc", `v1.${noncanonical}`)).rejects.toThrow(
+      "invalid encrypted claims",
     );
   });
 

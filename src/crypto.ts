@@ -16,7 +16,9 @@ function decodeBase64url(value: string): Uint8Array {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error("invalid encrypted claims");
   const standard = value.replaceAll("-", "+").replaceAll("_", "/");
   const binary = atob(standard.padEnd(Math.ceil(standard.length / 4) * 4, "="));
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  if (base64url(bytes) !== value) throw new Error("invalid encrypted claims");
+  return bytes;
 }
 
 async function claimsKey(secret: string): Promise<CryptoKey> {
