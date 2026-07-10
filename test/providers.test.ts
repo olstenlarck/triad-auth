@@ -1,5 +1,6 @@
 import { exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { parseScopes } from "../src/claims";
 import { enabledProviders, finishProvider, startProvider } from "../src/providers";
 import type { Env } from "../src/types";
 
@@ -37,8 +38,9 @@ async function googleIdToken(claims: {
   subject?: string | null;
   issuedAt?: boolean;
   expiration?: boolean;
+  profile?: Record<string, unknown>;
 } = {}): Promise<string> {
-  const token = new SignJWT({ nonce: claims.nonce ?? "google-nonce" })
+  const token = new SignJWT({ nonce: claims.nonce ?? "google-nonce", ...claims.profile })
     .setProtectedHeader({ alg: "RS256", kid: "google-test-key" })
     .setIssuer(claims.issuer ?? "https://accounts.google.com")
     .setAudience(claims.audience ?? "google-client");
@@ -116,6 +118,31 @@ describe("Google provider", () => {
     expect(start.verifier).toBeUndefined();
   });
 
+  it("requests only the Google scopes mapped from requested profile claims", async () => {
+    const email = new URL((await startProvider(
+      "google",
+      env(),
+      "state",
+      parseScopes("openid email"),
+    )).url);
+    const profile = new URL((await startProvider(
+      "google",
+      env(),
+      "state",
+      parseScopes("openid name avatar"),
+    )).url);
+    const both = new URL((await startProvider(
+      "google",
+      env(),
+      "state",
+      parseScopes("openid email name avatar"),
+    )).url);
+
+    expect(email.searchParams.get("scope")).toBe("openid email");
+    expect(profile.searchParams.get("scope")).toBe("openid profile");
+    expect(both.searchParams.get("scope")).toBe("openid email profile");
+  });
+
   it("verifies Google's remote-JWKS ID token and returns its immutable subject", async () => {
     const fetch = stubGoogle(await googleIdToken());
 
@@ -140,6 +167,34 @@ describe("Google provider", () => {
 
     const jwksRequest = fetch.mock.calls.find(([input]) => String(input) === "https://www.googleapis.com/oauth2/v3/certs");
     expect(jwksRequest).toBeDefined();
+  });
+
+  it("returns exactly the requested standard Google claims", async () => {
+    stubGoogle(await googleIdToken({
+      profile: {
+        email: "user@example.com",
+        email_verified: true,
+        name: "Mutable Name",
+        picture: "https://images.example/user",
+      },
+    }));
+
+    await expect(finishProvider(
+      "google",
+      env(),
+      "provider-code",
+      undefined,
+      "google-nonce",
+      parseScopes("openid email avatar"),
+    )).resolves.toEqual({
+      provider: "google",
+      id: "google-user-123",
+      claims: {
+        email: "user@example.com",
+        email_verified: true,
+        picture: "https://images.example/user",
+      },
+    });
   });
 
   it("rejects an ID token with the wrong nonce", async () => {
@@ -190,6 +245,76 @@ describe("GitHub provider", () => {
     });
     expect(start.nonce).toBeUndefined();
     expect(start.verifier).toBeUndefined();
+  });
+
+  it("requests user:email only when the email claim is requested", async () => {
+    const identity = new URL((await startProvider(
+      "github",
+      env(),
+      "state",
+      parseScopes("openid handle name avatar"),
+    )).url);
+    const email = new URL((await startProvider(
+      "github",
+      env(),
+      "state",
+      parseScopes("openid email"),
+    )).url);
+
+    expect(identity.searchParams.has("scope")).toBe(false);
+    expect(email.searchParams.get("scope")).toBe("user:email");
+  });
+
+  it("chooses only a verified primary GitHub email and discards unrequested fields", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 42,
+        login: "mutable-handle",
+        name: "Mutable Name",
+        avatar_url: "https://avatars.example/42",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        { email: "secondary@example.com", primary: false, verified: true },
+        { email: "unverified@example.com", primary: true, verified: false },
+        { email: "primary@example.com", primary: true, verified: true },
+      ]), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(finishProvider(
+      "github",
+      env(),
+      "provider-code",
+      undefined,
+      undefined,
+      parseScopes("openid email handle avatar"),
+    )).resolves.toEqual({
+      provider: "github",
+      id: "42",
+      claims: {
+        email: "primary@example.com",
+        email_verified: true,
+        preferred_username: "mutable-handle",
+        picture: "https://avatars.example/42",
+      },
+    });
+
+    expect(String(fetch.mock.calls[2][0])).toBe("https://api.github.com/user/emails");
+  });
+
+  it("fails when a mandatory requested GitHub account value is missing", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, name: null }), { status: 200 })));
+
+    await expect(finishProvider(
+      "github",
+      env(),
+      "provider-code",
+      undefined,
+      undefined,
+      parseScopes("openid name"),
+    )).rejects.toThrow("mandatory name claim");
   });
 
   it("requests only GitHub identity and returns the immutable numeric id", async () => {
@@ -272,6 +397,40 @@ describe("Twitter provider", () => {
     const expectedChallenge = btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
     expect(target.searchParams.get("code_challenge")).toBe(expectedChallenge);
     expect(start.nonce).toBeUndefined();
+  });
+
+  it("requests only Twitter user fields mapped from requested claims", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: {
+          id: "2244994945",
+          username: "mutable_handle",
+          name: "Mutable Name",
+          profile_image_url: "https://images.example/twitter",
+        },
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(finishProvider(
+      "twitter",
+      env(),
+      "provider-code",
+      "upstream-verifier",
+      undefined,
+      parseScopes("openid handle avatar"),
+    )).resolves.toEqual({
+      provider: "twitter",
+      id: "2244994945",
+      claims: {
+        preferred_username: "mutable_handle",
+        picture: "https://images.example/twitter",
+      },
+    });
+
+    const userUrl = new URL(String(fetch.mock.calls[1][0]));
+    expect(userUrl.origin + userUrl.pathname).toBe("https://api.x.com/2/users/me");
+    expect(userUrl.searchParams.get("user.fields")).toBe("username,profile_image_url");
   });
 
   it("uses Basic client authentication and returns users-me immutable data.id", async () => {

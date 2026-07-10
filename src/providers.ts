@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { validateProviderScopes } from "./claims";
 import { randomToken, sha256 } from "./crypto";
-import type { Env, ProviderIdentity, ProviderName } from "./types";
+import type { Env, ProfileClaims, ProviderIdentity, ProviderName, Scope } from "./types";
 
 interface ProviderStart {
   url: string;
@@ -11,6 +12,11 @@ interface ProviderStart {
 interface ProviderCredentials {
   clientId: string;
   clientSecret: string;
+}
+
+interface ProviderResult {
+  id: string;
+  claims: ProfileClaims;
 }
 
 const googleJwks = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
@@ -41,8 +47,14 @@ export function enabledProviders(env: Env): ProviderName[] {
   return providers;
 }
 
-export async function startProvider(provider: ProviderName, env: Env, state: string): Promise<ProviderStart> {
+export async function startProvider(
+  provider: ProviderName,
+  env: Env,
+  state: string,
+  scopes: readonly Scope[] = ["openid"],
+): Promise<ProviderStart> {
   const { clientId } = providerCredentials(provider, env);
+  validateProviderScopes(provider, scopes);
   if (provider === "google") {
     const nonce = randomToken();
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -50,7 +62,11 @@ export async function startProvider(provider: ProviderName, env: Env, state: str
       client_id: clientId,
       redirect_uri: callback(provider, env),
       response_type: "code",
-      scope: "openid",
+      scope: [
+        "openid",
+        ...(scopes.includes("email") ? ["email"] : []),
+        ...(scopes.some((scope) => scope === "name" || scope === "avatar") ? ["profile"] : []),
+      ].join(" "),
       state,
       nonce,
     }).toString();
@@ -73,11 +89,13 @@ export async function startProvider(provider: ProviderName, env: Env, state: str
   }
 
   const url = new URL("https://github.com/login/oauth/authorize");
-  url.search = new URLSearchParams({
+  const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: callback(provider, env),
     state,
-  }).toString();
+  });
+  if (scopes.includes("email")) params.set("scope", "user:email");
+  url.search = params.toString();
   return { url: url.toString() };
 }
 
@@ -91,22 +109,13 @@ async function tokenRequest(url: string, body: URLSearchParams, headers?: Record
   return response.json<Record<string, unknown>>();
 }
 
-async function githubUserId(accessToken: string): Promise<string> {
-  const response = await fetch("https://api.github.com/user", {
-    headers: { authorization: `Bearer ${accessToken}`, accept: "application/json", "user-agent": "triad-auth" },
-  });
-  if (!response.ok) throw new Error(`GitHub user lookup failed (${response.status})`);
-  const user = await response.json<{ id?: number }>();
-  if (!Number.isSafeInteger(user.id)) throw new Error("GitHub response missing numeric id");
-  return String(user.id);
-}
-
 async function finishGoogle(
   env: Env,
   credentials: ProviderCredentials,
   code: string,
   nonce?: string,
-): Promise<string> {
+  scopes: readonly Scope[] = ["openid"],
+): Promise<ProviderResult> {
   if (!nonce) throw new Error("Google nonce is required");
   const token = await tokenRequest("https://oauth2.googleapis.com/token", new URLSearchParams({
     code,
@@ -126,10 +135,38 @@ async function finishGoogle(
   if (typeof payload.sub !== "string" || payload.sub.length === 0) {
     throw new Error("Google ID token missing subject");
   }
-  return payload.sub;
+  const claims: ProfileClaims = {};
+  if (scopes.includes("email")) {
+    claims.email = mandatoryString("Google", "email", payload.email);
+    if (typeof payload.email_verified !== "boolean") {
+      throw new Error("Google response missing mandatory email_verified claim");
+    }
+    claims.email_verified = payload.email_verified;
+  }
+  if (scopes.includes("name")) claims.name = mandatoryString("Google", "name", payload.name);
+  if (scopes.includes("avatar")) claims.picture = mandatoryString("Google", "avatar", payload.picture);
+  return { id: payload.sub, claims };
 }
 
-async function finishGitHub(env: Env, credentials: ProviderCredentials, code: string): Promise<string> {
+function mandatoryString(provider: string, scope: string, value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${provider} response missing mandatory ${scope} claim`);
+  }
+  return value;
+}
+
+const githubHeaders = (accessToken: string) => ({
+  authorization: `Bearer ${accessToken}`,
+  accept: "application/json",
+  "user-agent": "triad-auth",
+});
+
+async function finishGitHub(
+  env: Env,
+  credentials: ProviderCredentials,
+  code: string,
+  scopes: readonly Scope[] = ["openid"],
+): Promise<ProviderResult> {
   const token = await tokenRequest("https://github.com/login/oauth/access_token", new URLSearchParams({
     code,
     client_id: credentials.clientId,
@@ -137,7 +174,41 @@ async function finishGitHub(env: Env, credentials: ProviderCredentials, code: st
     redirect_uri: callback("github", env),
   }));
   if (typeof token.access_token !== "string") throw new Error("GitHub response missing access token");
-  return githubUserId(token.access_token);
+  const response = await fetch("https://api.github.com/user", { headers: githubHeaders(token.access_token) });
+  if (!response.ok) throw new Error(`GitHub user lookup failed (${response.status})`);
+  const user = await response.json<{
+    id?: unknown;
+    login?: unknown;
+    name?: unknown;
+    avatar_url?: unknown;
+  }>();
+  if (!Number.isSafeInteger(user.id)) throw new Error("GitHub response missing numeric id");
+
+  const claims: ProfileClaims = {};
+  if (scopes.includes("handle")) {
+    claims.preferred_username = mandatoryString("GitHub", "handle", user.login);
+  }
+  if (scopes.includes("name")) claims.name = mandatoryString("GitHub", "name", user.name);
+  if (scopes.includes("avatar")) claims.picture = mandatoryString("GitHub", "avatar", user.avatar_url);
+  if (scopes.includes("email")) {
+    const emailsResponse = await fetch("https://api.github.com/user/emails", {
+      headers: githubHeaders(token.access_token),
+    });
+    if (!emailsResponse.ok) throw new Error(`GitHub email lookup failed (${emailsResponse.status})`);
+    const emails = await emailsResponse.json<unknown>();
+    const primary = Array.isArray(emails)
+      ? emails.find((entry) => typeof entry === "object" && entry !== null
+        && (entry as Record<string, unknown>).primary === true
+        && (entry as Record<string, unknown>).verified === true)
+      : undefined;
+    claims.email = mandatoryString(
+      "GitHub",
+      "email",
+      primary && (primary as Record<string, unknown>).email,
+    );
+    claims.email_verified = true;
+  }
+  return { id: String(user.id), claims };
 }
 
 async function finishTwitter(
@@ -145,7 +216,8 @@ async function finishTwitter(
   credentials: ProviderCredentials,
   code: string,
   verifier?: string,
-): Promise<string> {
+  scopes: readonly Scope[] = ["openid"],
+): Promise<ProviderResult> {
   if (!verifier) throw new Error("Twitter PKCE verifier is required");
   const basicCredentials = `${formEncode(credentials.clientId)}:${formEncode(credentials.clientSecret)}`;
   const token = await tokenRequest("https://api.x.com/2/oauth2/token", new URLSearchParams({
@@ -156,15 +228,32 @@ async function finishTwitter(
   }), { authorization: `Basic ${btoa(basicCredentials)}` });
   if (typeof token.access_token !== "string") throw new Error("Twitter response missing access token");
 
-  const response = await fetch("https://api.x.com/2/users/me", {
+  const url = new URL("https://api.x.com/2/users/me");
+  const fields = [
+    ...(scopes.includes("handle") ? ["username"] : []),
+    ...(scopes.includes("name") ? ["name"] : []),
+    ...(scopes.includes("avatar") ? ["profile_image_url"] : []),
+  ];
+  if (fields.length > 0) url.searchParams.set("user.fields", fields.join(","));
+  const response = await fetch(url.toString(), {
     headers: { authorization: `Bearer ${token.access_token}`, accept: "application/json" },
   });
   if (!response.ok) throw new Error(`Twitter user lookup failed (${response.status})`);
-  const user = await response.json<{ data?: { id?: unknown } }>();
+  const user = await response.json<{
+    data?: { id?: unknown; username?: unknown; name?: unknown; profile_image_url?: unknown };
+  }>();
   if (typeof user.data?.id !== "string" || !/^[1-9][0-9]*$/.test(user.data.id)) {
     throw new Error("Twitter response missing valid data.id");
   }
-  return user.data.id;
+  const claims: ProfileClaims = {};
+  if (scopes.includes("handle")) {
+    claims.preferred_username = mandatoryString("Twitter", "handle", user.data.username);
+  }
+  if (scopes.includes("name")) claims.name = mandatoryString("Twitter", "name", user.data.name);
+  if (scopes.includes("avatar")) {
+    claims.picture = mandatoryString("Twitter", "avatar", user.data.profile_image_url);
+  }
+  return { id: user.data.id, claims };
 }
 
 export async function finishProvider(
@@ -173,12 +262,16 @@ export async function finishProvider(
   code: string,
   verifier?: string,
   nonce?: string,
+  scopes: readonly Scope[] = ["openid"],
 ): Promise<ProviderIdentity> {
   const credentials = providerCredentials(provider, env);
-  const id = provider === "google"
-    ? await finishGoogle(env, credentials, code, nonce)
+  validateProviderScopes(provider, scopes);
+  const result = provider === "google"
+    ? await finishGoogle(env, credentials, code, nonce, scopes)
     : provider === "twitter"
-      ? await finishTwitter(env, credentials, code, verifier)
-      : await finishGitHub(env, credentials, code);
-  return { provider, id };
+      ? await finishTwitter(env, credentials, code, verifier, scopes)
+      : await finishGitHub(env, credentials, code, scopes);
+  return Object.keys(result.claims).length > 0
+    ? { provider, id: result.id, claims: result.claims }
+    : { provider, id: result.id };
 }

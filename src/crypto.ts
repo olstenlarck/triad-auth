@@ -1,11 +1,62 @@
-import type { ProviderName } from "./types";
+import { validateProfileClaims } from "./claims";
+import type { ProfileClaims, ProviderName } from "./types";
 
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+const claimsSalt = encoder.encode("triad-auth-claims-v1");
+const claimsInfo = encoder.encode("claims-encryption");
 
 export function base64url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+function decodeBase64url(value: string): Uint8Array {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error("invalid encrypted claims");
+  const standard = value.replaceAll("-", "+").replaceAll("_", "/");
+  const binary = atob(standard.padEnd(Math.ceil(standard.length / 4) * 4, "="));
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+async function claimsKey(secret: string): Promise<CryptoKey> {
+  if (secret.length < 32) throw new Error("PAIRWISE_SECRET must be at least 32 characters");
+  const material = await crypto.subtle.importKey("raw", encoder.encode(secret), "HKDF", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt: claimsSalt, info: claimsInfo },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+export async function sealClaims(secret: string, context: string, claims: ProfileClaims): Promise<string> {
+  const key = await claimsKey(secret);
+  const validated = validateProfileClaims(claims);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv, additionalData: encoder.encode(context), tagLength: 128 },
+    key,
+    encoder.encode(JSON.stringify(validated)),
+  ));
+  const payload = new Uint8Array(iv.length + ciphertext.length);
+  payload.set(iv);
+  payload.set(ciphertext, iv.length);
+  return `v1.${base64url(payload)}`;
+}
+
+export async function openClaims(secret: string, context: string, sealed: string): Promise<ProfileClaims> {
+  const key = await claimsKey(secret);
+  if (!sealed.startsWith("v1.")) throw new Error("invalid encrypted claims");
+  const payload = decodeBase64url(sealed.slice(3));
+  if (payload.length < 29) throw new Error("invalid encrypted claims");
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: payload.slice(0, 12), additionalData: encoder.encode(context), tagLength: 128 },
+    key,
+    payload.slice(12),
+  );
+  return validateProfileClaims(JSON.parse(decoder.decode(plaintext)));
 }
 
 export function randomToken(bytes = 32): string {

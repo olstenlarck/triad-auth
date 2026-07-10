@@ -71,6 +71,61 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
   expect(payload.provider_sub).toBe("github:42");
   expect(payload.account_sub).toBe("acct_123");
   expect(payload.sub).not.toBe(payload.provider_sub);
+  expect(payload).not.toHaveProperty("email");
+  expect(payload).not.toHaveProperty("preferred_username");
+  expect(payload).not.toHaveProperty("name");
+  expect(payload).not.toHaveProperty("picture");
+});
+
+it("issues exactly the supplied standard profile claims", async () => {
+  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  const env = {
+    ISSUER: "https://issuer.example",
+    PAIRWISE_SECRET: "s".repeat(32),
+    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+  } as never;
+  const token = await issueIdToken(env, "triad-demo", "acct_123", "prv_github_opaque", {
+    email: "user@example.com",
+    email_verified: true,
+    preferred_username: "mutable_handle",
+    picture: "https://images.example/user",
+  });
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    await publicJwk(env),
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["verify"],
+  );
+
+  const { payload } = await jwtVerify(token, key);
+
+  expect(payload).toMatchObject({
+    email: "user@example.com",
+    email_verified: true,
+    preferred_username: "mutable_handle",
+    picture: "https://images.example/user",
+  });
+  expect(payload).not.toHaveProperty("name");
+});
+
+it("rejects non-standard or malformed profile claims", async () => {
+  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  const env = {
+    ISSUER: "https://issuer.example",
+    PAIRWISE_SECRET: "s".repeat(32),
+    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+  } as never;
+
+  await expect(issueIdToken(
+    env,
+    "triad-demo",
+    "acct_123",
+    "prv_github_opaque",
+    { email: "user@example.com", role: "admin" } as never,
+  )).rejects.toThrow("invalid profile claims");
 });
 
 it("issues a five minute ID token", async () => {

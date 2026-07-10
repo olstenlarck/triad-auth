@@ -1,4 +1,14 @@
 export type ProviderName = "google" | "github" | "twitter";
+export type ProfileScope = "email" | "handle" | "name" | "avatar";
+export type Scope = "openid" | ProfileScope;
+
+export interface ProfileClaims {
+  email?: string;
+  email_verified?: boolean;
+  preferred_username?: string;
+  name?: string;
+  picture?: string;
+}
 
 export interface Env {
   DB: D1Database;
@@ -46,4 +56,5 @@ export interface CsrfTokenRow {
 export interface ProviderIdentity {
   provider: ProviderName;
   id: string;
+  claims?: ProfileClaims;
 }
