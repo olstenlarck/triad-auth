@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
-import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "./crypto";
-import { getClient, validateClient } from "./db";
+import { randomToken, sha256 } from "./crypto";
 import { startProvider } from "./providers";
+import { deviceRoutes } from "./routes/device";
 import { oauthError, oauthRoutes } from "./routes/oauth";
 import { securityHeaders } from "./security";
 import type { Env, ProviderName } from "./types";
@@ -13,66 +13,7 @@ const providers = new Set<ProviderName>(["github"]);
 
 app.use("*", securityHeaders());
 app.route("/", oauthRoutes);
-
-app.post("/device/code", async (c) => {
-  const form = await c.req.parseBody();
-  const clientId = String(form.client_id ?? "");
-  const client = await getClient(c.env.DB, clientId);
-  if (!client) return oauthError("unauthorized_client");
-  const deviceCode = randomToken(32);
-  const userCode = makeUserCode();
-  await c.env.DB.prepare(`INSERT INTO device_grants
-    (device_code_hash, user_code, client_id, status, expires_at, interval_seconds, created_at)
-    VALUES (?, ?, ?, 'pending', ?, 5, ?)`).bind(
-      await sha256(deviceCode), normalizeUserCode(userCode), clientId, now() + 600, now(),
-    ).run();
-  return c.json({
-    device_code: deviceCode,
-    user_code: userCode,
-    verification_uri: `${c.env.ISSUER}/device/verify`,
-    verification_uri_complete: `${c.env.ISSUER}/device/verify?user_code=${encodeURIComponent(userCode)}`,
-    expires_in: 600,
-    interval: 5,
-  });
-});
-
-app.get("/device/verify", (c) => c.env.ASSETS.fetch(c.req.raw));
-
-app.get("/api/device/:code", async (c) => {
-  const code = normalizeUserCode(c.req.param("code"));
-  const row = await c.env.DB.prepare(`SELECT c.name AS client_name, d.expires_at
-    FROM device_grants d JOIN clients c ON c.client_id = d.client_id
-    WHERE d.user_code = ? AND d.status = 'pending' AND d.expires_at > unixepoch()`)
-    .bind(code).first<{ client_name: string; expires_at: number }>();
-  if (!row) return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
-  return c.json({ client_name: row.client_name, expires_in: row.expires_at - now() });
-});
-
-app.post("/device/verify", async (c) => {
-  const form = await c.req.parseBody();
-  const userCode = normalizeUserCode(String(form.user_code ?? ""));
-  const provider = String(form.provider ?? "") as ProviderName;
-  if (!providers.has(provider)) return oauthError("invalid_request", "unsupported provider");
-  const grant = await c.env.DB.prepare(`SELECT device_code_hash, client_id FROM device_grants
-    WHERE user_code = ? AND status = 'pending' AND expires_at > unixepoch()`)
-    .bind(userCode).first<{ device_code_hash: string; client_id: string }>();
-  if (!grant) return oauthError("invalid_grant", "invalid or expired user code");
-  const client = await getClient(c.env.DB, grant.client_id);
-  if (!client) return oauthError("unauthorized_client");
-  try {
-    validateClient(client, null, provider);
-  } catch (error) {
-    return oauthError("invalid_request", (error as Error).message);
-  }
-  const upstreamState = randomToken();
-  const start = startProvider(c.env, upstreamState);
-  await c.env.DB.prepare(`INSERT INTO oauth_transactions
-    (state_hash, kind, client_id, provider, device_code_hash, expires_at, created_at)
-    VALUES (?, 'device', ?, 'github', ?, ?, ?)`).bind(
-      await sha256(upstreamState), grant.client_id, grant.device_code_hash, now() + 600, now(),
-    ).run();
-  return c.redirect(start.url, 302);
-});
+app.route("/", deviceRoutes);
 
 app.get("/session/start/:provider", async (c) => {
   const provider = c.req.param("provider") as ProviderName;

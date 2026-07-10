@@ -1,0 +1,364 @@
+import { exportJWK, generateKeyPair } from "jose";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import app from "../src/index";
+import { sha256 } from "../src/crypto";
+import { createCsrfToken } from "../src/security";
+import type { Env } from "../src/types";
+import { createTestDb } from "./d1";
+
+const issuer = "https://auth.example";
+const deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code";
+let signingPrivateJwk: string;
+const cleanups: Array<() => void> = [];
+
+beforeAll(async () => {
+  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+  signingPrivateJwk = JSON.stringify({ ...(await exportJWK(privateKey)), kid: "test" });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  for (const cleanup of cleanups.splice(0)) cleanup();
+});
+
+async function testEnv(): Promise<Env> {
+  const { db, close } = await createTestDb();
+  cleanups.push(close);
+  return {
+    DB: db,
+    ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
+    ISSUER: issuer,
+    SIGNING_PRIVATE_JWK: signingPrivateJwk,
+    PAIRWISE_SECRET: "p".repeat(32),
+    GITHUB_CLIENT_ID: "github-client",
+    GITHUB_CLIENT_SECRET: "github-secret",
+  };
+}
+
+function formRequest(values: Record<string, string>, origin?: string): RequestInit {
+  return {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      ...(origin ? { origin } : {}),
+    },
+    body: new URLSearchParams(values),
+  };
+}
+
+function deviceTokenRequest(deviceCode: string, clientId = "local-dev"): RequestInit {
+  return formRequest({ grant_type: deviceGrantType, client_id: clientId, device_code: deviceCode });
+}
+
+async function seedGrant(env: Env, values: {
+  deviceCode?: string;
+  userCode?: string;
+  clientId?: string;
+  status?: "pending" | "approved" | "denied";
+  expiresIn?: number;
+  interval?: number;
+  lastPolled?: boolean;
+  consumed?: boolean;
+} = {}): Promise<{ deviceCode: string; deviceHash: string; userCode: string }> {
+  const deviceCode = values.deviceCode ?? "d".repeat(43);
+  const deviceHash = await sha256(deviceCode);
+  const userCode = values.userCode ?? "ABCD2345";
+  const status = values.status ?? "pending";
+  if (status === "approved") {
+    await env.DB.prepare("INSERT OR IGNORE INTO accounts (id, created_at) VALUES ('acct_device', unixepoch())").run();
+    await env.DB.prepare(`INSERT OR IGNORE INTO identities
+      (provider, provider_user_id, account_id, created_at) VALUES ('github', '42', 'acct_device', unixepoch())`).run();
+  }
+  await env.DB.prepare(`INSERT INTO device_grants
+    (device_code_hash, user_code, client_id, status, account_id, provider_sub, expires_at,
+      interval_seconds, last_polled_at, consumed_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, unixepoch() + ?, ?, ?, ?, unixepoch())`).bind(
+      deviceHash,
+      userCode,
+      values.clientId ?? "local-dev",
+      status,
+      status === "approved" ? "acct_device" : null,
+      status === "approved" ? "github:42" : null,
+      values.expiresIn ?? 600,
+      values.interval ?? 5,
+      values.lastPolled ? Math.floor(Date.now() / 1000) : null,
+      values.consumed ? Math.floor(Date.now() / 1000) : null,
+    ).run();
+  return { deviceCode, deviceHash, userCode };
+}
+
+async function inspectDevice(env: Env, userCode: string): Promise<string> {
+  const response = await app.request(`/api/device/${encodeURIComponent(userCode)}`, undefined, env);
+  expect(response.status).toBe(200);
+  return (await response.json<{ csrf_token: string }>()).csrf_token;
+}
+
+function verifyDevice(userCode: string, csrf: string, origin = issuer): RequestInit {
+  return formRequest({ user_code: userCode, provider: "github", csrf_token: csrf }, origin);
+}
+
+function stubGithub(): void {
+  vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url === "https://github.com/login/oauth/access_token") {
+      return new Response(JSON.stringify({ access_token: "temporary", token_type: "bearer", scope: "" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({
+      login: "mutable-name",
+      id: 42,
+      node_id: "MDQ6VXNlcjQy",
+      avatar_url: "https://avatars.githubusercontent.com/u/42?v=4",
+      gravatar_id: "",
+      url: "https://api.github.com/users/mutable-name",
+      html_url: "https://github.com/mutable-name",
+      followers_url: "https://api.github.com/users/mutable-name/followers",
+      following_url: "https://api.github.com/users/mutable-name/following{/other_user}",
+      gists_url: "https://api.github.com/users/mutable-name/gists{/gist_id}",
+      starred_url: "https://api.github.com/users/mutable-name/starred{/owner}{/repo}",
+      subscriptions_url: "https://api.github.com/users/mutable-name/subscriptions",
+      organizations_url: "https://api.github.com/users/mutable-name/orgs",
+      repos_url: "https://api.github.com/users/mutable-name/repos",
+      events_url: "https://api.github.com/users/mutable-name/events{/privacy}",
+      received_events_url: "https://api.github.com/users/mutable-name/received_events",
+      type: "User",
+      user_view_type: "public",
+      site_admin: false,
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }));
+}
+
+describe("device authorization", () => {
+  it("issues RFC-shaped random codes and stores only the device-code hash", async () => {
+    const env = await testEnv();
+    const response = await app.request("/device/code", formRequest({ client_id: "local-dev" }), env);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await response.json<{
+      device_code: string;
+      user_code: string;
+      verification_uri: string;
+      verification_uri_complete: string;
+      expires_in: number;
+      interval: number;
+    }>();
+    expect(body).toMatchObject({
+      verification_uri: `${issuer}/device/verify`,
+      expires_in: 600,
+      interval: 5,
+    });
+    expect(body.device_code).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(body.user_code).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+    expect(new URL(body.verification_uri_complete).searchParams.get("user_code")).toBe(body.user_code);
+
+    const row = await env.DB.prepare("SELECT device_code_hash, user_code FROM device_grants").first<{
+      device_code_hash: string;
+      user_code: string;
+    }>();
+    expect(row).toEqual({ device_code_hash: await sha256(body.device_code), user_code: body.user_code.replace("-", "") });
+    expect(row?.device_code_hash).not.toContain(body.device_code);
+  });
+
+  it("rejects an unknown, oversized, or provider-disallowed issuance client", async () => {
+    const env = await testEnv();
+    await env.DB.prepare(`INSERT INTO clients
+      (client_id, name, redirect_uris, providers, created_at) VALUES ('blocked', 'Blocked', '[]', '[]', unixepoch())`).run();
+
+    for (const clientId of ["unknown", "a".repeat(129), "blocked"]) {
+      const response = await app.request("/device/code", formRequest({ client_id: clientId }), env);
+      expect(response.status).toBe(400);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      await expect(response.json()).resolves.toMatchObject({
+        error: clientId === "blocked" ? "unauthorized_client" : "invalid_client",
+      });
+    }
+  });
+
+  it("enforces form encoding and the 4096-byte body limit on device POSTs", async () => {
+    const env = await testEnv();
+    const wrongType = await app.request("/device/code", { method: "POST", body: "client_id=local-dev" }, env);
+    expect(wrongType.status).toBe(400);
+
+    for (const path of ["/device/code", "/device/verify"]) {
+      const response = await app.request(path, {
+        method: "POST",
+        headers: { origin: issuer, "content-type": "application/x-www-form-urlencoded" },
+        body: `value=${"a".repeat(4097)}`,
+      }, env);
+      expect(response.status).toBe(413);
+      await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
+    }
+  });
+
+  it("normalizes inspected user codes and rotates a grant-bound CSRF token", async () => {
+    const env = await testEnv();
+    const { deviceHash } = await seedGrant(env);
+    const first = await app.request("/api/device/abcd-2345", undefined, env);
+    expect(first.status).toBe(200);
+    const firstBody = await first.json<{ client_name: string; expires_in: number; csrf_token: string }>();
+    expect(firstBody.client_name).toBe("Local development");
+    expect(firstBody.expires_in).toBeGreaterThan(0);
+    expect(firstBody.csrf_token).toHaveLength(43);
+
+    const second = await inspectDevice(env, "ABCD2345");
+    expect(second).not.toBe(firstBody.csrf_token);
+    const row = await env.DB.prepare("SELECT purpose, COUNT(*) AS count FROM csrf_tokens GROUP BY purpose")
+      .first<{ purpose: string; count: number }>();
+    expect(row).toEqual({ purpose: `device:${deviceHash}`, count: 1 });
+  });
+
+  it("rejects invalid or oversized user codes without issuing CSRF", async () => {
+    const env = await testEnv();
+    for (const code of ["short", "a".repeat(33)]) {
+      const response = await app.request(`/api/device/${code}`, undefined, env);
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      await expect(response.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    }
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM csrf_tokens").first("count")).toBe(0);
+  });
+
+  it("checks exact origin before reading the verification body", async () => {
+    const env = await testEnv();
+    const unreadable = new ReadableStream({
+      pull(controller) {
+        controller.error(new Error("body must not be read"));
+      },
+    });
+    const response = await app.request("/device/verify", {
+      method: "POST",
+      headers: { origin: "https://evil.example", "content-type": "application/x-www-form-urlencoded" },
+      body: unreadable,
+      duplex: "half",
+    } as unknown as RequestInit, env);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
+  });
+
+  it("requires a purpose-bound one-time CSRF token before starting GitHub", async () => {
+    const env = await testEnv();
+    const { userCode } = await seedGrant(env);
+    const csrf = await inspectDevice(env, userCode);
+
+    const invalid = await app.request("/device/verify", verifyDevice(userCode, "wrong-token"), env);
+    expect(invalid.status).toBe(403);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
+
+    const responses = await Promise.all([
+      app.request("/device/verify", verifyDevice(userCode, csrf), env),
+      app.request("/device/verify", verifyDevice(userCode, csrf), env),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([302, 403]);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(1);
+    expect(responses.find((response) => response.status === 302)?.headers.get("location"))
+      .toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize\?/);
+  });
+
+  it("revalidates the client provider allowlist during browser verification", async () => {
+    const env = await testEnv();
+    await env.DB.prepare(`INSERT INTO clients
+      (client_id, name, redirect_uris, providers, created_at) VALUES ('blocked', 'Blocked', '[]', '[]', unixepoch())`).run();
+    const { deviceHash, userCode } = await seedGrant(env, { clientId: "blocked" });
+    const csrf = await createCsrfToken(env.DB, `device:${deviceHash}`);
+
+    const response = await app.request("/device/verify", verifyDevice(userCode, csrf), env);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "unauthorized_client",
+      error_description: "provider not allowed for client",
+    });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
+  });
+
+  it("approves a pending grant only once across competing callbacks", async () => {
+    const env = await testEnv();
+    const { deviceHash } = await seedGrant(env);
+    await env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_device', unixepoch())").run();
+    await env.DB.prepare(`INSERT INTO identities
+      (provider, provider_user_id, account_id, created_at) VALUES ('github', '42', 'acct_device', unixepoch())`).run();
+    const states = ["first-state", "second-state"];
+    for (const state of states) {
+      await env.DB.prepare(`INSERT INTO oauth_transactions
+        (state_hash, kind, client_id, provider, device_code_hash, expires_at, created_at)
+        VALUES (?, 'device', 'local-dev', 'github', ?, unixepoch() + 600, unixepoch())`)
+        .bind(await sha256(state), deviceHash).run();
+    }
+    stubGithub();
+
+    const responses = await Promise.all(states.map((state) => app.request(
+      `/callback/github?state=${state}&code=provider-code`, undefined, env,
+    )));
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
+    await expect(responses.find((response) => response.status === 400)!.json())
+      .resolves.toMatchObject({ error: "invalid_grant" });
+    const grant = await env.DB.prepare("SELECT status, account_id, provider_sub FROM device_grants WHERE device_code_hash = ?")
+      .bind(deviceHash).first();
+    expect(grant).toEqual({ status: "approved", account_id: "acct_device", provider_sub: "github:42" });
+  });
+});
+
+describe("device token exchange", () => {
+  it.each([
+    ["pending", "authorization_pending"],
+    ["denied", "access_denied"],
+  ] as const)("returns %s as %s", async (status, expected) => {
+    const env = await testEnv();
+    const { deviceCode } = await seedGrant(env, { status });
+    const response = await app.request("/token", deviceTokenRequest(deviceCode), env);
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toMatchObject({ error: expected });
+  });
+
+  it("expires old grants and bounds the device code before hashing", async () => {
+    const env = await testEnv();
+    const { deviceCode } = await seedGrant(env, { expiresIn: -1 });
+
+    const expired = await app.request("/token", deviceTokenRequest(deviceCode), env);
+    await expect(expired.json()).resolves.toMatchObject({ error: "expired_token" });
+    const oversized = await app.request("/token", deviceTokenRequest("a".repeat(129)), env);
+    await expect(oversized.json()).resolves.toMatchObject({ error: "invalid_grant" });
+  });
+
+  it("adds five seconds after an early poll", async () => {
+    const env = await testEnv();
+    const { deviceCode, deviceHash } = await seedGrant(env, { lastPolled: true });
+    const response = await app.request("/token", deviceTokenRequest(deviceCode), env);
+
+    await expect(response.json()).resolves.toMatchObject({ error: "slow_down" });
+    expect(await env.DB.prepare("SELECT interval_seconds FROM device_grants WHERE device_code_hash = ?")
+      .bind(deviceHash).first("interval_seconds")).toBe(10);
+  });
+
+  it("atomically consumes an approved grant before issuing one token", async () => {
+    const env = await testEnv();
+    const { deviceCode } = await seedGrant(env, { status: "approved" });
+
+    const responses = await Promise.all([
+      app.request("/token", deviceTokenRequest(deviceCode), env),
+      app.request("/token", deviceTokenRequest(deviceCode), env),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
+    const token = responses.find((response) => response.status === 200)!;
+    const rejected = responses.find((response) => response.status === 400)!;
+    await expect(token.json()).resolves.toMatchObject({ token_type: "Bearer", expires_in: 600 });
+    await expect(rejected.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM consents WHERE account_id = 'acct_device'")
+      .first("count")).toBe(1);
+  });
+
+  it("rejects token exchange after the client loses GitHub permission", async () => {
+    const env = await testEnv();
+    const { deviceCode } = await seedGrant(env, { status: "approved" });
+    await env.DB.prepare("UPDATE clients SET providers = '[]' WHERE client_id = 'local-dev'").run();
+
+    const response = await app.request("/token", deviceTokenRequest(deviceCode), env);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_client" });
+    expect(await env.DB.prepare("SELECT consumed_at FROM device_grants").first("consumed_at")).toBeNull();
+  });
+});

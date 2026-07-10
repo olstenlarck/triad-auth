@@ -2,10 +2,14 @@ import { Hono } from "hono";
 import { setCookie } from "hono/cookie";
 import { randomToken, sha256, timingSafeEqual } from "../crypto";
 import {
+  approveDeviceGrant,
   consumeAuthorizationCode,
+  consumeApprovedDeviceGrant,
   consumeTransaction,
   getAuthorizationCode,
   getClient,
+  getDeviceGrantState,
+  pollPendingDeviceGrant,
   rememberConsent,
   resolveIdentity,
   validateClient,
@@ -21,6 +25,7 @@ const consentPurpose = (requestHash: string) => `consent:${requestHash}`;
 const oauthBodyLimit = 4096;
 const clientIdLimit = 128;
 const authorizationCodeLimit = 128;
+const deviceCodeLimit = 128;
 const redirectUriLimit = 2048;
 
 export const oauthError = (error: string, description?: string, status = 400) =>
@@ -58,7 +63,7 @@ async function requireConsentMutation(
   return valid ? requestHash : oauthError("invalid_request", "invalid CSRF token", 403);
 }
 
-function requireSameOrigin(request: Request, issuer: string): Response | null {
+export function requireSameOrigin(request: Request, issuer: string): Response | null {
   try {
     assertSameOrigin(request, issuer);
   } catch {
@@ -67,7 +72,7 @@ function requireSameOrigin(request: Request, issuer: string): Response | null {
   return null;
 }
 
-async function parseOAuthForm(request: Request): Promise<URLSearchParams | Response> {
+export async function parseOAuthForm(request: Request): Promise<URLSearchParams | Response> {
   const contentLength = request.headers.get("content-length");
   if (contentLength !== null && Number(contentLength) > oauthBodyLimit) {
     return oauthError("invalid_request", "request body too large", 413);
@@ -241,10 +246,10 @@ oauthRoutes.get("/callback/:provider", async (c) => {
 
   if (tx.kind === "session") return c.redirect(`${c.env.ISSUER}/me/`, 302);
   if (tx.kind === "device") {
-    const result = await c.env.DB.prepare(`UPDATE device_grants SET status = 'approved', account_id = ?, provider_sub = ?
-      WHERE device_code_hash = ? AND status = 'pending' AND expires_at > unixepoch()`)
-      .bind(accountId, providerSub, tx.device_code_hash).run();
-    if (result.meta.changes !== 1) return oauthError("invalid_grant", "device request expired");
+    if (!tx.device_code_hash
+      || !(await approveDeviceGrant(c.env.DB, tx.device_code_hash, accountId, providerSub))) {
+      return oauthError("invalid_grant", "device request expired");
+    }
     return c.html("<!doctype html><meta charset=utf-8><title>Authorized</title><h1>Authorized</h1><p>You can return to your device.</p>");
   }
 
@@ -266,7 +271,8 @@ oauthRoutes.post("/token", async (c) => {
   if (form instanceof Response) return form;
   const grantType = form.get("grant_type") ?? "";
   const clientId = form.get("client_id") ?? "";
-  if (!clientId || clientId.length > clientIdLimit || !(await getClient(c.env.DB, clientId))) {
+  const client = clientId && clientId.length <= clientIdLimit ? await getClient(c.env.DB, clientId) : null;
+  if (!client) {
     return oauthError("invalid_client");
   }
 
@@ -295,23 +301,39 @@ oauthRoutes.post("/token", async (c) => {
   }
 
   if (grantType === "urn:ietf:params:oauth:grant-type:device_code") {
-    const hash = await sha256(form.get("device_code") ?? "");
-    const row = await c.env.DB.prepare("SELECT * FROM device_grants WHERE device_code_hash = ? AND client_id = ?")
-      .bind(hash, clientId).first<{ status: string; account_id: string | null; provider_sub: string | null; expires_at: number; interval_seconds: number; last_polled_at: number | null; consumed_at: number | null }>();
-    if (!row || row.expires_at <= now()) return oauthError("expired_token");
-    if (row.last_polled_at && now() - row.last_polled_at < row.interval_seconds) {
-      await c.env.DB.prepare("UPDATE device_grants SET interval_seconds = interval_seconds + 5, last_polled_at = unixepoch() WHERE device_code_hash = ?").bind(hash).run();
-      return oauthError("slow_down");
+    try {
+      validateClient(client, null, "github");
+    } catch {
+      return oauthError("invalid_client");
     }
-    await c.env.DB.prepare("UPDATE device_grants SET last_polled_at = unixepoch() WHERE device_code_hash = ?").bind(hash).run();
-    if (row.status === "pending") return oauthError("authorization_pending");
-    if (row.status === "denied") return oauthError("access_denied");
-    if (row.consumed_at || !row.account_id || !row.provider_sub) return oauthError("invalid_grant");
-    const consumed = await c.env.DB.prepare("UPDATE device_grants SET consumed_at = unixepoch() WHERE device_code_hash = ? AND consumed_at IS NULL")
-      .bind(hash).run();
-    if (consumed.meta.changes !== 1) return oauthError("invalid_grant");
-    await rememberConsent(c.env.DB, row.account_id, clientId);
-    return c.json({ token_type: "Bearer", expires_in: 600, id_token: await issueIdToken(c.env, clientId, row.account_id, row.provider_sub) });
+    const deviceCode = form.get("device_code") ?? "";
+    if (!deviceCode || deviceCode.length > deviceCodeLimit) return oauthError("invalid_grant");
+    const hash = await sha256(deviceCode);
+    const approved = await consumeApprovedDeviceGrant(c.env.DB, hash, clientId);
+    if (approved) {
+      await rememberConsent(c.env.DB, approved.account_id, clientId);
+      return c.json({
+        token_type: "Bearer",
+        expires_in: 600,
+        id_token: await issueIdToken(c.env, clientId, approved.account_id, approved.provider_sub),
+      });
+    }
+
+    const state = await getDeviceGrantState(c.env.DB, hash, clientId);
+    if (!state || state.expires_at <= now()) return oauthError("expired_token");
+    if (state.consumed_at || state.status === "approved") return oauthError("invalid_grant");
+    if (state.status === "denied") return oauthError("access_denied");
+    const polling = await pollPendingDeviceGrant(c.env.DB, hash, clientId);
+    if (polling) return oauthError(polling);
+
+    const changed = await consumeApprovedDeviceGrant(c.env.DB, hash, clientId);
+    if (!changed) return oauthError("invalid_grant");
+    await rememberConsent(c.env.DB, changed.account_id, clientId);
+    return c.json({
+      token_type: "Bearer",
+      expires_in: 600,
+      id_token: await issueIdToken(c.env, clientId, changed.account_id, changed.provider_sub),
+    });
   }
 
   return oauthError("unsupported_grant_type");

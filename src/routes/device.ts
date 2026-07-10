@@ -1,0 +1,131 @@
+import { Hono } from "hono";
+import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
+import { getClient, validateClient } from "../db";
+import { startProvider } from "../providers";
+import { oauthError, parseOAuthForm, requireSameOrigin } from "./oauth";
+import { consumeCsrfToken, createCsrfToken } from "../security";
+import type { Env } from "../types";
+
+const now = () => Math.floor(Date.now() / 1000);
+const clientIdLimit = 128;
+const userCodeInputLimit = 32;
+const providerLimit = 32;
+const userCodePattern = /^[A-HJ-NP-Z2-9]{8}$/;
+const devicePurpose = (deviceCodeHash: string) => `device:${deviceCodeHash}`;
+
+function validUserCode(value: string): string | null {
+  if (!value || value.length > userCodeInputLimit) return null;
+  const normalized = normalizeUserCode(value);
+  return userCodePattern.test(normalized) ? normalized : null;
+}
+
+export const deviceRoutes = new Hono<{ Bindings: Env }>();
+
+deviceRoutes.use("*", async (c, next) => {
+  await next();
+  c.header("cache-control", "no-store");
+  c.header("pragma", "no-cache");
+});
+
+deviceRoutes.post("/device/code", async (c) => {
+  const form = await parseOAuthForm(c.req.raw);
+  if (form instanceof Response) return form;
+  const clientId = form.get("client_id") ?? "";
+  if (!clientId || clientId.length > clientIdLimit) return oauthError("invalid_client");
+  const provider = form.get("provider");
+  if (provider && (provider.length > providerLimit || provider !== "github")) {
+    return oauthError("invalid_request", "unsupported provider");
+  }
+  const client = await getClient(c.env.DB, clientId);
+  if (!client) return oauthError("invalid_client");
+  try {
+    validateClient(client, null, "github");
+  } catch (error) {
+    return oauthError("unauthorized_client", (error as Error).message);
+  }
+
+  const deviceCode = randomToken(32);
+  const userCode = makeUserCode();
+  await c.env.DB.prepare(`INSERT INTO device_grants
+    (device_code_hash, user_code, client_id, status, expires_at, interval_seconds, created_at)
+    VALUES (?, ?, ?, 'pending', ?, 5, ?)`).bind(
+      await sha256(deviceCode), normalizeUserCode(userCode), clientId, now() + 600, now(),
+    ).run();
+  return c.json({
+    device_code: deviceCode,
+    user_code: userCode,
+    verification_uri: `${c.env.ISSUER}/device/verify`,
+    verification_uri_complete: `${c.env.ISSUER}/device/verify?user_code=${encodeURIComponent(userCode)}`,
+    expires_in: 600,
+    interval: 5,
+  });
+});
+
+deviceRoutes.get("/device/verify", (c) => c.env.ASSETS.fetch(c.req.raw));
+
+deviceRoutes.get("/api/device/:code", async (c) => {
+  const code = validUserCode(c.req.param("code"));
+  if (!code) return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
+  const row = await c.env.DB.prepare(`SELECT d.device_code_hash, d.client_id, c.name AS client_name, d.expires_at
+    FROM device_grants d JOIN clients c ON c.client_id = d.client_id
+    WHERE d.user_code = ? AND d.status = 'pending' AND d.expires_at > unixepoch()`)
+    .bind(code).first<{ device_code_hash: string; client_id: string; client_name: string; expires_at: number }>();
+  if (!row) return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
+  const client = await getClient(c.env.DB, row.client_id);
+  if (!client) return oauthError("unauthorized_client", undefined, 404);
+  try {
+    validateClient(client, null, "github");
+  } catch (error) {
+    return oauthError("unauthorized_client", (error as Error).message, 404);
+  }
+  return c.json({
+    client_name: row.client_name,
+    expires_in: row.expires_at - now(),
+    csrf_token: await createCsrfToken(c.env.DB, devicePurpose(row.device_code_hash)),
+  });
+});
+
+deviceRoutes.post("/device/verify", async (c) => {
+  const originError = requireSameOrigin(c.req.raw, c.env.ISSUER);
+  if (originError) return originError;
+  const form = await parseOAuthForm(c.req.raw);
+  if (form instanceof Response) return form;
+  const userCode = validUserCode(form.get("user_code") ?? "");
+  const provider = form.get("provider") ?? "";
+  if (!userCode) return oauthError("invalid_grant", "invalid or expired user code");
+  if (!provider || provider.length > providerLimit || provider !== "github") {
+    return oauthError("invalid_request", "unsupported provider");
+  }
+  const grant = await c.env.DB.prepare(`SELECT device_code_hash, client_id FROM device_grants
+    WHERE user_code = ? AND status = 'pending' AND expires_at > unixepoch()`)
+    .bind(userCode).first<{ device_code_hash: string; client_id: string }>();
+  if (!grant) return oauthError("invalid_grant", "invalid or expired user code");
+  const client = await getClient(c.env.DB, grant.client_id);
+  if (!client) return oauthError("unauthorized_client");
+  try {
+    validateClient(client, null, "github");
+  } catch (error) {
+    return oauthError("unauthorized_client", (error as Error).message);
+  }
+  if (!(await consumeCsrfToken(
+    c.env.DB,
+    form.get("csrf_token") ?? "",
+    devicePurpose(grant.device_code_hash),
+  ))) {
+    return oauthError("invalid_request", "invalid CSRF token", 403);
+  }
+
+  const upstreamState = randomToken();
+  const start = startProvider(c.env, upstreamState);
+  await c.env.DB.prepare(`INSERT INTO oauth_transactions
+    (state_hash, kind, client_id, provider, device_code_hash, expires_at, created_at)
+    VALUES (?, 'device', ?, 'github', ?, ?, ?)`).bind(
+      await sha256(upstreamState), grant.client_id, grant.device_code_hash, now() + 600, now(),
+    ).run();
+  return c.redirect(start.url, 302);
+});
+
+deviceRoutes.onError((error, c) => {
+  console.error(error);
+  return c.json({ error: "server_error" }, 500, { "cache-control": "no-store", pragma: "no-cache" });
+});
