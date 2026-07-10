@@ -87,7 +87,7 @@ Upstream scope mapping remains minimal. Google adds `email` and/or `profile` onl
 
 The callback must carry requested profile values across the one-time authorization-code or device-token exchange. Triad encrypts the minimal claim JSON before placing it in D1. AES-GCM uses a random 96-bit IV and a key derived from `PAIRWISE_SECRET` with a distinct claims-encryption domain; row-specific additional authenticated data binds ciphertext to its authorization-code or device-grant hash.
 
-Authorization-code claim ciphertext lives for at most two minutes. Device claim ciphertext lives only until the ten-minute grant expires or is consumed. Successful exchange atomically consumes the row; bounded cleanup removes expired ciphertext. Consents persist only scope names, never profile values.
+A winning authorization-code or approved device-grant exchange atomically deletes its row before decrypting the claims. Abandoned profile ciphertext is exchangeable only until the authorization code's two-minute TTL or the device grant's ten-minute TTL. After expiry it remains encrypted and inaccessible to exchange, even if its row is still physically present. Bounded, sampled, traffic-driven cleanup physically deletes expired rows when later requests trigger it, so physical retention can exceed the protocol TTL when no later traffic arrives. Consents persist only scope names, never profile values.
 
 ## Token Lifetime
 

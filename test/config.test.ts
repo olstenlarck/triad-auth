@@ -269,6 +269,27 @@ describe("deployment configuration", () => {
     expect(readme).toContain("X branding");
   });
 
+  it("documents logical claim expiry separately from traffic-driven physical cleanup", () => {
+    const documents = [
+      readFileSync("README.md", "utf8"),
+      readFileSync("docs/superpowers/specs/2026-07-10-multi-provider-identity-design.md", "utf8"),
+    ];
+
+    for (const document of documents) {
+      expect(document).toContain(
+        "Abandoned profile ciphertext is exchangeable only until the authorization code's two-minute TTL or the device grant's ten-minute TTL.",
+      );
+      expect(document).toContain(
+        "After expiry it remains encrypted and inaccessible to exchange, even if its row is still physically present.",
+      );
+      expect(document).toContain(
+        "Bounded, sampled, traffic-driven cleanup physically deletes expired rows when later requests trigger it, so physical retention can exceed the protocol TTL when no later traffic arrives.",
+      );
+      expect(document).not.toContain("retained for at most two minutes");
+      expect(document).not.toContain("lives for at most two minutes");
+    }
+  });
+
   it("documents migration before deployment and exact post-deploy smoke checks", () => {
     const readme = readFileSync("README.md", "utf8");
 

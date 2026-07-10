@@ -310,7 +310,7 @@ it("documents the current multi-provider privacy and token contract", async () =
   expect(readme).toContain("Google, GitHub, and Twitter");
   expect(readme).toContain("opaque provider-global identifier");
   expect(readme).toContain("`email`, `handle`, `name`, and `avatar`");
-  expect(readme).toContain("encrypted until the one-time exchange or expiry");
+  expect(readme).toContain("remains encrypted and inaccessible to exchange");
   expect(readme).toContain("ID tokens expire after five minutes");
   expect(readme).not.toContain("formatted as `github:<numeric-id>`");
   expect(readme).not.toContain("does not collect profile data");
