@@ -76,6 +76,15 @@ import Shell from "../../components/Shell.astro";
       }
     }
 
+    function resetInspectedRequest() {
+      csrf.value = "";
+      provider.value = "";
+      disclosures.replaceChildren();
+      disclosureBox.hidden = true;
+      submit.disabled = true;
+      box.hidden = true;
+    }
+
     function format(value: string) {
       const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
       return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
@@ -83,11 +92,7 @@ import Shell from "../../components/Shell.astro";
 
     function clearInspection() {
       inspection += 1;
-      csrf.value = "";
-      provider.value = "";
-      disclosures.replaceChildren();
-      submit.disabled = true;
-      box.hidden = true;
+      resetInspectedRequest();
       error.hidden = true;
       form.setAttribute("aria-busy", "false");
       status.textContent = "Enter all eight characters to inspect the request.";
@@ -118,7 +123,7 @@ import Shell from "../../components/Shell.astro";
           || !Array.isArray(body.scopes)
           || !body.scopes.includes("openid")
         ) {
-          box.hidden = true;
+          resetInspectedRequest();
           error.textContent = body.error_description ?? "That device code is invalid or expired.";
           error.hidden = false;
           status.textContent = "The request could not be verified.";
@@ -138,6 +143,7 @@ import Shell from "../../components/Shell.astro";
         status.dataset.tone = "success";
       } catch {
         if (current !== inspection) return;
+        resetInspectedRequest();
         form.setAttribute("aria-busy", "false");
         error.textContent = "The broker could not inspect this device code.";
         error.hidden = false;
@@ -179,8 +185,7 @@ import Shell from "../../components/Shell.astro";
         }
         location.assign(body.redirect_to);
       } catch (reason) {
-        csrf.value = "";
-        submit.disabled = true;
+        resetInspectedRequest();
         submit.textContent = "APPROVE DEVICE REQUEST";
         form.setAttribute("aria-busy", "false");
         status.textContent = "The request must be inspected again before continuing.";

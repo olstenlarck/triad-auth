@@ -12,7 +12,7 @@
     "keygen": "node scripts/generate-key.mjs",
     "check:config": "node scripts/check-config.mjs",
     "check:deploy": "wrangler deploy --dry-run",
-    "check": "pnpm typecheck && pnpm test && pnpm build && pnpm check:deploy",
+    "check": "pnpm typecheck && pnpm build && pnpm test && pnpm check:deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

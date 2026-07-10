@@ -61,6 +61,9 @@ describe("deployment configuration", () => {
       "pnpm build && wrangler dev --var ISSUER:http://localhost:8787",
     );
     expect(packageJson.scripts.deploy).toBe("pnpm build && wrangler deploy");
+    expect(packageJson.scripts.check).toBe(
+      "pnpm typecheck && pnpm build && pnpm test && pnpm check:deploy",
+    );
     expect(config).toContain('ISSUER = "https://triad-auth-broker.equator-owl-studio.workers.dev"');
   });
 

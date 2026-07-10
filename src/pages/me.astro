@@ -12,7 +12,10 @@ import Shell from "../components/Shell.astro";
 
     <div id="signed-out" class="signed-out" hidden>
       <p>Choose an enabled provider to inspect your broker account and authorized applications.</p>
-      <div id="account-provider-actions" class="actions" aria-live="polite">Loading enabled providers...</div>
+      <div class="control-feedback">
+        <div id="account-provider-actions" class="actions" aria-live="polite">Loading enabled providers...</div>
+        <button id="account-provider-retry" class="button secondary" type="button" hidden>RETRY PROVIDERS</button>
+      </div>
     </div>
 
     <div id="account-content" hidden>
@@ -45,10 +48,12 @@ import Shell from "../components/Shell.astro";
     const appCount = document.querySelector<HTMLElement>("#app-count")!;
     const list = document.querySelector<HTMLElement>("#authorized-apps")!;
     const providerActions = document.querySelector<HTMLElement>("#account-provider-actions")!;
+    const providerRetry = document.querySelector<HTMLButtonElement>("#account-provider-retry")!;
     let csrfToken = "";
     let remainingClients = 0;
     let loadGeneration = 0;
     let loadController: AbortController | null = null;
+    let providerController: AbortController | null = null;
 
     function setMutationControls(disabled: boolean) {
       logout.disabled = disabled;
@@ -131,9 +136,15 @@ import Shell from "../components/Shell.astro";
       }
     }
 
-    async function renderProviderActions(signal: AbortSignal) {
+    async function renderProviderActions() {
+      providerController?.abort();
+      const controller = new AbortController();
+      providerController = controller;
+      providerActions.textContent = "Loading enabled providers...";
+      providerRetry.hidden = true;
+      providerRetry.disabled = true;
       try {
-        const providers = await fetchProviderCapabilities(location.origin, signal);
+        const providers = await fetchProviderCapabilities(location.origin, controller.signal);
         if (!providers.length) throw new Error("No sign-in providers are enabled.");
         providerActions.replaceChildren();
         for (const provider of providers) {
@@ -144,8 +155,14 @@ import Shell from "../components/Shell.astro";
           providerActions.append(link);
         }
       } catch (reason) {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
         providerActions.textContent = "Sign-in providers could not be loaded.";
-        throw reason;
+        providerRetry.hidden = false;
+      } finally {
+        if (providerController === controller) {
+          providerController = null;
+          providerRetry.disabled = false;
+        }
       }
     }
 
@@ -164,8 +181,7 @@ import Shell from "../components/Shell.astro";
           content.hidden = true;
           signedOut.hidden = false;
           list.replaceChildren();
-          providerActions.textContent = "Loading enabled providers...";
-          await renderProviderActions(controller.signal);
+          await renderProviderActions();
           return;
         }
         const body = await response.json() as {
@@ -213,9 +229,11 @@ import Shell from "../components/Shell.astro";
     }
 
     logout.addEventListener("click", () => { void logoutAccount(); });
+    providerRetry.addEventListener("click", () => { void renderProviderActions(); });
     window.addEventListener("pagehide", () => {
       loadGeneration++;
       loadController?.abort();
+      providerController?.abort();
     });
     load().catch((reason: unknown) => {
       if (!(reason instanceof DOMException && reason.name === "AbortError")) {

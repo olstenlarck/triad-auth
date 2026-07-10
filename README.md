@@ -1,8 +1,8 @@
 # Triad Auth Broker
 
-Triad is a small, inspectable OAuth/OIDC broker for GitHub authentication. It runs as one Cloudflare Worker with D1 and static Astro assets, and includes authorization-code PKCE and device-flow demos.
+Triad is a small, inspectable OAuth/OIDC broker for Google, GitHub, and Twitter authentication. It runs as one Cloudflare Worker with D1 and static Astro assets, and includes authorization-code PKCE and device-flow demos.
 
-This repository is an MVP, not a general-purpose identity platform. It deliberately exposes the identity semantics a downstream client receives and does not collect profile data.
+This repository is an MVP, not a general-purpose identity platform. It makes downstream identity semantics explicit and collects only the optional profile values that a client requests for a one-time authorization transaction.
 
 ## Identity claims
 
@@ -10,9 +10,11 @@ Every ID token uses the app-scoped identity as both `sub` and `pairwise_sub`.
 
 - `pairwise_sub`: an HMAC-derived identifier unique to the broker account and downstream `client_id`.
 - `account_sub`: a random broker account identifier, stable across receiving Triad clients.
-- `provider_sub`: the globally correlatable GitHub identity, formatted as `github:<numeric-id>`.
+- `provider_sub`: an opaque provider-global identifier that can correlate one upstream identity across receiving Triad clients without exposing the raw upstream ID.
 
-Triad does not request GitHub profile scopes and does not persist or emit email, login, name, avatar, or GitHub access tokens. Email must never be used as an identity key.
+Identity-only authentication is the default. Clients may request the optional scopes `email`, `handle`, `name`, and `avatar`; every requested scope is mandatory for that transaction and is shown before approval. Their standard ID-token claims are `email` plus `email_verified`, `preferred_username`, `name`, and `picture` respectively. These values are mutable profile data, not identity keys.
+
+Consent records retain approved scope names, not profile values. Requested profile values are encrypted until the one-time exchange or expiry, then removed. Upstream access tokens are discarded after the provider response is mapped.
 
 ## Supported flows
 
@@ -88,7 +90,7 @@ pnpm check:config
 pnpm check
 ```
 
-`pnpm check` runs TypeScript, all Vitest tests, the Astro production build with CSP hash generation, and `wrangler deploy --dry-run`. The dry-run syntax is verified against the installed Wrangler 4.107.1 CLI.
+`pnpm check` runs TypeScript, the Astro production build with CSP hash generation, all Vitest tests, and `wrangler deploy --dry-run`. Building before tests makes the command reliable in a fresh checkout where `dist/` does not exist. The dry-run syntax is verified against the installed Wrangler CLI.
 
 ## Production deployment
 
@@ -131,20 +133,20 @@ curl -i "$ISSUER/.well-known/openid-configuration"
 curl -i "$ISSUER/.well-known/jwks.json"
 ```
 
-Then complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, `provider_sub` starts with `github:`, and `account_sub` starts with `acct_`.
+Then complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, `provider_sub` starts with `prv_<provider>_`, and `account_sub` starts with `acct_`. Requested profile claims must appear only when their scopes were included.
 
 ## Revocation behavior
 
-The `/me/` surface can delete a downstream client's consent record. That prevents silent reuse of that consent, but it does not revoke an ID token already issued to the client; ID tokens expire after ten minutes. A user can approve the client again later.
+The `/me/` surface can delete a downstream client's consent record. That prevents silent reuse of that consent, but it does not revoke an ID token already issued to the client; ID tokens expire after five minutes. A user can approve the client again later.
 
-Logout deletes the hashed Triad browser session and cookie. It does not revoke previously issued downstream tokens or the user's authorization of the GitHub OAuth App. GitHub App authorization must be revoked through GitHub when required.
+Logout deletes the hashed Triad browser session and cookie. It does not revoke previously issued downstream tokens or the user's authorization at an upstream provider. Provider authorization must be revoked through that provider when required.
 
-Authorization codes, device codes, CSRF tokens, and upstream state are one-time and expiry-bound. GitHub access tokens are discarded immediately after resolving the immutable numeric user ID.
+Authorization codes, device codes, CSRF tokens, and upstream state are one-time and expiry-bound. Upstream access tokens are discarded immediately after resolving the provider identity and requested profile values.
 
 ## MVP limitations
 
-- GitHub is the only upstream provider.
-- There is no email/profile scope, identity linking, dynamic client registration, account deletion, signing-key rotation, or operator audit UI.
+- Google, GitHub, and Twitter adapters are supported, but each provider appears only when its complete credential pair is configured.
+- There is no cross-provider identity linking, dynamic client registration, account deletion, signing-key rotation, or operator audit UI.
 - Client registration and redirect changes are migration/operator tasks.
 - Rate limits are single-region D1 counters, not a complete abuse-prevention system.
 - Deployment requires a stable hostname, persistent D1, and secret injection. An ephemeral preview is not a valid issuer.

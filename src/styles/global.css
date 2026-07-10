@@ -403,6 +403,9 @@ h1, h2, h3 { text-wrap: balance; }
 .scope-selector input:disabled + span { cursor: not-allowed; opacity: 0.4; }
 .control-status { margin: 0.8rem 0 0; color: var(--muted); font-size: 0.68rem; }
 .control-status[data-tone="error"] { color: var(--danger); }
+.control-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.control-feedback > :first-child { flex: 1 1 16rem; margin: 0; }
+.demo-provider-feedback { grid-column: 1 / -1; padding: 1rem 1.25rem; border-top: 1px solid var(--rule); }
 .demo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-block: 1px solid var(--rule); }
 .demo-bay { display: flex; min-width: 0; min-height: 36rem; flex-direction: column; padding: clamp(1.25rem, 3vw, 2.5rem); }
 .demo-bay + .demo-bay { border-left: 1px solid var(--rule); }

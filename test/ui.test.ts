@@ -120,6 +120,8 @@ it("uses accurate consent action labels and a stable recovery route", async () =
   expect(consent).toContain('approve.textContent = "APPROVE REQUEST"');
   expect(consent).toContain('deny.textContent = "DENY REQUEST"');
   expect(consent).not.toContain("approve.textContent = action ===");
+  expect(consent).toContain("Triad stores approved scope names");
+  expect(consent).toContain("Encrypted profile values exist only until the one-time exchange or expiry, then are removed.");
 });
 
 it("presents Triad rather than a GitHub-only broker", async () => {
@@ -157,6 +159,35 @@ it("loads provider capabilities and sends one canonical demo scope request", asy
   expect(demo).not.toContain('provider: "github"');
 });
 
+it("locks the shared provider request while either demo flow is active", async () => {
+  const demo = await readFile("src/pages/demo/index.astro", "utf8");
+
+  expect(demo).toContain('let activeFlow: "browser" | "device" | null = null;');
+  expect(demo).toContain('if (!beginFlow("browser")) return;');
+  expect(demo).toContain('if (!beginFlow("device")) return;');
+  expect(demo).toContain("providerFieldset.disabled = activeFlow !== null;");
+  expect(demo).toContain("scopeFieldset.disabled = activeFlow !== null;");
+  expect(demo).toContain("browserStart.disabled = activeFlow !== null || !selectedProvider;");
+  expect(demo).toContain("deviceStart.disabled = activeFlow !== null || !selectedProvider;");
+  expect(demo.match(/finishFlow\("device"\)/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+});
+
+it("offers keyboard-accessible provider retries on demo and account errors", async () => {
+  const [demo, account, css] = await Promise.all([
+    readFile("src/pages/demo/index.astro", "utf8"),
+    readFile("src/pages/me.astro", "utf8"),
+    readFile("src/styles/global.css", "utf8"),
+  ]);
+
+  expect(demo).toContain('id="provider-retry"');
+  expect(demo).toContain("providerRetry.hidden = false");
+  expect(demo).toContain('providerRetry.addEventListener("click"');
+  expect(account).toContain('id="account-provider-retry"');
+  expect(account).toContain("providerRetry.hidden = false");
+  expect(account).toContain('providerRetry.addEventListener("click"');
+  expect(css).toMatch(/\.control-feedback\s*\{[^}]*display: flex;[^}]*align-items: center;/s);
+});
+
 it("populates account sign-in actions from enabled providers", async () => {
   const account = await readFile("src/pages/me.astro", "utf8");
 
@@ -169,9 +200,11 @@ it("populates account sign-in actions from enabled providers", async () => {
 it("restores demo controls without replacing a browser start error", async () => {
   const demo = await readFile("src/pages/demo/index.astro", "utf8");
   const recovery = demo.slice(demo.indexOf('message(browserStatus, "The authorization request'));
+  const finish = demo.slice(demo.indexOf("function finishFlow"), demo.indexOf("async function loadProviderControls"));
 
   expect(demo).toContain("function updateRequestControls(updateStatus = true)");
-  expect(recovery).toContain("updateRequestControls(false)");
+  expect(recovery).toContain('finishFlow("browser")');
+  expect(finish).toContain("updateRequestControls(false)");
 });
 
 it("renders transaction-bound provider and mandatory requested claims without consent checkboxes", async () => {
@@ -193,6 +226,19 @@ it("renders transaction-bound provider and mandatory requested claims without co
   expect(device).toContain("disclosureBox.hidden = false");
   expect(device).not.toContain('type="checkbox"');
   expect(device).not.toContain('value="github"');
+});
+
+it("always clears device transaction disclosure when inspection is reset or rejected", async () => {
+  const device = await readFile("src/pages/device/verify.astro", "utf8");
+  const reset = device.slice(
+    device.indexOf("function resetInspectedRequest"),
+    device.indexOf("function format"),
+  );
+
+  expect(reset).toContain("disclosures.replaceChildren()");
+  expect(reset).toContain("disclosureBox.hidden = true");
+  expect(reset).toContain("box.hidden = true");
+  expect(device.match(/resetInspectedRequest\(\);/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
 });
 
 it("renders verified optional claims through text content", async () => {
@@ -230,4 +276,21 @@ it("gives header and standalone links a minimum touch size", async () => {
   const css = await readFile("src/styles/global.css", "utf8");
 
   expect(css).toMatch(/\.wordmark,\s*\.site-header nav a,\s*\.text-link\s*\{[^}]*min-width: 2\.75rem;[^}]*min-height: 2\.75rem;/s);
+});
+
+it("documents the current multi-provider privacy and token contract", async () => {
+  const readme = await readFile("README.md", "utf8");
+
+  expect(readme).toContain("Google, GitHub, and Twitter");
+  expect(readme).toContain("opaque provider-global identifier");
+  expect(readme).toContain("`email`, `handle`, `name`, and `avatar`");
+  expect(readme).toContain("encrypted until the one-time exchange or expiry");
+  expect(readme).toContain("ID tokens expire after five minutes");
+  expect(readme).not.toContain("formatted as `github:<numeric-id>`");
+  expect(readme).not.toContain("does not collect profile data");
+  expect(readme).not.toContain("does not persist or emit email");
+  expect(readme).not.toContain("ID tokens expire after ten minutes");
+  expect(readme).not.toContain("GitHub is the only upstream provider");
+  expect(readme).not.toContain("There is no email/profile scope");
+  expect(readme).not.toContain("provider_sub` starts with `github:");
 });

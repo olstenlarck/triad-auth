@@ -25,7 +25,10 @@ import Shell from "../components/Shell.astro";
       <button id="deny" class="button secondary" type="button" disabled>DENY REQUEST</button>
       <a id="consent-restart" class="button secondary" href="/demo/" hidden>RETURN TO DEMO</a>
     </div>
-    <p class="fine-print">Approval shares every claim listed above. The app never receives the upstream access token.</p>
+    <p class="fine-print">
+      Approval shares every claim listed above. The app never receives the upstream access token.
+      Triad stores approved scope names. Encrypted profile values exist only until the one-time exchange or expiry, then are removed.
+    </p>
   </section>
 
   <script>
