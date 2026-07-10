@@ -2,5 +2,5 @@
 export const cspScriptHashes = [
   "'sha256-0IDWeWrIYDMzJZJ8jPFY4H/Jn3WineHqN0pgmn5eJaI='",
   "'sha256-OVNR7m6PPF4IZ1JeAqD9pK7l/ceRZtivvhWNCh+lm6U='",
-  "'sha256-eRf2oYoC1Pjp7CLrfzmQO0bv08XTfB7iZRE2ZOB5Q6I='"
+  "'sha256-p8e7RKXtyopSY2CObtuFAtA6Hspg4Qo3jX0vCF2Bk5Q='"
 ] as const;

@@ -33,6 +33,7 @@ CREATE TABLE oauth_transactions (
   provider_verifier TEXT,
   provider_nonce TEXT,
   device_code_hash TEXT,
+  browser_binding_hash TEXT NOT NULL,
   expires_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL
 );
@@ -94,10 +95,11 @@ CREATE TABLE rate_limits (
   bucket TEXT NOT NULL,
   key_hash TEXT NOT NULL,
   window_start INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
   count INTEGER NOT NULL,
   PRIMARY KEY (bucket, key_hash, window_start)
 );
-CREATE INDEX rate_limits_cleanup_idx ON rate_limits(bucket, window_start);
+CREATE INDEX rate_limits_cleanup_idx ON rate_limits(expires_at);
 
 CREATE TABLE csrf_tokens (
   token_hash TEXT PRIMARY KEY,

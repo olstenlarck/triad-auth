@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
 import { getClient, validateClient } from "../db";
 import { startProvider } from "../providers";
+import { createPreAuthBinding, setPreAuthCookie } from "../pre-auth";
 import { parseScope } from "../protocol";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { oauthError, parseOAuthForm, rejectDuplicateParameters, requireSameOrigin } from "./oauth";
@@ -31,7 +32,7 @@ deviceRoutes.use("*", async (c, next) => {
 });
 
 deviceRoutes.post("/device/code", async (c) => {
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, "device-issue", 10))) {
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "device-issue", 10))) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const form = await parseOAuthForm(c.req.raw);
@@ -91,7 +92,7 @@ deviceRoutes.post("/device/code", async (c) => {
 deviceRoutes.get("/device/verify", (c) => c.env.ASSETS.fetch(c.req.raw));
 
 deviceRoutes.get("/api/device/:code", async (c) => {
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, "device-inspect", 30))) {
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "device-inspect", 30))) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const code = validUserCode(c.req.param("code"));
@@ -149,11 +150,13 @@ deviceRoutes.post("/device/verify", async (c) => {
 
   const upstreamState = randomToken();
   const start = startProvider(c.env, upstreamState);
+  const binding = await createPreAuthBinding();
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
-    (state_hash, kind, client_id, provider, device_code_hash, expires_at, created_at)
-    VALUES (?, 'device', ?, 'github', ?, ?, ?)`).bind(
-      await sha256(upstreamState), grant.client_id, grant.device_code_hash, now() + 600, now(),
+    (state_hash, kind, client_id, provider, device_code_hash, browser_binding_hash, expires_at, created_at)
+    VALUES (?, 'device', ?, 'github', ?, ?, ?, ?)`).bind(
+      await sha256(upstreamState), grant.client_id, grant.device_code_hash, binding.hash, now() + 600, now(),
     ).run();
+  setPreAuthCookie(c, binding.token);
   return c.json({ redirect_to: start.url });
 });
 

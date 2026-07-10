@@ -14,7 +14,7 @@ export async function sha256(value: string): Promise<string> {
   return base64url(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
 }
 
-export async function pairwiseSubject(secret: string, accountId: string, clientId: string): Promise<string> {
+export async function hmacSha256(secret: string, value: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
@@ -22,8 +22,12 @@ export async function pairwiseSubject(secret: string, accountId: string, clientI
     false,
     ["sign"],
   );
-  const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(`${accountId}\0${clientId}`));
-  return `ps_${base64url(new Uint8Array(mac))}`;
+  const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(value));
+  return base64url(new Uint8Array(mac));
+}
+
+export async function pairwiseSubject(secret: string, accountId: string, clientId: string): Promise<string> {
+  return `ps_${await hmacSha256(secret, `${accountId}\0${clientId}`)}`;
 }
 
 export function normalizeUserCode(value: string): string {

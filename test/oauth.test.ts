@@ -75,11 +75,18 @@ async function consentMutation(env: Env, request: string, csrf: string, action: 
   }, env);
 }
 
-async function approveConsent(env: Env, request: string, csrf: string): Promise<string> {
+async function approveConsent(
+  env: Env,
+  request: string,
+  csrf: string,
+): Promise<{ state: string; binding: string }> {
   const response = await consentMutation(env, request, csrf, "approve");
   expect(response.status).toBe(200);
   const body = await response.json<{ redirect_to: string }>();
-  return new URL(body.redirect_to).searchParams.get("state")!;
+  return {
+    state: new URL(body.redirect_to).searchParams.get("state")!,
+    binding: responseCookie(response, "triad_pre_auth"),
+  };
 }
 
 function stubGithub(id = 42) {
@@ -96,11 +103,20 @@ function stubGithub(id = 42) {
   return fetch;
 }
 
+function responseCookie(response: Response, name: string): string {
+  const header = response.headers.get("set-cookie") ?? "";
+  const value = header.match(new RegExp(`(?:^|, )${name}=([^;]+)`))?.[1];
+  expect(value).toBeTruthy();
+  return `${name}=${value}`;
+}
+
 async function issueAuthorizationCode(env: Env, verifier: string): Promise<string> {
   const { request, csrf } = await beginConsent(env, { code_challenge: await sha256(verifier) });
-  const upstreamState = await approveConsent(env, request, csrf);
+  const { state: upstreamState, binding } = await approveConsent(env, request, csrf);
   stubGithub();
-  const callback = await app.request(`/callback/github?state=${encodeURIComponent(upstreamState)}&code=provider-code`, undefined, env);
+  const callback = await app.request(`/callback/github?state=${encodeURIComponent(upstreamState)}&code=provider-code`, {
+    headers: { cookie: binding },
+  }, env);
   expect(callback.status).toBe(302);
   return new URL(callback.headers.get("location")!).searchParams.get("code")!;
 }
@@ -145,6 +161,31 @@ async function seedAuthorizationCode(env: Env, values: {
 }
 
 describe("authorization-code routes", () => {
+  it("binds an approved consent callback to the browser that started GitHub", async () => {
+    const env = await testEnv();
+    const { request, csrf } = await beginConsent(env);
+    const approved = await consentMutation(env, request, csrf, "approve");
+    expect(approved.status).toBe(200);
+    const binding = responseCookie(approved, "triad_pre_auth");
+    const state = new URL((await approved.json<{ redirect_to: string }>()).redirect_to).searchParams.get("state")!;
+    const fetch = stubGithub();
+
+    const wrongBrowser = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: { cookie: "triad_pre_auth=wrong-browser" },
+    }, env);
+    expect(wrongBrowser.status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions WHERE state_hash = ?")
+      .bind(await sha256(state)).first("count")).toBe(1);
+
+    const completed = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: { cookie: binding },
+    }, env);
+    expect(completed.status).toBe(302);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(completed.headers.get("set-cookie")).toMatch(/triad_pre_auth=;.*Max-Age=0/i);
+  });
+
   it("mounts security headers on the root Hono application", async () => {
     const response = await app.request(authorizeUrl({ client_id: "unknown" }), undefined, await testEnv());
 
@@ -274,13 +315,13 @@ describe("authorization-code routes", () => {
   it("consumes callback state once under concurrent redemption", async () => {
     const env = await testEnv();
     const { request, csrf } = await beginConsent(env);
-    const upstreamState = await approveConsent(env, request, csrf);
+    const { state: upstreamState, binding } = await approveConsent(env, request, csrf);
     const fetch = stubGithub();
     const callback = `/callback/github?state=${upstreamState}&code=provider-code`;
 
     const responses = await Promise.all([
-      app.request(callback, undefined, env),
-      app.request(callback, undefined, env),
+      app.request(callback, { headers: { cookie: binding } }, env),
+      app.request(callback, { headers: { cookie: binding } }, env),
     ]);
     expect(responses.map((response) => response.status).sort()).toEqual([302, 400]);
     const rejected = responses.find((response) => response.status === 400)!;
@@ -291,10 +332,10 @@ describe("authorization-code routes", () => {
   it("consumes a GitHub denial without a code and redirects an authorization request exactly", async () => {
     const env = await testEnv();
     const { request, csrf } = await beginConsent(env);
-    const upstreamState = await approveConsent(env, request, csrf);
+    const { state: upstreamState, binding } = await approveConsent(env, request, csrf);
 
     const denied = await app.request(
-      `/callback/github?state=${upstreamState}&error=access_denied`, undefined, env,
+      `/callback/github?state=${upstreamState}&error=access_denied`, { headers: { cookie: binding } }, env,
     );
     expect(denied.status).toBe(302);
     expect(denied.headers.get("cache-control")).toBe("no-store");
@@ -306,7 +347,7 @@ describe("authorization-code routes", () => {
     });
 
     const replay = await app.request(
-      `/callback/github?state=${upstreamState}&error=access_denied`, undefined, env,
+      `/callback/github?state=${upstreamState}&error=access_denied`, { headers: { cookie: binding } }, env,
     );
     await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
   });

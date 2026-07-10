@@ -16,6 +16,12 @@ import {
   validateClient,
 } from "../db";
 import { finishProvider, startProvider } from "../providers";
+import {
+  clearPreAuthCookie,
+  createPreAuthBinding,
+  preAuthCookieName,
+  setPreAuthCookie,
+} from "../pre-auth";
 import { parseScope, validatePkceChallenge, validatePkceVerifier } from "../protocol";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken } from "../security";
@@ -161,7 +167,7 @@ oauthRoutes.get("/.well-known/openid-configuration", (c) => c.json({
 oauthRoutes.get("/.well-known/jwks.json", async (c) => c.json({ keys: [await publicJwk(c.env)] }));
 
 oauthRoutes.get("/authorize", async (c) => {
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, "authorization-start", 20))) {
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "authorization-start", 20))) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const q = c.req.query();
@@ -229,12 +235,15 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
   if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
   const upstreamState = randomToken();
   const start = startProvider(c.env, upstreamState);
+  const binding = await createPreAuthBinding();
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
-    (state_hash, kind, client_id, redirect_uri, app_state, provider, code_challenge, expires_at, created_at)
-    VALUES (?, 'authorization_code', ?, ?, ?, 'github', ?, ?, ?)`).bind(
+    (state_hash, kind, client_id, redirect_uri, app_state, provider, code_challenge,
+      browser_binding_hash, expires_at, created_at)
+    VALUES (?, 'authorization_code', ?, ?, ?, 'github', ?, ?, ?, ?)`).bind(
       await sha256(upstreamState), row.client_id, row.redirect_uri, row.app_state,
-      row.code_challenge, now() + 600, now(),
+      row.code_challenge, binding.hash, now() + 600, now(),
     ).run();
+  setPreAuthCookie(c, binding.token);
   return c.json({ redirect_to: start.url });
 });
 
@@ -258,7 +267,7 @@ oauthRoutes.post("/api/consent/:request/deny", async (c) => {
 });
 
 oauthRoutes.get("/callback/:provider", async (c) => {
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, "provider-callback", 30))) {
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "provider-callback", 30))) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const provider = c.req.param("provider");
@@ -269,8 +278,11 @@ oauthRoutes.get("/callback/:provider", async (c) => {
   if (provider !== "github" || !state || (providerError && !denied) || (!denied && !code)) {
     return oauthError("invalid_request");
   }
-  const tx = await consumeTransaction(c.env.DB, await sha256(state));
+  const browserBinding = getCookie(c, preAuthCookieName);
+  if (!browserBinding) return oauthError("invalid_grant", "expired or invalid state");
+  const tx = await consumeTransaction(c.env.DB, await sha256(state), await sha256(browserBinding));
   if (!tx || tx.provider !== "github") return oauthError("invalid_grant", "expired or invalid state");
+  clearPreAuthCookie(c);
 
   if (denied) {
     if (tx.kind === "device") {
@@ -325,7 +337,7 @@ oauthRoutes.post("/token", async (c) => {
   if (form instanceof Response) return form;
   const grantType = form.get("grant_type") ?? "";
   if (grantType === "urn:ietf:params:oauth:grant-type:device_code"
-    && !(await enforceRequestRateLimit(c.env.DB, c.req.raw, "device-poll", 60))) {
+    && !(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "device-poll", 60))) {
     return oauthError("slow_down");
   }
   const duplicateError = rejectDuplicateParameters(form, [

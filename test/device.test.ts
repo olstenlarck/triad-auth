@@ -142,6 +142,13 @@ function stubGithub(): void {
   }));
 }
 
+function responseCookie(response: Response, name: string): string {
+  const header = response.headers.get("set-cookie") ?? "";
+  const value = header.match(new RegExp(`(?:^|, )${name}=([^;]+)`))?.[1];
+  expect(value).toBeTruthy();
+  return `${name}=${value}`;
+}
+
 function transitionAfterDeviceStateRead(env: Env, transition: (db: D1Database) => Promise<void>): void {
   const db = env.DB;
   let transitioned = false;
@@ -410,6 +417,28 @@ describe("device authorization", () => {
     expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
   });
 
+  it("binds device confirmation callback to the browser that confirmed the code", async () => {
+    const env = await testEnv();
+    const { userCode } = await seedGrant(env);
+    const csrf = await inspectDevice(env, userCode);
+    const verified = await app.request("/device/verify", verifyDevice(userCode, csrf), env);
+    expect(verified.status).toBe(200);
+    const binding = responseCookie(verified, "triad_pre_auth");
+    const state = new URL((await verified.json<{ redirect_to: string }>()).redirect_to).searchParams.get("state")!;
+    stubGithub();
+
+    const missingBrowser = await app.request(`/callback/github?state=${state}&code=provider-code`, undefined, env);
+    expect(missingBrowser.status).toBe(400);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions WHERE state_hash = ?")
+      .bind(await sha256(state)).first("count")).toBe(1);
+
+    const completed = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: { cookie: binding },
+    }, env);
+    expect(completed.status).toBe(200);
+    expect(completed.headers.get("set-cookie")).toMatch(/triad_pre_auth=;.*Max-Age=0/i);
+  });
+
   it("approves a pending grant only once across competing callbacks", async () => {
     const env = await testEnv();
     const { deviceHash } = await seedGrant(env);
@@ -417,16 +446,19 @@ describe("device authorization", () => {
     await env.DB.prepare(`INSERT INTO identities
       (provider, provider_user_id, account_id, created_at) VALUES ('github', '42', 'acct_device', unixepoch())`).run();
     const states = ["first-state", "second-state"];
-    for (const state of states) {
+    const bindings = ["first-binding", "second-binding"];
+    for (const [index, state] of states.entries()) {
       await env.DB.prepare(`INSERT INTO oauth_transactions
-        (state_hash, kind, client_id, provider, device_code_hash, expires_at, created_at)
-        VALUES (?, 'device', 'triad-demo', 'github', ?, unixepoch() + 600, unixepoch())`)
-        .bind(await sha256(state), deviceHash).run();
+        (state_hash, kind, client_id, provider, device_code_hash, browser_binding_hash, expires_at, created_at)
+        VALUES (?, 'device', 'triad-demo', 'github', ?, ?, unixepoch() + 600, unixepoch())`)
+        .bind(await sha256(state), deviceHash, await sha256(bindings[index])).run();
     }
     stubGithub();
 
-    const responses = await Promise.all(states.map((state) => app.request(
-      `/callback/github?state=${state}&code=provider-code`, undefined, env,
+    const responses = await Promise.all(states.map((state, index) => app.request(
+      `/callback/github?state=${state}&code=provider-code`, {
+        headers: { cookie: `triad_pre_auth=${bindings[index]}` },
+      }, env,
     )));
     expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
     await expect(responses.find((response) => response.status === 400)!.json())
@@ -440,13 +472,16 @@ describe("device authorization", () => {
     const env = await testEnv();
     const { deviceCode, deviceHash } = await seedGrant(env);
     const state = "device-denial-state";
+    const binding = "device-denial-binding";
     await env.DB.prepare(`INSERT INTO oauth_transactions
-      (state_hash, kind, client_id, provider, device_code_hash, expires_at, created_at)
-      VALUES (?, 'device', 'triad-demo', 'github', ?, unixepoch() + 600, unixepoch())`)
-      .bind(await sha256(state), deviceHash).run();
+      (state_hash, kind, client_id, provider, device_code_hash, browser_binding_hash, expires_at, created_at)
+      VALUES (?, 'device', 'triad-demo', 'github', ?, ?, unixepoch() + 600, unixepoch())`)
+      .bind(await sha256(state), deviceHash, await sha256(binding)).run();
 
     const denied = await app.request(
-      `/callback/github?state=${state}&error=access_denied`, undefined, env,
+      `/callback/github?state=${state}&error=access_denied`, {
+        headers: { cookie: `triad_pre_auth=${binding}` },
+      }, env,
     );
     expect(denied.status).toBe(200);
     expect(denied.headers.get("cache-control")).toBe("no-store");

@@ -14,6 +14,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
@@ -57,7 +58,7 @@ describe("D1 rate limiter", () => {
     expect(JSON.stringify(row)).not.toContain("203.0.113.4");
   });
 
-  it("makes the limit decision atomically under contention", async () => {
+  it("uses a capped atomic upsert under local contention", async () => {
     const db = await testDb();
 
     const accepted = await Promise.all(Array.from(
@@ -69,7 +70,7 @@ describe("D1 rate limiter", () => {
     expect(await db.prepare("SELECT count FROM rate_limits WHERE bucket = 'callback'").first("count")).toBe(3);
   });
 
-  it("accepts again in the next window and removes the expired row", async () => {
+  it("accepts again in the next window without requiring cleanup", async () => {
     const db = await testDb();
     await expect(enforceRateLimit(db, "device-issue", "192.0.2.7", 1, 60)).resolves.toBe(true);
     await expect(enforceRateLimit(db, "device-issue", "192.0.2.7", 1, 60)).resolves.toBe(false);
@@ -79,14 +80,85 @@ describe("D1 rate limiter", () => {
     await expect(enforceRateLimit(db, "device-issue", "192.0.2.7", 1, 60)).resolves.toBe(true);
     const rows = await db.prepare(`SELECT window_start, count FROM rate_limits
       WHERE bucket = 'device-issue'`).all<{ window_start: number; count: number }>();
-    expect(rows.results).toEqual([{
+    expect(rows.results.at(-1)).toEqual({
       window_start: Math.floor(Date.now() / 60_000) * 60,
       count: 1,
-    }]);
+    });
+  });
+
+  it("does not run cleanup on an ordinary limiter decision", async () => {
+    const db = await testDb();
+    let cleanupQueries = 0;
+    const tracked = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property !== "prepare") {
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === "function" ? value.bind(target) : value;
+        }
+        return (query: string) => {
+          if (/^DELETE FROM rate_limits/i.test(query)) cleanupQueries++;
+          return target.prepare(query);
+        };
+      },
+    });
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      (array as Uint8Array).fill(1);
+      return array;
+    });
+
+    await enforceRateLimit(tracked, "authorization", "203.0.113.4", 3, 60);
+
+    expect(cleanupQueries).toBe(0);
+  });
+
+  it("occasionally removes expired rows globally without deleting active rows", async () => {
+    const db = await testDb();
+    const columns = await db.prepare("PRAGMA table_info(rate_limits)").all<{ name: string }>();
+    if (!columns.results.some(({ name }) => name === "expires_at")) {
+      await db.prepare("ALTER TABLE rate_limits ADD COLUMN expires_at INTEGER").run();
+    }
+    const now = Math.floor(Date.now() / 1000);
+    await db.prepare(`INSERT INTO rate_limits (bucket, key_hash, window_start, count, expires_at)
+      VALUES ('stale-a', 'a', ?, 1, ?), ('stale-b', 'b', ?, 1, ?), ('active', 'c', ?, 1, ?)`)
+      .bind(now - 120, now - 60, now - 120, now - 1, now, now + 60).run();
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      (array as Uint8Array).fill(0);
+      return array;
+    });
+
+    await enforceRateLimit(db, "cleanup-trigger", "203.0.113.4", 3, 60);
+
+    expect(await db.prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE expires_at <= ?")
+      .bind(now).first("count")).toBe(0);
+    expect(await db.prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE bucket = 'active'")
+      .first("count")).toBe(1);
   });
 });
 
 describe("public route rate limits", () => {
+  it("stores secret-bound IP keys that differ across broker secrets", async () => {
+    const first = await testEnv();
+    const second = await testEnv();
+    second.PAIRWISE_SECRET = "q".repeat(32);
+    await app.request("/authorize?provider=github", { headers: ipHeaders }, first);
+    await app.request("/authorize?provider=github", { headers: ipHeaders }, second);
+    const firstHash = await first.DB.prepare("SELECT key_hash FROM rate_limits").first<string>("key_hash");
+    const secondHash = await second.DB.prepare("SELECT key_hash FROM rate_limits").first<string>("key_hash");
+
+    expect(firstHash).not.toBe(await sha256("203.0.113.10"));
+    expect(secondHash).not.toBe(firstHash);
+  });
+
+  it("keeps missing-IP local requests in one shared fallback bucket", async () => {
+    const env = await testEnv();
+    await app.request("/authorize?provider=github", undefined, env);
+    await app.request("/authorize?provider=github", undefined, env);
+
+    const rows = await env.DB.prepare("SELECT count FROM rate_limits WHERE bucket = 'authorization-start'")
+      .all<{ count: number }>();
+    expect(rows.results).toEqual([{ count: 2 }]);
+  });
+
   it("limits account authorization starts to 10 per minute per IP", async () => {
     const env = await testEnv();
     for (let attempt = 0; attempt < 10; attempt++) {

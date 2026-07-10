@@ -75,7 +75,65 @@ function stubGithub(): void {
   vi.stubGlobal("fetch", fetch);
 }
 
+function responseCookie(response: Response, name: string): { pair: string; header: string } {
+  const header = response.headers.get("set-cookie") ?? "";
+  const value = header.match(new RegExp(`(?:^|, )${name}=([^;]+)`))?.[1];
+  expect(value).toBeTruthy();
+  return { pair: `${name}=${value}`, header };
+}
+
 describe("account sessions", () => {
+  it("binds session login to the initiating browser and prevents session swap", async () => {
+    const env = await testEnv();
+    const victimSession = await seedSession(env, "victim-session");
+    const started = await app.request("/session/start/github", {
+      headers: { "cf-connecting-ip": "203.0.113.8" },
+    }, env);
+    expect(started.status).toBe(302);
+    const binding = responseCookie(started, "triad_pre_auth");
+    expect(binding.header).toContain("Max-Age=600");
+    expect(binding.header).toContain("Path=/callback/github");
+    expect(binding.header).toContain("HttpOnly");
+    expect(binding.header).toContain("Secure");
+    expect(binding.header).toContain("SameSite=Lax");
+    const state = new URL(started.headers.get("location")!).searchParams.get("state")!;
+    const transaction = await env.DB.prepare("SELECT browser_binding_hash FROM oauth_transactions WHERE state_hash = ?")
+      .bind(await sha256(state)).first<{ browser_binding_hash: string }>();
+    expect(transaction?.browser_binding_hash).toBe(await sha256(binding.pair.split("=")[1]));
+    expect(transaction?.browser_binding_hash).not.toContain(binding.pair.split("=")[1]);
+
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }));
+    vi.stubGlobal("fetch", fetch);
+    const swapped = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: {
+        cookie: `triad_session=${victimSession}; triad_pre_auth=wrong-browser`,
+        "cf-connecting-ip": "203.0.113.9",
+      },
+    }, env);
+    expect(swapped.status).toBe(400);
+    await expect(swapped.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions WHERE state_hash = ?")
+      .bind(await sha256(state)).first("count")).toBe(1);
+    expect(await env.DB.prepare("SELECT account_id FROM browser_sessions WHERE session_hash = ?")
+      .bind(await sha256(victimSession)).first("account_id")).toBe("acct_account");
+
+    const completed = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: { cookie: binding.pair, "cf-connecting-ip": "203.0.113.8" },
+    }, env);
+    expect(completed.status).toBe(302);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(completed.headers.get("set-cookie")).toMatch(/triad_pre_auth=;.*Max-Age=0/i);
+  });
+
   it("logs out only through a same-origin CSRF-protected POST", async () => {
     const env = await testEnv();
     const token = await seedSession(env);
@@ -164,25 +222,28 @@ describe("account sessions", () => {
     const env = await testEnv();
     const oldToken = await seedSession(env);
     const state = "session-state";
+    const binding = "session-binding";
     await env.DB.prepare(`INSERT INTO oauth_transactions
-      (state_hash, kind, client_id, provider, expires_at, created_at)
-      VALUES (?, 'session', 'triad-account', 'github', unixepoch() + 600, unixepoch())`)
-      .bind(await sha256(state)).run();
+      (state_hash, kind, client_id, provider, browser_binding_hash, expires_at, created_at)
+      VALUES (?, 'session', 'triad-account', 'github', ?, unixepoch() + 600, unixepoch())`)
+      .bind(await sha256(state), await sha256(binding)).run();
     stubGithub();
 
     const response = await app.request(`/callback/github?state=${state}&code=provider-code`, {
-      headers: { cookie: `triad_session=${oldToken}`, "cf-connecting-ip": "203.0.113.8" },
+      headers: {
+        cookie: `triad_session=${oldToken}; triad_pre_auth=${binding}`,
+        "cf-connecting-ip": "203.0.113.8",
+      },
     }, env);
 
     expect(response.status).toBe(302);
-    const cookie = response.headers.get("set-cookie")!;
-    expect(cookie).toMatch(/^triad_session=[A-Za-z0-9_-]{43};/);
-    expect(cookie).toContain("Max-Age=2592000");
-    expect(cookie).toContain("Path=/");
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("Secure");
-    expect(cookie).toContain("SameSite=Lax");
-    const sessionToken = cookie.match(/^triad_session=([^;]+)/)![1];
+    const cookie = responseCookie(response, "triad_session");
+    expect(cookie.header).toContain("Max-Age=2592000");
+    expect(cookie.header).toContain("Path=/");
+    expect(cookie.header).toContain("HttpOnly");
+    expect(cookie.header).toContain("Secure");
+    expect(cookie.header).toContain("SameSite=Lax");
+    const sessionToken = cookie.pair.split("=")[1];
     expect(sessionToken).not.toBe(oldToken);
     const rows = await env.DB.prepare("SELECT session_hash FROM browser_sessions").all<{ session_hash: string }>();
     expect(rows.results).toEqual([{ session_hash: await sha256(sessionToken) }]);
@@ -209,5 +270,24 @@ describe("account sessions", () => {
     expect(source).toContain('fetch("/session/logout", {');
     expect(source).toMatch(/fetch\("\/session\/logout", \{[\s\S]*?method: "POST"/);
     expect(source).toMatch(/row\.remove\(\);[\s\S]*?appCount\.textContent/);
+  });
+
+  it("reloads account state safely after stale CSRF, API, or network failures", () => {
+    const source = process.getBuiltinModule("node:fs").readFileSync("src/pages/me.astro", "utf8");
+    expect(source).toContain("let loadGeneration = 0");
+    expect(source).toContain("loadController?.abort()");
+    expect(source).toContain("signal: controller.signal");
+    expect(source).toContain("if (generation !== loadGeneration) return");
+    expect(source).toContain("async function recoverAccount");
+    const recovery = source.slice(source.indexOf("async function recoverAccount"), source.indexOf("async function revokeClient"));
+    expect(recovery).toMatch(/await load\(\);[\s\S]*showError\(reason, fallback\)/);
+    expect(source.match(/csrfToken = "";/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+    const revoke = source.slice(source.indexOf("async function revokeClient"), source.indexOf("async function logoutAccount"));
+    expect(revoke).toContain("await recoverAccount");
+    expect(revoke).toContain("finally");
+    const logout = source.slice(source.indexOf("async function logoutAccount"), source.indexOf("load().catch"));
+    expect(logout).toContain("await recoverAccount");
+    expect(logout).toContain("finally");
+    expect(source).toContain("setMutationControls(false)");
   });
 });

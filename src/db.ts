@@ -1,4 +1,4 @@
-import { randomToken } from "./crypto";
+import { randomToken, timingSafeEqual } from "./crypto";
 import type { ClientRow, ProviderIdentity, ProviderName, TransactionRow } from "./types";
 
 export interface AuthorizationCodeRow {
@@ -39,13 +39,18 @@ export function validateClient(client: ClientRow, redirectUri: string | null, pr
   }
 }
 
-export async function consumeTransaction(db: D1Database, stateHash: string): Promise<TransactionRow | null> {
+export async function consumeTransaction(
+  db: D1Database,
+  stateHash: string,
+  browserBindingHash: string,
+): Promise<TransactionRow | null> {
   const row = await db.prepare("SELECT * FROM oauth_transactions WHERE state_hash = ? AND expires_at > unixepoch()")
     .bind(stateHash).first<TransactionRow>();
-  if (!row) return null;
-  const deletion = await db.prepare("DELETE FROM oauth_transactions WHERE state_hash = ?")
-    .bind(stateHash).run();
-  return deletion.meta.changes === 1 ? row : null;
+  if (!row || !timingSafeEqual(row.browser_binding_hash, browserBindingHash)) return null;
+  return db.prepare(`DELETE FROM oauth_transactions
+    WHERE state_hash = ? AND browser_binding_hash = ? AND expires_at > unixepoch()
+    RETURNING *`)
+    .bind(stateHash, browserBindingHash).first<TransactionRow>();
 }
 
 export async function getAuthorizationCode(
