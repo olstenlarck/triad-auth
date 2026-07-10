@@ -28,6 +28,12 @@ const { tmpdir } = process.getBuiltinModule("node:os");
 const { join, resolve } = process.getBuiltinModule("node:path");
 const checker = resolve(process.cwd(), "scripts/check-config.mjs");
 
+const providerPairs = {
+  GOOGLE: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+  GITHUB: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
+  TWITTER: ["TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET"],
+} as const;
+
 function runCheck(cwd: string, env: Record<string, string> = {}) {
   return spawnSync(process.execPath, [checker], { cwd, encoding: "utf8", env });
 }
@@ -48,6 +54,20 @@ function validAmbientConfig(privateJwk: string): Record<string, string> {
     SIGNING_PRIVATE_JWK: privateJwk,
     PAIRWISE_SECRET: "a".repeat(32),
   };
+}
+
+function signingValues(privateJwk: string): Record<string, string> {
+  return {
+    SIGNING_PRIVATE_JWK: privateJwk,
+    PAIRWISE_SECRET: "p".repeat(32),
+  };
+}
+
+function writeDevVars(directory: string, values: Record<string, string>): void {
+  writeFileSync(
+    join(directory, ".dev.vars"),
+    `${Object.entries(values).map(([name, value]) => envLine(name, `'${value}'`)).join("\n")}\n`,
+  );
 }
 
 describe("deployment configuration", () => {
@@ -88,12 +108,126 @@ describe("deployment configuration", () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr.trim()).toBe(
-        "Missing required configuration: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SIGNING_PRIVATE_JWK, PAIRWISE_SECRET",
+        "Missing required configuration: SIGNING_PRIVATE_JWK, PAIRWISE_SECRET\nAt least one complete provider credential pair is required",
       );
       expect(result.stdout).toBe("");
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  it("accepts any one complete provider credential pair", async () => {
+    const privateJwk = await generatePrivateJwk();
+    for (const pair of Object.values(providerPairs)) {
+      const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
+      try {
+        writeDevVars(directory, {
+          ...signingValues(privateJwk),
+          [pair[0]]: `${pair[0]}-value`,
+          [pair[1]]: `${pair[1]}-value`,
+        });
+
+        const result = runCheck(directory);
+
+        expect(result.status, pair[0]).toBe(0);
+        expect(result.stdout.trim()).toBe("Configuration valid");
+        expect(result.stderr).toBe("");
+        expect(result.stdout).not.toContain(`${pair[0]}-value`);
+        expect(result.stdout).not.toContain(`${pair[1]}-value`);
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("rejects signing configuration without a complete provider pair", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
+    const privateJwk = await generatePrivateJwk();
+    const pairwiseSecret = "providerless-secret".repeat(2);
+    try {
+      writeDevVars(directory, {
+        SIGNING_PRIVATE_JWK: privateJwk,
+        PAIRWISE_SECRET: pairwiseSecret,
+      });
+
+      const result = runCheck(directory);
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status).toBe(1);
+      expect(result.stderr.trim()).toBe("At least one complete provider credential pair is required");
+      expect(result.stdout).toBe("");
+      expect(output).not.toContain(privateJwk);
+      expect(output).not.toContain(pairwiseSecret);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects every half-configured provider pair without exposing values", async () => {
+    const privateJwk = await generatePrivateJwk();
+    const cases = [
+      { configured: "GOOGLE_CLIENT_ID", missing: "GOOGLE_CLIENT_SECRET", fallback: providerPairs.GITHUB },
+      { configured: "GOOGLE_CLIENT_SECRET", missing: "GOOGLE_CLIENT_ID", fallback: providerPairs.GITHUB },
+      { configured: "GITHUB_CLIENT_ID", missing: "GITHUB_CLIENT_SECRET", fallback: providerPairs.GOOGLE },
+      { configured: "GITHUB_CLIENT_SECRET", missing: "GITHUB_CLIENT_ID", fallback: providerPairs.GOOGLE },
+      { configured: "TWITTER_CLIENT_ID", missing: "TWITTER_CLIENT_SECRET", fallback: providerPairs.GITHUB },
+      { configured: "TWITTER_CLIENT_SECRET", missing: "TWITTER_CLIENT_ID", fallback: providerPairs.GITHUB },
+    ] as const;
+
+    for (const testCase of cases) {
+      const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
+      const configuredValue = `${testCase.configured}-sensitive-value`;
+      try {
+        writeDevVars(directory, {
+          ...signingValues(privateJwk),
+          [testCase.fallback[0]]: "fallback-id",
+          [testCase.fallback[1]]: "fallback-secret",
+          [testCase.configured]: configuredValue,
+        });
+
+        const result = runCheck(directory);
+        const output = `${result.stdout}${result.stderr}`;
+
+        expect(result.status, testCase.configured).toBe(1);
+        expect(result.stderr).toContain(`Incomplete provider configuration: ${testCase.missing}`);
+        expect(result.stdout).toBe("");
+        expect(output).not.toContain(configuredValue);
+        expect(output).not.toContain("fallback-id");
+        expect(output).not.toContain("fallback-secret");
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("lists every provider credential in local and Wrangler examples", () => {
+    const example = readFileSync(".dev.vars.example", "utf8");
+    const wrangler = readFileSync("wrangler.toml", "utf8");
+
+    for (const pair of Object.values(providerPairs)) {
+      for (const name of pair) {
+        expect(example).toContain(`${name}=`);
+        expect(wrangler).toContain(name);
+      }
+    }
+  });
+
+  it("documents exact provider setup links, callbacks, and identity guarantees", () => {
+    const readme = readFileSync("README.md", "utf8");
+
+    expect(readme).toContain("https://console.cloud.google.com/auth/clients");
+    expect(readme).toContain("https://console.cloud.google.com/auth/overview");
+    expect(readme).toContain("https://github.com/settings/applications/new");
+    expect(readme).toContain("https://developer.x.com/en/portal/dashboard");
+    expect(readme).toContain("https://developer.x.com/en/portal/projects-and-apps");
+    expect(readme).toContain("/callback/google");
+    expect(readme).toContain("/callback/github");
+    expect(readme).toContain("/callback/twitter");
+    expect(readme).toContain("every requested scope is mandatory");
+    expect(readme).toContain("encrypted");
+    expect(readme).toContain("opaque provider-global identifier");
+    expect(readme).toContain("five minutes");
+    expect(readme).toContain("X branding");
   });
 
   it("loads .dev.vars as data without evaluating shell syntax", async () => {
@@ -157,7 +291,7 @@ describe("deployment configuration", () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr.trim()).toBe(
-        "Missing required configuration: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SIGNING_PRIVATE_JWK, PAIRWISE_SECRET",
+        "Missing required configuration: SIGNING_PRIVATE_JWK, PAIRWISE_SECRET\nAt least one complete provider credential pair is required",
       );
       expect(output).not.toContain("ambient-id");
       expect(output).not.toContain("ambient-secret");

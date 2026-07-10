@@ -1,6 +1,6 @@
-# Task 9 visual validation
+# Validation record
 
-Validated on 2026-07-10 against the local Worker at `http://localhost:8787` with `agent-browser` 0.26.0.
+The visual checks were validated on 2026-07-10 against the local Worker at `http://localhost:8787` with `agent-browser` 0.26.0.
 
 ## Environment
 
@@ -8,7 +8,7 @@ Validated on 2026-07-10 against the local Worker at `http://localhost:8787` with
 - `pnpm wrangler dev --local` initially failed because `wrangler.toml` used compatibility date `2026-07-10`, while locked `workerd@1.20260702.1` supports through `2026-07-09`.
 - The committed compatibility date is now `2026-07-09`. Locked Wrangler 4.107.1 starts without a date override and serves the built application.
 - Follow-up runtime validation used a fresh migrated persistence directory because an earlier temporary newer-runtime test changed ignored Miniflare internal state. The repository's default ignored state was not deleted.
-- An ignored mode-600 `.dev.vars` supplied a generated ES256 signing JWK and pairwise secret. GitHub credential fields remain empty for the user and the file was not staged.
+- An ignored mode-600 `.dev.vars` supplied a generated ES256 signing JWK and pairwise secret. At the time of visual validation, provider credential fields remained empty for the user and the file was not staged.
 - Viewports: desktop `1440x900`; mobile `390x844`.
 - Normal and `prefers-reduced-motion: reduce` media states were tested at both sizes.
 
@@ -85,5 +85,13 @@ Static regression assertions for the responsive caps and target dimensions were 
 
 - The prior local device API 500 is resolved under valid required local configuration. The issued grant used `triad-demo`, `pending`, a 5-second interval, and a 600-second TTL; the limiter row used bucket `device-issue`, count 1, and a 60-second window.
 - The prior favicon 404 is resolved with `public/favicon.svg` and an explicit Shell icon link. Worker and browser checks returned 200 for `/favicon.svg` with no console or page errors.
-- GitHub credentials intentionally remain empty, so `pnpm check:config` still reports only `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. No provider redirect was attempted.
+- Provider credentials intentionally remained empty during visual validation. The Task 6 checker now reports that at least one complete provider credential pair is required for that state. No provider redirect was attempted.
 - The default ignored Miniflare state contains an internal `_cf_ALARM` schema written by the temporary newer runtime. Final validation used a fresh isolated persistence directory rather than deleting local state without approval.
+
+## Task 6 configuration and documentation validation
+
+- Config tests cover Google-only, GitHub-only, and Twitter-only valid deployments; no-provider configuration; all six client-ID/client-secret half-pair directions; and output redaction.
+- `.dev.vars.example` and `wrangler.toml` enumerate all three provider pairs while keeping signing and pairwise secrets mandatory.
+- README setup instructions use the current Google Auth Platform clients, GitHub OAuth App creation, and Twitter developer portal links with exact local and production callback paths.
+- The README records mandatory requested scopes, provider capabilities, encrypted transient-claim retention, opaque `provider_sub`, five-minute ID tokens, and canonical Twitter naming.
+- Task 6 performed no remote migration, deployment, secret upload, or live provider flow. Those external steps remain for the controller after review.

@@ -1,6 +1,12 @@
-# GitHub OAuth App credentials. Keep local values in .dev.vars only.
+# Provider credentials. Configure at least one complete ID/secret pair and leave unused pairs empty.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
+
+TWITTER_CLIENT_ID=
+TWITTER_CLIENT_SECRET=
 
 # Paste the one-line JSON emitted by `pnpm keygen`; quote it in .dev.vars.
 SIGNING_PRIVATE_JWK=

@@ -10,11 +10,21 @@ Every ID token uses the app-scoped identity as both `sub` and `pairwise_sub`.
 
 - `pairwise_sub`: an HMAC-derived identifier unique to the broker account and downstream `client_id`.
 - `account_sub`: a random broker account identifier, stable across receiving Triad clients.
-- `provider_sub`: an opaque provider-global identifier that can correlate one upstream identity across receiving Triad clients without exposing the raw upstream ID.
+- `provider_sub`: an opaque provider-global identifier that can correlate one upstream identity across receiving Triad clients without exposing the raw upstream ID. It is HMAC-derived from the provider name and immutable upstream ID; the raw ID remains only in Triad's identity mapping table and never enters tokens, UI, URLs, or logs.
 
 Identity-only authentication is the default. Clients may request the optional scopes `email`, `handle`, `name`, and `avatar`; every requested scope is mandatory for that transaction and is shown before approval. Their standard ID-token claims are `email` plus `email_verified`, `preferred_username`, `name`, and `picture` respectively. These values are mutable profile data, not identity keys.
 
-Consent records retain approved scope names, not profile values. Requested profile values are encrypted until the one-time exchange or expiry, then removed. Upstream access tokens are discarded after the provider response is mapped.
+Consent records retain approved scope names, not profile values. Requested profile values are encrypted until the one-time exchange or expiry, then removed; D1 stores them with row-bound authenticated encryption. Authorization-code claim ciphertext is retained for at most two minutes; device-flow claim ciphertext is retained only until its ten-minute grant expires or is consumed. Upstream access tokens are discarded after the provider response is mapped.
+
+Provider capabilities are:
+
+| Provider | `email` | `handle` | `name` | `avatar` |
+| --- | --- | --- | --- | --- |
+| Google | Yes | No | Yes | Yes |
+| GitHub | Yes | Yes | Yes | Yes |
+| Twitter | No | Yes | Yes | Yes |
+
+Triad rejects unsupported provider/scope combinations before creating state or grants. If an account does not supply a requested, supported mandatory value, the transaction ends without a code or token.
 
 ## Supported flows
 
@@ -29,7 +39,7 @@ Downstream clients are registered in D1 with exact redirect URI and provider all
 
 - Node.js 22.12 or newer
 - pnpm 11
-- A GitHub account for creating an OAuth App
+- An account with each upstream provider you want to configure
 - A Cloudflare account for D1 and deployment
 
 Install dependencies:
@@ -38,14 +48,38 @@ Install dependencies:
 pnpm install
 ```
 
-## GitHub OAuth App
+## Provider app setup
 
-For local development, create a GitHub OAuth App with these values:
+Provider redirect URIs must match exactly, including scheme, host, path, and trailing-slash absence. Use `http://localhost:8787` as the local issuer. For production, replace `<ISSUER>` below with the stable HTTPS Worker origin, with no trailing slash.
 
-- Homepage URL: `http://localhost:8787`
-- Authorization callback URL: `http://localhost:8787/callback/github`
+### Google
 
-GitHub provides the client ID and lets you generate a client secret. Keep both out of Git and terminal command arguments. For production, Task 10 changes the app callback to `<ISSUER>/callback/github`, where `<ISSUER>` is the final stable HTTPS Worker origin with no trailing slash.
+Open [Google Auth Platform](https://console.cloud.google.com/auth/overview) to configure branding, audience, and required contact information. Then open [Google Auth Platform clients](https://console.cloud.google.com/auth/clients), select **Create client**, choose **Web application**, and add each environment you use under **Authorized redirect URIs**:
+
+- Local: `http://localhost:8787/callback/google`
+- Production: `<ISSUER>/callback/google`
+
+Save the generated client ID and client secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+### GitHub
+
+Open [GitHub's new OAuth App form](https://github.com/settings/applications/new). Set **Homepage URL** to the issuer and **Authorization callback URL** to the callback for the environment:
+
+- Local homepage: `http://localhost:8787`
+- Local callback: `http://localhost:8787/callback/github`
+- Production homepage: `<ISSUER>`
+- Production callback: `<ISSUER>/callback/github`
+
+A GitHub OAuth App supports one callback URL, so use separate apps or update the callback when switching environments. Save the client ID and generated client secret as `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
+
+### Twitter
+
+Triad's canonical provider name is **Twitter** and its route/configuration identifier is always `twitter`; X branding and `x.com` hostnames are used only by the external provider portal and API endpoints. Open the [Twitter developer dashboard](https://developer.x.com/en/portal/dashboard) or [Projects & Apps](https://developer.x.com/en/portal/projects-and-apps), create or select an app, and open its user authentication settings. Enable OAuth 2.0, choose a confidential **Web App** client, and add the exact callback URI for each environment you use:
+
+- Local: `http://localhost:8787/callback/twitter`
+- Production: `<ISSUER>/callback/twitter`
+
+Set the website URL to the corresponding issuer. Save the OAuth 2.0 Client ID and Client Secret from **Keys and tokens** as `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET`. Triad requests only `tweet.read users.read`; it does not request offline access.
 
 ## Local configuration
 
@@ -57,12 +91,15 @@ pnpm keygen
 openssl rand -base64 32
 ```
 
-Fill all four empty assignments in `.dev.vars`:
+Fill the two broker secrets and at least one complete provider credential pair in `.dev.vars`:
 
-- `GITHUB_CLIENT_ID`: the GitHub OAuth App client ID.
-- `GITHUB_CLIENT_SECRET`: the GitHub OAuth App client secret.
+- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: the Google web client pair.
+- `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`: the GitHub OAuth App pair.
+- `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET`: the Twitter OAuth 2.0 pair.
 - `SIGNING_PRIVATE_JWK`: the one-line JSON from `pnpm keygen`, wrapped in single quotes.
 - `PAIRWISE_SECRET`: at least 32 high-entropy characters, wrapped in quotes when needed.
+
+Provider pairs are optional individually, but half-configured pairs are invalid and at least one complete pair is required. `/api/providers` and all provider controls expose only providers whose complete pair is configured. Locally, leave unused provider assignments empty. In production, a provider remains unavailable until both credentials have been uploaded.
 
 Validate the file without sourcing it in a shell:
 
@@ -70,7 +107,7 @@ Validate the file without sourcing it in a shell:
 pnpm check:config
 ```
 
-The validator parses only `.dev.vars` into an isolated in-memory map, ignores ambient environment values, trims each parsed value for validation, and never prints configured values.
+The validator parses only `.dev.vars` into an isolated in-memory map, ignores ambient environment values, trims each parsed value for validation, requires valid signing/pairwise secrets plus at least one complete provider pair, rejects every half-pair, and never prints configured values.
 
 Initialize local D1 and start the Worker:
 
@@ -100,10 +137,12 @@ The public broker is deployed at:
 https://triad-auth-broker.equator-owl-studio.workers.dev
 ```
 
-Its GitHub OAuth callback is:
+Its provider OAuth callbacks are:
 
 ```text
+https://triad-auth-broker.equator-owl-studio.workers.dev/callback/google
 https://triad-auth-broker.equator-owl-studio.workers.dev/callback/github
+https://triad-auth-broker.equator-owl-studio.workers.dev/callback/twitter
 ```
 
 The Worker uses the `triad-auth` D1 database and the remote `triad-demo` registration allows only the same-origin `/demo/callback/` URI. Discovery, JWKS, static pages, security headers, and device-code issuance are live.
@@ -111,11 +150,17 @@ The Worker uses the `triad-auth` D1 database and the remote `triad-demo` registr
 To set or rotate runtime values, use Wrangler's interactive secret prompt so values do not enter shell history:
 
 ```sh
+pnpm exec wrangler secret put GOOGLE_CLIENT_ID
+pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET
 pnpm exec wrangler secret put GITHUB_CLIENT_ID
 pnpm exec wrangler secret put GITHUB_CLIENT_SECRET
+pnpm exec wrangler secret put TWITTER_CLIENT_ID
+pnpm exec wrangler secret put TWITTER_CLIENT_SECRET
 pnpm exec wrangler secret put SIGNING_PRIVATE_JWK
 pnpm exec wrangler secret put PAIRWISE_SECRET
 ```
+
+`SIGNING_PRIVATE_JWK` and `PAIRWISE_SECRET` are always required. Upload both values in a provider pair before expecting that provider to appear in `/api/providers` or any provider control.
 
 After changing secrets, deploy the canonical configuration:
 
@@ -133,7 +178,7 @@ curl -i "$ISSUER/.well-known/openid-configuration"
 curl -i "$ISSUER/.well-known/jwks.json"
 ```
 
-Then complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, `provider_sub` starts with `prv_<provider>_`, and `account_sub` starts with `acct_`. Requested profile claims must appear only when their scopes were included.
+After the controller has configured an external provider, complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, opaque `provider_sub` starts with `prv_<provider>_`, `account_sub` starts with `acct_`, and `exp - iat` is 300 seconds. Requested profile claims must appear only when their scopes were included.
 
 ## Revocation behavior
 

@@ -2,7 +2,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { importJWK } from "jose";
 
-const required = ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SIGNING_PRIVATE_JWK", "PAIRWISE_SECRET"];
+const required = ["SIGNING_PRIVATE_JWK", "PAIRWISE_SECRET"];
+const providerPairs = [
+  ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+  ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
+  ["TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET"],
+];
+const names = [...required, ...providerPairs.flat()];
 let fileValues = {};
 
 if (existsSync(".dev.vars")) {
@@ -14,10 +20,26 @@ if (existsSync(".dev.vars")) {
   }
 }
 
-const config = Object.fromEntries(required.map((name) => [name, fileValues[name]?.trim() ?? ""]));
+const config = Object.fromEntries(names.map((name) => [name, fileValues[name]?.trim() ?? ""]));
 const missing = required.filter((name) => !config[name]);
+const configurationErrors = [];
 if (missing.length > 0) {
-  console.error(`Missing required configuration: ${missing.join(", ")}`);
+  configurationErrors.push(`Missing required configuration: ${missing.join(", ")}`);
+}
+
+for (const pair of providerPairs) {
+  const configured = pair.filter((name) => config[name]);
+  if (configured.length === 1) {
+    configurationErrors.push(`Incomplete provider configuration: ${pair.find((name) => !config[name])}`);
+  }
+}
+
+if (!providerPairs.some((pair) => pair.every((name) => config[name]))) {
+  configurationErrors.push("At least one complete provider credential pair is required");
+}
+
+if (configurationErrors.length > 0) {
+  for (const error of configurationErrors) console.error(error);
   process.exit(1);
 }
 
