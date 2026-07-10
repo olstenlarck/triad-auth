@@ -6,12 +6,8 @@ export interface Env {
   ISSUER: string;
   SIGNING_PRIVATE_JWK: string;
   PAIRWISE_SECRET: string;
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
-  X_CLIENT_ID: string;
-  X_CLIENT_SECRET: string;
 }
 
 export interface ClientRow {

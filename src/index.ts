@@ -8,7 +8,7 @@ import type { Env, ProviderName } from "./types";
 
 const app = new Hono<{ Bindings: Env }>();
 const now = () => Math.floor(Date.now() / 1000);
-const providers = new Set<ProviderName>(["google", "github", "x"]);
+const providers = new Set<ProviderName>(["github"]);
 const oauthError = (error: string, description?: string, status = 400) =>
   new Response(JSON.stringify({ error, ...(description ? { error_description: description } : {}) }), {
     status,
