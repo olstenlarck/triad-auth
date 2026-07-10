@@ -811,16 +811,31 @@ describe("device token exchange", () => {
     const { deviceCode, deviceHash } = await seedGrant(env, { status: "approved" });
     await env.DB.prepare("UPDATE device_grants SET claims_ciphertext = 'v1.invalid' WHERE device_code_hash = ?")
       .bind(deviceHash).run();
+    const randomValues = crypto.getRandomValues.bind(crypto);
+    let cleanupDraws = 0;
+    const random = vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      if (array.byteLength === 1) {
+        cleanupDraws++;
+        (array as Uint8Array).fill(255);
+        return array;
+      }
+      return randomValues(array);
+    });
 
-    const response = await app.request("/token", deviceTokenRequest(deviceCode), env);
+    try {
+      const response = await app.request("/token", deviceTokenRequest(deviceCode), env);
 
-    expect(response.status).toBe(500);
-    expect(logged).toHaveBeenCalledWith("OAuth route failed");
-    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants WHERE device_code_hash = ?")
-      .bind(deviceHash).first("count")).toBe(0);
-    const replay = await app.request("/token", deviceTokenRequest(deviceCode), env);
-    expect(replay.status).toBe(400);
-    await expect(replay.json()).resolves.toEqual({ error: "invalid_grant" });
+      expect(response.status).toBe(500);
+      expect(logged).toHaveBeenCalledWith("OAuth route failed");
+      expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants WHERE device_code_hash = ?")
+        .bind(deviceHash).first("count")).toBe(0);
+      const replay = await app.request("/token", deviceTokenRequest(deviceCode), env);
+      expect(replay.status).toBe(400);
+      await expect(replay.json()).resolves.toEqual({ error: "invalid_grant" });
+      expect(cleanupDraws).toBeGreaterThan(0);
+    } finally {
+      random.mockRestore();
+    }
   });
 
   it("rejects token exchange after the client loses GitHub permission", async () => {
