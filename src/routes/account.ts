@@ -57,14 +57,15 @@ accountRoutes.get("/session/start/:provider", async (c) => {
   const provider = c.req.param("provider") as ProviderName;
   if (!providers.has(provider)) return oauthError("invalid_request", "unsupported provider");
   const state = randomToken();
+  const stateHash = await sha256(state);
   const start = startProvider(c.env, state);
   const binding = await createPreAuthBinding();
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
     (state_hash, kind, client_id, provider, browser_binding_hash, expires_at, created_at)
     VALUES (?, 'session', 'triad-account', 'github', ?, ?, ?)`).bind(
-      await sha256(state), binding.hash, now() + 600, now(),
+      stateHash, binding.hash, now() + 600, now(),
     ).run();
-  setPreAuthCookie(c, binding.token);
+  setPreAuthCookie(c, stateHash, binding.token);
   return c.redirect(start.url, 302);
 });
 

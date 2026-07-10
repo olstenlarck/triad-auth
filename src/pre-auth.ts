@@ -3,7 +3,7 @@ import { deleteCookie, setCookie } from "hono/cookie";
 import { randomToken, sha256 } from "./crypto";
 import type { Env } from "./types";
 
-export const preAuthCookieName = "triad_pre_auth";
+export const preAuthCookieName = (stateHash: string) => `triad_pre_auth_${stateHash}`;
 
 const cookieOptions = {
   httpOnly: true,
@@ -17,10 +17,10 @@ export async function createPreAuthBinding(): Promise<{ token: string; hash: str
   return { token, hash: await sha256(token) };
 }
 
-export function setPreAuthCookie(c: Context<{ Bindings: Env }>, token: string): void {
-  setCookie(c, preAuthCookieName, token, { ...cookieOptions, maxAge: 10 * 60 });
+export function setPreAuthCookie(c: Context<{ Bindings: Env }>, stateHash: string, token: string): void {
+  setCookie(c, preAuthCookieName(stateHash), token, { ...cookieOptions, maxAge: 10 * 60 });
 }
 
-export function clearPreAuthCookie(c: Context<{ Bindings: Env }>): void {
-  deleteCookie(c, preAuthCookieName, cookieOptions);
+export function clearPreAuthCookie(c: Context<{ Bindings: Env }>, stateHash: string): void {
+  deleteCookie(c, preAuthCookieName(stateHash), cookieOptions);
 }

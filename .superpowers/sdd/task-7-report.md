@@ -90,3 +90,38 @@ The review findings were addressed in a separate follow-up commit; its SHA is re
 - SQLite-backed tests verify the exact capped upsert/conditional-delete SQL shape and local contention outcomes, but they do not prove Cloudflare D1's remote concurrency behavior. Concurrent callback consumption and rate-limit boundary tests against the deployed remote D1 binding remain required deployment evidence.
 - Live cross-site GitHub callback cookie behavior and multi-tab browser interaction still require an HTTPS browser smoke test with deployment credentials.
 - The project still edits the pre-deployment `0001_init.sql`; any environment that already applied this migration needs an additive migration for `browser_binding_hash`, rate-limit `expires_at`, and the cleanup index before deploying this follow-up.
+
+## Task 7 Final Low Follow-Ups
+
+The remaining low-severity review items were addressed in one final fix commit; its SHA is returned in the task handoff.
+
+### Final Corrections
+
+- Replaced the shared pre-auth cookie name with `triad_pre_auth_<state_hash>`, deterministically derived from each upstream GitHub transaction's existing SHA-256 state hash.
+- Kept each transaction's random secret value, hashed D1 storage, `Secure`, `HttpOnly`, `SameSite=Lax`, callback-only path, and ten-minute lifetime unchanged.
+- Callback lookup and clearing now derive the exact cookie name from callback state, so one successful or denied callback cannot clear another in-flight session, consent, or device transaction.
+- Added two-start coverage that keeps both cookies in one browser jar, completes each session flow independently, and verifies the first completion does not clear the second cookie.
+- Strengthened authorization-code and device denial coverage with unrelated in-flight cookies and exact selective-clear assertions.
+- Capped each sampled global rate-limit cleanup at 100 expired rowids ordered by expiry. A 150-row test proves exactly 50 expired rows remain and active rows are untouched.
+- Added route-level account recovery evidence: another tab rotates CSRF, the stale mutation is rejected without revocation, `/api/me` reissues state, and retry succeeds. This complements the existing browser source-contract assertions; no DOM browser harness is installed in this repository.
+
+### Final TDD Evidence
+
+- Dynamic cookie-name and concurrent-start tests failed first because responses still issued only `triad_pre_auth`; dynamic callbacks also failed authentication. They passed after all creators and callback handling used state-hash-derived names.
+- Authorization and device denial selective-clear assertions failed under the shared name, then passed with transaction-specific names.
+- The 150-row cleanup test failed first because all expired rows were deleted, then passed after the rowid subquery gained `LIMIT 100`.
+
+### Final Verification
+
+- `pnpm vitest run test/account.test.ts test/oauth.test.ts test/device.test.ts test/rate-limit.test.ts`: PASS, 4 files and 85 tests.
+- `pnpm test`: PASS, 11 files and 137 tests.
+- `pnpm typecheck`: PASS, zero TypeScript errors.
+- `pnpm build`: PASS, 6 pages built and 3 CSP hashes generated from 6 HTML files.
+- A subsequent CSP generation produced the identical file hash.
+- `git diff --check`: PASS, no whitespace errors.
+
+### Final Concerns
+
+- Remote D1 contention tests remain deployment evidence; the local SQLite adapter verifies SQL behavior but not Cloudflare's distributed execution.
+- HTTPS browser smoke testing remains necessary for concurrent cross-site callback cookies and full account DOM interaction.
+- Already-migrated environments still require the additive schema migration identified above.

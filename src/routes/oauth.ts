@@ -234,16 +234,17 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
   const row = await consumeConsentRequest(c.env.DB, authorized);
   if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
   const upstreamState = randomToken();
+  const stateHash = await sha256(upstreamState);
   const start = startProvider(c.env, upstreamState);
   const binding = await createPreAuthBinding();
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
     (state_hash, kind, client_id, redirect_uri, app_state, provider, code_challenge,
       browser_binding_hash, expires_at, created_at)
     VALUES (?, 'authorization_code', ?, ?, ?, 'github', ?, ?, ?, ?)`).bind(
-      await sha256(upstreamState), row.client_id, row.redirect_uri, row.app_state,
+      stateHash, row.client_id, row.redirect_uri, row.app_state,
       row.code_challenge, binding.hash, now() + 600, now(),
     ).run();
-  setPreAuthCookie(c, binding.token);
+  setPreAuthCookie(c, stateHash, binding.token);
   return c.json({ redirect_to: start.url });
 });
 
@@ -278,11 +279,12 @@ oauthRoutes.get("/callback/:provider", async (c) => {
   if (provider !== "github" || !state || (providerError && !denied) || (!denied && !code)) {
     return oauthError("invalid_request");
   }
-  const browserBinding = getCookie(c, preAuthCookieName);
+  const stateHash = await sha256(state);
+  const browserBinding = getCookie(c, preAuthCookieName(stateHash));
   if (!browserBinding) return oauthError("invalid_grant", "expired or invalid state");
-  const tx = await consumeTransaction(c.env.DB, await sha256(state), await sha256(browserBinding));
+  const tx = await consumeTransaction(c.env.DB, stateHash, await sha256(browserBinding));
   if (!tx || tx.provider !== "github") return oauthError("invalid_grant", "expired or invalid state");
-  clearPreAuthCookie(c);
+  clearPreAuthCookie(c, stateHash);
 
   if (denied) {
     if (tx.kind === "device") {

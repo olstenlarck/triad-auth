@@ -111,16 +111,21 @@ describe("D1 rate limiter", () => {
     expect(cleanupQueries).toBe(0);
   });
 
-  it("occasionally removes expired rows globally without deleting active rows", async () => {
+  it("occasionally removes at most 100 expired rows globally without deleting active rows", async () => {
     const db = await testDb();
     const columns = await db.prepare("PRAGMA table_info(rate_limits)").all<{ name: string }>();
     if (!columns.results.some(({ name }) => name === "expires_at")) {
       await db.prepare("ALTER TABLE rate_limits ADD COLUMN expires_at INTEGER").run();
     }
     const now = Math.floor(Date.now() / 1000);
+    await db.prepare(`WITH RECURSIVE sequence(value) AS (
+      VALUES (1) UNION ALL SELECT value + 1 FROM sequence WHERE value < 150
+    )
+    INSERT INTO rate_limits (bucket, key_hash, window_start, count, expires_at)
+    SELECT 'stale-' || value, 'key-' || value, ?, 1, ? FROM sequence`)
+      .bind(now - 120, now - 1).run();
     await db.prepare(`INSERT INTO rate_limits (bucket, key_hash, window_start, count, expires_at)
-      VALUES ('stale-a', 'a', ?, 1, ?), ('stale-b', 'b', ?, 1, ?), ('active', 'c', ?, 1, ?)`)
-      .bind(now - 120, now - 60, now - 120, now - 1, now, now + 60).run();
+      VALUES ('active', 'active-key', ?, 1, ?)`).bind(now, now + 60).run();
     vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
       (array as Uint8Array).fill(0);
       return array;
@@ -129,7 +134,7 @@ describe("D1 rate limiter", () => {
     await enforceRateLimit(db, "cleanup-trigger", "203.0.113.4", 3, 60);
 
     expect(await db.prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE expires_at <= ?")
-      .bind(now).first("count")).toBe(0);
+      .bind(now).first("count")).toBe(50);
     expect(await db.prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE bucket = 'active'")
       .first("count")).toBe(1);
   });

@@ -16,7 +16,9 @@ export async function enforceRateLimit(
   const keyHash = await sha256(key);
   const cleanupSample = crypto.getRandomValues(new Uint8Array(1))[0];
   if (cleanupSample === 0) {
-    await db.prepare("DELETE FROM rate_limits WHERE expires_at <= ?").bind(timestamp).run();
+    await db.prepare(`DELETE FROM rate_limits WHERE rowid IN (
+      SELECT rowid FROM rate_limits WHERE expires_at <= ? ORDER BY expires_at, rowid LIMIT 100
+    )`).bind(timestamp).run();
   }
   const row = await db.prepare(`INSERT INTO rate_limits (bucket, key_hash, window_start, expires_at, count)
     VALUES (?, ?, ?, ?, 1)

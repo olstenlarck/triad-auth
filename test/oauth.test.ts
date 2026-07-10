@@ -2,6 +2,7 @@ import { exportJWK, generateKeyPair } from "jose";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import app from "../src/index";
 import { sha256 } from "../src/crypto";
+import { preAuthCookieName } from "../src/pre-auth";
 import { createCsrfToken } from "../src/security";
 import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
@@ -79,14 +80,13 @@ async function approveConsent(
   env: Env,
   request: string,
   csrf: string,
-): Promise<{ state: string; binding: string }> {
+): Promise<{ state: string; binding: string; cookieName: string }> {
   const response = await consentMutation(env, request, csrf, "approve");
   expect(response.status).toBe(200);
   const body = await response.json<{ redirect_to: string }>();
-  return {
-    state: new URL(body.redirect_to).searchParams.get("state")!,
-    binding: responseCookie(response, "triad_pre_auth"),
-  };
+  const state = new URL(body.redirect_to).searchParams.get("state")!;
+  const cookieName = preAuthCookieName(await sha256(state));
+  return { state, cookieName, binding: responseCookie(response, cookieName) };
 }
 
 function stubGithub(id = 42) {
@@ -166,12 +166,13 @@ describe("authorization-code routes", () => {
     const { request, csrf } = await beginConsent(env);
     const approved = await consentMutation(env, request, csrf, "approve");
     expect(approved.status).toBe(200);
-    const binding = responseCookie(approved, "triad_pre_auth");
     const state = new URL((await approved.json<{ redirect_to: string }>()).redirect_to).searchParams.get("state")!;
+    const cookieName = preAuthCookieName(await sha256(state));
+    const binding = responseCookie(approved, cookieName);
     const fetch = stubGithub();
 
     const wrongBrowser = await app.request(`/callback/github?state=${state}&code=provider-code`, {
-      headers: { cookie: "triad_pre_auth=wrong-browser" },
+      headers: { cookie: `${cookieName}=wrong-browser` },
     }, env);
     expect(wrongBrowser.status).toBe(400);
     expect(fetch).not.toHaveBeenCalled();
@@ -183,7 +184,7 @@ describe("authorization-code routes", () => {
     }, env);
     expect(completed.status).toBe(302);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(completed.headers.get("set-cookie")).toMatch(/triad_pre_auth=;.*Max-Age=0/i);
+    expect(completed.headers.get("set-cookie")).toMatch(new RegExp(`${cookieName}=;.*Max-Age=0`, "i"));
   });
 
   it("mounts security headers on the root Hono application", async () => {
@@ -332,10 +333,14 @@ describe("authorization-code routes", () => {
   it("consumes a GitHub denial without a code and redirects an authorization request exactly", async () => {
     const env = await testEnv();
     const { request, csrf } = await beginConsent(env);
-    const { state: upstreamState, binding } = await approveConsent(env, request, csrf);
+    const { state: upstreamState, binding, cookieName } = await approveConsent(env, request, csrf);
+    const second = await beginConsent(env, { state: "second-client-state" });
+    const other = await approveConsent(env, second.request, second.csrf);
 
     const denied = await app.request(
-      `/callback/github?state=${upstreamState}&error=access_denied`, { headers: { cookie: binding } }, env,
+      `/callback/github?state=${upstreamState}&error=access_denied`, {
+        headers: { cookie: `${binding}; ${other.binding}` },
+      }, env,
     );
     expect(denied.status).toBe(302);
     expect(denied.headers.get("cache-control")).toBe("no-store");
@@ -345,6 +350,8 @@ describe("authorization-code routes", () => {
       error: "access_denied",
       state: "client-state",
     });
+    expect(denied.headers.get("set-cookie")).toContain(`${cookieName}=;`);
+    expect(denied.headers.get("set-cookie")).not.toContain(`${other.cookieName}=;`);
 
     const replay = await app.request(
       `/callback/github?state=${upstreamState}&error=access_denied`, { headers: { cookie: binding } }, env,

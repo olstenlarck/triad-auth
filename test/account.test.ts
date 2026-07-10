@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import app from "../src/index";
 import { sha256 } from "../src/crypto";
+import { preAuthCookieName } from "../src/pre-auth";
 import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
 
@@ -90,15 +91,17 @@ describe("account sessions", () => {
       headers: { "cf-connecting-ip": "203.0.113.8" },
     }, env);
     expect(started.status).toBe(302);
-    const binding = responseCookie(started, "triad_pre_auth");
+    const state = new URL(started.headers.get("location")!).searchParams.get("state")!;
+    const stateHash = await sha256(state);
+    const cookieName = preAuthCookieName(stateHash);
+    const binding = responseCookie(started, cookieName);
     expect(binding.header).toContain("Max-Age=600");
     expect(binding.header).toContain("Path=/callback/github");
     expect(binding.header).toContain("HttpOnly");
     expect(binding.header).toContain("Secure");
     expect(binding.header).toContain("SameSite=Lax");
-    const state = new URL(started.headers.get("location")!).searchParams.get("state")!;
     const transaction = await env.DB.prepare("SELECT browser_binding_hash FROM oauth_transactions WHERE state_hash = ?")
-      .bind(await sha256(state)).first<{ browser_binding_hash: string }>();
+      .bind(stateHash).first<{ browser_binding_hash: string }>();
     expect(transaction?.browser_binding_hash).toBe(await sha256(binding.pair.split("=")[1]));
     expect(transaction?.browser_binding_hash).not.toContain(binding.pair.split("=")[1]);
 
@@ -114,7 +117,7 @@ describe("account sessions", () => {
     vi.stubGlobal("fetch", fetch);
     const swapped = await app.request(`/callback/github?state=${state}&code=provider-code`, {
       headers: {
-        cookie: `triad_session=${victimSession}; triad_pre_auth=wrong-browser`,
+        cookie: `triad_session=${victimSession}; ${cookieName}=wrong-browser`,
         "cf-connecting-ip": "203.0.113.9",
       },
     }, env);
@@ -122,7 +125,7 @@ describe("account sessions", () => {
     await expect(swapped.json()).resolves.toMatchObject({ error: "invalid_grant" });
     expect(fetch).not.toHaveBeenCalled();
     expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions WHERE state_hash = ?")
-      .bind(await sha256(state)).first("count")).toBe(1);
+      .bind(stateHash).first("count")).toBe(1);
     expect(await env.DB.prepare("SELECT account_id FROM browser_sessions WHERE session_hash = ?")
       .bind(await sha256(victimSession)).first("account_id")).toBe("acct_account");
 
@@ -131,7 +134,49 @@ describe("account sessions", () => {
     }, env);
     expect(completed.status).toBe(302);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(completed.headers.get("set-cookie")).toMatch(/triad_pre_auth=;.*Max-Age=0/i);
+    expect(completed.headers.get("set-cookie")).toMatch(new RegExp(`${cookieName}=;.*Max-Age=0`, "i"));
+  });
+
+  it("completes two concurrent session starts with independent pre-auth cookies", async () => {
+    const env = await testEnv();
+    const starts = await Promise.all([
+      app.request("/session/start/github", undefined, env),
+      app.request("/session/start/github", undefined, env),
+    ]);
+    const flows = await Promise.all(starts.map(async (response) => {
+      const state = new URL(response.headers.get("location")!).searchParams.get("state")!;
+      const cookieName = preAuthCookieName(await sha256(state));
+      return { state, cookieName, cookie: responseCookie(response, cookieName).pair };
+    }));
+    expect(flows[0].cookieName).not.toBe(flows[1].cookieName);
+    const fetch = vi.fn();
+    for (const id of [41, 42]) {
+      fetch
+        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: `temporary-${id}` }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ id }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }));
+    }
+    vi.stubGlobal("fetch", fetch);
+    const jar = flows.map(({ cookie }) => cookie).join("; ");
+
+    const first = await app.request(`/callback/github?state=${flows[0].state}&code=first`, {
+      headers: { cookie: jar },
+    }, env);
+    expect(first.status).toBe(302);
+    expect(first.headers.get("set-cookie")).toContain(`${flows[0].cookieName}=;`);
+    expect(first.headers.get("set-cookie")).not.toContain(`${flows[1].cookieName}=;`);
+
+    const second = await app.request(`/callback/github?state=${flows[1].state}&code=second`, {
+      headers: { cookie: flows[1].cookie },
+    }, env);
+    expect(second.status).toBe(302);
+    expect(second.headers.get("set-cookie")).toContain(`${flows[1].cookieName}=;`);
+    expect(fetch).toHaveBeenCalledTimes(4);
   });
 
   it("logs out only through a same-origin CSRF-protected POST", async () => {
@@ -202,6 +247,34 @@ describe("account sessions", () => {
     expect(replay.status).toBe(403);
   });
 
+  it("reissues account CSRF after another tab rotates it so a retry succeeds", async () => {
+    const env = await testEnv();
+    const token = await seedSession(env);
+    await env.DB.prepare(`INSERT INTO consents
+      (account_id, client_id, scopes, updated_at)
+      VALUES ('acct_account', 'triad-demo', '["openid"]', unixepoch())`).run();
+    const stale = await inspectAccount(env, token);
+    const otherTab = await inspectAccount(env, token);
+    expect(otherTab.csrf_token).not.toBe(stale.csrf_token);
+
+    const rejected = await app.request(
+      "/api/me/clients/triad-demo",
+      accountMutation("/api/me/clients/triad-demo", token, stale.csrf_token),
+      env,
+    );
+    expect(rejected.status).toBe(403);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM consents").first("count")).toBe(1);
+
+    const recovered = await inspectAccount(env, token);
+    const retried = await app.request(
+      "/api/me/clients/triad-demo",
+      accountMutation("/api/me/clients/triad-demo", token, recovered.csrf_token),
+      env,
+    );
+    expect(retried.status).toBe(200);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM consents").first("count")).toBe(0);
+  });
+
   it("clears the hashed D1 session and browser cookie on logout", async () => {
     const env = await testEnv();
     const token = await seedSession(env);
@@ -222,16 +295,17 @@ describe("account sessions", () => {
     const env = await testEnv();
     const oldToken = await seedSession(env);
     const state = "session-state";
+    const stateHash = await sha256(state);
     const binding = "session-binding";
     await env.DB.prepare(`INSERT INTO oauth_transactions
       (state_hash, kind, client_id, provider, browser_binding_hash, expires_at, created_at)
       VALUES (?, 'session', 'triad-account', 'github', ?, unixepoch() + 600, unixepoch())`)
-      .bind(await sha256(state), await sha256(binding)).run();
+      .bind(stateHash, await sha256(binding)).run();
     stubGithub();
 
     const response = await app.request(`/callback/github?state=${state}&code=provider-code`, {
       headers: {
-        cookie: `triad_session=${oldToken}; triad_pre_auth=${binding}`,
+        cookie: `triad_session=${oldToken}; ${preAuthCookieName(stateHash)}=${binding}`,
         "cf-connecting-ip": "203.0.113.8",
       },
     }, env);
