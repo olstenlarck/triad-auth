@@ -5,11 +5,11 @@ compatibility_date = "2026-07-09"
 [[d1_databases]]
 binding = "DB"
 database_name = "triad-auth"
+database_id = "96cf3b9f-ab29-4e04-ac26-9e71a2fd3f2f"
 migrations_dir = "migrations"
-# Task 10 adds the real database_id returned by `wrangler d1 create`.
 
 [vars]
-ISSUER = "http://localhost:8787"
+ISSUER = "https://triad-auth-broker.equator-owl-studio.workers.dev"
 
 [assets]
 directory = "./dist"

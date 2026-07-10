@@ -90,23 +90,23 @@ pnpm check
 
 `pnpm check` runs TypeScript, all Vitest tests, the Astro production build with CSP hash generation, and `wrangler deploy --dry-run`. The dry-run syntax is verified against the installed Wrangler 4.107.1 CLI.
 
-## Production runbook
+## Production deployment
 
-Task 8 intentionally commits neither a D1 database ID nor a production issuer. Task 10 must establish both using real Cloudflare results. In the commands and instructions below:
+The public broker is deployed at:
 
-- `<D1_DATABASE_ID>` means the exact ID returned by Cloudflare.
-- `<ISSUER>` means the exact stable HTTPS Worker origin, without a trailing slash.
-
-1. Authenticate Wrangler and create the database:
-
-```sh
-pnpm exec wrangler login
-pnpm exec wrangler d1 create triad-auth
+```text
+https://triad-auth-broker.equator-owl-studio.workers.dev
 ```
 
-2. Add `database_id = "<D1_DATABASE_ID>"` to the existing `[[d1_databases]]` block in `wrangler.toml`. Do not deploy with an invented value.
+Its GitHub OAuth callback is:
 
-3. Upload all runtime values through Wrangler's interactive secret prompt so values do not enter shell history:
+```text
+https://triad-auth-broker.equator-owl-studio.workers.dev/callback/github
+```
+
+The Worker uses the `triad-auth` D1 database and the remote `triad-demo` registration allows only the same-origin `/demo/callback/` URI. Discovery, JWKS, static pages, security headers, and device-code issuance are live.
+
+To set or rotate runtime values, use Wrangler's interactive secret prompt so values do not enter shell history:
 
 ```sh
 pnpm exec wrangler secret put GITHUB_CLIENT_ID
@@ -115,32 +115,23 @@ pnpm exec wrangler secret put SIGNING_PRIVATE_JWK
 pnpm exec wrangler secret put PAIRWISE_SECRET
 ```
 
-4. Run an initial deployment to establish the stable Worker hostname. Do not use this deployment for authentication yet because the committed issuer is local-only:
+After changing secrets, deploy the canonical configuration:
 
 ```sh
-pnpm deploy
-```
-
-5. Set `ISSUER` in `wrangler.toml` to `"<ISSUER>"`. Change the `triad-demo` redirect registration in the migration to `<ISSUER>/demo/callback/`, and set the GitHub OAuth App callback to `<ISSUER>/callback/github`.
-
-6. Apply the production migration, run all checks, and deploy the canonical configuration:
-
-```sh
-pnpm db:remote
 pnpm check
 pnpm deploy
 ```
 
-7. Verify the exact deployment:
+Verify the deployment:
 
 ```sh
-ISSUER="<ISSUER>"
+ISSUER="https://triad-auth-broker.equator-owl-studio.workers.dev"
 curl -i "$ISSUER/"
 curl -i "$ISSUER/.well-known/openid-configuration"
 curl -i "$ISSUER/.well-known/jwks.json"
 ```
 
-Then complete both flows at `<ISSUER>/demo/` and confirm the returned token has `sub === pairwise_sub`, `provider_sub` starts with `github:`, and `account_sub` starts with `acct_`.
+Then complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, `provider_sub` starts with `github:`, and `account_sub` starts with `acct_`.
 
 ## Revocation behavior
 
