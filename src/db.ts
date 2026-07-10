@@ -6,11 +6,17 @@ export async function getClient(db: D1Database, clientId: string): Promise<Clien
     .bind(clientId).first<ClientRow>();
 }
 
-export function validateClient(client: ClientRow, redirectUri: string | null, provider?: ProviderName): void {
-  if (redirectUri && !(JSON.parse(client.redirect_uris) as string[]).includes(redirectUri)) {
+export function validateClient(client: ClientRow, redirectUri: string | null, provider: ProviderName): void {
+  const redirectUris: unknown = JSON.parse(client.redirect_uris);
+  const providers: unknown = JSON.parse(client.providers);
+  if (!Array.isArray(redirectUris) || !redirectUris.every((value) => typeof value === "string")
+    || !Array.isArray(providers) || !providers.every((value) => typeof value === "string")) {
+    throw new Error("invalid client allowlist");
+  }
+  if (redirectUri !== null && !redirectUris.includes(redirectUri)) {
     throw new Error("invalid redirect_uri");
   }
-  if (provider && !(JSON.parse(client.providers) as string[]).includes(provider)) {
+  if (provider !== "github" || !providers.includes(provider)) {
     throw new Error("provider not allowed for client");
   }
 }

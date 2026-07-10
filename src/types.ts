@@ -1,4 +1,4 @@
-export type ProviderName = "google" | "github" | "x";
+export type ProviderName = "github";
 
 export interface Env {
   DB: D1Database;
