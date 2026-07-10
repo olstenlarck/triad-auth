@@ -1,7 +1,7 @@
-import { exportJWK, generateKeyPair } from "jose";
+import { decodeJwt, exportJWK, generateKeyPair } from "jose";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import app from "../src/index";
-import { sha256 } from "../src/crypto";
+import { openClaims, sha256 } from "../src/crypto";
 import { preAuthCookieName } from "../src/pre-auth";
 import { createCsrfToken } from "../src/security";
 import type { Env } from "../src/types";
@@ -18,11 +18,12 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function testEnv(canonicalIssuer = issuer): Promise<Env> {
+async function testEnv(canonicalIssuer = issuer, overrides: Partial<Env> = {}): Promise<Env> {
   const { db, close } = await createTestDb();
   cleanups.push(close);
   return {
@@ -33,6 +34,7 @@ async function testEnv(canonicalIssuer = issuer): Promise<Env> {
     PAIRWISE_SECRET: "p".repeat(32),
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",
+    ...overrides,
   };
 }
 
@@ -103,6 +105,25 @@ function stubGithub(id = 42) {
   return fetch;
 }
 
+function stubGithubProfile() {
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      id: 42,
+      login: "unrequested-handle",
+      name: "User",
+      avatar_url: "https://example.test/avatar.png",
+    }), { status: 200, headers: { "content-type": "application/json" } }))
+    .mockResolvedValueOnce(new Response(JSON.stringify([
+      { email: "user@example.com", primary: true, verified: true },
+    ]), { status: 200, headers: { "content-type": "application/json" } }));
+  vi.stubGlobal("fetch", fetch);
+  return fetch;
+}
+
 function responseCookie(response: Response, name: string): string {
   const header = response.headers.get("set-cookie") ?? "";
   const value = header.match(new RegExp(`(?:^|, )${name}=([^;]+)`))?.[1];
@@ -161,6 +182,154 @@ async function seedAuthorizationCode(env: Env, values: {
 }
 
 describe("authorization-code routes", () => {
+  it("returns only providers with complete configured credential pairs", async () => {
+    const env = await testEnv(issuer, {
+      GOOGLE_CLIENT_ID: "google-client",
+      GOOGLE_CLIENT_SECRET: "google-secret",
+      TWITTER_CLIENT_ID: "twitter-client-without-secret",
+    });
+
+    const response = await app.request("/api/providers", undefined, env);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ providers: ["google", "github"] });
+  });
+
+  it("applies fresh migrations sequentially with multi-provider columns and allowlists", async () => {
+    const env = await testEnv();
+    const tables = ["oauth_transactions", "authorization_codes", "device_grants"];
+    const columns = new Map<string, string[]>();
+    for (const table of tables) {
+      const result = await env.DB.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+      columns.set(table, result.results.map(({ name }) => name));
+    }
+
+    expect(columns.get("oauth_transactions")).toContain("scopes");
+    expect(columns.get("authorization_codes")).toEqual(expect.arrayContaining(["scopes", "claims_ciphertext"]));
+    expect(columns.get("device_grants")).toEqual(expect.arrayContaining(["provider", "scopes", "claims_ciphertext"]));
+    const clients = await env.DB.prepare("SELECT client_id, providers FROM clients ORDER BY client_id").all();
+    expect(clients.results).toEqual([
+      { client_id: "triad-account", providers: '["google","github","twitter"]' },
+      { client_id: "triad-demo", providers: '["google","github","twitter"]' },
+    ]);
+  });
+
+  it("rejects unavailable providers and provider-incompatible scopes before consent creation", async () => {
+    const env = await testEnv();
+
+    const unavailable = await app.request(authorizeUrl({ provider: "google" }), undefined, env);
+    const incompatible = await app.request(authorizeUrl({ provider: "twitter", scope: "openid email" }), undefined, {
+      ...env,
+      TWITTER_CLIENT_ID: "twitter-client",
+      TWITTER_CLIENT_SECRET: "twitter-secret",
+    });
+
+    await expect(unavailable.json()).resolves.toMatchObject({ error: "invalid_request" });
+    await expect(incompatible.json()).resolves.toMatchObject({ error: "invalid_scope" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM consent_requests").first("count")).toBe(0);
+  });
+
+  it("persists the selected Google provider, nonce, and canonical scopes through consent", async () => {
+    const env = await testEnv(issuer, {
+      GOOGLE_CLIENT_ID: "google-client",
+      GOOGLE_CLIENT_SECRET: "google-secret",
+    });
+    const { request } = await beginConsent(env, {
+      provider: "google",
+      scope: "name openid email email",
+    });
+    const consent = await app.request(`/api/consent/${request}`, undefined, env);
+    const consentBody = await consent.json<{ csrf_token: string; provider: string; scopes: string[] }>();
+    expect(consentBody).toMatchObject({
+      provider: "google",
+      scopes: ["openid", "email", "name"],
+    });
+
+    const approved = await approveConsent(env, request, consentBody.csrf_token);
+    const row = await env.DB.prepare(`SELECT provider, provider_nonce, provider_verifier, scopes
+      FROM oauth_transactions WHERE state_hash = ?`).bind(await sha256(approved.state)).first();
+    expect(row).toEqual({
+      provider: "google",
+      provider_nonce: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      provider_verifier: null,
+      scopes: '["openid","email","name"]',
+    });
+  });
+
+  it("rejects a callback whose provider does not match the consumed transaction", async () => {
+    const env = await testEnv(issuer, {
+      GOOGLE_CLIENT_ID: "google-client",
+      GOOGLE_CLIENT_SECRET: "google-secret",
+    });
+    const { request, csrf } = await beginConsent(env, { provider: "google" });
+    const { state, binding } = await approveConsent(env, request, csrf);
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+
+    const response = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: { cookie: binding },
+    }, env);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("carries encrypted minimal claims and canonical scopes through one-time code exchange", async () => {
+    const env = await testEnv();
+    const verifier = "V".repeat(43);
+    const { request, csrf } = await beginConsent(env, {
+      code_challenge: await sha256(verifier),
+      scope: "name openid email email",
+    });
+    const { state, binding } = await approveConsent(env, request, csrf);
+    stubGithubProfile();
+    const callback = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: { cookie: binding },
+    }, env);
+    const code = new URL(callback.headers.get("location")!).searchParams.get("code")!;
+    const codeHash = await sha256(code);
+    const stored = await env.DB.prepare(`SELECT scopes, claims_ciphertext FROM authorization_codes
+      WHERE code_hash = ?`).bind(codeHash).first<{ scopes: string; claims_ciphertext: string }>();
+
+    expect(stored?.scopes).toBe('["openid","email","name"]');
+    expect(stored?.claims_ciphertext).toMatch(/^v1\./);
+    expect(stored?.claims_ciphertext).not.toContain("user@example.com");
+    await expect(openClaims(env.PAIRWISE_SECRET, codeHash, stored!.claims_ciphertext)).resolves.toEqual({
+      email: "user@example.com",
+      email_verified: true,
+      name: "User",
+    });
+    await expect(openClaims(env.PAIRWISE_SECRET, await sha256("other-code"), stored!.claims_ciphertext))
+      .rejects.toThrow();
+
+    const exchanged = await app.request("/token", tokenRequest(code, verifier), env);
+    const body = await exchanged.json<{ id_token: string; scope: string }>();
+    expect(body.scope).toBe("openid email name");
+    expect(decodeJwt(body.id_token)).toMatchObject({ email: "user@example.com", name: "User" });
+    expect(decodeJwt(body.id_token)).not.toHaveProperty("preferred_username");
+  });
+
+  it("consumes an authorization code before decrypting its claim payload", async () => {
+    const env = await testEnv();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const code = "claim-code";
+    const verifier = "V".repeat(43);
+    await seedAuthorizationCode(env, { code, verifier });
+    await env.DB.prepare(`UPDATE authorization_codes
+      SET scopes = '["openid"]', claims_ciphertext = 'v1.invalid' WHERE code_hash = ?`)
+      .bind(await sha256(code)).run();
+
+    const response = await app.request("/token", tokenRequest(code, verifier), env);
+
+    expect(response.status).toBe(500);
+    expect(logged).toHaveBeenCalledWith("OAuth route failed");
+    expect(await env.DB.prepare("SELECT consumed_at FROM authorization_codes WHERE code_hash = ?")
+      .bind(await sha256(code)).first("consumed_at")).not.toBeNull();
+    const replay = await app.request("/token", tokenRequest(code, verifier), env);
+    await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
+  });
+
   it.each([
     ["local", "http://localhost:8787"],
     ["production", "https://auth.example"],

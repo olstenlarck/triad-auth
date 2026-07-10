@@ -1,22 +1,29 @@
 import { randomToken, timingSafeEqual } from "./crypto";
-import type { ClientRow, ProviderIdentity, ProviderName, TransactionRow } from "./types";
+import type { ClientRow, ProviderIdentity, ProviderName, Scope, TransactionRow } from "./types";
 
 export interface AuthorizationCodeRow {
   account_id: string;
   provider_sub: string;
   code_challenge: string;
+  scopes: string;
+  claims_ciphertext: string | null;
 }
+
+type AuthorizationCodeCandidateRow = Pick<AuthorizationCodeRow, "code_challenge">;
 
 export interface DeviceGrantStateRow {
   client_id: string;
   status: "pending" | "approved" | "denied";
   expires_at: number;
   consumed_at: number | null;
+  provider: ProviderName;
 }
 
 export interface ApprovedDeviceGrantRow {
   account_id: string;
   provider_sub: string;
+  scopes: string;
+  claims_ciphertext: string | null;
 }
 
 export async function getClient(db: D1Database, clientId: string): Promise<ClientRow | null> {
@@ -41,7 +48,7 @@ export function validateClient(
   if (redirectUri !== null && !redirectUris.includes(redirectUri)) {
     throw new Error("invalid redirect_uri");
   }
-  if (provider !== "github" || !providers.includes(provider)) {
+  if (!providers.includes(provider)) {
     throw new Error("provider not allowed for client");
   }
 }
@@ -65,10 +72,10 @@ export async function getAuthorizationCode(
   codeHash: string,
   clientId: string,
   redirectUri: string,
-): Promise<AuthorizationCodeRow | null> {
+): Promise<AuthorizationCodeCandidateRow | null> {
   return db.prepare(`SELECT account_id, provider_sub, code_challenge FROM authorization_codes
     WHERE code_hash = ? AND client_id = ? AND redirect_uri = ? AND consumed_at IS NULL AND expires_at > unixepoch()`)
-    .bind(codeHash, clientId, redirectUri).first<AuthorizationCodeRow>();
+    .bind(codeHash, clientId, redirectUri).first<AuthorizationCodeCandidateRow>();
 }
 
 export async function consumeAuthorizationCode(
@@ -79,7 +86,7 @@ export async function consumeAuthorizationCode(
 ): Promise<AuthorizationCodeRow | null> {
   return db.prepare(`UPDATE authorization_codes SET consumed_at = unixepoch()
     WHERE code_hash = ? AND client_id = ? AND redirect_uri = ? AND consumed_at IS NULL AND expires_at > unixepoch()
-    RETURNING account_id, provider_sub, code_challenge`)
+    RETURNING account_id, provider_sub, code_challenge, scopes, claims_ciphertext`)
     .bind(codeHash, clientId, redirectUri).first<AuthorizationCodeRow>();
 }
 
@@ -88,10 +95,12 @@ export async function approveDeviceGrant(
   deviceCodeHash: string,
   accountId: string,
   providerSub: string,
+  claimsCiphertext: string | null,
 ): Promise<boolean> {
-  const result = await db.prepare(`UPDATE device_grants SET status = 'approved', account_id = ?, provider_sub = ?
+  const result = await db.prepare(`UPDATE device_grants
+    SET status = 'approved', account_id = ?, provider_sub = ?, claims_ciphertext = ?
     WHERE device_code_hash = ? AND status = 'pending' AND expires_at > unixepoch()`)
-    .bind(accountId, providerSub, deviceCodeHash).run();
+    .bind(accountId, providerSub, claimsCiphertext, deviceCodeHash).run();
   return result.meta.changes === 1;
 }
 
@@ -111,7 +120,7 @@ export async function consumeApprovedDeviceGrant(
     WHERE device_code_hash = ? AND client_id = ? AND status = 'approved'
       AND consumed_at IS NULL AND account_id IS NOT NULL AND provider_sub IS NOT NULL
       AND expires_at > unixepoch()
-    RETURNING account_id, provider_sub`)
+    RETURNING account_id, provider_sub, scopes, claims_ciphertext`)
     .bind(deviceCodeHash, clientId).first<ApprovedDeviceGrantRow>();
 }
 
@@ -119,7 +128,7 @@ export async function getDeviceGrantState(
   db: D1Database,
   deviceCodeHash: string,
 ): Promise<DeviceGrantStateRow | null> {
-  return db.prepare(`SELECT client_id, status, expires_at, consumed_at FROM device_grants
+  return db.prepare(`SELECT client_id, status, expires_at, consumed_at, provider FROM device_grants
     WHERE device_code_hash = ?`)
     .bind(deviceCodeHash).first<DeviceGrantStateRow>();
 }
@@ -147,11 +156,16 @@ export async function pollPendingDeviceGrant(
   return await slow() ? "slow_down" : null;
 }
 
-export async function rememberConsent(db: D1Database, accountId: string, clientId: string): Promise<void> {
+export async function rememberConsent(
+  db: D1Database,
+  accountId: string,
+  clientId: string,
+  scopes: readonly Scope[],
+): Promise<void> {
   await db.prepare(`INSERT INTO consents (account_id, client_id, scopes, updated_at)
-    VALUES (?, ?, '["openid"]', unixepoch())
+    VALUES (?, ?, ?, unixepoch())
     ON CONFLICT(account_id, client_id) DO UPDATE SET scopes = excluded.scopes, updated_at = excluded.updated_at`)
-    .bind(accountId, clientId).run();
+    .bind(accountId, clientId, JSON.stringify(scopes)).run();
 }
 
 export async function resolveIdentity(db: D1Database, identity: ProviderIdentity): Promise<string> {

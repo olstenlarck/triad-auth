@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import app from "../src/index";
-import { sha256 } from "../src/crypto";
+import { providerSubject, sha256 } from "../src/crypto";
 import { preAuthCookieName } from "../src/pre-auth";
 import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
@@ -17,7 +17,7 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function testEnv(): Promise<Env> {
+async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
   const { db, close } = await createTestDb();
   cleanups.push(close);
   return {
@@ -28,6 +28,7 @@ async function testEnv(): Promise<Env> {
     PAIRWISE_SECRET: "p".repeat(32),
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",
+    ...overrides,
   };
 }
 
@@ -84,6 +85,53 @@ function responseCookie(response: Response, name: string): { pair: string; heade
 }
 
 describe("account sessions", () => {
+  it("starts configured Google, GitHub, and Twitter sessions with provider state", async () => {
+    const env = await testEnv({
+      GOOGLE_CLIENT_ID: "google-client",
+      GOOGLE_CLIENT_SECRET: "google-secret",
+      TWITTER_CLIENT_ID: "twitter-client",
+      TWITTER_CLIENT_SECRET: "twitter-secret",
+    });
+
+    const responses = await Promise.all(["google", "github", "twitter"].map((provider) =>
+      app.request(`/session/start/${provider}`, undefined, env)));
+
+    expect(responses.map((response) => response.status)).toEqual([302, 302, 302]);
+    expect(new URL(responses[0].headers.get("location")!).hostname).toBe("accounts.google.com");
+    expect(new URL(responses[1].headers.get("location")!).hostname).toBe("github.com");
+    expect(new URL(responses[2].headers.get("location")!).hostname).toBe("x.com");
+    const rows = await env.DB.prepare(`SELECT provider, provider_verifier, provider_nonce, scopes
+      FROM oauth_transactions ORDER BY provider`).all();
+    expect(rows.results).toEqual([
+      { provider: "github", provider_verifier: null, provider_nonce: null, scopes: '["openid"]' },
+      { provider: "google", provider_verifier: null, provider_nonce: expect.any(String), scopes: '["openid"]' },
+      { provider: "twitter", provider_verifier: expect.any(String), provider_nonce: null, scopes: '["openid"]' },
+    ]);
+  });
+
+  it("rejects an unavailable session provider before creating state", async () => {
+    const env = await testEnv();
+
+    const response = await app.request("/session/start/google", undefined, env);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
+  });
+
+  it("returns opaque provider subjects instead of raw upstream identity IDs", async () => {
+    const env = await testEnv();
+    const token = await seedSession(env);
+
+    const response = await app.request("/api/me", {
+      headers: { cookie: `triad_session=${token}` },
+    }, env);
+    const body = await response.json<{ identities: string[] }>();
+
+    expect(body.identities).toEqual([await providerSubject(env.PAIRWISE_SECRET, "github", "42")]);
+    expect(JSON.stringify(body)).not.toContain("github:42");
+  });
+
   it("binds session login to the initiating browser and prevents session swap", async () => {
     const env = await testEnv();
     const victimSession = await seedSession(env, "victim-session");

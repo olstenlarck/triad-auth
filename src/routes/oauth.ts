@@ -1,7 +1,8 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
+import { parseScopes, serializeScopes, validateProviderScopes } from "../claims";
 import { cleanupExpiredState } from "../cleanup";
-import { providerSubject, randomToken, sha256, timingSafeEqual } from "../crypto";
+import { openClaims, providerSubject, randomToken, sealClaims, sha256, timingSafeEqual } from "../crypto";
 import {
   approveDeviceGrant,
   consumeAuthorizationCode,
@@ -16,18 +17,18 @@ import {
   resolveIdentity,
   validateClient,
 } from "../db";
-import { finishProvider, startProvider } from "../providers";
+import { enabledProviders, finishProvider, startProvider } from "../providers";
 import {
   clearPreAuthCookie,
   createPreAuthBinding,
   preAuthCookieName,
   setPreAuthCookie,
 } from "../pre-auth";
-import { parseScope, validatePkceChallenge, validatePkceVerifier } from "../protocol";
+import { validatePkceChallenge, validatePkceVerifier } from "../protocol";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken } from "../security";
 import { issueIdToken, publicJwk } from "../tokens";
-import type { Env, ProviderName } from "../types";
+import type { Env, ProviderName, Scope } from "../types";
 
 const now = () => Math.floor(Date.now() / 1000);
 const consentPurpose = (requestHash: string) => `consent:${requestHash}`;
@@ -36,6 +37,21 @@ const clientIdLimit = 128;
 const authorizationCodeLimit = 128;
 const deviceCodeLimit = 128;
 const redirectUriLimit = 2048;
+const providerNames = new Set<ProviderName>(["google", "github", "twitter"]);
+
+function parseProvider(value?: string): ProviderName | null {
+  return providerNames.has(value as ProviderName) ? value as ProviderName : null;
+}
+
+function parseStoredScopes(value: string): Scope[] {
+  const stored: unknown = JSON.parse(value);
+  if (!Array.isArray(stored) || !stored.every((scope) => typeof scope === "string")) {
+    throw new Error("invalid stored scopes");
+  }
+  const scopes = parseScopes(stored.join(" "));
+  if (JSON.stringify(scopes) !== JSON.stringify(stored)) throw new Error("invalid stored scopes");
+  return scopes;
+}
 
 export const oauthError = (error: string, description?: string, status = 400) =>
   new Response(JSON.stringify({ error, ...(description ? { error_description: description } : {}) }), {
@@ -173,12 +189,16 @@ oauthRoutes.get("/.well-known/openid-configuration", (c) => c.json({
 
 oauthRoutes.get("/.well-known/jwks.json", async (c) => c.json({ keys: [await publicJwk(c.env)] }));
 
+oauthRoutes.get("/api/providers", (c) => c.json({ providers: enabledProviders(c.env) }));
+
 oauthRoutes.get("/authorize", async (c) => {
   if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "authorization-start", 20))) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const q = c.req.query();
-  if (q.provider !== "github") return oauthError("invalid_request", "unsupported provider");
+  const provider = parseProvider(q.provider);
+  if (!provider) return oauthError("invalid_request", "unsupported provider");
+  if (!enabledProviders(c.env).includes(provider)) return oauthError("invalid_request", "provider unavailable");
   if (!q.client_id || !q.redirect_uri || !q.state || !q.code_challenge) {
     return oauthError("invalid_request", "client_id, redirect_uri, state and code_challenge are required");
   }
@@ -189,15 +209,17 @@ oauthRoutes.get("/authorize", async (c) => {
   if (q.client_id.length > clientIdLimit || q.redirect_uri.length > redirectUriLimit || q.state.length > 512) {
     return oauthError("invalid_request", "authorization parameter is too long");
   }
+  let scopes: Scope[];
   try {
-    parseScope(q.scope);
+    scopes = parseScopes(q.scope);
+    validateProviderScopes(provider, scopes);
   } catch {
     return oauthError("invalid_scope");
   }
   const client = await getClient(c.env.DB, q.client_id);
   if (!client) return oauthError("unauthorized_client");
   try {
-    validateClient(client, q.redirect_uri, "github", c.env.ISSUER);
+    validateClient(client, q.redirect_uri, provider, c.env.ISSUER);
   } catch (error) {
     return oauthError("invalid_request", (error as Error).message);
   }
@@ -206,8 +228,9 @@ oauthRoutes.get("/authorize", async (c) => {
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO consent_requests
     (request_hash, client_id, redirect_uri, app_state, provider, code_challenge, scopes, expires_at, created_at)
-    VALUES (?, ?, ?, ?, 'github', ?, '["openid"]', ?, ?)`).bind(
-      await sha256(request), q.client_id, q.redirect_uri, q.state, q.code_challenge, now() + 600, now(),
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      await sha256(request), q.client_id, q.redirect_uri, q.state, provider, q.code_challenge,
+      JSON.stringify(scopes), now() + 600, now(),
     ).run();
   return c.redirect(`${c.env.ISSUER}/consent/?request=${encodeURIComponent(request)}`, 302);
 });
@@ -241,17 +264,19 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
   if (authorized instanceof Response) return authorized;
   const row = await consumeConsentRequest(c.env.DB, authorized);
   if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
+  const scopes = parseStoredScopes(row.scopes);
   const upstreamState = randomToken();
   const stateHash = await sha256(upstreamState);
-  const start = await startProvider("github", c.env, upstreamState);
+  const start = await startProvider(row.provider, c.env, upstreamState, scopes);
   const binding = await createPreAuthBinding();
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
     (state_hash, kind, client_id, redirect_uri, app_state, provider, code_challenge,
-      provider_verifier, provider_nonce, browser_binding_hash, expires_at, created_at)
-    VALUES (?, 'authorization_code', ?, ?, ?, 'github', ?, ?, ?, ?, ?, ?)`).bind(
-      stateHash, row.client_id, row.redirect_uri, row.app_state,
-      row.code_challenge, start.verifier ?? null, start.nonce ?? null, binding.hash, now() + 600, now(),
+      provider_verifier, provider_nonce, scopes, browser_binding_hash, expires_at, created_at)
+    VALUES (?, 'authorization_code', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      stateHash, row.client_id, row.redirect_uri, row.app_state, row.provider,
+      row.code_challenge, start.verifier ?? null, start.nonce ?? null, row.scopes,
+      binding.hash, now() + 600, now(),
     ).run();
   setPreAuthCookie(c, stateHash, binding.token);
   return c.json({ redirect_to: start.url });
@@ -280,19 +305,19 @@ oauthRoutes.get("/callback/:provider", async (c) => {
   if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "provider-callback", 30))) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
-  const provider = c.req.param("provider");
+  const provider = parseProvider(c.req.param("provider"));
   const state = c.req.query("state");
   const providerError = c.req.query("error");
   const code = c.req.query("code");
   const denied = providerError === "access_denied";
-  if (provider !== "github" || !state || (providerError && !denied) || (!denied && !code)) {
+  if (!provider || !state || (providerError && !denied) || (!denied && !code)) {
     return oauthError("invalid_request");
   }
   const stateHash = await sha256(state);
   const browserBinding = getCookie(c, preAuthCookieName(stateHash));
   if (!browserBinding) return oauthError("invalid_grant", "expired or invalid state");
   const tx = await consumeTransaction(c.env.DB, stateHash, await sha256(browserBinding));
-  if (!tx || tx.provider !== "github") return oauthError("invalid_grant", "expired or invalid state");
+  if (!tx || tx.provider !== provider) return oauthError("invalid_grant", "expired or invalid state");
   clearPreAuthCookie(c, stateHash);
 
   if (denied) {
@@ -312,12 +337,14 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     return oauthError("access_denied");
   }
 
+  const scopes = parseStoredScopes(tx.scopes);
   const identity = await finishProvider(
-    "github",
+    tx.provider,
     c.env,
     code!,
     tx.provider_verifier ?? undefined,
     tx.provider_nonce ?? undefined,
+    scopes,
   );
   const accountId = await resolveIdentity(c.env.DB, identity);
   const providerSub = await providerSubject(c.env.PAIRWISE_SECRET, identity.provider, identity.id);
@@ -327,8 +354,11 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     return c.redirect(`${c.env.ISSUER}/me/`, 302);
   }
   if (tx.kind === "device") {
+    const claimsCiphertext = tx.device_code_hash && identity.claims
+      ? await sealClaims(c.env.PAIRWISE_SECRET, tx.device_code_hash, identity.claims)
+      : null;
     if (!tx.device_code_hash
-      || !(await approveDeviceGrant(c.env.DB, tx.device_code_hash, accountId, providerSub))) {
+      || !(await approveDeviceGrant(c.env.DB, tx.device_code_hash, accountId, providerSub, claimsCiphertext))) {
       return oauthError("invalid_grant", "device request expired");
     }
     await rotateBrowserSession(c, accountId);
@@ -337,11 +367,17 @@ oauthRoutes.get("/callback/:provider", async (c) => {
 
   if (!tx.redirect_uri || !tx.code_challenge) return oauthError("server_error", undefined, 500);
   const authCode = randomToken();
+  const codeHash = await sha256(authCode);
+  const claimsCiphertext = identity.claims
+    ? await sealClaims(c.env.PAIRWISE_SECRET, codeHash, identity.claims)
+    : null;
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO authorization_codes
-    (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(
-      await sha256(authCode), tx.client_id, tx.redirect_uri, accountId, providerSub, tx.code_challenge, now() + 120,
+    (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge,
+      scopes, claims_ciphertext, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      codeHash, tx.client_id, tx.redirect_uri, accountId, providerSub, tx.code_challenge,
+      tx.scopes, claimsCiphertext, now() + 120,
     ).run();
   await rotateBrowserSession(c, accountId);
   const target = new URL(tx.redirect_uri);
@@ -390,31 +426,43 @@ oauthRoutes.post("/token", async (c) => {
     }
     const row = await consumeAuthorizationCode(c.env.DB, codeHash, clientId, redirectUri);
     if (!row) return oauthError("invalid_grant");
-    await rememberConsent(c.env.DB, row.account_id, clientId);
+    const scopes = parseStoredScopes(row.scopes);
+    const claims = row.claims_ciphertext
+      ? await openClaims(c.env.PAIRWISE_SECRET, codeHash, row.claims_ciphertext)
+      : {};
+    await rememberConsent(c.env.DB, row.account_id, clientId, scopes);
     return c.json({
       token_type: "Bearer",
       expires_in: 300,
-      id_token: await issueIdToken(c.env, clientId, row.account_id, row.provider_sub),
+      scope: serializeScopes(scopes),
+      id_token: await issueIdToken(c.env, clientId, row.account_id, row.provider_sub, claims),
     });
   }
 
   if (grantType === "urn:ietf:params:oauth:grant-type:device_code") {
-    try {
-      validateClient(client, null, "github", c.env.ISSUER);
-    } catch {
-      return oauthError("invalid_client");
-    }
     const deviceCode = form.get("device_code") ?? "";
     if (!deviceCode || deviceCode.length > deviceCodeLimit) return oauthError("invalid_grant");
     const hash = await sha256(deviceCode);
+    const initialState = await getDeviceGrantState(c.env.DB, hash);
+    if (!initialState || initialState.client_id !== clientId) return oauthError("invalid_grant");
+    try {
+      validateClient(client, null, initialState.provider, c.env.ISSUER);
+    } catch {
+      return oauthError("invalid_client");
+    }
     for (let attempt = 0; attempt < 2; attempt++) {
       const approved = await consumeApprovedDeviceGrant(c.env.DB, hash, clientId);
       if (approved) {
-        await rememberConsent(c.env.DB, approved.account_id, clientId);
+        const scopes = parseStoredScopes(approved.scopes);
+        const claims = approved.claims_ciphertext
+          ? await openClaims(c.env.PAIRWISE_SECRET, hash, approved.claims_ciphertext)
+          : {};
+        await rememberConsent(c.env.DB, approved.account_id, clientId, scopes);
         return c.json({
           token_type: "Bearer",
           expires_in: 300,
-          id_token: await issueIdToken(c.env, clientId, approved.account_id, approved.provider_sub),
+          scope: serializeScopes(scopes),
+          id_token: await issueIdToken(c.env, clientId, approved.account_id, approved.provider_sub, claims),
         });
       }
 

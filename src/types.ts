@@ -42,6 +42,7 @@ export interface TransactionRow {
   provider_verifier: string | null;
   provider_nonce: string | null;
   device_code_hash: string | null;
+  scopes: string;
   browser_binding_hash: string;
   expires_at: number;
 }

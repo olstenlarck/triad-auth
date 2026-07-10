@@ -232,10 +232,16 @@ describe("public route rate limits", () => {
           return typeof value === "function" ? value.bind(target) : value;
         }
         return (query: string) => {
-          if (/FROM (?:clients|authorization_codes|device_grants)\b/i.test(query)) protectedLookups++;
+          if (/^\s*SELECT[\s\S]*FROM (?:clients|authorization_codes|device_grants)\b/i.test(query)) {
+            protectedLookups++;
+          }
           return target.prepare(query);
         };
       },
+    });
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      (array as Uint8Array).fill(0);
+      return array;
     });
 
     const authorizationCode = await app.request("/token", {

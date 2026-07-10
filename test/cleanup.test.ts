@@ -124,7 +124,7 @@ describe("ephemeral D1 cleanup", () => {
     const creation = await app.request("/device/code", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ client_id: "triad-demo" }),
+      body: new URLSearchParams({ client_id: "triad-demo", provider: "github" }),
     }, env);
     expect(creation.status).toBe(200);
     expect(await db.prepare("SELECT COUNT(*) AS count FROM consent_requests").first("count")).toBe(0);

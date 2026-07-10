@@ -1,14 +1,14 @@
 import { Hono } from "hono";
+import { parseScopes, validateProviderScopes } from "../claims";
 import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
 import { cleanupExpiredState } from "../cleanup";
 import { getClient, validateClient } from "../db";
-import { startProvider } from "../providers";
+import { enabledProviders, startProvider } from "../providers";
 import { createPreAuthBinding, setPreAuthCookie } from "../pre-auth";
-import { parseScope } from "../protocol";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { oauthError, parseOAuthForm, rejectDuplicateParameters, requireSameOrigin } from "./oauth";
 import { consumeCsrfToken, createCsrfToken } from "../security";
-import type { Env } from "../types";
+import type { Env, ProviderName, Scope } from "../types";
 
 const now = () => Math.floor(Date.now() / 1000);
 const clientIdLimit = 128;
@@ -17,6 +17,21 @@ const providerLimit = 32;
 const userCodeAttempts = 5;
 const userCodePattern = /^[A-HJ-NP-Z2-9]{8}$/;
 const devicePurpose = (deviceCodeHash: string) => `device:${deviceCodeHash}`;
+const providerNames = new Set<ProviderName>(["google", "github", "twitter"]);
+
+function parseProvider(value: string | null): ProviderName | null {
+  return providerNames.has(value as ProviderName) ? value as ProviderName : null;
+}
+
+function parseStoredScopes(value: string): Scope[] {
+  const stored: unknown = JSON.parse(value);
+  if (!Array.isArray(stored) || !stored.every((scope) => typeof scope === "string")) {
+    throw new Error("invalid stored scopes");
+  }
+  const scopes = parseScopes(stored.join(" "));
+  if (JSON.stringify(scopes) !== JSON.stringify(stored)) throw new Error("invalid stored scopes");
+  return scopes;
+}
 
 function validUserCode(value: string): string | null {
   if (!value || value.length > userCodeInputLimit) return null;
@@ -42,19 +57,23 @@ deviceRoutes.post("/device/code", async (c) => {
   if (duplicateError) return duplicateError;
   const clientId = form.get("client_id") ?? "";
   if (!clientId || clientId.length > clientIdLimit) return oauthError("invalid_client");
-  const provider = form.get("provider");
-  if (provider && (provider.length > providerLimit || provider !== "github")) {
+  const providerValue = form.get("provider");
+  const provider = providerValue && providerValue.length <= providerLimit ? parseProvider(providerValue) : null;
+  if (!provider) {
     return oauthError("invalid_request", "unsupported provider");
   }
+  if (!enabledProviders(c.env).includes(provider)) return oauthError("invalid_request", "provider unavailable");
+  let scopes: Scope[];
   try {
-    parseScope(form.get("scope") ?? undefined);
+    scopes = parseScopes(form.get("scope") ?? undefined);
+    validateProviderScopes(provider, scopes);
   } catch {
     return oauthError("invalid_scope");
   }
   const client = await getClient(c.env.DB, clientId);
   if (!client) return oauthError("invalid_client");
   try {
-    validateClient(client, null, "github", c.env.ISSUER);
+    validateClient(client, null, provider, c.env.ISSUER);
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message);
   }
@@ -68,9 +87,9 @@ deviceRoutes.post("/device/code", async (c) => {
     userCode = makeUserCode();
     const normalized = normalizeUserCode(userCode);
     const result = await c.env.DB.prepare(`INSERT OR IGNORE INTO device_grants
-      (device_code_hash, user_code, client_id, status, expires_at, interval_seconds, created_at)
-      VALUES (?, ?, ?, 'pending', ?, 5, ?)`).bind(
-        deviceCodeHash, normalized, clientId, now() + 600, now(),
+      (device_code_hash, user_code, client_id, provider, scopes, status, expires_at, interval_seconds, created_at)
+      VALUES (?, ?, ?, ?, ?, 'pending', ?, 5, ?)`).bind(
+        deviceCodeHash, normalized, clientId, provider, JSON.stringify(scopes), now() + 600, now(),
       ).run();
     if (result.meta.changes === 1) {
       inserted = true;
@@ -99,20 +118,30 @@ deviceRoutes.get("/api/device/:code", async (c) => {
   }
   const code = validUserCode(c.req.param("code"));
   if (!code) return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
-  const row = await c.env.DB.prepare(`SELECT d.device_code_hash, d.client_id, c.name AS client_name, d.expires_at
+  const row = await c.env.DB.prepare(`SELECT d.device_code_hash, d.client_id, c.name AS client_name,
+      d.provider, d.scopes, d.expires_at
     FROM device_grants d JOIN clients c ON c.client_id = d.client_id
     WHERE d.user_code = ? AND d.status = 'pending' AND d.expires_at > unixepoch()`)
-    .bind(code).first<{ device_code_hash: string; client_id: string; client_name: string; expires_at: number }>();
+    .bind(code).first<{
+      device_code_hash: string;
+      client_id: string;
+      client_name: string;
+      provider: ProviderName;
+      scopes: string;
+      expires_at: number;
+    }>();
   if (!row) return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
   const client = await getClient(c.env.DB, row.client_id);
   if (!client) return oauthError("unauthorized_client", undefined, 404);
   try {
-    validateClient(client, null, "github", c.env.ISSUER);
+    validateClient(client, null, row.provider, c.env.ISSUER);
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message, 404);
   }
   return c.json({
     client_name: row.client_name,
+    provider: row.provider,
+    scopes: parseStoredScopes(row.scopes),
     expires_in: row.expires_at - now(),
     csrf_token: await createCsrfToken(c.env.DB, devicePurpose(row.device_code_hash)),
   });
@@ -126,19 +155,27 @@ deviceRoutes.post("/device/verify", async (c) => {
   const duplicateError = rejectDuplicateParameters(form, ["user_code", "provider", "csrf_token"]);
   if (duplicateError) return duplicateError;
   const userCode = validUserCode(form.get("user_code") ?? "");
-  const provider = form.get("provider") ?? "";
+  const providerValue = form.get("provider") ?? "";
+  const provider = providerValue.length <= providerLimit ? parseProvider(providerValue) : null;
   if (!userCode) return oauthError("invalid_grant", "invalid or expired user code");
-  if (!provider || provider.length > providerLimit || provider !== "github") {
+  if (!provider) {
     return oauthError("invalid_request", "unsupported provider");
   }
-  const grant = await c.env.DB.prepare(`SELECT device_code_hash, client_id FROM device_grants
+  const grant = await c.env.DB.prepare(`SELECT device_code_hash, client_id, provider, scopes FROM device_grants
     WHERE user_code = ? AND status = 'pending' AND expires_at > unixepoch()`)
-    .bind(userCode).first<{ device_code_hash: string; client_id: string }>();
+    .bind(userCode).first<{
+      device_code_hash: string;
+      client_id: string;
+      provider: ProviderName;
+      scopes: string;
+    }>();
   if (!grant) return oauthError("invalid_grant", "invalid or expired user code");
+  if (grant.provider !== provider) return oauthError("invalid_request", "provider does not match device grant");
+  if (!enabledProviders(c.env).includes(provider)) return oauthError("invalid_request", "provider unavailable");
   const client = await getClient(c.env.DB, grant.client_id);
   if (!client) return oauthError("unauthorized_client");
   try {
-    validateClient(client, null, "github", c.env.ISSUER);
+    validateClient(client, null, provider, c.env.ISSUER);
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message);
   }
@@ -152,15 +189,16 @@ deviceRoutes.post("/device/verify", async (c) => {
 
   const upstreamState = randomToken();
   const stateHash = await sha256(upstreamState);
-  const start = await startProvider("github", c.env, upstreamState);
+  const scopes = parseStoredScopes(grant.scopes);
+  const start = await startProvider(provider, c.env, upstreamState, scopes);
   const binding = await createPreAuthBinding();
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
     (state_hash, kind, client_id, provider, provider_verifier, provider_nonce,
-      device_code_hash, browser_binding_hash, expires_at, created_at)
-    VALUES (?, 'device', ?, 'github', ?, ?, ?, ?, ?, ?)`).bind(
-      stateHash, grant.client_id, start.verifier ?? null, start.nonce ?? null,
-      grant.device_code_hash, binding.hash, now() + 600, now(),
+      device_code_hash, scopes, browser_binding_hash, expires_at, created_at)
+    VALUES (?, 'device', ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      stateHash, grant.client_id, provider, start.verifier ?? null, start.nonce ?? null,
+      grant.device_code_hash, grant.scopes, binding.hash, now() + 600, now(),
     ).run();
   setPreAuthCookie(c, stateHash, binding.token);
   return c.json({ redirect_to: start.url });

@@ -1,10 +1,10 @@
-import { exportJWK, generateKeyPair } from "jose";
+import { decodeJwt, exportJWK, generateKeyPair } from "jose";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import app from "../src/index";
-import { providerSubject, sha256 } from "../src/crypto";
+import { openClaims, providerSubject, sha256 } from "../src/crypto";
 import { preAuthCookieName } from "../src/pre-auth";
 import { createCsrfToken } from "../src/security";
-import type { Env } from "../src/types";
+import type { Env, ProviderName } from "../src/types";
 import { createTestDb } from "./d1";
 
 const issuer = "https://auth.example";
@@ -23,7 +23,7 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function testEnv(): Promise<Env> {
+async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
   const { db, close } = await createTestDb();
   cleanups.push(close);
   return {
@@ -34,6 +34,7 @@ async function testEnv(): Promise<Env> {
     PAIRWISE_SECRET: "p".repeat(32),
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",
+    ...overrides,
   };
 }
 
@@ -72,6 +73,8 @@ async function seedGrant(env: Env, values: {
   interval?: number;
   lastPolled?: boolean;
   consumed?: boolean;
+  provider?: ProviderName;
+  scopes?: string[];
 } = {}): Promise<{ deviceCode: string; deviceHash: string; userCode: string }> {
   const deviceCode = values.deviceCode ?? "d".repeat(43);
   const deviceHash = await sha256(deviceCode);
@@ -83,12 +86,14 @@ async function seedGrant(env: Env, values: {
       (provider, provider_user_id, account_id, created_at) VALUES ('github', '42', 'acct_device', unixepoch())`).run();
   }
   await env.DB.prepare(`INSERT INTO device_grants
-    (device_code_hash, user_code, client_id, status, account_id, provider_sub, expires_at,
-      interval_seconds, last_polled_at, consumed_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, unixepoch() + ?, ?, ?, ?, unixepoch())`).bind(
+    (device_code_hash, user_code, client_id, provider, scopes, status, account_id, provider_sub,
+      expires_at, interval_seconds, last_polled_at, consumed_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch() + ?, ?, ?, ?, unixepoch())`).bind(
       deviceHash,
       userCode,
       values.clientId ?? "triad-demo",
+      values.provider ?? "github",
+      JSON.stringify(values.scopes ?? ["openid"]),
       status,
       status === "approved" ? "acct_device" : null,
       status === "approved" ? "github:42" : null,
@@ -106,8 +111,13 @@ async function inspectDevice(env: Env, userCode: string): Promise<string> {
   return (await response.json<{ csrf_token: string }>()).csrf_token;
 }
 
-function verifyDevice(userCode: string, csrf: string, origin = issuer): RequestInit {
-  return formRequest({ user_code: userCode, provider: "github", csrf_token: csrf }, origin);
+function verifyDevice(
+  userCode: string,
+  csrf: string,
+  origin = issuer,
+  provider: ProviderName = "github",
+): RequestInit {
+  return formRequest({ user_code: userCode, provider, csrf_token: csrf }, origin);
 }
 
 function stubGithub(): void {
@@ -121,6 +131,7 @@ function stubGithub(): void {
     }
     return new Response(JSON.stringify({
       login: "mutable-name",
+      name: "Device User",
       id: 42,
       node_id: "MDQ6VXNlcjQy",
       avatar_url: "https://avatars.githubusercontent.com/u/42?v=4",
@@ -161,7 +172,7 @@ function transitionAfterDeviceStateRead(env: Env, transition: (db: D1Database) =
       }
       return (query: string) => {
         const statement = target.prepare(query);
-        if (!query.includes("SELECT client_id, status, expires_at, consumed_at FROM device_grants")) {
+        if (!query.includes("SELECT client_id, status, expires_at, consumed_at, provider FROM device_grants")) {
           return statement;
         }
         return new Proxy(statement, {
@@ -201,7 +212,10 @@ function transitionAfterDeviceStateRead(env: Env, transition: (db: D1Database) =
 describe("device authorization", () => {
   it("issues RFC-shaped random codes and stores only the device-code hash", async () => {
     const env = await testEnv();
-    const response = await app.request("/device/code", formRequest({ client_id: "triad-demo" }), env);
+    const response = await app.request("/device/code", formRequest({
+      client_id: "triad-demo",
+      provider: "github",
+    }), env);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -230,13 +244,43 @@ describe("device authorization", () => {
     expect(row?.device_code_hash).not.toContain(body.device_code);
   });
 
+  it("requires a provider and rejects unavailable providers before creating a grant", async () => {
+    const env = await testEnv();
+    const requests: Record<string, string>[] = [
+      { client_id: "triad-demo" },
+      { client_id: "triad-demo", provider: "twitter" },
+    ];
+    for (const values of requests) {
+      const response = await app.request("/device/code", formRequest(values), env);
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
+    }
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants").first("count")).toBe(0);
+  });
+
+  it("persists a selected Twitter provider and canonical scopes on the grant", async () => {
+    const env = await testEnv({
+      TWITTER_CLIENT_ID: "twitter-client",
+      TWITTER_CLIENT_SECRET: "twitter-secret",
+    });
+    const response = await app.request("/device/code", formRequest({
+      client_id: "triad-demo",
+      provider: "twitter",
+      scope: "name openid handle handle",
+    }), env);
+
+    expect(response.status).toBe(200);
+    const row = await env.DB.prepare("SELECT provider, scopes FROM device_grants").first();
+    expect(row).toEqual({ provider: "twitter", scopes: '["openid","handle","name"]' });
+  });
+
   it("rejects an unknown, oversized, or provider-disallowed issuance client", async () => {
     const env = await testEnv();
     await env.DB.prepare(`INSERT INTO clients
       (client_id, name, redirect_uris, providers, created_at) VALUES ('blocked', 'Blocked', '[]', '[]', unixepoch())`).run();
 
     for (const clientId of ["unknown", "a".repeat(129), "blocked"]) {
-      const response = await app.request("/device/code", formRequest({ client_id: clientId }), env);
+      const response = await app.request("/device/code", formRequest({ client_id: clientId, provider: "github" }), env);
       expect(response.status).toBe(400);
       expect(response.headers.get("cache-control")).toBe("no-store");
       await expect(response.json()).resolves.toMatchObject({
@@ -255,7 +299,7 @@ describe("device authorization", () => {
       return array;
     });
 
-    const response = await app.request("/device/code", formRequest({ client_id: "triad-demo" }), env);
+    const response = await app.request("/device/code", formRequest({ client_id: "triad-demo", provider: "github" }), env);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ user_code: "BBBB-BBBB" });
     expect(userCodeCalls).toBe(2);
@@ -273,7 +317,7 @@ describe("device authorization", () => {
       return array;
     });
 
-    const response = await app.request("/device/code", formRequest({ client_id: "triad-demo" }), env);
+    const response = await app.request("/device/code", formRequest({ client_id: "triad-demo", provider: "github" }), env);
     expect(response.status).toBe(500);
     expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toMatchObject({ error: "server_error" });
@@ -292,9 +336,13 @@ describe("device authorization", () => {
   });
 
   it("rejects an unsupported device scope", async () => {
-    const env = await testEnv();
+    const env = await testEnv({
+      TWITTER_CLIENT_ID: "twitter-client",
+      TWITTER_CLIENT_SECRET: "twitter-secret",
+    });
     const response = await app.request("/device/code", formRequest({
       client_id: "triad-demo",
+      provider: "twitter",
       scope: "openid email",
     }), env);
 
@@ -325,8 +373,16 @@ describe("device authorization", () => {
     const { deviceHash } = await seedGrant(env);
     const first = await app.request("/api/device/abcd-2345", undefined, env);
     expect(first.status).toBe(200);
-    const firstBody = await first.json<{ client_name: string; expires_in: number; csrf_token: string }>();
+    const firstBody = await first.json<{
+      client_name: string;
+      provider: string;
+      scopes: string[];
+      expires_in: number;
+      csrf_token: string;
+    }>();
     expect(firstBody.client_name).toBe("Triad demo");
+    expect(firstBody.provider).toBe("github");
+    expect(firstBody.scopes).toEqual(["openid"]);
     expect(firstBody.expires_in).toBeGreaterThan(0);
     expect(firstBody.csrf_token).toHaveLength(43);
 
@@ -335,6 +391,77 @@ describe("device authorization", () => {
     const row = await env.DB.prepare("SELECT purpose, COUNT(*) AS count FROM csrf_tokens GROUP BY purpose")
       .first<{ purpose: string; count: number }>();
     expect(row).toEqual({ purpose: `device:${deviceHash}`, count: 1 });
+  });
+
+  it("rejects a device verification provider mismatch without consuming CSRF or creating state", async () => {
+    const env = await testEnv({
+      TWITTER_CLIENT_ID: "twitter-client",
+      TWITTER_CLIENT_SECRET: "twitter-secret",
+    });
+    const { userCode } = await seedGrant(env, { provider: "twitter" });
+    const csrf = await inspectDevice(env, userCode);
+
+    const mismatch = await app.request("/device/verify", verifyDevice(userCode, csrf), env);
+    await expect(mismatch.json()).resolves.toMatchObject({ error: "invalid_request" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
+
+    const accepted = await app.request("/device/verify", verifyDevice(userCode, csrf, issuer, "twitter"), env);
+    expect(accepted.status).toBe(200);
+  });
+
+  it("persists Twitter verifier and grant scopes in the device transaction", async () => {
+    const env = await testEnv({
+      TWITTER_CLIENT_ID: "twitter-client",
+      TWITTER_CLIENT_SECRET: "twitter-secret",
+    });
+    const { userCode } = await seedGrant(env, { provider: "twitter", scopes: ["openid", "handle"] });
+    const csrf = await inspectDevice(env, userCode);
+
+    const response = await app.request("/device/verify", verifyDevice(userCode, csrf, issuer, "twitter"), env);
+    expect(response.status).toBe(200);
+    const row = await env.DB.prepare(`SELECT provider, provider_verifier, provider_nonce, scopes
+      FROM oauth_transactions`).first();
+    expect(row).toEqual({
+      provider: "twitter",
+      provider_verifier: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      provider_nonce: null,
+      scopes: '["openid","handle"]',
+    });
+  });
+
+  it("carries encrypted minimal claims and canonical scopes through device exchange", async () => {
+    const env = await testEnv();
+    const { deviceCode, deviceHash, userCode } = await seedGrant(env, {
+      scopes: ["openid", "handle", "name"],
+    });
+    const csrf = await inspectDevice(env, userCode);
+    const verified = await app.request("/device/verify", verifyDevice(userCode, csrf), env);
+    const state = new URL((await verified.json<{ redirect_to: string }>()).redirect_to).searchParams.get("state")!;
+    const cookieName = preAuthCookieName(await sha256(state));
+    const binding = responseCookie(verified, cookieName);
+    stubGithub();
+
+    const callback = await app.request(`/callback/github?state=${state}&code=provider-code`, {
+      headers: { cookie: binding },
+    }, env);
+    expect(callback.status).toBe(200);
+    const stored = await env.DB.prepare(`SELECT scopes, claims_ciphertext FROM device_grants
+      WHERE device_code_hash = ?`).bind(deviceHash).first<{ scopes: string; claims_ciphertext: string }>();
+    expect(stored?.scopes).toBe('["openid","handle","name"]');
+    expect(stored?.claims_ciphertext).not.toContain("mutable-name");
+    await expect(openClaims(env.PAIRWISE_SECRET, deviceHash, stored!.claims_ciphertext)).resolves.toEqual({
+      preferred_username: "mutable-name",
+      name: "Device User",
+    });
+
+    const token = await app.request("/token", deviceTokenRequest(deviceCode), env);
+    const body = await token.json<{ id_token: string; scope: string }>();
+    expect(body.scope).toBe("openid handle name");
+    expect(decodeJwt(body.id_token)).toMatchObject({
+      preferred_username: "mutable-name",
+      name: "Device User",
+    });
+    expect(decodeJwt(body.id_token)).not.toHaveProperty("email");
   });
 
   it("rejects invalid or oversized user codes without issuing CSRF", async () => {
