@@ -7,7 +7,7 @@ import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
 
 const issuer = "https://auth.example";
-const redirectUri = "http://localhost:3000/callback";
+const redirectUri = "http://localhost:8787/demo/callback/";
 let signingPrivateJwk: string;
 const cleanups: Array<() => void> = [];
 
@@ -37,7 +37,7 @@ async function testEnv(): Promise<Env> {
 
 function authorizeUrl(overrides: Record<string, string> = {}): string {
   const query = new URLSearchParams({
-    client_id: "local-dev",
+    client_id: "triad-demo",
     redirect_uri: redirectUri,
     response_type: "code",
     provider: "github",
@@ -112,7 +112,7 @@ function tokenRequest(
 ): RequestInit {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
-    client_id: "local-dev",
+    client_id: "triad-demo",
     redirect_uri: redirectUri,
     code,
     ...overrides,
@@ -131,9 +131,9 @@ async function seedAuthorizationCode(env: Env, values: {
   clientId?: string;
   redirect?: string;
 }): Promise<void> {
-  const clientId = values.clientId ?? "local-dev";
+  const clientId = values.clientId ?? "triad-demo";
   const target = values.redirect ?? redirectUri;
-  if (clientId !== "local-dev") {
+  if (clientId !== "triad-demo") {
     await env.DB.prepare("INSERT INTO clients (client_id, name, redirect_uris, providers, created_at) VALUES (?, 'Length test', ?, '[\"github\"]', unixepoch())")
       .bind(clientId, JSON.stringify([target])).run();
   }
@@ -256,9 +256,9 @@ describe("authorization-code routes", () => {
 
   it.each([
     ["client_id", "a".repeat(129), "code", "A".repeat(43), redirectUri, "invalid_client"],
-    ["code", "local-dev", "a".repeat(129), "A".repeat(43), redirectUri, "invalid_grant"],
-    ["verifier", "local-dev", "code", "A".repeat(129), redirectUri, "invalid_grant"],
-    ["redirect_uri", "local-dev", "code", "A".repeat(43), `https://app.example/${"a".repeat(2049)}`, "invalid_grant"],
+    ["code", "triad-demo", "a".repeat(129), "A".repeat(43), redirectUri, "invalid_grant"],
+    ["verifier", "triad-demo", "code", "A".repeat(129), redirectUri, "invalid_grant"],
+    ["redirect_uri", "triad-demo", "code", "A".repeat(43), `https://app.example/${"a".repeat(2049)}`, "invalid_grant"],
   ])("rejects an oversized token %s", async (_name, clientId, code, verifier, target, error) => {
     const env = await testEnv();
     await seedAuthorizationCode(env, { code, verifier, clientId, redirect: target });

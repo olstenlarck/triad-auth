@@ -4,7 +4,7 @@ CREATE TABLE clients (
   client_id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   redirect_uris TEXT NOT NULL,
-  providers TEXT NOT NULL DEFAULT '["google","github","x"]',
+  providers TEXT NOT NULL DEFAULT '["github"]',
   created_at INTEGER NOT NULL
 );
 
@@ -97,9 +97,9 @@ CREATE TABLE csrf_tokens (
   created_at INTEGER NOT NULL
 );
 
--- Development client. Replace this before deployment.
+-- Same-origin local demo client. Finalize the production URI during deployment.
 INSERT INTO clients (client_id, name, redirect_uris, providers, created_at)
-VALUES ('local-dev', 'Local development', '["http://localhost:3000/callback"]', '["google","github","x"]', unixepoch());
+VALUES ('triad-demo', 'Triad demo', '["http://localhost:8787/demo/callback/"]', '["github"]', unixepoch());
 
 INSERT INTO clients (client_id, name, redirect_uris, providers, created_at)
-VALUES ('triad-account', 'Triad account', '[]', '["google","github","x"]', unixepoch());
+VALUES ('triad-account', 'Triad account', '[]', '["github"]', unixepoch());

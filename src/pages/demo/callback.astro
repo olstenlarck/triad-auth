@@ -1,0 +1,114 @@
+---
+import Shell from "../../components/Shell.astro";
+---
+
+<Shell title="Verify identity | Triad" description="Verify a Triad ID token returned by the GitHub authorization-code flow." mode="product">
+  <section class="transaction shell narrow callback" aria-labelledby="callback-title">
+    <div class="transaction-head">
+      <p>VERIFYING IDENTITY</p>
+      <h1 id="callback-title">CHECKING THE<br /><span>SIGNED RESULT.</span></h1>
+      <p id="callback-status" class="lede" aria-live="polite">Checking state before contacting the token endpoint.</p>
+    </div>
+
+    <div id="callback-loading" class="verification-progress" aria-busy="true">
+      <span class="status-mark" aria-hidden="true"></span>
+      <strong>STATE → CODE → JWKS → CLAIMS</strong>
+    </div>
+
+    <p id="callback-error" class="error-message recovery" role="alert" tabindex="-1" hidden></p>
+    <a id="callback-retry" class="button secondary" href="/demo/" hidden>RETURN TO DEMO</a>
+
+    <section id="callback-identity" class="verified-result" aria-labelledby="callback-result-title" hidden>
+      <div class="verified-head">
+        <span class="verified-symbol" aria-hidden="true">✓</span>
+        <div><span>SIGNATURE VALID</span><h2 id="callback-result-title" tabindex="-1">VERIFIED IDENTITY</h2></div>
+      </div>
+      <dl class="verified-claims">
+        <div><dt>pairwise_sub</dt><dd id="callback-pairwise"></dd><small>App-scoped. Use this as triad-demo's private user key.</small></div>
+        <div><dt>account_sub</dt><dd id="callback-account"></dd><small>Broker-global. Correlates this account across Triad clients.</small></div>
+        <div><dt>provider_sub</dt><dd id="callback-provider"></dd><small>GitHub-global and globally correlatable across Triad clients that receive it.</small></div>
+      </dl>
+      <div class="verified-meta"><span>ISSUER</span><code id="callback-issuer"></code><span>EXPIRES</span><time id="callback-expiry"></time></div>
+      <a class="button primary" href="/demo/">RUN ANOTHER FLOW</a>
+    </section>
+  </section>
+
+  <script>
+    import { fetchDiscovery, verifyIdentityToken } from "../../scripts/demo-protocol";
+
+    const clientId = "triad-demo";
+    const query = new URLSearchParams(location.search);
+    const state = query.get("state");
+    const expectedState = sessionStorage.getItem("triad_demo_state");
+    const verifier = sessionStorage.getItem("triad_demo_verifier");
+    const loading = document.querySelector<HTMLElement>("#callback-loading")!;
+    const status = document.querySelector<HTMLElement>("#callback-status")!;
+    const error = document.querySelector<HTMLElement>("#callback-error")!;
+    const retry = document.querySelector<HTMLAnchorElement>("#callback-retry")!;
+    const identity = document.querySelector<HTMLElement>("#callback-identity")!;
+
+    function clearRequest() {
+      sessionStorage.removeItem("triad_demo_state");
+      sessionStorage.removeItem("triad_demo_verifier");
+    }
+
+    function fail(message: string) {
+      loading.hidden = true;
+      error.textContent = message;
+      error.hidden = false;
+      retry.hidden = false;
+      status.textContent = "The identity result was not accepted.";
+      error.focus();
+    }
+
+    if (!expectedState || !verifier || !state || state !== expectedState) {
+      clearRequest();
+      fail("State verification failed. No code was exchanged. Return to the demo and start a new sign-in.");
+    } else if (query.get("error") === "access_denied") {
+      clearRequest();
+      fail("GitHub sign-in was cancelled. Return to the demo when you are ready to try again.");
+    } else {
+      const code = query.get("code");
+      clearRequest();
+      if (!code) {
+        fail("The callback did not include an authorization code. Return to the demo and start again.");
+      } else {
+        void (async () => {
+          try {
+            status.textContent = "State matched. Exchanging the one-time code with its PKCE verifier.";
+            const discovery = await fetchDiscovery();
+            const response = await fetch(discovery.token_endpoint, {
+              method: "POST",
+              headers: { "content-type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                grant_type: "authorization_code",
+                client_id: clientId,
+                redirect_uri: `${location.origin}/demo/callback/`,
+                code,
+                code_verifier: verifier,
+              }),
+            });
+            const body = await response.json() as { id_token?: string; error_description?: string };
+            if (!response.ok || !body.id_token) throw new Error(body.error_description ?? "Token exchange failed.");
+
+            status.textContent = "Code exchanged. Verifying ES256 signature, issuer, audience, expiry, and identity claims.";
+            const verified = await verifyIdentityToken(body.id_token, clientId);
+            document.querySelector<HTMLElement>("#callback-pairwise")!.textContent = verified.pairwiseSub;
+            document.querySelector<HTMLElement>("#callback-account")!.textContent = verified.accountSub;
+            document.querySelector<HTMLElement>("#callback-provider")!.textContent = verified.providerSub;
+            document.querySelector<HTMLElement>("#callback-issuer")!.textContent = verified.issuer;
+            const expiry = document.querySelector<HTMLTimeElement>("#callback-expiry")!;
+            expiry.dateTime = new Date(verified.expiresAt * 1_000).toISOString();
+            expiry.textContent = new Date(verified.expiresAt * 1_000).toLocaleString();
+            loading.hidden = true;
+            identity.hidden = false;
+            status.textContent = "The ID token is verified. These values came from its signed payload.";
+            document.querySelector<HTMLElement>("#callback-result-title")!.focus();
+          } catch {
+            fail("The returned ID token could not be exchanged or verified. Nothing from the token has been trusted or displayed.");
+          }
+        })();
+      }
+    }
+  </script>
+</Shell>

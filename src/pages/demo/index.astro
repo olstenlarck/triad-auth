@@ -1,0 +1,247 @@
+---
+import Shell from "../../components/Shell.astro";
+---
+
+<Shell
+  title="Try the broker | Triad"
+  description="Run Triad's GitHub authorization-code PKCE and device flows, then inspect a verified ID token."
+  mode="product"
+>
+  <section class="transaction shell demo" aria-labelledby="demo-title">
+    <div class="transaction-head demo-head">
+      <p>TRY THE BROKER</p>
+      <h1 id="demo-title">TWO FLOWS.<br /><span>ONE IDENTITY.</span></h1>
+      <p class="lede">
+        Use GitHub through the browser or a device code. Both paths finish with the same locally verified identity contract.
+      </p>
+    </div>
+
+    <div class="demo-grid">
+      <section class="demo-bay" aria-labelledby="browser-demo-title">
+        <div class="demo-bay-head">
+          <div>
+            <span class="demo-index">01 / BROWSER</span>
+            <h2 id="browser-demo-title">AUTHORIZATION CODE + PKCE</h2>
+          </div>
+          <span class="status-mark" aria-hidden="true"></span>
+        </div>
+        <p>Triad creates a 64-byte verifier, sends only its S256 challenge, and checks state before exchanging the returned code.</p>
+        <dl class="protocol-list">
+          <div><dt>CLIENT</dt><dd>triad-demo</dd></div>
+          <div><dt>PROVIDER</dt><dd>github</dd></div>
+          <div><dt>VERIFICATION</dt><dd>ES256 + JWKS</dd></div>
+        </dl>
+        <p id="browser-status" class="demo-status" aria-live="polite">Ready to open GitHub in this window.</p>
+        <button id="browser-start" class="button primary demo-action" type="button">SIGN IN WITH GITHUB</button>
+      </section>
+
+      <section class="demo-bay" aria-labelledby="device-demo-title">
+        <div class="demo-bay-head">
+          <div>
+            <span class="demo-index">02 / DEVICE</span>
+            <h2 id="device-demo-title">DEVICE AUTHORIZATION</h2>
+          </div>
+          <span class="status-mark" aria-hidden="true"></span>
+        </div>
+        <p>Start a device grant, approve the displayed code in another browser tab, and leave this page open while it polls.</p>
+        <div id="device-instructions" class="device-ticket" hidden>
+          <span>USER CODE</span>
+          <strong id="demo-user-code"></strong>
+          <a id="verification-link" class="text-link" href="/device/verify/" target="_blank" rel="noopener">OPEN VERIFICATION PAGE ↗</a>
+          <small id="device-expiry"></small>
+        </div>
+        <p id="device-status" class="demo-status" aria-live="polite">No device request is active.</p>
+        <button id="device-start" class="button primary demo-action" type="button">START DEVICE FLOW</button>
+
+        <section id="device-identity" class="verified-result" aria-labelledby="device-result-title" hidden>
+          <div class="verified-head">
+            <span class="verified-symbol" aria-hidden="true">✓</span>
+            <div><span>SIGNATURE VALID</span><h3 id="device-result-title" tabindex="-1">VERIFIED IDENTITY</h3></div>
+          </div>
+          <dl class="verified-claims">
+            <div><dt>pairwise_sub</dt><dd id="device-pairwise"></dd><small>App-scoped. Different for every client.</small></div>
+            <div><dt>account_sub</dt><dd id="device-account"></dd><small>Broker-global. Correlates this account across Triad clients.</small></div>
+            <div><dt>provider_sub</dt><dd id="device-provider"></dd><small>GitHub-global and globally correlatable across Triad clients that receive it.</small></div>
+          </dl>
+        </section>
+      </section>
+    </div>
+  </section>
+
+  <script>
+    import {
+      createPkce,
+      devicePollDecision,
+      fetchDiscovery,
+      verifyIdentityToken,
+      type VerifiedIdentity,
+    } from "../../scripts/demo-protocol";
+
+    const clientId = "triad-demo";
+    const deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code";
+    const browserStart = document.querySelector<HTMLButtonElement>("#browser-start")!;
+    const browserStatus = document.querySelector<HTMLElement>("#browser-status")!;
+    const deviceStart = document.querySelector<HTMLButtonElement>("#device-start")!;
+    const deviceStatus = document.querySelector<HTMLElement>("#device-status")!;
+    const deviceInstructions = document.querySelector<HTMLElement>("#device-instructions")!;
+    const deviceIdentity = document.querySelector<HTMLElement>("#device-identity")!;
+    let pollTimer: number | undefined;
+    let expiresAt = 0;
+    let intervalMs = 5_000;
+    let activeDeviceCode = "";
+    let tokenEndpoint = "";
+
+    function message(element: HTMLElement, text: string, tone: "working" | "error" | "success" = "working") {
+      element.textContent = text;
+      element.dataset.tone = tone;
+    }
+
+    function stopPolling() {
+      if (pollTimer !== undefined) window.clearTimeout(pollTimer);
+      pollTimer = undefined;
+    }
+
+    function renderIdentity(identity: VerifiedIdentity) {
+      document.querySelector<HTMLElement>("#device-pairwise")!.textContent = identity.pairwiseSub;
+      document.querySelector<HTMLElement>("#device-account")!.textContent = identity.accountSub;
+      document.querySelector<HTMLElement>("#device-provider")!.textContent = identity.providerSub;
+      deviceIdentity.hidden = false;
+      message(deviceStatus, "Signature, issuer, audience, expiry, and identity claims verified.", "success");
+      document.querySelector<HTMLElement>("#device-result-title")!.focus();
+    }
+
+    function schedulePoll() {
+      const remaining = expiresAt - Date.now();
+      if (remaining <= 0) {
+        message(deviceStatus, "This device code expired. Start a new device flow.", "error");
+        deviceStart.disabled = false;
+        deviceStart.textContent = "START NEW DEVICE FLOW";
+        return;
+      }
+      pollTimer = window.setTimeout(pollDevice, Math.min(intervalMs, remaining));
+    }
+
+    async function pollDevice() {
+      if (!activeDeviceCode || Date.now() >= expiresAt) {
+        message(deviceStatus, "This device code expired. Start a new device flow.", "error");
+        deviceStart.disabled = false;
+        deviceStart.textContent = "START NEW DEVICE FLOW";
+        stopPolling();
+        return;
+      }
+      try {
+        const response = await fetch(tokenEndpoint, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: deviceGrantType,
+            client_id: clientId,
+            device_code: activeDeviceCode,
+          }),
+        });
+        const body = await response.json() as { id_token?: string; error?: string };
+        if (response.ok && body.id_token) {
+          stopPolling();
+          message(deviceStatus, "Token received. Verifying its signature and claims.");
+          renderIdentity(await verifyIdentityToken(body.id_token, clientId));
+          deviceStart.disabled = false;
+          deviceStart.textContent = "START NEW DEVICE FLOW";
+          return;
+        }
+
+        if (body.error === "authorization_pending" || body.error === "slow_down") {
+          const decision = devicePollDecision(body.error, intervalMs);
+          intervalMs = decision.intervalMs;
+          message(deviceStatus, decision.message);
+          schedulePoll();
+          return;
+        }
+        const decision = devicePollDecision(body.error ?? "invalid_grant", intervalMs);
+        message(deviceStatus, decision.message, "error");
+        deviceStart.disabled = false;
+        deviceStart.textContent = "START NEW DEVICE FLOW";
+        stopPolling();
+      } catch {
+        message(deviceStatus, "The device flow could not be verified. Check your connection and start again.", "error");
+        deviceStart.disabled = false;
+        deviceStart.textContent = "START NEW DEVICE FLOW";
+        stopPolling();
+      }
+    }
+
+    browserStart.addEventListener("click", async () => {
+      browserStart.disabled = true;
+      browserStart.textContent = "PREPARING PKCE";
+      message(browserStatus, "Loading broker discovery and creating a one-time PKCE request.");
+      try {
+        const [discovery, pkce] = await Promise.all([fetchDiscovery(), createPkce()]);
+        sessionStorage.setItem("triad_demo_verifier", pkce.verifier);
+        sessionStorage.setItem("triad_demo_state", pkce.state);
+        const callback = `${location.origin}/demo/callback/`;
+        const authorization = new URL(discovery.authorization_endpoint);
+        authorization.search = new URLSearchParams({
+          client_id: clientId,
+          redirect_uri: callback,
+          response_type: "code",
+          provider: "github",
+          scope: "openid",
+          state: pkce.state,
+          code_challenge: pkce.challenge,
+          code_challenge_method: "S256",
+        }).toString();
+        location.assign(authorization);
+      } catch {
+        message(browserStatus, "The authorization request could not be started. Check the broker and try again.", "error");
+        browserStart.disabled = false;
+        browserStart.textContent = "SIGN IN WITH GITHUB";
+      }
+    });
+
+    deviceStart.addEventListener("click", async () => {
+      stopPolling();
+      deviceStart.disabled = true;
+      deviceStart.textContent = "REQUESTING CODE";
+      deviceIdentity.hidden = true;
+      deviceInstructions.hidden = true;
+      message(deviceStatus, "Requesting a one-time device code.");
+      try {
+        const discovery = await fetchDiscovery();
+        const response = await fetch(discovery.device_authorization_endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ client_id: clientId, provider: "github", scope: "openid" }),
+        });
+        const body = await response.json() as {
+          device_code?: string;
+          user_code?: string;
+          verification_uri_complete?: string;
+          expires_in?: number;
+          interval?: number;
+          error_description?: string;
+        };
+        if (!response.ok || !body.device_code || !body.user_code || !body.verification_uri_complete
+          || typeof body.expires_in !== "number" || typeof body.interval !== "number") {
+          throw new Error(body.error_description ?? "invalid device response");
+        }
+        activeDeviceCode = body.device_code;
+        tokenEndpoint = discovery.token_endpoint;
+        intervalMs = Math.max(1, body.interval) * 1_000;
+        expiresAt = Date.now() + body.expires_in * 1_000;
+        document.querySelector<HTMLElement>("#demo-user-code")!.textContent = body.user_code;
+        const verificationLink = document.querySelector<HTMLAnchorElement>("#verification-link")!;
+        verificationLink.href = body.verification_uri_complete;
+        document.querySelector<HTMLElement>("#device-expiry")!.textContent = `Expires in ${Math.ceil(body.expires_in / 60)} minutes`;
+        deviceInstructions.hidden = false;
+        deviceStart.textContent = "FLOW IN PROGRESS";
+        message(deviceStatus, "Waiting for browser approval.");
+        schedulePoll();
+      } catch {
+        message(deviceStatus, "A device code could not be issued. Check the broker and try again.", "error");
+        deviceStart.disabled = false;
+        deviceStart.textContent = "START DEVICE FLOW";
+      }
+    });
+
+    window.addEventListener("pagehide", stopPolling);
+  </script>
+</Shell>

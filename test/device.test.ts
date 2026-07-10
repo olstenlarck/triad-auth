@@ -58,7 +58,7 @@ function rawFormRequest(body: URLSearchParams, origin?: string): RequestInit {
   };
 }
 
-function deviceTokenRequest(deviceCode: string, clientId = "local-dev"): RequestInit {
+function deviceTokenRequest(deviceCode: string, clientId = "triad-demo"): RequestInit {
   return formRequest({ grant_type: deviceGrantType, client_id: clientId, device_code: deviceCode });
 }
 
@@ -87,7 +87,7 @@ async function seedGrant(env: Env, values: {
     VALUES (?, ?, ?, ?, ?, ?, unixepoch() + ?, ?, ?, ?, unixepoch())`).bind(
       deviceHash,
       userCode,
-      values.clientId ?? "local-dev",
+      values.clientId ?? "triad-demo",
       status,
       status === "approved" ? "acct_device" : null,
       status === "approved" ? "github:42" : null,
@@ -193,7 +193,7 @@ function transitionAfterDeviceStateRead(env: Env, transition: (db: D1Database) =
 describe("device authorization", () => {
   it("issues RFC-shaped random codes and stores only the device-code hash", async () => {
     const env = await testEnv();
-    const response = await app.request("/device/code", formRequest({ client_id: "local-dev" }), env);
+    const response = await app.request("/device/code", formRequest({ client_id: "triad-demo" }), env);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -247,7 +247,7 @@ describe("device authorization", () => {
       return array;
     });
 
-    const response = await app.request("/device/code", formRequest({ client_id: "local-dev" }), env);
+    const response = await app.request("/device/code", formRequest({ client_id: "triad-demo" }), env);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ user_code: "BBBB-BBBB" });
     expect(userCodeCalls).toBe(2);
@@ -265,7 +265,7 @@ describe("device authorization", () => {
       return array;
     });
 
-    const response = await app.request("/device/code", formRequest({ client_id: "local-dev" }), env);
+    const response = await app.request("/device/code", formRequest({ client_id: "triad-demo" }), env);
     expect(response.status).toBe(500);
     expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toMatchObject({ error: "server_error" });
@@ -274,7 +274,7 @@ describe("device authorization", () => {
 
   it.each(["client_id", "provider", "scope"])("rejects duplicate device issuance %s parameters", async (duplicate) => {
     const env = await testEnv();
-    const body = new URLSearchParams({ client_id: "local-dev", provider: "github", scope: "openid" });
+    const body = new URLSearchParams({ client_id: "triad-demo", provider: "github", scope: "openid" });
     body.append(duplicate, body.get(duplicate)!);
 
     const response = await app.request("/device/code", rawFormRequest(body), env);
@@ -286,7 +286,7 @@ describe("device authorization", () => {
   it("rejects an unsupported device scope", async () => {
     const env = await testEnv();
     const response = await app.request("/device/code", formRequest({
-      client_id: "local-dev",
+      client_id: "triad-demo",
       scope: "openid email",
     }), env);
 
@@ -298,7 +298,7 @@ describe("device authorization", () => {
 
   it("enforces form encoding and the 4096-byte body limit on device POSTs", async () => {
     const env = await testEnv();
-    const wrongType = await app.request("/device/code", { method: "POST", body: "client_id=local-dev" }, env);
+    const wrongType = await app.request("/device/code", { method: "POST", body: "client_id=triad-demo" }, env);
     expect(wrongType.status).toBe(400);
 
     for (const path of ["/device/code", "/device/verify"]) {
@@ -318,7 +318,7 @@ describe("device authorization", () => {
     const first = await app.request("/api/device/abcd-2345", undefined, env);
     expect(first.status).toBe(200);
     const firstBody = await first.json<{ client_name: string; expires_in: number; csrf_token: string }>();
-    expect(firstBody.client_name).toBe("Local development");
+    expect(firstBody.client_name).toBe("Triad demo");
     expect(firstBody.expires_in).toBeGreaterThan(0);
     expect(firstBody.csrf_token).toHaveLength(43);
 
@@ -419,7 +419,7 @@ describe("device authorization", () => {
     for (const state of states) {
       await env.DB.prepare(`INSERT INTO oauth_transactions
         (state_hash, kind, client_id, provider, device_code_hash, expires_at, created_at)
-        VALUES (?, 'device', 'local-dev', 'github', ?, unixepoch() + 600, unixepoch())`)
+        VALUES (?, 'device', 'triad-demo', 'github', ?, unixepoch() + 600, unixepoch())`)
         .bind(await sha256(state), deviceHash).run();
     }
     stubGithub();
@@ -441,7 +441,7 @@ describe("device authorization", () => {
     const state = "device-denial-state";
     await env.DB.prepare(`INSERT INTO oauth_transactions
       (state_hash, kind, client_id, provider, device_code_hash, expires_at, created_at)
-      VALUES (?, 'device', 'local-dev', 'github', ?, unixepoch() + 600, unixepoch())`)
+      VALUES (?, 'device', 'triad-demo', 'github', ?, unixepoch() + 600, unixepoch())`)
       .bind(await sha256(state), deviceHash).run();
 
     const denied = await app.request(
@@ -463,11 +463,11 @@ describe("device token exchange", () => {
       const env = await testEnv();
       const body = new URLSearchParams({
         grant_type: deviceGrantType,
-        client_id: "local-dev",
+        client_id: "triad-demo",
         device_code: "f".repeat(43),
         code: "code",
         code_verifier: "A".repeat(43),
-        redirect_uri: "http://localhost:3000/callback",
+        redirect_uri: "http://localhost:8787/demo/callback/",
       });
       body.append(duplicate, body.get(duplicate)!);
 
@@ -598,7 +598,7 @@ describe("device token exchange", () => {
   it("rejects token exchange after the client loses GitHub permission", async () => {
     const env = await testEnv();
     const { deviceCode } = await seedGrant(env, { status: "approved" });
-    await env.DB.prepare("UPDATE clients SET providers = '[]' WHERE client_id = 'local-dev'").run();
+    await env.DB.prepare("UPDATE clients SET providers = '[]' WHERE client_id = 'triad-demo'").run();
 
     const response = await app.request("/token", deviceTokenRequest(deviceCode), env);
     await expect(response.json()).resolves.toMatchObject({ error: "invalid_client" });

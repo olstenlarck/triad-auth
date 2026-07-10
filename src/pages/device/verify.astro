@@ -2,61 +2,112 @@
 import Shell from "../../components/Shell.astro";
 ---
 
-<Shell title="Authorize device — Triad" mode="product">
+<Shell title="Authorize device | Triad" mode="product">
   <section class="transaction shell narrow" aria-labelledby="device-title">
     <div class="transaction-head">
       <p>DEVICE FLOW</p>
       <h1 id="device-title">PAIR THIS<br /><span>DEVICE.</span></h1>
-      <p class="lede">Enter the code shown on your device, check the requesting app, then choose a provider.</p>
+      <p class="lede">Enter the code shown on your device, confirm the requesting app, then continue with GitHub.</p>
     </div>
 
-    <form class="device-form" method="post" action="/device/verify">
+    <form id="device-form" class="device-form" method="post" action="/device/verify" aria-busy="false">
       <label for="user-code">DEVICE CODE</label>
-      <input id="user-code" name="user_code" inputmode="text" autocomplete="one-time-code" maxlength="9" placeholder="ABCD—2345" required />
+      <input id="user-code" name="user_code" inputmode="text" autocomplete="one-time-code" maxlength="9" placeholder="ABCD-2345" required />
+      <input type="hidden" name="provider" value="github" />
+      <input id="device-csrf" type="hidden" name="csrf_token" value="" />
       <div id="device-app" class="device-app" aria-live="polite" hidden>
-        <span>REQUESTING APP</span><strong id="device-client">—</strong>
+        <span>REQUESTING APP</span><strong id="device-client">PENDING</strong>
       </div>
-      <fieldset>
-        <legend>CONTINUE WITH</legend>
-        <label><input type="radio" name="provider" value="google" checked /><span>GOOGLE</span></label>
-        <label><input type="radio" name="provider" value="github" /><span>GITHUB</span></label>
-        <label><input type="radio" name="provider" value="x" /><span>X</span></label>
-      </fieldset>
-      <button class="button primary" type="submit">AUTHORIZE DEVICE</button>
+      <div class="device-disclosure">
+        <strong>IDENTIFIERS THIS APP WILL RECEIVE</strong>
+        <p><code>pairwise_sub</code> is app-scoped. <code>account_sub</code> links your Triad account across clients. <code>provider_sub</code> is GitHub-global and globally correlatable across Triad clients that receive it.</p>
+      </div>
+      <p id="device-status" class="demo-status" aria-live="polite">Enter all eight characters to inspect the request.</p>
+      <button id="device-submit" class="button primary" type="submit" disabled>CONTINUE WITH GITHUB</button>
     </form>
     <p id="device-error" class="error-message" role="alert" hidden></p>
     <p class="fine-print">Only continue if this code exactly matches the one on your device.</p>
   </section>
 
   <script>
+    const form = document.querySelector<HTMLFormElement>("#device-form")!;
     const input = document.querySelector<HTMLInputElement>("#user-code")!;
+    const csrf = document.querySelector<HTMLInputElement>("#device-csrf")!;
+    const submit = document.querySelector<HTMLButtonElement>("#device-submit")!;
     const box = document.querySelector<HTMLElement>("#device-app")!;
+    const status = document.querySelector<HTMLElement>("#device-status")!;
     const error = document.querySelector<HTMLElement>("#device-error")!;
     const fromUrl = new URLSearchParams(location.search).get("user_code") ?? "";
+    let inspection = 0;
 
     function format(value: string) {
       const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
       return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
     }
 
+    function clearInspection() {
+      inspection += 1;
+      csrf.value = "";
+      submit.disabled = true;
+      box.hidden = true;
+      error.hidden = true;
+      form.setAttribute("aria-busy", "false");
+      status.textContent = "Enter all eight characters to inspect the request.";
+      status.dataset.tone = "working";
+    }
+
     async function inspect() {
       if (input.value.replace(/[^A-Z0-9]/gi, "").length !== 8) return;
-      const response = await fetch(`/api/device/${encodeURIComponent(input.value)}`);
-      const body = await response.json() as { client_name?: string; error_description?: string };
-      if (!response.ok) {
-        box.hidden = true;
-        error.textContent = body.error_description ?? "That device code is invalid or expired.";
+      const current = ++inspection;
+      form.setAttribute("aria-busy", "true");
+      status.textContent = "Checking this device code.";
+      try {
+        const response = await fetch(`/api/device/${encodeURIComponent(input.value)}`);
+        const body = await response.json() as { client_name?: string; csrf_token?: string; error_description?: string };
+        if (current !== inspection) return;
+        form.setAttribute("aria-busy", "false");
+        if (!response.ok || !body.csrf_token) {
+          box.hidden = true;
+          error.textContent = body.error_description ?? "That device code is invalid or expired.";
+          error.hidden = false;
+          status.textContent = "The request could not be verified.";
+          status.dataset.tone = "error";
+          return;
+        }
+        document.querySelector("#device-client")!.textContent = body.client_name ?? "UNKNOWN APP";
+        csrf.value = body.csrf_token;
+        error.hidden = true;
+        box.hidden = false;
+        submit.disabled = false;
+        status.textContent = "Request found. Check the app and identifier disclosure before continuing.";
+        status.dataset.tone = "success";
+      } catch {
+        if (current !== inspection) return;
+        form.setAttribute("aria-busy", "false");
+        error.textContent = "The broker could not inspect this device code.";
         error.hidden = false;
-        return;
+        status.textContent = "The request could not be verified.";
+        status.dataset.tone = "error";
       }
-      document.querySelector("#device-client")!.textContent = body.client_name ?? "UNKNOWN APP";
-      error.hidden = true;
-      box.hidden = false;
     }
 
     input.value = format(fromUrl);
-    input.addEventListener("input", () => { input.value = format(input.value); box.hidden = true; error.hidden = true; });
-    input.addEventListener("change", inspect);
-    if (fromUrl) inspect();
+    input.addEventListener("input", () => {
+      input.value = format(input.value);
+      clearInspection();
+      if (input.value.replace(/[^A-Z0-9]/g, "").length === 8) void inspect();
+    });
+    form.addEventListener("submit", (event) => {
+      if (!csrf.value) {
+        event.preventDefault();
+        error.textContent = "Inspect a valid device code before continuing.";
+        error.hidden = false;
+        return;
+      }
+      submit.disabled = true;
+      submit.textContent = "OPENING GITHUB";
+      form.setAttribute("aria-busy", "true");
+    });
+    if (fromUrl) void inspect();
   </script>
 </Shell>

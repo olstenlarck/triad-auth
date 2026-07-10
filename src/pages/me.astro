@@ -2,20 +2,18 @@
 import Shell from "../components/Shell.astro";
 ---
 
-<Shell title="Your identity — Triad" mode="product">
+<Shell title="Your identity | Triad" mode="product">
   <section class="account shell" aria-labelledby="account-title">
     <div class="account-heading">
       <p>YOUR BROKER SESSION</p>
       <h1 id="account-title">YOUR<br /><span>IDENTITY.</span></h1>
-      <p id="account-summary" class="lede">Loading your broker session…</p>
+      <p id="account-summary" class="lede">Loading your broker session...</p>
     </div>
 
     <div id="signed-out" class="signed-out" hidden>
-      <p>Sign in to inspect your broker account, linked providers, and authorized applications.</p>
+      <p>Sign in with GitHub to inspect your broker account and authorized applications.</p>
       <div class="actions">
-        <a class="button primary" href="/session/start/google">GOOGLE</a>
-        <a class="button secondary" href="/session/start/github">GITHUB</a>
-        <a class="button secondary" href="/session/start/x">X</a>
+        <a class="button primary" href="/session/start/github">CONTINUE WITH GITHUB</a>
       </div>
     </div>
 
@@ -23,8 +21,8 @@ import Shell from "../components/Shell.astro";
       <section class="account-panel" aria-labelledby="ids-title">
         <h2 id="ids-title">IDENTIFIERS</h2>
         <dl class="account-ids">
-          <div><dt>ACCOUNT SUB</dt><dd id="account-sub">—</dd></div>
-          <div><dt>LINKED IDENTITIES</dt><dd id="identity-list">—</dd></div>
+          <div><dt>ACCOUNT SUB</dt><dd id="account-sub">PENDING</dd></div>
+          <div><dt>LINKED IDENTITIES</dt><dd id="identity-list">PENDING</dd></div>
         </dl>
       </section>
 
@@ -56,7 +54,7 @@ import Shell from "../components/Shell.astro";
       };
       if (!response.ok) throw new Error(body.error ?? "Could not load your session.");
       document.querySelector("#account-summary")!.textContent = "This is the identity map Triad holds for you.";
-      document.querySelector("#account-sub")!.textContent = body.account_sub ?? "—";
+      document.querySelector("#account-sub")!.textContent = body.account_sub ?? "NONE";
       document.querySelector("#identity-list")!.textContent = body.identities?.join(" · ") || "NONE";
       const clients = body.clients ?? [];
       document.querySelector("#app-count")!.textContent = String(clients.length);
