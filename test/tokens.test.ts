@@ -2,6 +2,8 @@ import { exportJWK, generateKeyPair, jwtVerify } from "jose";
 import { expect, it } from "vitest";
 import { issueIdToken, publicJwk } from "../src/tokens";
 
+const validProviderSub = "prv_github_0u6Y5KwzzMY4exV8ftB_W8";
+
 it("exports only allowlisted public signing JWK fields", async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk = {
@@ -55,7 +57,7 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
     PAIRWISE_SECRET: "s".repeat(32),
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
-  const token = await issueIdToken(env, "triad-demo", "acct_123", "github:42");
+  const token = await issueIdToken(env, "triad-demo", "acct_123", validProviderSub);
   const key = await crypto.subtle.importKey(
     "jwk",
     await publicJwk(env),
@@ -68,7 +70,7 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
     audience: "triad-demo",
   });
   expect(payload.sub).toBe(payload.pairwise_sub);
-  expect(payload.provider_sub).toBe("github:42");
+  expect(payload.provider_sub).toBe(validProviderSub);
   expect(payload.account_sub).toBe("acct_123");
   expect(payload.sub).not.toBe(payload.provider_sub);
   expect(payload).not.toHaveProperty("email");
@@ -77,7 +79,7 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
   expect(payload).not.toHaveProperty("picture");
 });
 
-it("issues exactly the supplied standard profile claims", async () => {
+it.each([true, false])("issues exactly the supplied standard profile claims with email_verified=%s", async (emailVerified) => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
   const env = {
@@ -85,9 +87,9 @@ it("issues exactly the supplied standard profile claims", async () => {
     PAIRWISE_SECRET: "s".repeat(32),
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
-  const token = await issueIdToken(env, "triad-demo", "acct_123", "prv_github_opaque", {
+  const token = await issueIdToken(env, "triad-demo", "acct_123", validProviderSub, {
     email: "user@example.com",
-    email_verified: true,
+    email_verified: emailVerified,
     preferred_username: "mutable_handle",
     picture: "https://images.example/user",
   });
@@ -103,7 +105,7 @@ it("issues exactly the supplied standard profile claims", async () => {
 
   expect(payload).toMatchObject({
     email: "user@example.com",
-    email_verified: true,
+    email_verified: emailVerified,
     preferred_username: "mutable_handle",
     picture: "https://images.example/user",
   });
@@ -123,7 +125,7 @@ it("rejects non-standard or malformed profile claims", async () => {
     env,
     "triad-demo",
     "acct_123",
-    "prv_github_opaque",
+    validProviderSub,
     { email: "user@example.com", role: "admin" } as never,
   )).rejects.toThrow("invalid profile claims");
 });
@@ -136,7 +138,7 @@ it("issues a five minute ID token", async () => {
     PAIRWISE_SECRET: "s".repeat(32),
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
-  const token = await issueIdToken(env, "triad-demo", "acct_123", "prv_github_opaque");
+  const token = await issueIdToken(env, "triad-demo", "acct_123", validProviderSub);
   const key = await crypto.subtle.importKey(
     "jwk",
     await publicJwk(env),
@@ -162,7 +164,28 @@ it("rejects a pairwise secret shorter than 32 characters", async () => {
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
 
-  await expect(issueIdToken(env, "triad-demo", "acct_123", "github:42")).rejects.toThrow(
+  await expect(issueIdToken(env, "triad-demo", "acct_123", validProviderSub)).rejects.toThrow(
     "PAIRWISE_SECRET must be at least 32 characters",
+  );
+});
+
+it.each([
+  ["raw provider subject", "github:42"],
+  ["unsupported provider", "prv_facebook_0u6Y5KwzzMY4exV8ftB_W8"],
+  ["missing prefix", "github_0u6Y5KwzzMY4exV8ftB_W8"],
+  ["short opaque value", "prv_github_0u6Y5KwzzMY4exV8ftB_W"],
+  ["long opaque value", "prv_github_0u6Y5KwzzMY4exV8ftB_W80"],
+  ["invalid opaque character", "prv_github_0u6Y5KwzzMY4exV8ftB_W!"],
+] as const)("rejects a %s", async (_description, providerSub) => {
+  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  const env = {
+    ISSUER: "https://issuer.example",
+    PAIRWISE_SECRET: "s".repeat(32),
+    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+  } as never;
+
+  await expect(issueIdToken(env, "triad-demo", "acct_123", providerSub)).rejects.toThrow(
+    "provider_sub must be an opaque Triad provider subject",
   );
 });

@@ -204,6 +204,18 @@ oauthRoutes.get("/.well-known/openid-configuration", (c) => c.json({
   grant_types_supported: ["authorization_code", "urn:ietf:params:oauth:grant-type:device_code"],
   code_challenge_methods_supported: ["S256"],
   subject_types_supported: ["pairwise"],
+  scopes_supported: ["openid", "email", "handle", "name", "avatar"],
+  claims_supported: [
+    "sub",
+    "pairwise_sub",
+    "account_sub",
+    "provider_sub",
+    "email",
+    "email_verified",
+    "preferred_username",
+    "name",
+    "picture",
+  ],
   id_token_signing_alg_values_supported: ["ES256"],
 }));
 

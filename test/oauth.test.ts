@@ -182,7 +182,7 @@ async function seedAuthorizationCode(env: Env, values: {
   await env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_length', unixepoch())").run();
   await env.DB.prepare(`INSERT INTO authorization_codes
     (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at)
-    VALUES (?, ?, ?, 'acct_length', 'github:42', ?, unixepoch() + 120)`)
+    VALUES (?, ?, ?, 'acct_length', 'prv_github_0u6Y5KwzzMY4exV8ftB_W8', ?, unixepoch() + 120)`)
     .bind(await sha256(values.code), clientId, target, await sha256(values.verifier)).run();
 }
 
@@ -495,11 +495,25 @@ describe("authorization-code routes", () => {
     }
   });
 
-  it("advertises only pairwise subject identifiers", async () => {
+  it("advertises canonical scopes, claims, and only pairwise subject identifiers", async () => {
     const response = await app.request("/.well-known/openid-configuration", undefined, await testEnv());
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ subject_types_supported: ["pairwise"] });
+    await expect(response.json()).resolves.toMatchObject({
+      subject_types_supported: ["pairwise"],
+      scopes_supported: ["openid", "email", "handle", "name", "avatar"],
+      claims_supported: [
+        "sub",
+        "pairwise_sub",
+        "account_sub",
+        "provider_sub",
+        "email",
+        "email_verified",
+        "preferred_username",
+        "name",
+        "picture",
+      ],
+    });
   });
 
   it("binds an approved consent callback to the browser that started GitHub", async () => {
@@ -734,7 +748,7 @@ describe("authorization-code routes", () => {
     await env.DB.prepare(`INSERT INTO device_grants
       (device_code_hash, user_code, client_id, status, account_id, provider_sub, expires_at,
         interval_seconds, created_at)
-      VALUES (?, 'ABCD2345', 'triad-demo', 'approved', 'acct_device', 'prv_github_opaque',
+      VALUES (?, 'ABCD2345', 'triad-demo', 'approved', 'acct_device', 'prv_github_0u6Y5KwzzMY4exV8ftB_W8',
         unixepoch() + 600, 5, unixepoch())`).bind(await sha256(deviceCode)).run();
 
     const response = await app.request("/token", {

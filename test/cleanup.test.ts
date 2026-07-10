@@ -45,7 +45,8 @@ async function seedCleanupRows(db: D1Database): Promise<void> {
   ) INSERT INTO authorization_codes
     (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge,
       claims_ciphertext, expires_at, consumed_at)
-    SELECT 'code-' || value, 'triad-demo', 'https://expired.example', 'acct_cleanup', 'github:42',
+    SELECT 'code-' || value, 'triad-demo', 'https://expired.example', 'acct_cleanup',
+      'prv_github_0u6Y5KwzzMY4exV8ftB_W8',
       'challenge', 'v1.expired', 0, NULL FROM sequence`).run();
   await db.prepare(`WITH RECURSIVE sequence(value) AS (
     VALUES (1) UNION ALL SELECT value + 1 FROM sequence WHERE value < 101
@@ -134,7 +135,8 @@ describe("ephemeral D1 cleanup", () => {
     await db.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_token_cleanup', 0)").run();
     await db.prepare(`INSERT INTO authorization_codes
       (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at, consumed_at)
-      VALUES ('expired-code', 'triad-demo', 'https://expired.example', 'acct_token_cleanup', 'github:42',
+      VALUES ('expired-code', 'triad-demo', 'https://expired.example', 'acct_token_cleanup',
+        'prv_github_0u6Y5KwzzMY4exV8ftB_W8',
         'challenge', 0, NULL)`).run();
     const token = await app.request("/token", {
       method: "POST",

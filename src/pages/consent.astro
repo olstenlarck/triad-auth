@@ -27,7 +27,7 @@ import Shell from "../components/Shell.astro";
     </div>
     <p class="fine-print">
       Approval shares every claim listed above. The app never receives the upstream access token.
-      Triad stores approved scope names. Encrypted profile values exist only until the one-time exchange or expiry, then are removed.
+      Triad stores approved scope names. Claims become non-exchangeable at expiry. Physical encrypted-row deletion is bounded, traffic-driven cleanup and can occur later.
     </p>
   </section>
 
@@ -47,7 +47,7 @@ import Shell from "../components/Shell.astro";
         ["BROKER ACCOUNT", "account_sub", "Stable across Triad clients and correlates this broker account between them."],
         ["PROVIDER-GLOBAL ID", "provider_sub", "Correlatable across authorized Triad clients without exposing the upstream ID."],
       ],
-      email: [["VERIFIED EMAIL", "email + email_verified", "Mutable profile data. Never use it as an identity key."]],
+      email: [["EMAIL + VERIFICATION STATUS", "email + email_verified", "Mutable profile data. Never use it as an identity key."]],
       handle: [["PROVIDER HANDLE", "preferred_username", "The account handle reported by the selected provider."]],
       name: [["DISPLAY NAME", "name", "The display name reported by the selected provider."]],
       avatar: [["AVATAR URL", "picture", "The profile image URL reported by the selected provider."]],

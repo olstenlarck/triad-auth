@@ -121,7 +121,8 @@ it("uses accurate consent action labels and a stable recovery route", async () =
   expect(consent).toContain('deny.textContent = "DENY REQUEST"');
   expect(consent).not.toContain("approve.textContent = action ===");
   expect(consent).toContain("Triad stores approved scope names");
-  expect(consent).toContain("Encrypted profile values exist only until the one-time exchange or expiry, then are removed.");
+  expect(consent).toContain("Claims become non-exchangeable at expiry.");
+  expect(consent).toContain("Physical encrypted-row deletion is bounded, traffic-driven cleanup and can occur later.");
 });
 
 it("presents Triad rather than a GitHub-only broker", async () => {
@@ -252,6 +253,10 @@ it("renders transaction-bound provider and mandatory requested claims without co
   expect(device).toContain("disclosureBox.hidden = false");
   expect(device).not.toContain('type="checkbox"');
   expect(device).not.toContain('value="github"');
+  expect(consent).toContain('["EMAIL + VERIFICATION STATUS", "email + email_verified"');
+  expect(device).toContain('["EMAIL + VERIFICATION STATUS", "email + email_verified"');
+  expect(consent).not.toContain('"VERIFIED EMAIL"');
+  expect(device).not.toContain('"VERIFIED EMAIL"');
 });
 
 it("always clears device transaction disclosure when inspection is reset or rejected", async () => {
