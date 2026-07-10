@@ -30,7 +30,28 @@ export async function issueIdToken(
 }
 
 export async function publicJwk(env: Env): Promise<Record<string, unknown>> {
-  const jwk = JSON.parse(env.SIGNING_PRIVATE_JWK) as JsonWebKey & { kid?: string };
-  delete jwk.d;
-  return { ...jwk, use: "sig", alg: "ES256", kid: jwk.kid ?? "main" };
+  const jwk = JSON.parse(env.SIGNING_PRIVATE_JWK) as Record<string, unknown>;
+  if (
+    jwk.kty !== "EC" ||
+    jwk.crv !== "P-256" ||
+    typeof jwk.x !== "string" ||
+    typeof jwk.y !== "string" ||
+    typeof jwk.d !== "string"
+  ) {
+    throw new Error("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+  }
+  try {
+    await importJWK(jwk as JsonWebKey, "ES256");
+  } catch {
+    throw new Error("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+  }
+  return {
+    kty: jwk.kty,
+    crv: jwk.crv,
+    x: jwk.x,
+    y: jwk.y,
+    use: "sig",
+    alg: "ES256",
+    kid: typeof jwk.kid === "string" ? jwk.kid : "main",
+  };
 }

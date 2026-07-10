@@ -2,15 +2,49 @@ import { exportJWK, generateKeyPair, jwtVerify } from "jose";
 import { expect, it } from "vitest";
 import { issueIdToken, publicJwk } from "../src/tokens";
 
-it("exports a public signing JWK without private key material", async () => {
+it("exports only allowlisted public signing JWK fields", async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  const jwk = {
+    ...(await exportJWK(privateKey)),
+    kid: "test",
+    k: "symmetric-secret",
+    p: "rsa-p",
+    q: "rsa-q",
+    dp: "rsa-dp",
+    dq: "rsa-dq",
+    qi: "rsa-qi",
+    oth: [{ r: "rsa-r", d: "rsa-d", t: "rsa-t" }],
+    custom: "not-public-metadata",
+  };
   const env = { SIGNING_PRIVATE_JWK: JSON.stringify(jwk) } as never;
 
   const publicKey = await publicJwk(env);
 
-  expect(publicKey).not.toHaveProperty("d");
-  expect(publicKey).toMatchObject({ use: "sig", alg: "ES256", kid: "test" });
+  expect(publicKey).toStrictEqual({
+    kty: "EC",
+    crv: "P-256",
+    x: jwk.x,
+    y: jwk.y,
+    use: "sig",
+    alg: "ES256",
+    kid: "test",
+  });
+});
+
+it.each([
+  ["non-EC key type", "kty", "RSA"],
+  ["non-P-256 curve", "crv", "P-384"],
+  ["missing x coordinate", "x", undefined],
+  ["non-string y coordinate", "y", 42],
+  ["missing private scalar", "d", undefined],
+] as const)("rejects an invalid signing JWK with %s", async (_description, field, value) => {
+  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+  const jwk = { ...(await exportJWK(privateKey)), [field]: value };
+  const env = { SIGNING_PRIVATE_JWK: JSON.stringify(jwk) } as never;
+
+  await expect(publicJwk(env)).rejects.toThrow(
+    "SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key",
+  );
 });
 
 it("issues a pairwise standard subject plus explicit global subjects", async () => {
