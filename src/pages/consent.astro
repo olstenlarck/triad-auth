@@ -16,21 +16,16 @@ import Shell from "../components/Shell.astro";
         <div><span>APPLICATION</span><strong id="client-name">LOADING...</strong></div>
         <div><span>PROVIDER</span><strong id="provider-name">PENDING</strong></div>
       </div>
-      <div class="disclosure-list">
-        <div><span>APP-SCOPED ID</span><strong>pairwise_sub</strong><small>Unique to this application. Different client, different value.</small></div>
-        <div><span>BROKER ACCOUNT</span><strong>account_sub</strong><small>Stable across Triad clients and correlates this broker account between them.</small></div>
-        <div><span>GLOBAL PROVIDER ID</span><strong>provider_sub</strong><small>GitHub-global and globally correlatable across Triad clients that receive it.</small></div>
-        <div><span>PROFILE DATA</span><strong>NONE</strong><small>No email, name, avatar, or GitHub access token.</small></div>
-      </div>
+      <div id="consent-disclosures" class="disclosure-list"></div>
     </div>
 
     <p id="consent-error" class="error-message" role="alert" hidden></p>
     <div class="actions transaction-actions">
-      <button id="approve" class="button primary" type="button" disabled>CONTINUE WITH GITHUB</button>
+      <button id="approve" class="button primary" type="button" disabled>APPROVE REQUEST</button>
       <button id="deny" class="button secondary" type="button" disabled>DENY REQUEST</button>
       <a id="consent-restart" class="button secondary" href="/demo/" hidden>RETURN TO DEMO</a>
     </div>
-    <p class="fine-print">The app receives signed identifiers, not access to your GitHub account.</p>
+    <p class="fine-print">Approval shares every claim listed above. The app never receives the upstream access token.</p>
   </section>
 
   <script>
@@ -40,10 +35,42 @@ import Shell from "../components/Shell.astro";
     const deny = document.querySelector<HTMLButtonElement>("#deny")!;
     const error = document.querySelector<HTMLElement>("#consent-error")!;
     const restart = document.querySelector<HTMLAnchorElement>("#consent-restart")!;
+    const disclosures = document.querySelector<HTMLElement>("#consent-disclosures")!;
     let csrfToken = "";
 
+    const disclosureDetails: Record<string, Array<[string, string, string]>> = {
+      openid: [
+        ["APP-SCOPED ID", "pairwise_sub", "Unique to this application. Different client, different value."],
+        ["BROKER ACCOUNT", "account_sub", "Stable across Triad clients and correlates this broker account between them."],
+        ["PROVIDER-GLOBAL ID", "provider_sub", "Correlatable across authorized Triad clients without exposing the upstream ID."],
+      ],
+      email: [["VERIFIED EMAIL", "email + email_verified", "Mutable profile data. Never use it as an identity key."]],
+      handle: [["PROVIDER HANDLE", "preferred_username", "The account handle reported by the selected provider."]],
+      name: [["DISPLAY NAME", "name", "The display name reported by the selected provider."]],
+      avatar: [["AVATAR URL", "picture", "The profile image URL reported by the selected provider."]],
+    };
+
+    function renderDisclosures(scopes: string[]) {
+      disclosures.replaceChildren();
+      for (const scope of scopes) {
+        const rows = disclosureDetails[scope];
+        if (!rows) throw new Error("This request contains an unsupported claim.");
+        for (const [label, claim, description] of rows) {
+          const row = document.createElement("div");
+          const labelNode = document.createElement("span");
+          const claimNode = document.createElement("strong");
+          const descriptionNode = document.createElement("small");
+          labelNode.textContent = label;
+          claimNode.textContent = claim;
+          descriptionNode.textContent = description;
+          row.append(labelNode, claimNode, descriptionNode);
+          disclosures.append(row);
+        }
+      }
+    }
+
     function resetActions() {
-      approve.textContent = "CONTINUE WITH GITHUB";
+      approve.textContent = "APPROVE REQUEST";
       deny.textContent = "DENY REQUEST";
     }
 
@@ -64,7 +91,7 @@ import Shell from "../components/Shell.astro";
       error.hidden = true;
       restart.hidden = true;
       const active = action === "approve" ? approve : deny;
-      active.textContent = action === "approve" ? "OPENING GITHUB" : "DENYING REQUEST";
+      active.textContent = action === "approve" ? "APPROVING REQUEST" : "DENYING REQUEST";
       try {
         const response = await fetch(`/api/consent/${encodeURIComponent(request)}/${action}`, {
           method: "POST",
@@ -88,17 +115,26 @@ import Shell from "../components/Shell.astro";
           body: await response.json() as {
             client_name?: string;
             provider?: string;
+            scopes?: string[];
             csrf_token?: string;
             error_description?: string;
           },
         }))
         .then(({ response, body }) => {
-          if (!response.ok || !body.csrf_token) return fail(body.error_description ?? "This authorization request expired.");
+          if (
+            !response.ok
+            || !body.csrf_token
+            || !body.provider
+            || !["google", "github", "twitter"].includes(body.provider)
+            || !Array.isArray(body.scopes)
+            || !body.scopes.includes("openid")
+          ) return fail(body.error_description ?? "This authorization request expired.");
           csrfToken = body.csrf_token;
           document.querySelector("#client-name")!.textContent = body.client_name ?? "UNKNOWN APP";
-          document.querySelector("#provider-name")!.textContent = "GITHUB";
-          document.querySelector("#consent-summary")!.textContent = `${body.client_name ?? "This app"} wants to identify you through GitHub.`;
+          document.querySelector("#provider-name")!.textContent = body.provider.toUpperCase();
+          document.querySelector("#consent-summary")!.textContent = `${body.client_name ?? "This app"} requests the mandatory claims below through ${body.provider}.`;
           document.querySelector(".app-glyph")!.textContent = (body.client_name ?? "A").slice(0, 1).toUpperCase();
+          renderDisclosures(body.scopes);
           panel.setAttribute("aria-busy", "false");
           approve.disabled = false;
           deny.disabled = false;

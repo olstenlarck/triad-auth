@@ -6,6 +6,23 @@ export interface VerifiedIdentity {
   providerSub: string;
   issuer: string;
   expiresAt: number;
+  profile: VerifiedProfile;
+}
+
+export type ProviderName = "google" | "github" | "twitter";
+export type ProfileScope = "email" | "handle" | "name" | "avatar";
+
+export interface ProviderCapability {
+  id: ProviderName;
+  scopes: readonly ProfileScope[];
+}
+
+export interface VerifiedProfile {
+  email?: string;
+  emailVerified?: boolean;
+  handle?: string;
+  name?: string;
+  avatar?: string;
 }
 
 export interface DevicePollDecision {
@@ -21,6 +38,9 @@ interface DiscoveryDocument {
   device_authorization_endpoint: string;
   jwks_uri: string;
 }
+
+const providerNames = new Set<ProviderName>(["google", "github", "twitter"]);
+const profileScopeOrder: readonly ProfileScope[] = ["email", "handle", "name", "avatar"];
 
 function base64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
@@ -47,6 +67,55 @@ function discoveryDocument(value: unknown): DiscoveryDocument {
     if (typeof candidate[field] !== "string") throw new Error("The broker discovery document is invalid.");
   }
   return candidate as unknown as DiscoveryDocument;
+}
+
+function providerCapabilities(value: unknown): ProviderCapability[] {
+  if (!value || typeof value !== "object" || !Array.isArray((value as { providers?: unknown }).providers)) {
+    throw new Error("The provider list is invalid.");
+  }
+  const seen = new Set<string>();
+  return (value as { providers: unknown[] }).providers.map((value) => {
+    if (!value || typeof value !== "object") throw new Error("The provider list is invalid.");
+    const { id, scopes } = value as { id?: unknown; scopes?: unknown };
+    if (
+      typeof id !== "string"
+      || !providerNames.has(id as ProviderName)
+      || seen.has(id)
+      || !Array.isArray(scopes)
+      || scopes.some((scope) => typeof scope !== "string" || !profileScopeOrder.includes(scope as ProfileScope))
+      || new Set(scopes).size !== scopes.length
+    ) {
+      throw new Error("The provider list is invalid.");
+    }
+    seen.add(id);
+    return { id: id as ProviderName, scopes: scopes as ProfileScope[] };
+  });
+}
+
+function optionalString(payload: Record<string, unknown>, claim: string): string | undefined {
+  const value = payload[claim];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0) throw new Error("The verified token has invalid profile claims.");
+  return value;
+}
+
+function verifiedProfile(payload: Record<string, unknown>): VerifiedProfile {
+  const email = optionalString(payload, "email");
+  const emailVerified = payload.email_verified;
+  if (emailVerified !== undefined && (email === undefined || typeof emailVerified !== "boolean")) {
+    throw new Error("The verified token has invalid profile claims.");
+  }
+  return {
+    ...(email === undefined ? {} : { email }),
+    ...(emailVerified === undefined ? {} : { emailVerified }),
+    ...optionalValue("handle", optionalString(payload, "preferred_username")),
+    ...optionalValue("name", optionalString(payload, "name")),
+    ...optionalValue("avatar", optionalString(payload, "picture")),
+  };
+}
+
+function optionalValue<Key extends keyof VerifiedProfile>(key: Key, value: VerifiedProfile[Key]) {
+  return value === undefined ? {} : { [key]: value } as Pick<VerifiedProfile, Key>;
 }
 
 export async function createPkce(): Promise<{ verifier: string; challenge: string; state: string }> {
@@ -85,6 +154,25 @@ export async function fetchDiscovery(
 ): Promise<DiscoveryDocument> {
   const endpoint = new URL("/.well-known/openid-configuration", brokerOrigin);
   return discoveryDocument(await json(await fetch(endpoint, { signal })));
+}
+
+export async function fetchProviderCapabilities(
+  brokerOrigin = location.origin,
+  signal?: AbortSignal,
+): Promise<ProviderCapability[]> {
+  const endpoint = new URL("/api/providers", brokerOrigin);
+  return providerCapabilities(await json(await fetch(endpoint, { signal })));
+}
+
+export function canonicalScopeRequest(
+  provider: ProviderCapability,
+  selected: readonly string[],
+): string {
+  const selectedScopes = new Set(selected);
+  if ([...selectedScopes].some((scope) => !provider.scopes.includes(scope as ProfileScope))) {
+    throw new Error("The selected provider does not support an unsupported scope.");
+  }
+  return ["openid", ...profileScopeOrder.filter((scope) => selectedScopes.has(scope))].join(" ");
 }
 
 export async function verifyIdentityToken(
@@ -135,5 +223,6 @@ export async function verifyIdentityToken(
     providerSub: payload.provider_sub,
     issuer: discovery.issuer,
     expiresAt: payload.exp,
+    profile: verifiedProfile(payload),
   };
 }

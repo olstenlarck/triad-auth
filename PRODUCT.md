@@ -14,7 +14,7 @@ Developers building web, CLI, TV, console, and device applications. They need on
 
 ## Product Purpose
 
-Triad brokers GitHub authentication. It gives applications a globally correlatable GitHub identity, a broker account identity, and a stable app-scoped identity through authorization-code and device flows. Success means a developer can understand the identity model in seconds and integrate without adopting a large auth platform.
+Triad brokers upstream authentication. It gives applications a provider-global identity, a broker account identity, and a stable app-scoped identity through authorization-code and device flows. Success means a developer can understand the identity model in seconds and integrate without adopting a large auth platform.
 
 ## Positioning
 
@@ -22,7 +22,7 @@ One identity handshake, two useful IDs: global when you need continuity, pairwis
 
 ## Conversion & proof
 
-- Primary CTA: view and use the open-source GitHub repository.
+- Primary CTA: view and use the open-source repository.
 - Secondary CTA: read the quickstart and inspect the live protocol endpoints.
 - The line a visitor remembers after 10 seconds: global identity and per-app identity can coexist.
 - Belief ladder: the identifier semantics are explicit; the flows are standards-shaped; the implementation is small enough to inspect; the deployment model is simple.

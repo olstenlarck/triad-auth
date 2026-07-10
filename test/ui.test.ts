@@ -9,6 +9,18 @@ declare const process: {
 
 const { existsSync, readFileSync } = process.getBuiltinModule("node:fs");
 const readFile = async (path: string, _encoding: "utf8") => readFileSync(path, "utf8");
+const applicationSources = [
+  "src/components/Shell.astro",
+  "src/pages/index.astro",
+  "src/pages/me.astro",
+  "src/pages/consent.astro",
+  "src/pages/device/verify.astro",
+  "src/pages/demo/index.astro",
+  "src/pages/demo/callback.astro",
+];
+const readApplicationSources = async () => (await Promise.all(
+  applicationSources.map((path) => readFile(path, "utf8")),
+)).join("\n");
 
 it("builds both demo entry points", async () => {
   await expect(readFile("dist/demo/index.html", "utf8")).resolves.toContain("TRY THE BROKER");
@@ -55,7 +67,7 @@ it("implements complete PKCE and device demo contracts", async () => {
   expect(`${demo}\n${callback}`).toContain("pairwise_sub");
   expect(`${demo}\n${callback}`).toContain("account_sub");
   expect(`${demo}\n${callback}`).toContain("provider_sub");
-  expect(`${demo}\n${callback}`).toContain("globally correlatable");
+  expect(`${demo}\n${callback}`).toContain("Provider-global");
   expect(protocol).toContain('from "jose"');
   expect(protocol).toContain('algorithms: ["ES256"]');
 });
@@ -68,8 +80,8 @@ it("submits transaction-bound CSRF tokens from both product forms", async () => 
 
   expect(consent).toContain("csrf_token");
   expect(consent).toContain('"content-type": "application/x-www-form-urlencoded"');
-  expect(consent).toContain("globally correlatable");
-  expect(device).toContain('type="hidden" name="provider" value="github"');
+  expect(consent).toContain("without exposing the upstream ID");
+  expect(device).toContain('type="hidden" name="provider"');
   expect(device).toContain('type="hidden" name="csrf_token"');
   expect(device).not.toContain('type="radio"');
   expect(device).not.toContain('value="google"');
@@ -105,26 +117,100 @@ it("uses accurate consent action labels and a stable recovery route", async () =
   expect(consent).toContain('href="/demo/"');
   expect(consent).toContain('const active = action === "approve" ? approve : deny');
   expect(consent).toContain("active.textContent = action ===");
-  expect(consent).toContain('approve.textContent = "CONTINUE WITH GITHUB"');
+  expect(consent).toContain('approve.textContent = "APPROVE REQUEST"');
   expect(consent).toContain('deny.textContent = "DENY REQUEST"');
   expect(consent).not.toContain("approve.textContent = action ===");
 });
 
-it("keeps all navigation and product copy GitHub-only", async () => {
-  const files = await Promise.all([
-    "src/components/Shell.astro",
-    "src/pages/index.astro",
-    "src/pages/me.astro",
-    "src/pages/consent.astro",
-    "src/pages/device/verify.astro",
-    "src/pages/demo/index.astro",
-    "src/pages/demo/callback.astro",
-  ].map((path) => readFile(path, "utf8")));
+it("presents Triad rather than a GitHub-only broker", async () => {
+  const landing = await readFile("src/pages/index.astro", "utf8");
+
+  expect(landing).not.toContain("GitHub broker");
+  expect(landing).toContain("GOOGLE");
+  expect(landing).toContain("GITHUB");
+  expect(landing).toContain("TWITTER");
+  expect(landing).not.toContain("github:107691503");
+  expect(landing).toContain("prv_twitter_R4");
+});
+
+it("uses twitter and never x as provider vocabulary", async () => {
+  const ui = await readApplicationSources();
+
+  expect(ui).not.toMatch(/provider[=:][\s]*["']x["']/i);
+  expect(ui).toContain("twitter");
+  expect(ui).not.toContain("—");
+});
+
+it("loads provider capabilities and sends one canonical demo scope request", async () => {
+  const demo = await readFile("src/pages/demo/index.astro", "utf8");
+
+  expect(demo).toContain("fetchProviderCapabilities");
+  expect(demo).toContain("canonicalScopeRequest");
+  expect(demo).toContain('name="demo-provider"');
+  expect(demo).toContain('name="demo-scope"');
+  expect(demo).toContain('value="email"');
+  expect(demo).toContain('value="handle"');
+  expect(demo).toContain('value="name"');
+  expect(demo).toContain('value="avatar"');
+  expect(demo).toContain("provider: selectedProvider.id");
+  expect(demo).toContain("scope: requestedScope");
+  expect(demo).not.toContain('provider: "github"');
+});
+
+it("populates account sign-in actions from enabled providers", async () => {
+  const account = await readFile("src/pages/me.astro", "utf8");
+
+  expect(account).toContain("fetchProviderCapabilities");
+  expect(account).toContain("/session/start/${provider.id}");
+  expect(account).toContain('providerActions.textContent = "Sign-in providers could not be loaded."');
+  expect(account).not.toContain('href="/session/start/github"');
+});
+
+it("restores demo controls without replacing a browser start error", async () => {
+  const demo = await readFile("src/pages/demo/index.astro", "utf8");
+  const recovery = demo.slice(demo.indexOf('message(browserStatus, "The authorization request'));
+
+  expect(demo).toContain("function updateRequestControls(updateStatus = true)");
+  expect(recovery).toContain("updateRequestControls(false)");
+});
+
+it("renders transaction-bound provider and mandatory requested claims without consent checkboxes", async () => {
+  const [consent, device] = await Promise.all([
+    readFile("src/pages/consent.astro", "utf8"),
+    readFile("src/pages/device/verify.astro", "utf8"),
+  ]);
+
+  expect(consent).toContain("body.provider");
+  expect(consent).toContain("body.scopes");
+  expect(consent).toContain("renderDisclosures");
+  expect(consent).not.toContain('type="checkbox"');
+  expect(consent).toContain('act("approve")');
+  expect(consent).toContain('act("deny")');
+  expect(device).toContain("body.provider");
+  expect(device).toContain("body.scopes");
+  expect(device).toContain("renderDisclosures");
+  expect(device).toContain('id="device-disclosure" class="device-disclosure" hidden');
+  expect(device).toContain("disclosureBox.hidden = false");
+  expect(device).not.toContain('type="checkbox"');
+  expect(device).not.toContain('value="github"');
+});
+
+it("renders verified optional claims through text content", async () => {
+  const [demo, callback] = await Promise.all([
+    readFile("src/pages/demo/index.astro", "utf8"),
+    readFile("src/pages/demo/callback.astro", "utf8"),
+  ]);
+
+  expect(demo).toContain("identity.profile");
+  expect(callback).toContain("verified.profile");
+  expect(`${demo}\n${callback}`).not.toMatch(/profile[\s\S]{0,240}innerHTML/);
+});
+
+it("keeps navigation and copy provider-neutral outside provider context", async () => {
+  const files = await Promise.all(applicationSources.map((path) => readFile(path, "utf8")));
   const ui = files.join("\n");
 
   expect(files[0]).toContain('href="/demo/"');
-  expect(files[1]).toContain("globally correlatable");
-  expect(ui).not.toMatch(/Google|Twitter|GOOGLE|TWITTER|session\/start\/x|>X<|value="x"/);
   expect(ui).not.toContain("—");
 });
 
@@ -137,6 +223,7 @@ it("caps long transaction headings at narrow viewports", async () => {
 
   expect(mobile).toContain("#consent-title { font-size: clamp(2.2rem, 11vw, 3.7rem); }");
   expect(mobile).toContain("#callback-title { font-size: clamp(2.8rem, 14vw, 3.7rem); }");
+  expect(mobile).toContain(".device-app { flex-direction: column; }");
 });
 
 it("gives header and standalone links a minimum touch size", async () => {

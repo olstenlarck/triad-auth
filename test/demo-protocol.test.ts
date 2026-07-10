@@ -1,6 +1,12 @@
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { createPkce, devicePollDecision, verifyIdentityToken } from "../src/scripts/demo-protocol";
+import {
+  canonicalScopeRequest,
+  createPkce,
+  devicePollDecision,
+  fetchProviderCapabilities,
+  verifyIdentityToken,
+} from "../src/scripts/demo-protocol";
 
 const brokerOrigin = "https://auth.example";
 const issuer = `${brokerOrigin}/`;
@@ -39,12 +45,14 @@ async function token(overrides: {
   accountSub?: unknown;
   providerSub?: unknown;
   subject?: string;
+  profileClaims?: Record<string, unknown>;
 } = {}): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({
     pairwise_sub: overrides.pairwiseSub ?? "ps_demo",
     account_sub: overrides.accountSub ?? "acct_demo",
-    provider_sub: overrides.providerSub ?? "github:42",
+    provider_sub: overrides.providerSub ?? "prv_github_demo",
+    ...overrides.profileClaims,
   })
     .setProtectedHeader({ alg: "ES256", kid: overrides.kid ?? "demo-key" })
     .setSubject(overrides.subject ?? "ps_demo")
@@ -104,7 +112,7 @@ describe("browser ID token verification", () => {
     await expect(verifyIdentityToken(await token(), clientId, brokerOrigin)).resolves.toMatchObject({
       pairwiseSub: "ps_demo",
       accountSub: "acct_demo",
-      providerSub: "github:42",
+      providerSub: "prv_github_demo",
       issuer,
     });
     expect(fetch.mock.calls.map(([input]) => String(input))).toEqual([
@@ -167,6 +175,66 @@ describe("browser ID token verification", () => {
     stubMetadata();
     await expect(verifyIdentityToken(await token(overrides), clientId, brokerOrigin))
       .rejects.toThrow("identity claims");
+  });
+
+  it("returns typed optional standard claims from a verified token", async () => {
+    stubMetadata();
+
+    const verified = await verifyIdentityToken(await token({
+      profileClaims: {
+        email: "dev@example.test",
+        email_verified: true,
+        preferred_username: "triad-dev",
+        name: "Triad Developer",
+        picture: "https://images.example/avatar.png",
+      },
+    }), clientId, brokerOrigin);
+
+    expect(verified.profile).toEqual({
+      email: "dev@example.test",
+      emailVerified: true,
+      handle: "triad-dev",
+      name: "Triad Developer",
+      avatar: "https://images.example/avatar.png",
+    });
+  });
+
+  it.each([
+    ["email", { email: 42 }],
+    ["email_verified", { email: "dev@example.test", email_verified: "yes" }],
+    ["preferred_username", { preferred_username: [] }],
+    ["name", { name: {} }],
+    ["picture", { picture: false }],
+  ])("rejects a malformed optional %s claim", async (_name, profileClaims) => {
+    stubMetadata();
+
+    await expect(verifyIdentityToken(await token({ profileClaims }), clientId, brokerOrigin))
+      .rejects.toThrow("profile claims");
+  });
+});
+
+describe("provider capabilities", () => {
+  it("loads enabled providers and their exact optional scopes", async () => {
+    const fetch = vi.fn(async () => Response.json({
+      providers: [
+        { id: "google", scopes: ["email", "name", "avatar"] },
+        { id: "twitter", scopes: ["handle", "name", "avatar"] },
+      ],
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(fetchProviderCapabilities(brokerOrigin)).resolves.toEqual([
+      { id: "google", scopes: ["email", "name", "avatar"] },
+      { id: "twitter", scopes: ["handle", "name", "avatar"] },
+    ]);
+    expect(fetch).toHaveBeenCalledWith(new URL("/api/providers", brokerOrigin), { signal: undefined });
+  });
+
+  it("serializes selected supported scopes in canonical order", () => {
+    const provider = { id: "github" as const, scopes: ["email", "handle", "name", "avatar"] as const };
+
+    expect(canonicalScopeRequest(provider, ["avatar", "email", "email"])).toBe("openid email avatar");
+    expect(() => canonicalScopeRequest(provider, ["unsupported"])).toThrow("unsupported scope");
   });
 });
 

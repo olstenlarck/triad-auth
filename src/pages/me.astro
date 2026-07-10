@@ -11,10 +11,8 @@ import Shell from "../components/Shell.astro";
     </div>
 
     <div id="signed-out" class="signed-out" hidden>
-      <p>Sign in with GitHub to inspect your broker account and authorized applications.</p>
-      <div class="actions">
-        <a class="button primary" href="/session/start/github">CONTINUE WITH GITHUB</a>
-      </div>
+      <p>Choose an enabled provider to inspect your broker account and authorized applications.</p>
+      <div id="account-provider-actions" class="actions" aria-live="polite">Loading enabled providers...</div>
     </div>
 
     <div id="account-content" hidden>
@@ -38,12 +36,15 @@ import Shell from "../components/Shell.astro";
   </section>
 
   <script>
+    import { fetchProviderCapabilities } from "../scripts/demo-protocol";
+
     const content = document.querySelector<HTMLElement>("#account-content")!;
     const signedOut = document.querySelector<HTMLElement>("#signed-out")!;
     const error = document.querySelector<HTMLElement>("#me-error")!;
     const logout = document.querySelector<HTMLButtonElement>("#logout")!;
     const appCount = document.querySelector<HTMLElement>("#app-count")!;
     const list = document.querySelector<HTMLElement>("#authorized-apps")!;
+    const providerActions = document.querySelector<HTMLElement>("#account-provider-actions")!;
     let csrfToken = "";
     let remainingClients = 0;
     let loadGeneration = 0;
@@ -130,6 +131,24 @@ import Shell from "../components/Shell.astro";
       }
     }
 
+    async function renderProviderActions(signal: AbortSignal) {
+      try {
+        const providers = await fetchProviderCapabilities(location.origin, signal);
+        if (!providers.length) throw new Error("No sign-in providers are enabled.");
+        providerActions.replaceChildren();
+        for (const provider of providers) {
+          const link = document.createElement("a");
+          link.className = "button primary";
+          link.href = `/session/start/${provider.id}`;
+          link.textContent = `CONTINUE WITH ${provider.id.toUpperCase()}`;
+          providerActions.append(link);
+        }
+      } catch (reason) {
+        providerActions.textContent = "Sign-in providers could not be loaded.";
+        throw reason;
+      }
+    }
+
     async function load() {
       const generation = ++loadGeneration;
       loadController?.abort();
@@ -145,6 +164,8 @@ import Shell from "../components/Shell.astro";
           content.hidden = true;
           signedOut.hidden = false;
           list.replaceChildren();
+          providerActions.textContent = "Loading enabled providers...";
+          await renderProviderActions(controller.signal);
           return;
         }
         const body = await response.json() as {

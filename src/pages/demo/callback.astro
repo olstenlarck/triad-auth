@@ -2,7 +2,7 @@
 import Shell from "../../components/Shell.astro";
 ---
 
-<Shell title="Verify identity | Triad" description="Verify a Triad ID token returned by the GitHub authorization-code flow." mode="product">
+<Shell title="Verify identity | Triad" description="Verify a Triad ID token returned by the authorization-code flow." mode="product">
   <section class="transaction shell narrow callback" aria-labelledby="callback-title">
     <div class="transaction-head">
       <p>VERIFYING IDENTITY</p>
@@ -26,15 +26,19 @@ import Shell from "../../components/Shell.astro";
       <dl class="verified-claims">
         <div><dt>pairwise_sub</dt><dd id="callback-pairwise"></dd><small>App-scoped. Use this as triad-demo's private user key.</small></div>
         <div><dt>account_sub</dt><dd id="callback-account"></dd><small>Broker-global. Correlates this account across Triad clients.</small></div>
-        <div><dt>provider_sub</dt><dd id="callback-provider"></dd><small>GitHub-global and globally correlatable across Triad clients that receive it.</small></div>
+        <div><dt>provider_sub</dt><dd id="callback-provider"></dd><small>Provider-global and correlatable across Triad clients that receive it.</small></div>
       </dl>
+      <section id="callback-profile" class="verified-profile" aria-labelledby="callback-profile-title" hidden>
+        <h3 id="callback-profile-title">VERIFIED OPTIONAL CLAIMS</h3>
+        <dl id="callback-profile-claims"></dl>
+      </section>
       <div class="verified-meta"><span>ISSUER</span><code id="callback-issuer"></code><span>EXPIRES</span><time id="callback-expiry"></time></div>
       <a class="button primary" href="/demo/">RUN ANOTHER FLOW</a>
     </section>
   </section>
 
   <script>
-    import { fetchDiscovery, verifyIdentityToken } from "../../scripts/demo-protocol";
+    import { fetchDiscovery, verifyIdentityToken, type VerifiedProfile } from "../../scripts/demo-protocol";
 
     const clientId = "triad-demo";
     const query = new URLSearchParams(location.search);
@@ -61,12 +65,35 @@ import Shell from "../../components/Shell.astro";
       error.focus();
     }
 
+    function renderProfileClaims(profile: VerifiedProfile) {
+      const container = document.querySelector<HTMLElement>("#callback-profile-claims")!;
+      const claims: Array<[string, string | boolean | undefined]> = [
+        ["email", profile.email],
+        ["email_verified", profile.emailVerified],
+        ["preferred_username", profile.handle],
+        ["name", profile.name],
+        ["picture", profile.avatar],
+      ];
+      container.replaceChildren();
+      for (const [claim, value] of claims) {
+        if (value === undefined) continue;
+        const row = document.createElement("div");
+        const term = document.createElement("dt");
+        const description = document.createElement("dd");
+        term.textContent = claim;
+        description.textContent = String(value);
+        row.append(term, description);
+        container.append(row);
+      }
+      document.querySelector<HTMLElement>("#callback-profile")!.hidden = !container.childElementCount;
+    }
+
     if (!expectedState || !verifier || !state || state !== expectedState) {
       clearRequest();
       fail("State verification failed. No code was exchanged. Return to the demo and start a new sign-in.");
     } else if (query.get("error") === "access_denied") {
       clearRequest();
-      fail("GitHub sign-in was cancelled. Return to the demo when you are ready to try again.");
+      fail("Provider sign-in was cancelled. Return to the demo when you are ready to try again.");
     } else {
       const code = query.get("code");
       clearRequest();
@@ -96,6 +123,7 @@ import Shell from "../../components/Shell.astro";
             document.querySelector<HTMLElement>("#callback-pairwise")!.textContent = verified.pairwiseSub;
             document.querySelector<HTMLElement>("#callback-account")!.textContent = verified.accountSub;
             document.querySelector<HTMLElement>("#callback-provider")!.textContent = verified.providerSub;
+            renderProfileClaims(verified.profile);
             document.querySelector<HTMLElement>("#callback-issuer")!.textContent = verified.issuer;
             const expiry = document.querySelector<HTMLTimeElement>("#callback-expiry")!;
             expiry.dateTime = new Date(verified.expiresAt * 1_000).toISOString();

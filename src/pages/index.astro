@@ -2,14 +2,14 @@
 import Shell from "../components/Shell.astro";
 ---
 
-<Shell title="Triad | global and pairwise identity" description="A small GitHub OAuth broker with global, account, and per-app identifiers.">
+<Shell title="Triad | global and pairwise identity" description="A small identity broker with provider-global, account, and per-app identifiers.">
   <section class="hero shell">
-    <p class="hero-signal">ONE PROVIDER. THREE EXPLICIT IDS.</p>
+    <p class="hero-signal">ONE HANDSHAKE. THREE EXPLICIT IDS.</p>
     <h1>IDENTITY,<br /><span>BOTH WAYS.</span></h1>
     <div class="hero-bottom">
       <p>
         Global when your apps need continuity. Pairwise when they need isolation.
-        One small GitHub broker for browser apps and devices without keyboards.
+        One small Triad broker for browser apps and devices without keyboards.
       </p>
       <div class="actions">
         <a class="button primary" href="/demo/">TRY THE BROKER →</a>
@@ -26,8 +26,8 @@ import Shell from "../components/Shell.astro";
     <dl class="claim-ledger">
       <div>
         <dt>provider_sub</dt>
-        <dd>github:107691503...</dd>
-        <p>GitHub-global and globally correlatable across Triad clients that receive it.</p>
+        <dd>prv_twitter_R4...</dd>
+        <p>Provider-global and correlatable across Triad clients that receive it, without exposing the upstream ID.</p>
       </div>
       <div>
         <dt>account_sub</dt>
@@ -44,7 +44,7 @@ import Shell from "../components/Shell.astro";
 
   <section class="provider-band" aria-label="Supported identity providers">
     <div class="shell provider-list">
-      <span>GITHUB</span><span>AUTHORIZATION CODE + PKCE</span><span>DEVICE FLOW</span><span>ES256</span>
+      <span>GOOGLE</span><span>GITHUB</span><span>TWITTER</span><span>CODE + PKCE</span><span>DEVICE FLOW</span>
     </div>
   </section>
 
@@ -62,7 +62,7 @@ import Shell from "../components/Shell.astro";
 &amp;code_challenge_method=S256</code></pre>
     </div>
     <ol class="flow-list">
-      <li><strong>Broker GitHub.</strong><span>Triad reads GitHub's immutable numeric ID, then discards the upstream access token.</span></li>
+      <li><strong>Broker upstream.</strong><span>Triad maps the provider's immutable identity, then discards the upstream access token.</span></li>
       <li><strong>Exchange once.</strong><span>Your app exchanges the short-lived code with its PKCE verifier.</span></li>
       <li><strong>Verify locally.</strong><span>Check ES256, issuer, audience, and expiry against the published JWKS.</span></li>
     </ol>

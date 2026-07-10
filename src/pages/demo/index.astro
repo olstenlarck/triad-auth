@@ -4,7 +4,7 @@ import Shell from "../../components/Shell.astro";
 
 <Shell
   title="Try the broker | Triad"
-  description="Run Triad's GitHub authorization-code PKCE and device flows, then inspect a verified ID token."
+  description="Run Triad's authorization-code PKCE and device flows, then inspect a verified ID token."
   mode="product"
 >
   <section class="transaction shell demo" aria-labelledby="demo-title">
@@ -12,9 +12,37 @@ import Shell from "../../components/Shell.astro";
       <p>TRY THE BROKER</p>
       <h1 id="demo-title">TWO FLOWS.<br /><span>ONE IDENTITY.</span></h1>
       <p class="lede">
-        Use GitHub through the browser or a device code. Both paths finish with the same locally verified identity contract.
+        Choose an enabled provider and the optional claims this demo client requests. Both paths finish with the same locally verified identity contract.
       </p>
     </div>
+
+    <section class="demo-request" aria-labelledby="demo-request-title">
+      <div class="demo-request-heading">
+        <h2 id="demo-request-title">CONFIGURE THE CLIENT REQUEST</h2>
+        <p>Optional claims default off. Any claim selected here is mandatory for this transaction and shown again before approval.</p>
+      </div>
+      <fieldset id="provider-fieldset" disabled>
+        <legend>UPSTREAM PROVIDER</legend>
+        <div id="provider-options" class="provider-selector">
+          <template id="provider-option-template">
+            <label>
+              <input type="radio" name="demo-provider" />
+              <span></span>
+            </label>
+          </template>
+        </div>
+        <p id="provider-status" class="control-status" aria-live="polite">Loading enabled providers...</p>
+      </fieldset>
+      <fieldset id="scope-fieldset" disabled>
+        <legend>OPTIONAL CLAIM REQUEST</legend>
+        <div class="scope-selector">
+          <label><input type="checkbox" name="demo-scope" value="email" /><span>EMAIL<small>email + email_verified</small></span></label>
+          <label><input type="checkbox" name="demo-scope" value="handle" /><span>HANDLE<small>preferred_username</small></span></label>
+          <label><input type="checkbox" name="demo-scope" value="name" /><span>NAME<small>name</small></span></label>
+          <label><input type="checkbox" name="demo-scope" value="avatar" /><span>AVATAR<small>picture</small></span></label>
+        </div>
+      </fieldset>
+    </section>
 
     <div class="demo-grid">
       <section class="demo-bay" aria-labelledby="browser-demo-title">
@@ -28,11 +56,11 @@ import Shell from "../../components/Shell.astro";
         <p>Triad creates a 64-byte verifier, sends only its S256 challenge, and checks state before exchanging the returned code.</p>
         <dl class="protocol-list">
           <div><dt>CLIENT</dt><dd>triad-demo</dd></div>
-          <div><dt>PROVIDER</dt><dd>github</dd></div>
+          <div><dt>PROVIDER</dt><dd id="browser-provider">loading</dd></div>
           <div><dt>VERIFICATION</dt><dd>ES256 + JWKS</dd></div>
         </dl>
-        <p id="browser-status" class="demo-status" aria-live="polite">Ready to open GitHub in this window.</p>
-        <button id="browser-start" class="button primary demo-action" type="button">SIGN IN WITH GITHUB</button>
+        <p id="browser-status" class="demo-status" aria-live="polite">Loading enabled providers.</p>
+        <button id="browser-start" class="button primary demo-action" type="button" disabled>START BROWSER FLOW</button>
       </section>
 
       <section class="demo-bay" aria-labelledby="device-demo-title">
@@ -51,7 +79,7 @@ import Shell from "../../components/Shell.astro";
           <small id="device-expiry"></small>
         </div>
         <p id="device-status" class="demo-status" aria-live="polite">No device request is active.</p>
-        <button id="device-start" class="button primary demo-action" type="button">START DEVICE FLOW</button>
+        <button id="device-start" class="button primary demo-action" type="button" disabled>START DEVICE FLOW</button>
 
         <section id="device-identity" class="verified-result" aria-labelledby="device-result-title" hidden>
           <div class="verified-head">
@@ -61,8 +89,12 @@ import Shell from "../../components/Shell.astro";
           <dl class="verified-claims">
             <div><dt>pairwise_sub</dt><dd id="device-pairwise"></dd><small>App-scoped. Different for every client.</small></div>
             <div><dt>account_sub</dt><dd id="device-account"></dd><small>Broker-global. Correlates this account across Triad clients.</small></div>
-            <div><dt>provider_sub</dt><dd id="device-provider"></dd><small>GitHub-global and globally correlatable across Triad clients that receive it.</small></div>
+            <div><dt>provider_sub</dt><dd id="device-provider"></dd><small>Provider-global and correlatable across Triad clients that receive it.</small></div>
           </dl>
+          <section id="device-profile" class="verified-profile" aria-labelledby="device-profile-title" hidden>
+            <h4 id="device-profile-title">VERIFIED OPTIONAL CLAIMS</h4>
+            <dl id="device-profile-claims"></dl>
+          </section>
         </section>
       </section>
     </div>
@@ -71,9 +103,13 @@ import Shell from "../../components/Shell.astro";
   <script>
     import {
       createPkce,
+      canonicalScopeRequest,
       devicePollDecision,
       fetchDiscovery,
+      fetchProviderCapabilities,
       verifyIdentityToken,
+      type ProviderCapability,
+      type VerifiedProfile,
       type VerifiedIdentity,
     } from "../../scripts/demo-protocol";
 
@@ -85,6 +121,13 @@ import Shell from "../../components/Shell.astro";
     const deviceStatus = document.querySelector<HTMLElement>("#device-status")!;
     const deviceInstructions = document.querySelector<HTMLElement>("#device-instructions")!;
     const deviceIdentity = document.querySelector<HTMLElement>("#device-identity")!;
+    const providerFieldset = document.querySelector<HTMLFieldSetElement>("#provider-fieldset")!;
+    const scopeFieldset = document.querySelector<HTMLFieldSetElement>("#scope-fieldset")!;
+    const providerOptions = document.querySelector<HTMLElement>("#provider-options")!;
+    const providerStatus = document.querySelector<HTMLElement>("#provider-status")!;
+    const providerTemplate = document.querySelector<HTMLTemplateElement>("#provider-option-template")!;
+    const scopeInputs = [...document.querySelectorAll<HTMLInputElement>('input[name="demo-scope"]')];
+    let providerCapabilities: ProviderCapability[] = [];
     let pollTimer: number | undefined;
     let expiresAt = 0;
     let intervalMs = 5_000;
@@ -92,6 +135,79 @@ import Shell from "../../components/Shell.astro";
     let tokenEndpoint = "";
     let stopped = false;
     let deviceController = new AbortController();
+
+    function selectedCapability(): ProviderCapability | undefined {
+      const selected = document.querySelector<HTMLInputElement>('input[name="demo-provider"]:checked');
+      return providerCapabilities.find((provider) => provider.id === selected?.value);
+    }
+
+    function selectedScopeRequest(provider: ProviderCapability): string {
+      return canonicalScopeRequest(provider, scopeInputs.filter((input) => input.checked).map((input) => input.value));
+    }
+
+    function updateRequestControls(updateStatus = true) {
+      const selectedProvider = selectedCapability();
+      for (const input of scopeInputs) {
+        input.disabled = !selectedProvider?.scopes.some((scope) => scope === input.value);
+        if (input.disabled) input.checked = false;
+      }
+      const providerName = selectedProvider?.id.toUpperCase() ?? "PROVIDER";
+      document.querySelector<HTMLElement>("#browser-provider")!.textContent = selectedProvider?.id ?? "unavailable";
+      browserStart.textContent = `SIGN IN WITH ${providerName}`;
+      browserStart.disabled = !selectedProvider;
+      deviceStart.disabled = !selectedProvider;
+      if (selectedProvider && updateStatus) {
+        message(browserStatus, `Ready to open ${selectedProvider.id} in this window.`);
+        message(deviceStatus, "No device request is active.");
+      }
+    }
+
+    async function loadProviderControls() {
+      try {
+        providerCapabilities = await fetchProviderCapabilities();
+        if (!providerCapabilities.length) throw new Error("No providers are enabled.");
+        for (const provider of providerCapabilities) {
+          const option = providerTemplate.content.firstElementChild!.cloneNode(true) as HTMLLabelElement;
+          const input = option.querySelector<HTMLInputElement>("input")!;
+          const label = option.querySelector<HTMLElement>("span")!;
+          input.value = provider.id;
+          input.checked = provider === providerCapabilities[0];
+          label.textContent = provider.id.toUpperCase();
+          providerOptions.insertBefore(option, providerTemplate);
+        }
+        providerFieldset.disabled = false;
+        scopeFieldset.disabled = false;
+        providerStatus.textContent = "Only providers enabled by this Triad deployment appear here.";
+        updateRequestControls();
+      } catch {
+        providerStatus.textContent = "Enabled providers could not be loaded.";
+        providerStatus.dataset.tone = "error";
+        message(browserStatus, "The provider list could not be loaded. Reload and try again.", "error");
+        message(deviceStatus, "The provider list could not be loaded. Reload and try again.", "error");
+      }
+    }
+
+    function renderProfileClaims(container: HTMLElement, profile: VerifiedProfile) {
+      const claims: Array<[string, string | boolean | undefined]> = [
+        ["email", profile.email],
+        ["email_verified", profile.emailVerified],
+        ["preferred_username", profile.handle],
+        ["name", profile.name],
+        ["picture", profile.avatar],
+      ];
+      container.replaceChildren();
+      for (const [claim, value] of claims) {
+        if (value === undefined) continue;
+        const row = document.createElement("div");
+        const term = document.createElement("dt");
+        const description = document.createElement("dd");
+        term.textContent = claim;
+        description.textContent = String(value);
+        row.append(term, description);
+        container.append(row);
+      }
+      container.parentElement!.hidden = !container.childElementCount;
+    }
 
     function message(element: HTMLElement, text: string, tone: "working" | "error" | "success" = "working") {
       element.textContent = text;
@@ -113,6 +229,7 @@ import Shell from "../../components/Shell.astro";
       document.querySelector<HTMLElement>("#device-pairwise")!.textContent = identity.pairwiseSub;
       document.querySelector<HTMLElement>("#device-account")!.textContent = identity.accountSub;
       document.querySelector<HTMLElement>("#device-provider")!.textContent = identity.providerSub;
+      renderProfileClaims(document.querySelector<HTMLElement>("#device-profile-claims")!, identity.profile);
       deviceIdentity.hidden = false;
       message(deviceStatus, "Signature, issuer, audience, expiry, and identity claims verified.", "success");
       document.querySelector<HTMLElement>("#device-result-title")!.focus();
@@ -193,6 +310,9 @@ import Shell from "../../components/Shell.astro";
     }
 
     browserStart.addEventListener("click", async () => {
+      const selectedProvider = selectedCapability();
+      if (!selectedProvider) return;
+      const requestedScope = selectedScopeRequest(selectedProvider);
       browserStart.disabled = true;
       browserStart.textContent = "PREPARING PKCE";
       message(browserStatus, "Loading broker discovery and creating a one-time PKCE request.");
@@ -206,8 +326,8 @@ import Shell from "../../components/Shell.astro";
           client_id: clientId,
           redirect_uri: callback,
           response_type: "code",
-          provider: "github",
-          scope: "openid",
+          provider: selectedProvider.id,
+          scope: requestedScope,
           state: pkce.state,
           code_challenge: pkce.challenge,
           code_challenge_method: "S256",
@@ -216,11 +336,14 @@ import Shell from "../../components/Shell.astro";
       } catch {
         message(browserStatus, "The authorization request could not be started. Check the broker and try again.", "error");
         browserStart.disabled = false;
-        browserStart.textContent = "SIGN IN WITH GITHUB";
+        updateRequestControls(false);
       }
     });
 
     deviceStart.addEventListener("click", async () => {
+      const selectedProvider = selectedCapability();
+      if (!selectedProvider) return;
+      const requestedScope = selectedScopeRequest(selectedProvider);
       stopDeviceFlow();
       stopped = false;
       deviceController = new AbortController();
@@ -236,7 +359,11 @@ import Shell from "../../components/Shell.astro";
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
           signal: deviceController.signal,
-          body: new URLSearchParams({ client_id: clientId, provider: "github", scope: "openid" }),
+          body: new URLSearchParams({
+            client_id: clientId,
+            provider: selectedProvider.id,
+            scope: requestedScope,
+          }),
         });
         const body = await response.json() as {
           device_code?: string;
@@ -273,6 +400,8 @@ import Shell from "../../components/Shell.astro";
       }
     });
 
+    providerOptions.addEventListener("change", () => updateRequestControls());
     window.addEventListener("pagehide", stopDeviceFlow);
+    void loadProviderControls();
   </script>
 </Shell>

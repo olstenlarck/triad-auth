@@ -7,23 +7,24 @@ import Shell from "../../components/Shell.astro";
     <div class="transaction-head">
       <p>DEVICE FLOW</p>
       <h1 id="device-title">PAIR THIS<br /><span>DEVICE.</span></h1>
-      <p class="lede">Enter the code shown on your device, confirm the requesting app, then continue with GitHub.</p>
+      <p class="lede">Enter the code shown on your device, then confirm its app, provider, and mandatory claims.</p>
     </div>
 
     <form id="device-form" class="device-form" method="post" action="/device/verify" aria-busy="false">
       <label for="user-code">DEVICE CODE</label>
       <input id="user-code" name="user_code" inputmode="text" autocomplete="one-time-code" maxlength="9" placeholder="ABCD-2345" required />
-      <input type="hidden" name="provider" value="github" />
+      <input id="device-provider" type="hidden" name="provider" value="" />
       <input id="device-csrf" type="hidden" name="csrf_token" value="" />
       <div id="device-app" class="device-app" aria-live="polite" hidden>
-        <span>REQUESTING APP</span><strong id="device-client">PENDING</strong>
+        <div><span>REQUESTING APP</span><strong id="device-client">PENDING</strong></div>
+        <div><span>PROVIDER</span><strong id="device-provider-name">PENDING</strong></div>
       </div>
-      <div class="device-disclosure">
-        <strong>IDENTIFIERS THIS APP WILL RECEIVE</strong>
-        <p><code>pairwise_sub</code> is app-scoped. <code>account_sub</code> links your Triad account across clients. <code>provider_sub</code> is GitHub-global and globally correlatable across Triad clients that receive it.</p>
+      <div id="device-disclosure" class="device-disclosure" hidden>
+        <strong>MANDATORY CLAIMS THIS APP WILL RECEIVE</strong>
+        <div id="device-disclosures" class="disclosure-list"></div>
       </div>
       <p id="device-status" class="demo-status" aria-live="polite">Enter all eight characters to inspect the request.</p>
-      <button id="device-submit" class="button primary" type="submit" disabled>CONTINUE WITH GITHUB</button>
+      <button id="device-submit" class="button primary" type="submit" disabled>APPROVE DEVICE REQUEST</button>
     </form>
     <p id="device-error" class="error-message" role="alert" hidden></p>
     <p class="fine-print">Only continue if this code exactly matches the one on your device.</p>
@@ -33,12 +34,47 @@ import Shell from "../../components/Shell.astro";
     const form = document.querySelector<HTMLFormElement>("#device-form")!;
     const input = document.querySelector<HTMLInputElement>("#user-code")!;
     const csrf = document.querySelector<HTMLInputElement>("#device-csrf")!;
+    const provider = document.querySelector<HTMLInputElement>("#device-provider")!;
     const submit = document.querySelector<HTMLButtonElement>("#device-submit")!;
     const box = document.querySelector<HTMLElement>("#device-app")!;
+    const disclosureBox = document.querySelector<HTMLElement>("#device-disclosure")!;
+    const disclosures = document.querySelector<HTMLElement>("#device-disclosures")!;
     const status = document.querySelector<HTMLElement>("#device-status")!;
     const error = document.querySelector<HTMLElement>("#device-error")!;
     const fromUrl = new URLSearchParams(location.search).get("user_code") ?? "";
     let inspection = 0;
+
+    const disclosureDetails: Record<string, Array<[string, string, string]>> = {
+      openid: [
+        ["APP-SCOPED ID", "pairwise_sub", "Unique to this application. Different client, different value."],
+        ["BROKER ACCOUNT", "account_sub", "Stable across Triad clients and correlates this broker account between them."],
+        ["PROVIDER-GLOBAL ID", "provider_sub", "Correlatable across authorized Triad clients without exposing the upstream ID."],
+      ],
+      email: [["VERIFIED EMAIL", "email + email_verified", "Mutable profile data. Never use it as an identity key."]],
+      handle: [["PROVIDER HANDLE", "preferred_username", "The account handle reported by the selected provider."]],
+      name: [["DISPLAY NAME", "name", "The display name reported by the selected provider."]],
+      avatar: [["AVATAR URL", "picture", "The profile image URL reported by the selected provider."]],
+    };
+
+    function renderDisclosures(scopes: string[]) {
+      disclosures.replaceChildren();
+      disclosureBox.hidden = true;
+      for (const scope of scopes) {
+        const rows = disclosureDetails[scope];
+        if (!rows) throw new Error("This request contains an unsupported claim.");
+        for (const [label, claim, description] of rows) {
+          const row = document.createElement("div");
+          const labelNode = document.createElement("span");
+          const claimNode = document.createElement("strong");
+          const descriptionNode = document.createElement("small");
+          labelNode.textContent = label;
+          claimNode.textContent = claim;
+          descriptionNode.textContent = description;
+          row.append(labelNode, claimNode, descriptionNode);
+          disclosures.append(row);
+        }
+      }
+    }
 
     function format(value: string) {
       const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
@@ -48,6 +84,8 @@ import Shell from "../../components/Shell.astro";
     function clearInspection() {
       inspection += 1;
       csrf.value = "";
+      provider.value = "";
+      disclosures.replaceChildren();
       submit.disabled = true;
       box.hidden = true;
       error.hidden = true;
@@ -63,10 +101,23 @@ import Shell from "../../components/Shell.astro";
       status.textContent = "Checking this device code.";
       try {
         const response = await fetch(`/api/device/${encodeURIComponent(input.value)}`);
-        const body = await response.json() as { client_name?: string; csrf_token?: string; error_description?: string };
+        const body = await response.json() as {
+          client_name?: string;
+          provider?: string;
+          scopes?: string[];
+          csrf_token?: string;
+          error_description?: string;
+        };
         if (current !== inspection) return;
         form.setAttribute("aria-busy", "false");
-        if (!response.ok || !body.csrf_token) {
+        if (
+          !response.ok
+          || !body.csrf_token
+          || !body.provider
+          || !["google", "github", "twitter"].includes(body.provider)
+          || !Array.isArray(body.scopes)
+          || !body.scopes.includes("openid")
+        ) {
           box.hidden = true;
           error.textContent = body.error_description ?? "That device code is invalid or expired.";
           error.hidden = false;
@@ -75,11 +126,15 @@ import Shell from "../../components/Shell.astro";
           return;
         }
         document.querySelector("#device-client")!.textContent = body.client_name ?? "UNKNOWN APP";
+        document.querySelector("#device-provider-name")!.textContent = body.provider.toUpperCase();
+        provider.value = body.provider;
+        renderDisclosures(body.scopes);
+        disclosureBox.hidden = false;
         csrf.value = body.csrf_token;
         error.hidden = true;
         box.hidden = false;
         submit.disabled = false;
-        status.textContent = "Request found. Check the app and identifier disclosure before continuing.";
+        status.textContent = "Request found. Check the app, provider, and mandatory claims before approving.";
         status.dataset.tone = "success";
       } catch {
         if (current !== inspection) return;
@@ -105,7 +160,7 @@ import Shell from "../../components/Shell.astro";
         return;
       }
       submit.disabled = true;
-      submit.textContent = "OPENING GITHUB";
+      submit.textContent = "APPROVING REQUEST";
       form.setAttribute("aria-busy", "true");
       error.hidden = true;
       try {
@@ -114,7 +169,7 @@ import Shell from "../../components/Shell.astro";
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
             user_code: input.value,
-            provider: "github",
+            provider: provider.value,
             csrf_token: csrf.value,
           }),
         });
@@ -126,7 +181,7 @@ import Shell from "../../components/Shell.astro";
       } catch (reason) {
         csrf.value = "";
         submit.disabled = true;
-        submit.textContent = "CONTINUE WITH GITHUB";
+        submit.textContent = "APPROVE DEVICE REQUEST";
         form.setAttribute("aria-busy", "false");
         status.textContent = "The request must be inspected again before continuing.";
         status.dataset.tone = "error";

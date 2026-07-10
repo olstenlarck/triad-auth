@@ -11,7 +11,7 @@ interface Props {
 
 const {
   title,
-  description = "A small GitHub identity broker with explicit global, account, and per-app identifiers.",
+  description = "A small identity broker with explicit provider-global, account, and per-app identifiers.",
   mode = "brand",
 } = Astro.props;
 ---
@@ -34,12 +34,12 @@ const {
         <a class="nav-demo" href="/demo/">DEMO</a>
         <a class="nav-secondary" href="/.well-known/openid-configuration">DISCOVERY</a>
         <a class="nav-secondary" href="/me/">ME</a>
-        <a href="https://github.com/olstenlarck/triad-auth">GITHUB ↗</a>
+        <a href="https://github.com/olstenlarck/triad-auth">SOURCE ↗</a>
       </nav>
     </header>
     <main id="content"><slot /></main>
     <footer class="site-footer shell">
-      <span>GITHUB UPSTREAM</span>
+      <span>MULTI-PROVIDER UPSTREAM</span>
       <span>AUTHORIZATION CODE + DEVICE FLOW</span>
       <span>OPEN SOURCE</span>
     </footer>
