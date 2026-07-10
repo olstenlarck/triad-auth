@@ -28,6 +28,7 @@ import Shell from "../components/Shell.astro";
     <div class="actions transaction-actions">
       <button id="approve" class="button primary" type="button" disabled>CONTINUE WITH GITHUB</button>
       <button id="deny" class="button secondary" type="button" disabled>DENY REQUEST</button>
+      <a id="consent-restart" class="button secondary" href="/demo/" hidden>RETURN TO DEMO</a>
     </div>
     <p class="fine-print">The app receives signed identifiers, not access to your GitHub account.</p>
   </section>
@@ -38,11 +39,19 @@ import Shell from "../components/Shell.astro";
     const approve = document.querySelector<HTMLButtonElement>("#approve")!;
     const deny = document.querySelector<HTMLButtonElement>("#deny")!;
     const error = document.querySelector<HTMLElement>("#consent-error")!;
+    const restart = document.querySelector<HTMLAnchorElement>("#consent-restart")!;
     let csrfToken = "";
 
+    function resetActions() {
+      approve.textContent = "CONTINUE WITH GITHUB";
+      deny.textContent = "DENY REQUEST";
+    }
+
     function fail(message: string) {
+      resetActions();
       error.textContent = message;
       error.hidden = false;
+      restart.hidden = false;
       panel.setAttribute("aria-busy", "false");
       approve.disabled = true;
       deny.disabled = true;
@@ -52,7 +61,10 @@ import Shell from "../components/Shell.astro";
       if (!request || !csrfToken) return fail("This request is not ready. Reload the page to inspect it again.");
       approve.disabled = true;
       deny.disabled = true;
-      approve.textContent = action === "approve" ? "OPENING GITHUB" : "DENYING REQUEST";
+      error.hidden = true;
+      restart.hidden = true;
+      const active = action === "approve" ? approve : deny;
+      active.textContent = action === "approve" ? "OPENING GITHUB" : "DENYING REQUEST";
       try {
         const response = await fetch(`/api/consent/${encodeURIComponent(request)}/${action}`, {
           method: "POST",

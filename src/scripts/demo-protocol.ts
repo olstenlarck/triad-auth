@@ -79,23 +79,27 @@ export function devicePollDecision(error: string, intervalMs: number): DevicePol
   return { continuePolling: false, intervalMs, message: "The device flow could not be completed. Start again." };
 }
 
-export async function fetchDiscovery(brokerOrigin = location.origin): Promise<DiscoveryDocument> {
+export async function fetchDiscovery(
+  brokerOrigin = location.origin,
+  signal?: AbortSignal,
+): Promise<DiscoveryDocument> {
   const endpoint = new URL("/.well-known/openid-configuration", brokerOrigin);
-  return discoveryDocument(await json(await fetch(endpoint)));
+  return discoveryDocument(await json(await fetch(endpoint, { signal })));
 }
 
 export async function verifyIdentityToken(
   token: string,
   clientId: string,
   brokerOrigin = location.origin,
+  signal?: AbortSignal,
 ): Promise<VerifiedIdentity> {
-  const discovery = await fetchDiscovery(brokerOrigin);
+  const discovery = await fetchDiscovery(brokerOrigin, signal);
   const protectedHeader = decodeProtectedHeader(token);
   if (protectedHeader.alg !== "ES256" || typeof protectedHeader.kid !== "string") {
     throw new Error("The token has no matching ES256 signing key.");
   }
 
-  const jwks = await json(await fetch(discovery.jwks_uri));
+  const jwks = await json(await fetch(discovery.jwks_uri, { signal }));
   const keys = jwks && typeof jwks === "object" && Array.isArray((jwks as { keys?: unknown }).keys)
     ? (jwks as { keys: Record<string, unknown>[] }).keys
     : [];

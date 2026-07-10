@@ -66,6 +66,40 @@ it("submits transaction-bound CSRF tokens from both product forms", async () => 
   expect(device).not.toContain('value="x"');
 });
 
+it("keeps device verification navigation under same-origin JavaScript control", async () => {
+  const device = await readFile("src/pages/device/verify.astro", "utf8");
+  const submitHandler = device.slice(device.indexOf('form.addEventListener("submit"'));
+
+  expect(submitHandler.indexOf("event.preventDefault();")).toBeLessThan(submitHandler.indexOf("if (!csrf.value)"));
+  expect(submitHandler).toContain('fetch("/device/verify"');
+  expect(submitHandler).toContain('"content-type": "application/x-www-form-urlencoded"');
+  expect(submitHandler).toContain("redirect_to?: string");
+  expect(submitHandler).toContain("location.assign(body.redirect_to)");
+});
+
+it("aborts device requests and prevents rescheduling after pagehide", async () => {
+  const demo = await readFile("src/pages/demo/index.astro", "utf8");
+
+  expect(demo).toContain("let stopped = false");
+  expect(demo).toContain("new AbortController()");
+  expect(demo).toContain("deviceController.abort()");
+  expect(demo.match(/signal: deviceController\.signal/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  expect(demo.match(/if \(stopped\) return;/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+  expect(demo).toContain('window.addEventListener("pagehide", stopDeviceFlow)');
+});
+
+it("uses accurate consent action labels and a stable recovery route", async () => {
+  const consent = await readFile("src/pages/consent.astro", "utf8");
+
+  expect(consent).toContain('id="consent-restart"');
+  expect(consent).toContain('href="/demo/"');
+  expect(consent).toContain('const active = action === "approve" ? approve : deny');
+  expect(consent).toContain("active.textContent = action ===");
+  expect(consent).toContain('approve.textContent = "CONTINUE WITH GITHUB"');
+  expect(consent).toContain('deny.textContent = "DENY REQUEST"');
+  expect(consent).not.toContain("approve.textContent = action ===");
+});
+
 it("keeps all navigation and product copy GitHub-only", async () => {
   const files = await Promise.all([
     "src/components/Shell.astro",

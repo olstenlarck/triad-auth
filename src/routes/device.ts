@@ -147,7 +147,7 @@ deviceRoutes.post("/device/verify", async (c) => {
     VALUES (?, 'device', ?, 'github', ?, ?, ?)`).bind(
       await sha256(upstreamState), grant.client_id, grant.device_code_hash, now() + 600, now(),
     ).run();
-  return c.redirect(start.url, 302);
+  return c.json({ redirect_to: start.url });
 });
 
 deviceRoutes.onError((error, c) => {

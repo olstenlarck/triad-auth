@@ -56,7 +56,7 @@ async function token(overrides: {
 }
 
 function stubMetadata(keys: Record<string, unknown>[] = [publicJwk]) {
-  const fetch = vi.fn(async (input: string | URL | Request) => {
+  const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     if (url === `${brokerOrigin}/.well-known/openid-configuration`) {
       return Response.json({
@@ -111,6 +111,16 @@ describe("browser ID token verification", () => {
       `${brokerOrigin}/.well-known/openid-configuration`,
       `${brokerOrigin}/.well-known/jwks.json`,
     ]);
+  });
+
+  it("passes one abort signal through discovery and JWKS verification requests", async () => {
+    const fetch = stubMetadata();
+    const controller = new AbortController();
+
+    await verifyIdentityToken(await token(), clientId, brokerOrigin, controller.signal);
+
+    expect(fetch.mock.calls).toHaveLength(2);
+    expect(fetch.mock.calls.every(([, init]) => init?.signal === controller.signal)).toBe(true);
   });
 
   it("rejects a token whose signing key does not match", async () => {

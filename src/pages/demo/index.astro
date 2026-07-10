@@ -90,6 +90,8 @@ import Shell from "../../components/Shell.astro";
     let intervalMs = 5_000;
     let activeDeviceCode = "";
     let tokenEndpoint = "";
+    let stopped = false;
+    let deviceController = new AbortController();
 
     function message(element: HTMLElement, text: string, tone: "working" | "error" | "success" = "working") {
       element.textContent = text;
@@ -99,6 +101,12 @@ import Shell from "../../components/Shell.astro";
     function stopPolling() {
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
       pollTimer = undefined;
+    }
+
+    function stopDeviceFlow() {
+      stopped = true;
+      stopPolling();
+      deviceController.abort();
     }
 
     function renderIdentity(identity: VerifiedIdentity) {
@@ -111,28 +119,32 @@ import Shell from "../../components/Shell.astro";
     }
 
     function schedulePoll() {
+      if (stopped) return;
       const remaining = expiresAt - Date.now();
       if (remaining <= 0) {
         message(deviceStatus, "This device code expired. Start a new device flow.", "error");
         deviceStart.disabled = false;
         deviceStart.textContent = "START NEW DEVICE FLOW";
+        stopDeviceFlow();
         return;
       }
       pollTimer = window.setTimeout(pollDevice, Math.min(intervalMs, remaining));
     }
 
     async function pollDevice() {
+      if (stopped) return;
       if (!activeDeviceCode || Date.now() >= expiresAt) {
         message(deviceStatus, "This device code expired. Start a new device flow.", "error");
         deviceStart.disabled = false;
         deviceStart.textContent = "START NEW DEVICE FLOW";
-        stopPolling();
+        stopDeviceFlow();
         return;
       }
       try {
         const response = await fetch(tokenEndpoint, {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
+          signal: deviceController.signal,
           body: new URLSearchParams({
             grant_type: deviceGrantType,
             client_id: clientId,
@@ -140,10 +152,19 @@ import Shell from "../../components/Shell.astro";
           }),
         });
         const body = await response.json() as { id_token?: string; error?: string };
+        if (stopped) return;
         if (response.ok && body.id_token) {
           stopPolling();
           message(deviceStatus, "Token received. Verifying its signature and claims.");
-          renderIdentity(await verifyIdentityToken(body.id_token, clientId));
+          const verified = await verifyIdentityToken(
+            body.id_token,
+            clientId,
+            location.origin,
+            deviceController.signal,
+          );
+          if (stopped) return;
+          stopDeviceFlow();
+          renderIdentity(verified);
           deviceStart.disabled = false;
           deviceStart.textContent = "START NEW DEVICE FLOW";
           return;
@@ -153,6 +174,7 @@ import Shell from "../../components/Shell.astro";
           const decision = devicePollDecision(body.error, intervalMs);
           intervalMs = decision.intervalMs;
           message(deviceStatus, decision.message);
+          if (stopped) return;
           schedulePoll();
           return;
         }
@@ -160,12 +182,13 @@ import Shell from "../../components/Shell.astro";
         message(deviceStatus, decision.message, "error");
         deviceStart.disabled = false;
         deviceStart.textContent = "START NEW DEVICE FLOW";
-        stopPolling();
-      } catch {
+        stopDeviceFlow();
+      } catch (reason) {
+        if (stopped || (reason instanceof DOMException && reason.name === "AbortError")) return;
         message(deviceStatus, "The device flow could not be verified. Check your connection and start again.", "error");
         deviceStart.disabled = false;
         deviceStart.textContent = "START NEW DEVICE FLOW";
-        stopPolling();
+        stopDeviceFlow();
       }
     }
 
@@ -198,17 +221,21 @@ import Shell from "../../components/Shell.astro";
     });
 
     deviceStart.addEventListener("click", async () => {
-      stopPolling();
+      stopDeviceFlow();
+      stopped = false;
+      deviceController = new AbortController();
       deviceStart.disabled = true;
       deviceStart.textContent = "REQUESTING CODE";
       deviceIdentity.hidden = true;
       deviceInstructions.hidden = true;
       message(deviceStatus, "Requesting a one-time device code.");
       try {
-        const discovery = await fetchDiscovery();
+        const discovery = await fetchDiscovery(location.origin, deviceController.signal);
+        if (stopped) return;
         const response = await fetch(discovery.device_authorization_endpoint, {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
+          signal: deviceController.signal,
           body: new URLSearchParams({ client_id: clientId, provider: "github", scope: "openid" }),
         });
         const body = await response.json() as {
@@ -219,6 +246,7 @@ import Shell from "../../components/Shell.astro";
           interval?: number;
           error_description?: string;
         };
+        if (stopped) return;
         if (!response.ok || !body.device_code || !body.user_code || !body.verification_uri_complete
           || typeof body.expires_in !== "number" || typeof body.interval !== "number") {
           throw new Error(body.error_description ?? "invalid device response");
@@ -234,14 +262,17 @@ import Shell from "../../components/Shell.astro";
         deviceInstructions.hidden = false;
         deviceStart.textContent = "FLOW IN PROGRESS";
         message(deviceStatus, "Waiting for browser approval.");
+        if (stopped) return;
         schedulePoll();
-      } catch {
+      } catch (reason) {
+        if (stopped || (reason instanceof DOMException && reason.name === "AbortError")) return;
         message(deviceStatus, "A device code could not be issued. Check the broker and try again.", "error");
         deviceStart.disabled = false;
         deviceStart.textContent = "START DEVICE FLOW";
+        stopDeviceFlow();
       }
     });
 
-    window.addEventListener("pagehide", stopPolling);
+    window.addEventListener("pagehide", stopDeviceFlow);
   </script>
 </Shell>

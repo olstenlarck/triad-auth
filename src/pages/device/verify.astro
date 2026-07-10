@@ -97,9 +97,9 @@ import Shell from "../../components/Shell.astro";
       clearInspection();
       if (input.value.replace(/[^A-Z0-9]/g, "").length === 8) void inspect();
     });
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
       if (!csrf.value) {
-        event.preventDefault();
         error.textContent = "Inspect a valid device code before continuing.";
         error.hidden = false;
         return;
@@ -107,6 +107,32 @@ import Shell from "../../components/Shell.astro";
       submit.disabled = true;
       submit.textContent = "OPENING GITHUB";
       form.setAttribute("aria-busy", "true");
+      error.hidden = true;
+      try {
+        const response = await fetch("/device/verify", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            user_code: input.value,
+            provider: "github",
+            csrf_token: csrf.value,
+          }),
+        });
+        const body = await response.json() as { redirect_to?: string; error_description?: string };
+        if (!response.ok || !body.redirect_to) {
+          throw new Error(body.error_description ?? "The device request could not be started.");
+        }
+        location.assign(body.redirect_to);
+      } catch (reason) {
+        csrf.value = "";
+        submit.disabled = true;
+        submit.textContent = "CONTINUE WITH GITHUB";
+        form.setAttribute("aria-busy", "false");
+        status.textContent = "The request must be inspected again before continuing.";
+        status.dataset.tone = "error";
+        error.textContent = reason instanceof Error ? reason.message : "The device request could not be started.";
+        error.hidden = false;
+      }
     });
     if (fromUrl) void inspect();
   </script>

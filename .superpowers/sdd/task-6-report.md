@@ -51,3 +51,32 @@ Executed after the final self-review correction:
 
 - The production `triad-demo` redirect URI is intentionally not invented in this task. Replace/finalize the local URI during deployment, then apply the final production migration/configuration before live smoke testing.
 - This harness has no browser screenshot or interaction tool, so visual desktop/mobile inspection and an end-to-end live GitHub sign-in were not run here. Static production builds, source contracts, JOSE tests, route tests, and responsive CSS were verified. Live browser smoke testing still requires a running local or deployed broker with GitHub credentials.
+
+## Task 6 Review Follow-Up
+
+The review findings were addressed in a separate follow-up commit; its SHA is returned in the task handoff.
+
+### Corrections
+
+- Changed successful `POST /device/verify` responses from a cross-origin 302 to same-origin JSON containing `redirect_to`. The page now prevents native submission before validation, sends the existing form-encoded user code/provider/CSRF values with `fetch`, validates the JSON response, and calls `location.assign` itself. CSP `form-action 'self'` is no longer involved in the GitHub navigation.
+- Preserved server-side exact-origin validation before body parsing, bounded form parsing, duplicate-parameter rejection, GitHub provider allowlist validation, purpose-bound one-time CSRF consumption, and OAuth transaction creation.
+- Added a device-flow `stopped` flag and `AbortController`. The signal now covers discovery, device issuance, token polling, and discovery/JWKS requests during token verification. `pagehide` clears the timer and aborts the controller; stopped checks after asynchronous boundaries and before scheduling prevent post-hide polling or UI updates.
+- Corrected consent loading copy so approve changes only to `OPENING GITHUB` and deny changes only to `DENYING REQUEST`. Every failure restores both canonical labels, disables the stale transaction controls, and reveals a stable `RETURN TO DEMO` recovery route.
+
+### Follow-Up TDD Evidence
+
+- The device route test failed first on the old `[302, 403]` result and passed after the successful response became `[200, 403]` with a GitHub `redirect_to` value.
+- UI assertions failed first because submit prevention occurred only after the CSRF branch, no same-origin verification fetch existed, no stopped/controller lifecycle existed, and consent had no per-action control or recovery route.
+- Abort propagation failed first because discovery and JWKS fetches received no signal, then passed after the shared protocol helper accepted and forwarded one `AbortSignal`.
+
+### Follow-Up Verification
+
+- `pnpm vitest run test/ui.test.ts test/device.test.ts test/oauth.test.ts test/demo-protocol.test.ts`: PASS, 4 files and 84 tests.
+- `pnpm build`: PASS, 6 pages built and 3 CSP script hashes regenerated from 6 HTML files.
+- `pnpm test`: PASS, 9 files and 111 tests.
+- `pnpm typecheck`: PASS, zero TypeScript errors.
+- `git diff --check`: PASS, no whitespace errors.
+
+### Follow-Up Concerns
+
+- Production redirect finalization and live browser/GitHub smoke testing remain deployment work. README and PRODUCT synchronization remains explicitly assigned to Task 8.

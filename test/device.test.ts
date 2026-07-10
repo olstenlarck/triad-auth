@@ -371,10 +371,11 @@ describe("device authorization", () => {
       app.request("/device/verify", verifyDevice(userCode, csrf), env),
       app.request("/device/verify", verifyDevice(userCode, csrf), env),
     ]);
-    expect(responses.map((response) => response.status).sort()).toEqual([302, 403]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 403]);
     expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(1);
-    expect(responses.find((response) => response.status === 302)?.headers.get("location"))
-      .toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize\?/);
+    await expect(responses.find((response) => response.status === 200)?.json()).resolves.toMatchObject({
+      redirect_to: expect.stringMatching(/^https:\/\/github\.com\/login\/oauth\/authorize\?/),
+    });
   });
 
   it.each(["user_code", "provider", "csrf_token"])(
