@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import app from "../src/index";
 import { cspScriptHashes } from "../src/generated/csp-script-hashes";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken, noStore, securityHeaders } from "../src/security";
@@ -123,6 +123,14 @@ describe("browser and response safety", () => {
 
   it("rotates one active token per purpose and prunes expired rows during issuance", async () => {
     const { db, close } = await createTestDb();
+    const randomValues = crypto.getRandomValues.bind(crypto);
+    const random = vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      if (array.byteLength === 1) {
+        (array as Uint8Array).fill(0);
+        return array;
+      }
+      return randomValues(array);
+    });
     try {
       const first = await createCsrfToken(db, "consent");
       await db.prepare("INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, 0, 0)")
@@ -136,6 +144,7 @@ describe("browser and response safety", () => {
       await expect(consumeCsrfToken(db, first, "consent")).resolves.toBe(false);
       await expect(consumeCsrfToken(db, second, "consent")).resolves.toBe(true);
     } finally {
+      random.mockRestore();
       close();
     }
   });

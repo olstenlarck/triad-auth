@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
+import { cleanupExpiredState } from "../cleanup";
 import { getClient, validateClient } from "../db";
 import { startProvider } from "../providers";
 import { createPreAuthBinding, setPreAuthCookie } from "../pre-auth";
@@ -53,11 +54,12 @@ deviceRoutes.post("/device/code", async (c) => {
   const client = await getClient(c.env.DB, clientId);
   if (!client) return oauthError("invalid_client");
   try {
-    validateClient(client, null, "github");
+    validateClient(client, null, "github", c.env.ISSUER);
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message);
   }
 
+  await cleanupExpiredState(c.env.DB);
   const deviceCode = randomToken(32);
   const deviceCodeHash = await sha256(deviceCode);
   let userCode = "";
@@ -105,7 +107,7 @@ deviceRoutes.get("/api/device/:code", async (c) => {
   const client = await getClient(c.env.DB, row.client_id);
   if (!client) return oauthError("unauthorized_client", undefined, 404);
   try {
-    validateClient(client, null, "github");
+    validateClient(client, null, "github", c.env.ISSUER);
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message, 404);
   }
@@ -136,7 +138,7 @@ deviceRoutes.post("/device/verify", async (c) => {
   const client = await getClient(c.env.DB, grant.client_id);
   if (!client) return oauthError("unauthorized_client");
   try {
-    validateClient(client, null, "github");
+    validateClient(client, null, "github", c.env.ISSUER);
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message);
   }
@@ -152,6 +154,7 @@ deviceRoutes.post("/device/verify", async (c) => {
   const stateHash = await sha256(upstreamState);
   const start = startProvider(c.env, upstreamState);
   const binding = await createPreAuthBinding();
+  await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
     (state_hash, kind, client_id, provider, device_code_hash, browser_binding_hash, expires_at, created_at)
     VALUES (?, 'device', ?, 'github', ?, ?, ?, ?)`).bind(

@@ -207,25 +207,36 @@ describe("public route rate limits", () => {
     await expectLimited(await app.request("/callback/github", { headers: ipHeaders }, env));
   });
 
-  it("limits only device token polls and preserves the OAuth slow_down response", async () => {
+  it("limits every token grant type before client or grant lookups and preserves device slow_down", async () => {
     const env = await testEnv();
-    const deviceRequest = {
+    const unsupportedRequest = {
       method: "POST",
       headers: { ...ipHeaders, "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        client_id: "triad-demo",
-        device_code: "d".repeat(43),
+        grant_type: "unsupported",
+        client_id: "unknown",
       }),
     };
     for (let attempt = 0; attempt < 60; attempt++) {
-      const response = await app.request("/token", deviceRequest, env);
+      const response = await app.request("/token", unsupportedRequest, env);
       expect(response.status).toBe(400);
-      await expect(response.json()).resolves.toMatchObject({ error: "invalid_grant" });
+      await expect(response.json()).resolves.toMatchObject({ error: "invalid_client" });
     }
-    const limited = await app.request("/token", deviceRequest, env);
-    expect(limited.status).toBe(400);
-    await expect(limited.json()).resolves.toMatchObject({ error: "slow_down" });
+
+    let protectedLookups = 0;
+    const db = env.DB;
+    env.DB = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property !== "prepare") {
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === "function" ? value.bind(target) : value;
+        }
+        return (query: string) => {
+          if (/FROM (?:clients|authorization_codes|device_grants)\b/i.test(query)) protectedLookups++;
+          return target.prepare(query);
+        };
+      },
+    });
 
     const authorizationCode = await app.request("/token", {
       method: "POST",
@@ -233,12 +244,25 @@ describe("public route rate limits", () => {
       body: new URLSearchParams({
         grant_type: "authorization_code",
         client_id: "triad-demo",
-        redirect_uri: "http://localhost:8787/demo/callback/",
+        redirect_uri: "https://auth.example/demo/callback/",
         code: "invalid",
         code_verifier: "A".repeat(43),
       }),
     }, env);
-    await expect(authorizationCode.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    await expectLimited(authorizationCode);
+
+    const device = await app.request("/token", {
+      method: "POST",
+      headers: { ...ipHeaders, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        client_id: "triad-demo",
+        device_code: "d".repeat(43),
+      }),
+    }, env);
+    expect(device.status).toBe(400);
+    await expect(device.json()).resolves.toMatchObject({ error: "slow_down" });
+    expect(protectedLookups).toBe(0);
   });
 
   it("does not write database or OAuth artifacts to error logs", async () => {

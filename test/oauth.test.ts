@@ -8,7 +8,7 @@ import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
 
 const issuer = "https://auth.example";
-const redirectUri = "http://localhost:8787/demo/callback/";
+const redirectUri = `${issuer}/demo/callback/`;
 let signingPrivateJwk: string;
 const cleanups: Array<() => void> = [];
 
@@ -22,13 +22,13 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function testEnv(): Promise<Env> {
+async function testEnv(canonicalIssuer = issuer): Promise<Env> {
   const { db, close } = await createTestDb();
   cleanups.push(close);
   return {
     DB: db,
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
-    ISSUER: issuer,
+    ISSUER: canonicalIssuer,
     SIGNING_PRIVATE_JWK: signingPrivateJwk,
     PAIRWISE_SECRET: "p".repeat(32),
     GITHUB_CLIENT_ID: "github-client",
@@ -161,6 +161,33 @@ async function seedAuthorizationCode(env: Env, values: {
 }
 
 describe("authorization-code routes", () => {
+  it.each([
+    ["local", "http://localhost:8787"],
+    ["production", "https://auth.example"],
+  ])("derives the exact %s demo callback from the canonical issuer", async (_environment, canonicalIssuer) => {
+    const env = await testEnv(canonicalIssuer);
+    const callback = `${canonicalIssuer}/demo/callback/`;
+
+    const accepted = await app.request(authorizeUrl({ redirect_uri: callback }), undefined, env);
+    expect(accepted.status).toBe(302);
+
+    for (const rejected of [
+      `${canonicalIssuer}/demo/callback`,
+      "https://other.example/demo/callback/",
+    ]) {
+      const response = await app.request(authorizeUrl({ redirect_uri: rejected }), undefined, env);
+      expect(response.status).toBe(400);
+      expect(response.headers.has("location")).toBe(false);
+    }
+  });
+
+  it("advertises only pairwise subject identifiers", async () => {
+    const response = await app.request("/.well-known/openid-configuration", undefined, await testEnv());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ subject_types_supported: ["pairwise"] });
+  });
+
   it("binds an approved consent callback to the browser that started GitHub", async () => {
     const env = await testEnv();
     const { request, csrf } = await beginConsent(env);

@@ -108,9 +108,9 @@ CREATE TABLE csrf_tokens (
   created_at INTEGER NOT NULL
 );
 
--- Same-origin local demo client. Finalize the production URI during deployment.
+-- The built-in demo callback is derived from the Worker's canonical ISSUER.
 INSERT INTO clients (client_id, name, redirect_uris, providers, created_at)
-VALUES ('triad-demo', 'Triad demo', '["http://localhost:8787/demo/callback/"]', '["github"]', unixepoch());
+VALUES ('triad-demo', 'Triad demo', '[]', '["github"]', unixepoch());
 
 INSERT INTO clients (client_id, name, redirect_uris, providers, created_at)
 VALUES ('triad-account', 'Triad account', '[]', '["github"]', unixepoch());

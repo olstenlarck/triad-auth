@@ -539,9 +539,14 @@ describe("device token exchange", () => {
   it("expires old grants and bounds the device code before hashing", async () => {
     const env = await testEnv();
     const { deviceCode } = await seedGrant(env, { expiresIn: -1 });
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
+      (array as Uint8Array).fill(0);
+      return array;
+    });
 
     const expired = await app.request("/token", deviceTokenRequest(deviceCode), env);
     await expect(expired.json()).resolves.toMatchObject({ error: "expired_token" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants").first("count")).toBe(0);
     const oversized = await app.request("/token", deviceTokenRequest("a".repeat(129)), env);
     await expect(oversized.json()).resolves.toMatchObject({ error: "invalid_grant" });
   });

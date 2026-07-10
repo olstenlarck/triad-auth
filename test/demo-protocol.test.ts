@@ -68,7 +68,7 @@ function stubMetadata(keys: Record<string, unknown>[] = [publicJwk]) {
         response_types_supported: ["code"],
         grant_types_supported: ["authorization_code", "urn:ietf:params:oauth:grant-type:device_code"],
         code_challenge_methods_supported: ["S256"],
-        subject_types_supported: ["public", "pairwise"],
+        subject_types_supported: ["pairwise"],
         id_token_signing_alg_values_supported: ["ES256"],
       });
     }

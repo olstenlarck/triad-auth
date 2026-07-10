@@ -24,8 +24,15 @@ export async function getClient(db: D1Database, clientId: string): Promise<Clien
     .bind(clientId).first<ClientRow>();
 }
 
-export function validateClient(client: ClientRow, redirectUri: string | null, provider: ProviderName): void {
-  const redirectUris: unknown = JSON.parse(client.redirect_uris);
+export function validateClient(
+  client: ClientRow,
+  redirectUri: string | null,
+  provider: ProviderName,
+  issuer: string,
+): void {
+  const redirectUris: unknown = client.client_id === "triad-demo"
+    ? [`${issuer}/demo/callback/`]
+    : JSON.parse(client.redirect_uris);
   const providers: unknown = JSON.parse(client.providers);
   if (!Array.isArray(redirectUris) || !redirectUris.every((value) => typeof value === "string")
     || !Array.isArray(providers) || !providers.every((value) => typeof value === "string")) {
@@ -154,10 +161,24 @@ export async function resolveIdentity(db: D1Database, identity: ProviderIdentity
 
   const accountId = `acct_${randomToken(18)}`;
   const now = Math.floor(Date.now() / 1000);
-  await db.batch([
-    db.prepare("INSERT INTO accounts (id, created_at) VALUES (?, ?)").bind(accountId, now),
-    db.prepare("INSERT INTO identities (provider, provider_user_id, account_id, created_at) VALUES (?, ?, ?, ?)")
-      .bind(identity.provider, identity.id, accountId, now),
-  ]);
-  return accountId;
+  await db.prepare("INSERT OR IGNORE INTO accounts (id, created_at) VALUES (?, ?)").bind(accountId, now).run();
+  try {
+    await db.prepare(`INSERT OR IGNORE INTO identities
+      (provider, provider_user_id, account_id, created_at) VALUES (?, ?, ?, ?)`)
+      .bind(identity.provider, identity.id, accountId, now).run();
+    const winner = await db.prepare("SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?")
+      .bind(identity.provider, identity.id).first<{ account_id: string }>();
+    if (!winner) throw new Error("identity resolution failed");
+    if (winner.account_id !== accountId) {
+      await db.prepare(`DELETE FROM accounts WHERE id = ?
+        AND NOT EXISTS (SELECT 1 FROM identities WHERE account_id = ?)`)
+        .bind(accountId, accountId).run();
+    }
+    return winner.account_id;
+  } catch (error) {
+    await db.prepare(`DELETE FROM accounts WHERE id = ?
+      AND NOT EXISTS (SELECT 1 FROM identities WHERE account_id = ?)`)
+      .bind(accountId, accountId).run();
+    throw error;
+  }
 }

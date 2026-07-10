@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
+import { cleanupExpiredState } from "../cleanup";
 import { randomToken, sha256, timingSafeEqual } from "../crypto";
 import {
   approveDeviceGrant,
@@ -125,6 +126,7 @@ async function rotateBrowserSession(
   c: Context<{ Bindings: Env }>,
   accountId: string,
 ): Promise<void> {
+  await cleanupExpiredState(c.env.DB);
   const session = randomToken();
   const oldSession = getCookie(c, "triad_session");
   const statements = [];
@@ -151,6 +153,11 @@ oauthRoutes.use("*", async (c, next) => {
   c.header("pragma", "no-cache");
 });
 
+oauthRoutes.use("/token", async (c, next) => {
+  await next();
+  await cleanupExpiredState(c.env.DB);
+});
+
 oauthRoutes.get("/.well-known/openid-configuration", (c) => c.json({
   issuer: c.env.ISSUER,
   authorization_endpoint: `${c.env.ISSUER}/authorize`,
@@ -160,7 +167,7 @@ oauthRoutes.get("/.well-known/openid-configuration", (c) => c.json({
   response_types_supported: ["code"],
   grant_types_supported: ["authorization_code", "urn:ietf:params:oauth:grant-type:device_code"],
   code_challenge_methods_supported: ["S256"],
-  subject_types_supported: ["public", "pairwise"],
+  subject_types_supported: ["pairwise"],
   id_token_signing_alg_values_supported: ["ES256"],
 }));
 
@@ -190,12 +197,13 @@ oauthRoutes.get("/authorize", async (c) => {
   const client = await getClient(c.env.DB, q.client_id);
   if (!client) return oauthError("unauthorized_client");
   try {
-    validateClient(client, q.redirect_uri, "github");
+    validateClient(client, q.redirect_uri, "github", c.env.ISSUER);
   } catch (error) {
     return oauthError("invalid_request", (error as Error).message);
   }
 
   const request = randomToken();
+  await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO consent_requests
     (request_hash, client_id, redirect_uri, app_state, provider, code_challenge, scopes, expires_at, created_at)
     VALUES (?, ?, ?, ?, 'github', ?, '["openid"]', ?, ?)`).bind(
@@ -237,6 +245,7 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
   const stateHash = await sha256(upstreamState);
   const start = startProvider(c.env, upstreamState);
   const binding = await createPreAuthBinding();
+  await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO oauth_transactions
     (state_hash, kind, client_id, redirect_uri, app_state, provider, code_challenge,
       browser_binding_hash, expires_at, created_at)
@@ -322,6 +331,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
 
   if (!tx.redirect_uri || !tx.code_challenge) return oauthError("server_error", undefined, 500);
   const authCode = randomToken();
+  await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(`INSERT INTO authorization_codes
     (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(
@@ -338,9 +348,10 @@ oauthRoutes.post("/token", async (c) => {
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) return form;
   const grantType = form.get("grant_type") ?? "";
-  if (grantType === "urn:ietf:params:oauth:grant-type:device_code"
-    && !(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "device-poll", 60))) {
-    return oauthError("slow_down");
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "token", 60))) {
+    return grantType === "urn:ietf:params:oauth:grant-type:device_code"
+      ? oauthError("slow_down")
+      : oauthError("temporarily_unavailable", undefined, 429);
   }
   const duplicateError = rejectDuplicateParameters(form, [
     "grant_type",
@@ -383,7 +394,7 @@ oauthRoutes.post("/token", async (c) => {
 
   if (grantType === "urn:ietf:params:oauth:grant-type:device_code") {
     try {
-      validateClient(client, null, "github");
+      validateClient(client, null, "github", c.env.ISSUER);
     } catch {
       return oauthError("invalid_client");
     }

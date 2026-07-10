@@ -22,14 +22,14 @@ it("ships and links a local switchboard favicon", async () => {
   expect(shell).toContain('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />');
 });
 
-it("seeds only the exact local downstream demo client", async () => {
+it("seeds the built-in demo without encoding an environment-specific callback", async () => {
   const migration = await readFile("migrations/0001_init.sql", "utf8");
 
   expect(migration).toContain(
-    "VALUES ('triad-demo', 'Triad demo', '[\"http://localhost:8787/demo/callback/\"]', '[\"github\"]', unixepoch());",
+    "VALUES ('triad-demo', 'Triad demo', '[]', '[\"github\"]', unixepoch());",
   );
   expect(migration).not.toContain("'local-dev'");
-  expect(migration).not.toContain("localhost:3000");
+  expect(migration).not.toContain("localhost");
   expect(migration).not.toContain('["google","github","x"]');
 });
 
