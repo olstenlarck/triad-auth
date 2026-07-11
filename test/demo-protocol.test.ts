@@ -51,7 +51,7 @@ async function token(overrides: {
   return new SignJWT({
     pairwise_sub: overrides.pairwiseSub ?? "ps_demo",
     account_sub: overrides.accountSub ?? "acct_demo",
-    provider_sub: overrides.providerSub ?? "prv_github_0u6Y5KwzzMY4exV8ftB_W8",
+    provider_sub: overrides.providerSub ?? "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b",
     ...overrides.profileClaims,
   })
     .setProtectedHeader({ alg: "ES256", kid: overrides.kid ?? "demo-key" })
@@ -112,7 +112,7 @@ describe("browser ID token verification", () => {
     await expect(verifyIdentityToken(await token(), clientId, brokerOrigin)).resolves.toMatchObject({
       pairwiseSub: "ps_demo",
       accountSub: "acct_demo",
-      providerSub: "prv_github_0u6Y5KwzzMY4exV8ftB_W8",
+      providerSub: "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b",
       issuer,
     });
     expect(fetch.mock.calls.map(([input]) => String(input))).toEqual([
@@ -143,7 +143,7 @@ describe("browser ID token verification", () => {
     const unsafe = await new SignJWT({
       pairwise_sub: "ps_demo",
       account_sub: "acct_demo",
-      provider_sub: "prv_github_0u6Y5KwzzMY4exV8ftB_W8",
+      provider_sub: "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b",
     })
       .setProtectedHeader({ alg: "HS256", kid: "demo-key" })
       .setSubject("ps_demo")

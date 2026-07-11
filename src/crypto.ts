@@ -70,6 +70,10 @@ export async function sha256(value: string): Promise<string> {
 }
 
 export async function hmacSha256(secret: string, value: string): Promise<string> {
+  return base64url(await hmacSha256Bytes(secret, value));
+}
+
+async function hmacSha256Bytes(secret: string, value: string): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
@@ -78,11 +82,18 @@ export async function hmacSha256(secret: string, value: string): Promise<string>
     ["sign"],
   );
   const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(value));
-  return base64url(new Uint8Array(mac));
+
+  return new Uint8Array(mac);
+}
+
+function hexadecimal(bytes: Uint8Array): string {
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 export async function pairwiseSubject(secret: string, accountId: string, clientId: string): Promise<string> {
-  return `ps_${await hmacSha256(secret, `${accountId}\0${clientId}`)}`;
+  const digest = await hmacSha256Bytes(secret, `${accountId}\0${clientId}`);
+
+  return `ps_${hexadecimal(digest.slice(0, 16))}`;
 }
 
 export async function providerSubject(
@@ -90,8 +101,9 @@ export async function providerSubject(
   provider: ProviderName,
   providerUserId: string,
 ): Promise<string> {
-  const digest = await hmacSha256(secret, `provider-sub\0${provider}:${providerUserId}`);
-  return `prv_${provider}_${digest.slice(0, 22)}`;
+  const digest = await hmacSha256Bytes(secret, `provider-sub\0${provider}:${providerUserId}`);
+
+  return `pid_${provider}_${hexadecimal(digest.slice(0, 16))}`;
 }
 
 export function normalizeUserCode(value: string): string {

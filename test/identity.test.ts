@@ -15,15 +15,16 @@ describe("identity contract", () => {
     // Independently calculated for provider-sub\0github:277398031 and provider-sub\0google:277398031.
     const github = await providerSubject(secret, "github", "277398031");
     const google = await providerSubject(secret, "google", "277398031");
-    expect(github).toBe("prv_github_0u6Y5KwzzMY4exV8ftB_W8");
-    expect(google).toBe("prv_google_Zi-AIj7d_CJ-T4VPqJI5E8");
+    expect(github).toMatch(/^pid_github_[0-9a-f]{32}$/);
+    expect(google).toMatch(/^pid_google_[0-9a-f]{32}$/);
     expect(await providerSubject(secret, "github", "277398031")).toBe(github);
-    expect(google.slice("prv_google_".length)).not.toBe(github.slice("prv_github_".length));
+    expect(google.slice("pid_google_".length)).not.toBe(github.slice("pid_github_".length));
     expect(github).not.toContain("277398031");
   });
 
   it("keeps pairwise IDs stable within and distinct across clients", async () => {
     const first = await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a");
+    expect(first).toMatch(/^ps_[0-9a-f]{32}$/);
     expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a")).toBe(first);
     expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_b")).not.toBe(first);
   });

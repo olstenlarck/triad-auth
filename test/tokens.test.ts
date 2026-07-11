@@ -2,7 +2,7 @@ import { exportJWK, generateKeyPair, jwtVerify } from "jose";
 import { expect, it } from "vitest";
 import { issueIdToken, publicJwk } from "../src/tokens";
 
-const validProviderSub = "prv_github_0u6Y5KwzzMY4exV8ftB_W8";
+const validProviderSub = "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b";
 
 it("exports only allowlisted public signing JWK fields", async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
@@ -171,11 +171,11 @@ it("rejects a pairwise secret shorter than 32 characters", async () => {
 
 it.each([
   ["raw provider subject", "github:42"],
-  ["unsupported provider", "prv_facebook_0u6Y5KwzzMY4exV8ftB_W8"],
+  ["unsupported provider", "pid_facebook_d2ee98e4ac33ccc6387b157c7ed07f5b"],
   ["missing prefix", "github_0u6Y5KwzzMY4exV8ftB_W8"],
-  ["short opaque value", "prv_github_0u6Y5KwzzMY4exV8ftB_W"],
-  ["long opaque value", "prv_github_0u6Y5KwzzMY4exV8ftB_W80"],
-  ["invalid opaque character", "prv_github_0u6Y5KwzzMY4exV8ftB_W!"],
+  ["short opaque value", "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5"],
+  ["long opaque value", "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5ba"],
+  ["invalid opaque character", "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5!"],
 ] as const)("rejects a %s", async (_description, providerSub) => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
