@@ -37,7 +37,7 @@ Triad rejects unsupported provider/scope combinations before creating state or g
 - OIDC discovery at `/.well-known/openid-configuration`
 - ES256 public keys at `/.well-known/jwks.json`
 
-Downstream clients are registered in D1 with exact redirect URI and provider allowlists. There is no dynamic client registration.
+Browser clients need no registration. Triad derives `client_id` from the redirect origin and binds each authorization code to the exact redirect URI and PKCE verifier. Device clients submit that stable origin explicitly; it is a self-asserted identifier, not proof that the device controls the domain.
 
 ## Requirements
 
@@ -153,7 +153,7 @@ https://triad-auth-broker.equator-owl-studio.workers.dev/callback/twitter
 
 These callback paths describe adapter support, not provider enablement. `/api/providers` is authoritative for which providers are currently enabled; only providers with complete credential pairs appear there or in provider controls.
 
-The Worker uses the `triad-auth` D1 database and the remote `triad-demo` registration allows only the same-origin `/demo/callback/` URI.
+The Worker uses the `triad-auth` D1 database. The built-in demo derives its browser client identity from the Worker origin and submits that origin explicitly for device authorization.
 
 To set or rotate runtime values, use Wrangler's interactive secret prompt so values do not enter shell history:
 
@@ -206,8 +206,8 @@ Authorization codes, device codes, CSRF tokens, and upstream state are one-time 
 ## MVP limitations
 
 - Google, GitHub, and Twitter adapters are supported, but each provider appears only when its complete credential pair is configured.
-- There is no cross-provider identity linking, dynamic client registration, account deletion, signing-key rotation, or operator audit UI.
-- Client registration and redirect changes are migration/operator tasks.
+- There is no cross-provider identity linking, domain-ownership verification, account deletion, signing-key rotation, or operator audit UI.
+- Browser callbacks must be HTTPS except on localhost. Device client origins are self-asserted because device authorization has no callback from which to derive them.
 - Rate limits are single-region D1 counters, not a complete abuse-prevention system.
 - Deployment requires a stable hostname, persistent D1, and secret injection. An ephemeral preview is not a valid issuer.
 - A protocol and security review is required before accepting real users.

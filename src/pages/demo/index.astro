@@ -75,7 +75,7 @@ export const prerender = true;
           the returned code.
         </p>
         <dl class="protocol-list">
-          <div><dt>CLIENT</dt><dd>triad-demo</dd></div>
+          <div><dt>CLIENT ORIGIN</dt><dd id="demo-client-origin"></dd></div>
           <div><dt>PROVIDER</dt><dd id="browser-provider">loading</dd></div>
           <div><dt>VERIFICATION</dt><dd>ES256 + JWKS</dd></div>
         </dl>
@@ -154,7 +154,8 @@ export const prerender = true;
       type VerifiedIdentity,
     } from "../../scripts/demo-protocol";
 
-    const clientId = "triad-demo";
+    const clientId = window.location.origin;
+    document.querySelector<HTMLElement>("#demo-client-origin")!.textContent = clientId;
     const deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code";
     const browserStart = document.querySelector<HTMLButtonElement>("#browser-start")!;
     const browserStatus = document.querySelector<HTMLElement>("#browser-status")!;
@@ -411,7 +412,6 @@ export const prerender = true;
         const callback = `${location.origin}/demo/callback/`;
         const authorization = new URL(discovery.authorization_endpoint);
         authorization.search = new URLSearchParams({
-          client_id: clientId,
           redirect_uri: callback,
           response_type: "code",
           provider: selectedProvider.id,

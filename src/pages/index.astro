@@ -88,13 +88,12 @@ export const prerender = true;
   <section id="quickstart" class="quickstart shell" aria-labelledby="quickstart-title">
     <div class="section-heading compact">
       <h2 id="quickstart-title">POINT. REDIRECT. VERIFY.</h2>
-      <p>Authorization Code + mandatory S256 PKCE. ES256 tokens. Standard JWKS.</p>
+      <p>Triad derives the client from the callback origin, then binds the exact URI and S256 verifier.</p>
     </div>
     <div class="code-window" role="region" aria-label="Authorization request example" tabindex="0">
       <div class="code-meta"><span>GET /authorize</span><span>01 / 03</span></div>
-      <pre><code>?client_id=triad-demo
-&amp;provider=github
-&amp;redirect_uri=http://localhost:4321/demo/callback/
+      <pre><code>?provider=github
+&amp;redirect_uri=https://example.com/oauth/callback
 &amp;code_challenge=...
 &amp;code_challenge_method=S256</code></pre>
     </div>

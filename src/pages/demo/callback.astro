@@ -34,7 +34,7 @@ export const prerender = true;
       <dl class="verified-claims">
         <div>
           <dt>pairwise_sub</dt><dd id="callback-pairwise"></dd><small
-            >App-scoped. Use this as triad-demo's private user key.</small
+            >App-scoped. Use this as this origin's private user key.</small
           >
         </div>
         <div>
@@ -70,7 +70,7 @@ export const prerender = true;
   <script>
     import { fetchDiscovery, verifyIdentityToken, type VerifiedProfile } from "../../scripts/demo-protocol";
 
-    const clientId = "triad-demo";
+    const clientId = window.location.origin;
     const query = new URLSearchParams(location.search);
     const state = query.get("state");
     const expectedState = sessionStorage.getItem("triad_demo_state");
@@ -172,7 +172,6 @@ export const prerender = true;
               headers: { "content-type": "application/x-www-form-urlencoded" },
               body: new URLSearchParams({
                 grant_type: "authorization_code",
-                client_id: clientId,
                 redirect_uri: `${location.origin}/demo/callback/`,
                 code,
                 code_verifier: verifier,
