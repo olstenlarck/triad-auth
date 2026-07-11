@@ -112,14 +112,15 @@ export const prerender = true;
             {return fail(body.error_description ?? "This authorization request expired.");}
           csrfToken = body.csrf_token;
           const originClient = body.client_id?.startsWith("https://") || body.client_id?.startsWith("http://localhost");
+          const clientDisplay = originClient ? body.client_id : body.client_name;
           document.querySelector("#client-kind")!.textContent = originClient
             ? "SELF-ASSERTED CLIENT ORIGIN"
             : "APPLICATION";
-          document.querySelector("#client-name")!.textContent = body.client_name ?? "UNKNOWN APP";
+          document.querySelector("#client-name")!.textContent = clientDisplay ?? "UNKNOWN APP";
           document.querySelector("#provider-name")!.textContent = body.provider.toUpperCase();
           document.querySelector("#consent-summary")!.textContent =
-            `${body.client_name ?? "This app"} wants to connect through ${body.provider}. Review the required claims before approving.`;
-          document.querySelector(".app-glyph")!.textContent = (body.client_name ?? "A")
+            `${clientDisplay ?? "This app"} wants to connect through ${body.provider}. Review the required claims before approving.`;
+          document.querySelector(".app-glyph")!.textContent = (clientDisplay ?? "A")
             .slice(0, 1)
             .toUpperCase();
           renderDisclosures(disclosures, body.scopes);

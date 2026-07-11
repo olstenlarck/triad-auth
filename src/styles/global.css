@@ -543,6 +543,10 @@ h3 {
 .request-party > div:not(.app-glyph) {
   display: grid;
   gap: 0.2rem;
+  min-width: 0;
+}
+.request-party strong {
+  overflow-wrap: anywhere;
 }
 .request-party span,
 .disclosure-list span,
