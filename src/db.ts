@@ -67,7 +67,6 @@ export async function getOrCreateOriginClient(
   clientId: string,
 ): Promise<ClientRow> {
   const canonicalId = normalizeOriginClientId(clientId);
-  const name = new URL(canonicalId).host;
 
   await db
     .prepare(
@@ -75,7 +74,7 @@ export async function getOrCreateOriginClient(
       (client_id, name, redirect_uris, providers, created_at)
       VALUES (?, ?, '[]', '["google","github","twitter"]', unixepoch())`,
     )
-    .bind(canonicalId, name)
+    .bind(canonicalId, canonicalId)
     .run();
 
   const client = await getClient(db, canonicalId);

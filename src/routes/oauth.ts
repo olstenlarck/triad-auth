@@ -376,12 +376,12 @@ oauthRoutes.get("/authorize", async (c) => {
 oauthRoutes.get("/api/consent/:request", async (c) => {
   const requestHash = await sha256(c.req.param("request"));
   const row = await c.env.DB.prepare(
-    `SELECT r.provider, r.scopes, c.name AS client_name
+    `SELECT r.client_id, r.provider, r.scopes, c.name AS client_name
     FROM consent_requests r JOIN clients c ON c.client_id = r.client_id
     WHERE r.request_hash = ? AND r.expires_at > unixepoch()`,
   )
     .bind(requestHash)
-    .first<{ provider: string; scopes: string; client_name: string }>();
+    .first<{ client_id: string; provider: string; scopes: string; client_name: string }>();
   if (!row) {
     return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
   }
@@ -389,6 +389,7 @@ oauthRoutes.get("/api/consent/:request", async (c) => {
 
   return c.json({
     client_name: row.client_name,
+    client_id: row.client_id,
     provider: row.provider,
     scopes: JSON.parse(row.scopes),
     csrf_token: csrfToken,

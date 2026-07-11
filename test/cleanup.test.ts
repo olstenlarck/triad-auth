@@ -163,7 +163,7 @@ describe("ephemeral D1 cleanup", () => {
       {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ client_id: "triad-demo", provider: "github" }),
+        body: new URLSearchParams({ client_id: "https://cleanup.example", provider: "github" }),
       },
       env,
     );

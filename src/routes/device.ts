@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { parseScopes, validateProviderScopes } from "../claims";
 import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
 import { cleanupExpiredState } from "../cleanup";
-import { getClient, getOrCreateOriginClient, validateClient } from "../db";
+import { getClient, getOrCreateOriginClient, normalizeOriginClientId, validateClient } from "../db";
 import { enabledProviders, startProvider } from "../providers";
 import { createPreAuthBinding, setPreAuthCookie } from "../pre-auth";
 import { enforceRequestRateLimit } from "../rate-limit";
@@ -68,6 +68,11 @@ deviceRoutes.post("/device/code", async (c) => {
 
   const clientId = form.get("client_id") ?? "";
   if (!clientId || clientId.length > clientIdLimit) {
+    return oauthError("invalid_client");
+  }
+  try {
+    normalizeOriginClientId(clientId);
+  } catch {
     return oauthError("invalid_client");
   }
 
@@ -214,7 +219,7 @@ deviceRoutes.get("/api/device/:code", async (c) => {
   }
 
   return c.json({
-    client_name: row.client_name,
+    client_id: row.client_id,
     provider: row.provider,
     scopes: parseStoredScopes(row.scopes),
     expires_in: row.expires_at - now(),

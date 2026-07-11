@@ -9,6 +9,7 @@ import { createTestDb } from "./d1";
 
 const issuer = "https://auth.example";
 const deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code";
+const deviceClientId = "https://device.example";
 let signingPrivateJwk: string;
 const cleanups: Array<() => void> = [];
 
@@ -28,6 +29,13 @@ afterEach(() => {
 async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
   const { db, close } = await createTestDb();
   cleanups.push(close);
+  await db
+    .prepare(
+      `INSERT INTO clients (client_id, name, redirect_uris, providers, created_at)
+      VALUES (?, ?, '[]', '["google","github","twitter"]', unixepoch())`,
+    )
+    .bind(deviceClientId, deviceClientId)
+    .run();
   return {
     DB: db,
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
@@ -41,13 +49,16 @@ async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
 }
 
 function formRequest(values: Record<string, string>, origin?: string): RequestInit {
+  const normalizedValues =
+    values.client_id === "triad-demo" ? { ...values, client_id: deviceClientId } : values;
+
   return {
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded",
       ...(origin ? { origin } : {}),
     },
-    body: new URLSearchParams(values),
+    body: new URLSearchParams(normalizedValues),
   };
 }
 
@@ -62,7 +73,7 @@ function rawFormRequest(body: URLSearchParams, origin?: string): RequestInit {
   };
 }
 
-function deviceTokenRequest(deviceCode: string, clientId = "triad-demo"): RequestInit {
+function deviceTokenRequest(deviceCode: string, clientId = deviceClientId): RequestInit {
   return formRequest({ grant_type: deviceGrantType, client_id: clientId, device_code: deviceCode });
 }
 
@@ -103,7 +114,7 @@ async function seedGrant(
     .bind(
       deviceHash,
       userCode,
-      values.clientId ?? "triad-demo",
+      values.clientId ?? deviceClientId,
       values.provider ?? "github",
       JSON.stringify(values.scopes ?? ["openid"]),
       status,
@@ -324,7 +335,7 @@ describe("device authorization", () => {
     expect(row).toEqual({ provider: "twitter", scopes: '["openid","handle","name"]' });
   });
 
-  it("rejects an unknown, oversized, or provider-disallowed issuance client", async () => {
+  it("rejects a non-origin or oversized issuance client", async () => {
     const env = await testEnv();
     await env.DB.prepare(
       `INSERT INTO clients
@@ -339,9 +350,7 @@ describe("device authorization", () => {
       );
       expect(response.status).toBe(400);
       expect(response.headers.get("cache-control")).toBe("no-store");
-      await expect(response.json()).resolves.toMatchObject({
-        error: clientId === "blocked" ? "unauthorized_client" : "invalid_client",
-      });
+      await expect(response.json()).resolves.toMatchObject({ error: "invalid_client" });
     }
   });
 
@@ -465,13 +474,13 @@ describe("device authorization", () => {
     const first = await app.request("/api/device/abcd-2345", undefined, env);
     expect(first.status).toBe(200);
     const firstBody = await first.json<{
-      client_name: string;
+      client_id: string;
       provider: string;
       scopes: string[];
       expires_in: number;
       csrf_token: string;
     }>();
-    expect(firstBody.client_name).toBe("Triad demo");
+    expect(firstBody.client_id).toBe(deviceClientId);
     expect(firstBody.provider).toBe("github");
     expect(firstBody.scopes).toEqual(["openid"]);
     expect(firstBody.expires_in).toBeGreaterThan(0);
@@ -1094,9 +1103,9 @@ describe("device token exchange", () => {
   it("rejects token exchange after the client loses GitHub permission", async () => {
     const env = await testEnv();
     const { deviceCode } = await seedGrant(env, { status: "approved" });
-    await env.DB.prepare(
-      "UPDATE clients SET providers = '[]' WHERE client_id = 'triad-demo'",
-    ).run();
+    await env.DB.prepare("UPDATE clients SET providers = '[]' WHERE client_id = ?")
+      .bind(deviceClientId)
+      .run();
 
     const response = await app.request("/token", deviceTokenRequest(deviceCode), env);
     await expect(response.json()).resolves.toMatchObject({ error: "invalid_client" });

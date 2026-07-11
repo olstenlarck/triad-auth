@@ -28,7 +28,7 @@ export const prerender = true;
       <input id="device-provider" type="hidden" name="provider" value="" />
       <input id="device-csrf" type="hidden" name="csrf_token" value="" />
       <div id="device-app" class="device-app" aria-live="polite" hidden>
-        <div><span>REQUESTING APP</span><strong id="device-client">PENDING</strong></div>
+        <div><span>SELF-ASSERTED CLIENT ORIGIN</span><strong id="device-client">PENDING</strong></div>
         <div><span>PROVIDER</span><strong id="device-provider-name">PENDING</strong></div>
       </div>
       <div id="device-disclosure" class="device-disclosure" hidden>
@@ -94,7 +94,7 @@ export const prerender = true;
       try {
         const response = await fetch(`/api/device/${encodeURIComponent(input.value)}`);
         const body = (await response.json()) as {
-          client_name?: string;
+          client_id?: string;
           provider?: string;
           scopes?: string[];
           csrf_token?: string;
@@ -117,7 +117,7 @@ export const prerender = true;
           status.dataset.tone = "error";
           return;
         }
-        document.querySelector("#device-client")!.textContent = body.client_name ?? "UNKNOWN APP";
+        document.querySelector("#device-client")!.textContent = body.client_id ?? "UNKNOWN ORIGIN";
         document.querySelector("#device-provider-name")!.textContent = body.provider.toUpperCase();
         provider.value = body.provider;
         renderDisclosures(disclosures, body.scopes);
@@ -126,7 +126,8 @@ export const prerender = true;
         error.hidden = true;
         box.hidden = false;
         submit.disabled = false;
-        status.textContent = "Request found. Check the app, provider, and required claims before approving.";
+        status.textContent =
+          "Request found. Triad has not verified control of this client origin. Match the code before approving.";
         status.dataset.tone = "success";
       } catch {
         if (current !== inspection) {return;}
