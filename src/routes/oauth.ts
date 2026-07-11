@@ -12,6 +12,7 @@ import {
 } from "../crypto";
 import {
   approveDeviceGrant,
+  clientIdFromRedirect,
   consumeAuthorizationCode,
   consumeApprovedDeviceGrant,
   consumeTransaction,
@@ -19,6 +20,7 @@ import {
   getAuthorizationCode,
   getClient,
   getDeviceGrantState,
+  getOrCreateOriginClient,
   pollPendingDeviceGrant,
   rememberConsent,
   resolveIdentity,
@@ -305,11 +307,8 @@ oauthRoutes.get("/authorize", async (c) => {
   if (!enabledProviders(c.env).includes(provider)) {
     return oauthError("invalid_request", "provider unavailable");
   }
-  if (!q.client_id || !q.redirect_uri || !q.state || !q.code_challenge) {
-    return oauthError(
-      "invalid_request",
-      "client_id, redirect_uri, state and code_challenge are required",
-    );
+  if (!q.redirect_uri || !q.state || !q.code_challenge) {
+    return oauthError("invalid_request", "redirect_uri, state and code_challenge are required");
   }
   if (q.response_type !== "code") {
     return oauthError("unsupported_response_type");
@@ -318,7 +317,7 @@ oauthRoutes.get("/authorize", async (c) => {
     return oauthError("invalid_request", "valid S256 PKCE is required");
   }
   if (
-    q.client_id.length > clientIdLimit ||
+    (q.client_id?.length ?? 0) > clientIdLimit ||
     q.redirect_uri.length > redirectUriLimit ||
     q.state.length > 512
   ) {
@@ -331,12 +330,21 @@ oauthRoutes.get("/authorize", async (c) => {
   } catch {
     return oauthError("invalid_scope");
   }
-  const client = await getClient(c.env.DB, q.client_id);
-  if (!client) {
-    return oauthError("unauthorized_client");
-  }
+  let clientId: string;
   try {
-    validateClient(client, q.redirect_uri, provider, c.env.ISSUER);
+    const originClientId = clientIdFromRedirect(q.redirect_uri);
+    clientId = q.client_id ?? originClientId;
+
+    if (clientId === originClientId) {
+      const client = await getOrCreateOriginClient(c.env.DB, clientId);
+      validateClient(client, null, provider, c.env.ISSUER);
+    } else {
+      const client = await getClient(c.env.DB, clientId);
+      if (!client) {
+        return oauthError("unauthorized_client");
+      }
+      validateClient(client, q.redirect_uri, provider, c.env.ISSUER);
+    }
   } catch (error) {
     return oauthError("invalid_request", (error as Error).message);
   }
@@ -350,7 +358,7 @@ oauthRoutes.get("/authorize", async (c) => {
   )
     .bind(
       await sha256(request),
-      q.client_id,
+      clientId,
       q.redirect_uri,
       q.state,
       provider,
@@ -611,10 +619,8 @@ oauthRoutes.post("/token", async (c) => {
   if (duplicateError) {
     return duplicateError;
   }
-  const clientId = form.get("client_id") ?? "";
-  const client =
-    clientId && clientId.length <= clientIdLimit ? await getClient(c.env.DB, clientId) : null;
-  if (!client) {
+  const suppliedClientId = form.get("client_id") ?? "";
+  if (suppliedClientId.length > clientIdLimit) {
     return oauthError("invalid_client");
   }
 
@@ -631,13 +637,31 @@ oauthRoutes.post("/token", async (c) => {
     ) {
       return oauthError("invalid_grant");
     }
+
+    let originClientId: string;
+    try {
+      originClientId = clientIdFromRedirect(redirectUri);
+    } catch {
+      return oauthError("invalid_client");
+    }
+    const clientId = suppliedClientId || originClientId;
+    const client = await getClient(c.env.DB, clientId);
+    if (!client) {
+      return oauthError("invalid_client");
+    }
+
     const codeHash = await sha256(code);
     const candidate = await getAuthorizationCode(c.env.DB, codeHash, clientId, redirectUri);
     if (!candidate || !timingSafeEqual(await sha256(verifier), candidate.code_challenge)) {
       return oauthError("invalid_grant");
     }
     try {
-      validateClient(client, redirectUri, candidate.provider, c.env.ISSUER);
+      validateClient(
+        client,
+        clientId === originClientId ? null : redirectUri,
+        candidate.provider,
+        c.env.ISSUER,
+      );
     } catch {
       return oauthError("invalid_client");
     }
@@ -660,6 +684,12 @@ oauthRoutes.post("/token", async (c) => {
   }
 
   if (grantType === "urn:ietf:params:oauth:grant-type:device_code") {
+    const clientId = suppliedClientId;
+    const client = clientId ? await getClient(c.env.DB, clientId) : null;
+    if (!client) {
+      return oauthError("invalid_client");
+    }
+
     const deviceCode = form.get("device_code") ?? "";
     if (!deviceCode || deviceCode.length > deviceCodeLimit) {
       return oauthError("invalid_grant");

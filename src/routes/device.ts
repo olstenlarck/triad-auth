@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { parseScopes, validateProviderScopes } from "../claims";
 import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
 import { cleanupExpiredState } from "../cleanup";
-import { getClient, validateClient } from "../db";
+import { getClient, getOrCreateOriginClient, validateClient } from "../db";
 import { enabledProviders, startProvider } from "../providers";
 import { createPreAuthBinding, setPreAuthCookie } from "../pre-auth";
 import { enforceRequestRateLimit } from "../rate-limit";
@@ -91,9 +91,13 @@ deviceRoutes.post("/device/code", async (c) => {
     return oauthError("invalid_scope");
   }
 
-  const client = await getClient(c.env.DB, clientId);
+  let client = await getClient(c.env.DB, clientId);
   if (!client) {
-    return oauthError("invalid_client");
+    try {
+      client = await getOrCreateOriginClient(c.env.DB, clientId);
+    } catch {
+      return oauthError("invalid_client");
+    }
   }
 
   try {

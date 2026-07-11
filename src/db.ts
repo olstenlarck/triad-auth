@@ -33,6 +33,59 @@ export async function getClient(db: D1Database, clientId: string): Promise<Clien
     .first<ClientRow>();
 }
 
+function clientUrl(value: string): URL {
+  const url = new URL(value);
+  const localHttp = url.protocol === "http:" && url.hostname === "localhost";
+
+  if ((url.protocol !== "https:" && !localHttp) || url.username || url.password) {
+    throw new Error("invalid client origin");
+  }
+
+  return url;
+}
+
+export function clientIdFromRedirect(redirectUri: string): string {
+  const url = clientUrl(redirectUri);
+  if (url.hash) {
+    throw new Error("redirect_uri must not contain a fragment");
+  }
+
+  return url.origin;
+}
+
+export function normalizeOriginClientId(clientId: string): string {
+  const url = clientUrl(clientId);
+  if (clientId !== url.origin) {
+    throw new Error("client_id must be an origin URL");
+  }
+
+  return url.origin;
+}
+
+export async function getOrCreateOriginClient(
+  db: D1Database,
+  clientId: string,
+): Promise<ClientRow> {
+  const canonicalId = normalizeOriginClientId(clientId);
+  const name = new URL(canonicalId).host;
+
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO clients
+      (client_id, name, redirect_uris, providers, created_at)
+      VALUES (?, ?, '[]', '["google","github","twitter"]', unixepoch())`,
+    )
+    .bind(canonicalId, name)
+    .run();
+
+  const client = await getClient(db, canonicalId);
+  if (!client) {
+    throw new Error("client unavailable");
+  }
+
+  return client;
+}
+
 export function validateClient(
   client: ClientRow,
   redirectUri: string | null,
