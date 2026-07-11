@@ -1183,6 +1183,16 @@ h3 {
   .site-header nav .nav-secondary {
     display: none;
   }
+  .hero h1 {
+    max-width: none;
+    font-size: clamp(2.2rem, 11vw, 3.6rem);
+    white-space: nowrap;
+  }
+  #demo-title {
+    max-width: none;
+    font-size: clamp(2rem, 10vw, 3.4rem);
+    white-space: nowrap;
+  }
   #consent-title {
     font-size: clamp(2.2rem, 11vw, 3.7rem);
   }
@@ -1283,6 +1293,9 @@ h3 {
   }
   .demo-bay {
     min-height: 34rem;
+  }
+  .demo-bay-head .status-mark {
+    display: none;
   }
   .demo-bay + .demo-bay {
     border-top: 1px solid var(--rule);
