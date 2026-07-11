@@ -261,13 +261,13 @@ describe("deployment configuration", () => {
     }
   });
 
-  it("documents the exact capability matrix, selectable scopes, and Twitter upstream scopes", () => {
+  it("documents the exact capability matrix, mandatory scopes, and Twitter upstream scopes", () => {
     const readme = readFileSync("README.md", "utf8");
 
     expect(readme).toMatch(/\| Google\s+\| Yes\s+\| No\s+\| Yes\s+\| Yes\s+\|/);
     expect(readme).toMatch(/\| GitHub\s+\| Yes\s+\| Yes\s+\| Yes\s+\| Yes\s+\|/);
     expect(readme).toMatch(/\| Twitter\s+\| No\s+\| Yes\s+\| Yes\s+\| Yes\s+\|/);
-    expect(readme).toContain("users may grant any subset");
+    expect(readme).toContain("every requested scope is mandatory");
     expect(readme).toContain("`avatar` request scope maps to the standard `picture` claim");
     expect(readme).toContain("`pairwise` is the standard OpenID Connect subject type");
     expect(readme).toContain(

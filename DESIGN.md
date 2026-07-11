@@ -39,6 +39,6 @@ The landing hero uses one load sequence: rule, headline, then protocol strip. Pr
 - Buttons: heavy label, rectangular fill or rule-only treatment, 48px minimum height.
 - Provider actions: square ruled controls populated from enabled provider capabilities; provider branding never changes the control system.
 - Identity rows: label, human-readable value, copyable protocol value.
-- Consent disclosure: explicit recipient, selected provider, fixed identity claims, off-by-default switches for requested profile claims, retention statement, and approve/cancel actions.
+- Consent disclosure: explicit recipient, selected provider, fixed identity claims, checked disabled switches for mandatory requested profile claims, retention statement, and approve/cancel actions.
 - Status: text plus shape/icon treatment; never color alone.
 - Error states: plain language, stable layout, recovery action beside the error.

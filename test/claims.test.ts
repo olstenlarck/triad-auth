@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  parseScopes,
-  providerScopes,
-  selectGrantedScopes,
-  serializeScopes,
-  validateProviderScopes,
-} from "../src/claims";
+import { parseScopes, providerScopes, serializeScopes, validateProviderScopes } from "../src/claims";
 import { base64url, openClaims, sealClaims } from "../src/crypto";
 
 const base64urlAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -35,14 +29,6 @@ describe("privacy scopes", () => {
     expect(() =>
       validateProviderScopes("github", parseScopes("openid email handle name avatar")),
     ).not.toThrow();
-  });
-
-  it("allows only a canonical subset of requested scopes", () => {
-    const requested = parseScopes("openid email name");
-
-    expect(selectGrantedScopes(requested, "name openid")).toEqual(["openid", "name"]);
-    expect(selectGrantedScopes(requested, null)).toEqual(["openid"]);
-    expect(() => selectGrantedScopes(requested, "openid avatar")).toThrow("invalid_scope");
   });
 });
 

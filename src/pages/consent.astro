@@ -26,14 +26,14 @@ import Shell from "../components/Shell.astro";
       <a id="consent-restart" class="button secondary" href="/demo/" hidden>RETURN TO DEMO</a>
     </div>
     <p class="fine-print">
-      Triad shares only the claims you turn on. The app never receives the provider access token. Triad stores
+      Approval shares every claim listed above. The app never receives the provider access token. Triad stores
       approved scope names. Claims become non-exchangeable at expiry. Physical encrypted-row deletion is
       bounded, traffic-driven cleanup and can occur later.
     </p>
   </section>
 
   <script>
-    import { renderDisclosureControls, selectedDisclosureScope } from "../scripts/disclosure-controls";
+    import { renderDisclosureControls } from "../scripts/disclosure-controls";
 
     const request = new URLSearchParams(location.search).get("request");
     const panel = document.querySelector<HTMLElement>("#consent-panel")!;
@@ -69,12 +69,10 @@ import Shell from "../components/Shell.astro";
       const active = action === "approve" ? approve : deny;
       active.textContent = action === "approve" ? "APPROVING CONNECTION" : "CANCELLING";
       try {
-        const values: Record<string, string> = { csrf_token: csrfToken };
-        if (action === "approve") values.scope = selectedDisclosureScope(disclosures);
         const response = await fetch(`/api/consent/${encodeURIComponent(request)}/${action}`, {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams(values),
+          body: new URLSearchParams({ csrf_token: csrfToken }),
         });
         const body = (await response.json()) as { redirect_to?: string; error_description?: string };
         if (!response.ok || !body.redirect_to)
@@ -113,7 +111,7 @@ import Shell from "../components/Shell.astro";
           document.querySelector("#client-name")!.textContent = body.client_name ?? "UNKNOWN APP";
           document.querySelector("#provider-name")!.textContent = body.provider.toUpperCase();
           document.querySelector("#consent-summary")!.textContent =
-            `${body.client_name ?? "This app"} wants to connect through ${body.provider}. Turn on only the requested profile claims you want to share.`;
+            `${body.client_name ?? "This app"} wants to connect through ${body.provider}. Review the required claims before approving.`;
           document.querySelector(".app-glyph")!.textContent = (body.client_name ?? "A")
             .slice(0, 1)
             .toUpperCase();

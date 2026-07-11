@@ -4,13 +4,13 @@
 
 **Goal:** Improve Triad's copy and consent UI, simplify opaque IDs, and apply the repository clean-code rules before deploying.
 
-**Architecture:** Keep the existing Hono routes and Astro surfaces. Add one typed scope-subset helper at the protocol boundary, use it from both browser and device consent, and share disclosure-control rendering between both pages. Derived identifiers change format without a database migration.
+**Architecture:** Keep the existing Hono routes and mandatory scope behavior. Share disclosure-control rendering between browser and device consent, with checked disabled controls representing the client's fixed request. Derived identifiers change format without a database migration.
 
 **Tech Stack:** TypeScript 7, Hono, Astro 7, D1, Vitest, Wrangler, Prettier.
 
 ## Global Constraints
 
-- The core identity claims remain fixed behind `openid`; profile claims are user-selectable and default off.
+- The core identity claims remain fixed behind `openid`; requested profile claims are mandatory and displayed as checked, disabled controls.
 - New subjects use `ps_<32 lowercase hex>` and `pid_<provider>_<32 lowercase hex>`.
 - Keep `subject_types_supported: ["pairwise"]`, scope `avatar`, and claim `picture`.
 - Retain WCAG 2.2 AA behavior, keyboard focus, reduced motion, and responsive layouts.
@@ -87,61 +87,45 @@ Run: `pnpm test -- test/identity.test.ts test/tokens.test.ts test/demo-protocol.
 
 Expected: all focused tests pass.
 
-### Task 2: User-selected scope grants
+### Task 2: Mandatory scope preservation
 
 **Files:**
 
-- Modify: `src/claims.ts`
 - Modify: `src/routes/oauth.ts`
 - Modify: `src/routes/device.ts`
-- Modify: `src/db.ts`
-- Test: `test/claims.test.ts`
 - Test: `test/oauth.test.ts`
 - Test: `test/device.test.ts`
 
 **Interfaces:**
 
-- Produces: `selectGrantedScopes(requested: readonly Scope[], value: string | null): Scope[]`.
-- Changes: `approveDeviceGrant(..., scopes: readonly Scope[]): Promise<boolean>` persists selected scopes.
+- Preserves: requested scopes pass unchanged through browser and device approval.
 
-- [ ] **Step 1: Add failing unit and route tests**
+- [ ] **Step 1: Add route tests for mandatory preservation**
 
 ```ts
-expect(selectGrantedScopes(["openid", "email", "name"], "openid name")).toEqual(["openid", "name"]);
-expect(() => selectGrantedScopes(["openid", "email"], "openid avatar")).toThrow();
+expect(transaction.scopes).toBe('["openid","email","name"]');
+expect(token.scope).toBe("openid email name");
 ```
 
-Add authorization-code and device tests that request `openid email name`, approve `openid name`, and assert stored/returned scope is exactly `openid name`.
+Add authorization-code and device tests that request `openid email name`, approve the request, and assert stored/returned scope remains exactly `openid email name`.
 
 - [ ] **Step 2: Run focused tests and confirm failures**
 
-Run: `pnpm test -- test/claims.test.ts test/oauth.test.ts test/device.test.ts`
+Run: `pnpm test -- test/oauth.test.ts test/device.test.ts`
 
-Expected: missing helper and routes ignoring submitted scope.
+Expected: failures if either approval flow alters requested scopes.
 
-- [ ] **Step 3: Implement strict subset validation**
+- [ ] **Step 3: Keep approval bound to requested scopes**
 
-```ts
-export function selectGrantedScopes(requested: readonly Scope[], value: string | null): Scope[] {
-  const granted = parseScopes(value ?? "openid");
-  if (granted.some((scope) => !requested.includes(scope))) {
-    throw new Error("granted scope was not requested");
-  }
-  return granted;
-}
-```
+On browser approval, parse `row.scopes`, pass them to `startProvider`, and preserve `row.scopes` in `oauth_transactions`. On device approval, parse `grant.scopes`, pass them to the provider, and preserve `grant.scopes` in the transaction.
 
-- [ ] **Step 4: Apply selected scopes at both approval boundaries**
-
-On browser approval, read `scope`, validate against `row.scopes`, pass selected scopes to `startProvider`, and serialize them into `oauth_transactions`. On device approval, include `scope` in duplicate checks, validate it against the grant, and use it for the provider and transaction.
-
-At device callback, pass transaction scopes into `approveDeviceGrant`; update `device_grants.scopes` in the same approval statement so token exchange returns the selected subset.
+At device callback, preserve the original grant scopes so token exchange returns the complete mandatory request.
 
 - [ ] **Step 5: Run focused tests**
 
-Run: `pnpm test -- test/claims.test.ts test/oauth.test.ts test/device.test.ts`
+Run: `pnpm test -- test/oauth.test.ts test/device.test.ts`
 
-Expected: all focused tests pass, including rejected scope escalation.
+Expected: all focused tests pass with the complete request preserved.
 
 ### Task 3: Consent, device, and demo controls
 
@@ -157,12 +141,12 @@ Expected: all focused tests pass, including rejected scope escalation.
 
 **Interfaces:**
 
-- Produces: `renderDisclosureControls(container, scopes): void` and `selectedDisclosureScope(container): string`.
-- Consumes: browser/device approval endpoints accepting a canonical `scope` form field.
+- Produces: `renderDisclosureControls(container, scopes): void`.
+- Preserves: browser/device approval requests submit one approve-or-cancel decision without changing scopes.
 
 - [ ] **Step 1: Replace obsolete static-markup tests with control semantics**
 
-Assert that `openid` is a fixed disclosure, requested profile scopes render checkbox switches, approval bodies contain `scope`, provider configuration uses a `<select>`, successful result headings are not programmatically focused, and profile headings read `SHARED CLAIMS`.
+Assert that `openid` is a fixed disclosure, requested profile scopes render checked disabled switches, provider configuration uses a `<select>`, successful result headings are not programmatically focused, and profile headings read `SHARED CLAIMS`.
 
 - [ ] **Step 2: Run UI tests and confirm failures**
 
@@ -172,20 +156,11 @@ Expected: failures against the current static consent list and radio-style provi
 
 - [ ] **Step 3: Add the shared disclosure renderer**
 
-```ts
-export function selectedDisclosureScope(container: HTMLElement): string {
-  const selected = [
-    ...container.querySelectorAll<HTMLInputElement>('input[name="granted-scope"]:checked'),
-  ].map((input) => input.value);
-  return ["openid", ...selected].join(" ");
-}
-```
-
-Render the three identity rows without switches and one labeled switch for each requested profile scope, using user-facing descriptions.
+Render the three identity rows without switches and one checked disabled switch for each mandatory requested profile scope, using user-facing descriptions.
 
 - [ ] **Step 4: Wire browser and device approval**
 
-Import the shared renderer from each Astro script. Send `scope: selectedDisclosureScope(disclosures)` in both approval requests. Profile switches default off and are removed whenever an inspected request is reset.
+Import the shared renderer from each Astro script. Submit only the transaction CSRF and fixed provider binding; the server retains the original requested scopes. Remove controls whenever an inspected request is reset.
 
 - [ ] **Step 5: Clarify demo controls and successful results**
 

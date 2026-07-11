@@ -1,12 +1,6 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
-import {
-  parseScopes,
-  providerScopes,
-  selectGrantedScopes,
-  serializeScopes,
-  validateProviderScopes,
-} from "../claims";
+import { parseScopes, providerScopes, serializeScopes, validateProviderScopes } from "../claims";
 import { cleanupExpiredState } from "../cleanup";
 import { openClaims, providerSubject, randomToken, sealClaims, sha256, timingSafeEqual } from "../crypto";
 import {
@@ -334,13 +328,7 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
   if (authorized instanceof Response) return authorized;
   const row = await consumeConsentRequest(c.env.DB, authorized);
   if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
-  let scopes: Scope[];
-  try {
-    scopes = selectGrantedScopes(parseStoredScopes(row.scopes), form.get("scope"));
-  } catch {
-    return oauthError("invalid_scope");
-  }
-  const serializedScopes = JSON.stringify(scopes);
+  const scopes = parseStoredScopes(row.scopes);
   const upstreamState = randomToken();
   const stateHash = await sha256(upstreamState);
   const start = await startProvider(row.provider, c.env, upstreamState, scopes);
@@ -361,7 +349,7 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
       row.code_challenge,
       start.verifier ?? null,
       start.nonce ?? null,
-      serializedScopes,
+      row.scopes,
       binding.hash,
       now() + 600,
       now(),
@@ -440,14 +428,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
         : null;
     if (
       !tx.device_code_hash ||
-      !(await approveDeviceGrant(
-        c.env.DB,
-        tx.device_code_hash,
-        accountId,
-        providerSub,
-        claimsCiphertext,
-        scopes,
-      ))
+      !(await approveDeviceGrant(c.env.DB, tx.device_code_hash, accountId, providerSub, claimsCiphertext))
     ) {
       return oauthError("invalid_grant", "device request expired");
     }

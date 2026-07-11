@@ -490,7 +490,7 @@ h3 {
   align-items: center;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--rule-soft);
-  cursor: pointer;
+  cursor: default;
 }
 .disclosure-choice input {
   position: absolute;

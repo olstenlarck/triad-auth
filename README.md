@@ -12,7 +12,7 @@ Every ID token uses the app-scoped identity as both `sub` and `pairwise_sub`.
 - `account_sub`: a random broker account identifier, stable across receiving Triad clients.
 - `provider_sub`: an opaque provider-global identifier that can correlate one upstream identity across receiving Triad clients without exposing the raw upstream ID. It is HMAC-derived from the provider name and immutable upstream ID; the raw ID remains only in Triad's identity mapping table and never enters tokens, UI, URLs, or logs.
 
-Identity-only authentication is the default. Clients may request the profile scopes `email`, `handle`, `name`, and `avatar` through the authorization URL or device request. Triad shows those requests at consent, and users may grant any subset. Their ID-token claims are `email` plus `email_verified`, `preferred_username`, `name`, and `picture` respectively. The custom `avatar` request scope maps to the standard `picture` claim. These values are mutable profile data, not identity keys.
+Identity-only authentication is the default. Clients may request the profile scopes `email`, `handle`, `name`, and `avatar` through the authorization URL or device request; every requested scope is mandatory for that transaction and appears as a checked, disabled control at consent. Their ID-token claims are `email` plus `email_verified`, `preferred_username`, `name`, and `picture` respectively. The custom `avatar` request scope maps to the standard `picture` claim. These values are mutable profile data, not identity keys.
 
 OIDC discovery reports `subject_types_supported: ["pairwise"]` because `pairwise` is the standard OpenID Connect subject type for a `sub` value that differs by client. Triad exposes that same value as `pairwise_sub` to make the identity contract explicit alongside `account_sub` and `provider_sub`.
 
@@ -187,7 +187,7 @@ curl --fail "$ISSUER/.well-known/jwks.json"
 
 Treat the `/api/providers` response as the enabled-provider list for that deployment. A supported callback path can exist while its provider is absent because its complete credential pair has not been uploaded.
 
-After the controller has configured an external provider, complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, `pairwise_sub` matches `ps_<32 lowercase hex>`, opaque `provider_sub` matches `pid_<provider>_<32 lowercase hex>`, `account_sub` starts with `acct_`, and `exp - iat` is 300 seconds. Profile claims must appear only when their requested scopes were enabled at consent.
+After the controller has configured an external provider, complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, `pairwise_sub` matches `ps_<32 lowercase hex>`, opaque `provider_sub` matches `pid_<provider>_<32 lowercase hex>`, `account_sub` starts with `acct_`, and `exp - iat` is 300 seconds. Profile claims must appear only when their scopes were requested.
 
 ## Revocation behavior
 

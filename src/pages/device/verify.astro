@@ -8,7 +8,7 @@ import Shell from "../../components/Shell.astro";
       <p>DEVICE FLOW</p>
       <h1 id="device-title">AUTHORIZE<br /><span>THIS DEVICE.</span></h1>
       <p class="lede">
-        Enter the code shown on your device, review the connection, and choose what to share.
+        Enter the code shown on your device, then review its app, provider, and required claims.
       </p>
     </div>
 
@@ -43,7 +43,7 @@ import Shell from "../../components/Shell.astro";
   </section>
 
   <script>
-    import { renderDisclosureControls, selectedDisclosureScope } from "../../scripts/disclosure-controls";
+    import { renderDisclosureControls } from "../../scripts/disclosure-controls";
 
     const form = document.querySelector<HTMLFormElement>("#device-form")!;
     const input = document.querySelector<HTMLInputElement>("#user-code")!;
@@ -124,7 +124,7 @@ import Shell from "../../components/Shell.astro";
         error.hidden = true;
         box.hidden = false;
         submit.disabled = false;
-        status.textContent = "Request found. Check the connection and choose what to share.";
+        status.textContent = "Request found. Check the app, provider, and required claims before approving.";
         status.dataset.tone = "success";
       } catch {
         if (current !== inspection) return;
@@ -162,7 +162,6 @@ import Shell from "../../components/Shell.astro";
             user_code: input.value,
             provider: provider.value,
             csrf_token: csrf.value,
-            scope: selectedDisclosureScope(disclosures),
           }),
         });
         const body = (await response.json()) as { redirect_to?: string; error_description?: string };

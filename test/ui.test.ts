@@ -88,9 +88,9 @@ it("submits transaction-bound CSRF tokens from both product forms", async () => 
   expect(device).not.toContain('type="radio"');
   expect(device).not.toContain('value="google"');
   expect(device).not.toContain('value="x"');
-  expect(consent).toContain("selectedDisclosureScope");
-  expect(device).toContain("selectedDisclosureScope");
   expect(disclosures).toContain('input.type = "checkbox"');
+  expect(disclosures).toContain("input.checked = true");
+  expect(disclosures).toContain("input.disabled = true");
 });
 
 it("keeps device verification navigation under same-origin JavaScript control", async () => {
@@ -127,7 +127,7 @@ it("uses accurate consent action labels and a stable recovery route", async () =
   expect(consent).toContain('approve.textContent = "APPROVE CONNECTION"');
   expect(consent).toContain('deny.textContent = "CANCEL"');
   expect(consent).not.toContain("approve.textContent = action ===");
-  expect(consent).toContain("Triad shares only the claims you turn on");
+  expect(consent).toContain("Approval shares every claim listed above");
   expect(consent).toContain("Claims become non-exchangeable at expiry.");
   expect(consent).toMatch(
     /Physical encrypted-row deletion is\s+bounded, traffic-driven cleanup and can occur later\./,
@@ -250,7 +250,7 @@ it("restores demo controls without replacing a browser start error", async () =>
   expect(finish).toContain("updateRequestControls(false)");
 });
 
-it("renders fixed identity claims and selectable requested profile claims", async () => {
+it("renders fixed identity claims and checked required profile claims", async () => {
   const [consent, device, controls] = await Promise.all([
     readFile("src/pages/consent.astro", "utf8"),
     readFile("src/pages/device/verify.astro", "utf8"),
@@ -269,6 +269,8 @@ it("renders fixed identity claims and selectable requested profile claims", asyn
   expect(device).toContain("disclosureBox.hidden = false");
   expect(device).not.toContain('value="github"');
   expect(controls).toContain('input.name = "granted-scope"');
+  expect(controls).toContain("input.checked = true");
+  expect(controls).toContain("input.disabled = true");
   expect(controls).toContain("Share your email address and its verification status.");
   expect(controls).not.toContain("Never use it as an identity key");
 });

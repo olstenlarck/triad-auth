@@ -23,9 +23,9 @@ Polish Triad's public copy and transaction UI, simplify opaque identifiers, and 
 
 - Use `CHECK THE CONNECTION` as the eyebrow and `IDENTITY HANDSHAKE` as the main title.
 - The core `openid` disclosure is always shared and remains a static list of the three identity claims.
-- Each requested profile scope is shown as a real switch, off by default. Approval sends `openid` plus the enabled switches.
-- The server validates that granted scopes are a subset of requested scopes. The selected subset is used for provider authorization, stored consent, code/device exchange, and the returned token scope.
-- Device authorization uses the same selection behavior so browser and device flows have one privacy contract.
+- Each requested profile scope is shown as a checked, disabled switch. The client request makes those claims mandatory for the transaction.
+- Approval accepts the complete request or cancels it; consent does not alter the requested scope set.
+- Device authorization uses the same mandatory-request display so browser and device flows have one privacy contract.
 - Copy describes what the person is sharing and avoids implementation guidance meant for client developers.
 
 ## Demo

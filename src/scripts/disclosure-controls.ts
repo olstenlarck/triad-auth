@@ -84,6 +84,8 @@ export function renderDisclosureControls(container: HTMLElement, scopes: readonl
     input.type = "checkbox";
     input.name = "granted-scope";
     input.value = scope;
+    input.checked = true;
+    input.disabled = true;
     const switchMark = document.createElement("span");
     switchMark.className = "disclosure-switch";
     switchMark.setAttribute("aria-hidden", "true");
@@ -95,12 +97,4 @@ export function renderDisclosureControls(container: HTMLElement, scopes: readonl
     row.appendChild(content);
     container.appendChild(row);
   }
-}
-
-export function selectedDisclosureScope(container: HTMLElement): string {
-  const selected = [
-    ...container.querySelectorAll<HTMLInputElement>('input[name="granted-scope"]:checked'),
-  ].map((input) => input.value);
-
-  return ["openid", ...selected].join(" ");
 }

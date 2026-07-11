@@ -127,9 +127,8 @@ function verifyDevice(
   csrf: string,
   origin = issuer,
   provider: ProviderName = "github",
-  scope = "openid",
 ): RequestInit {
-  return formRequest({ user_code: userCode, provider, csrf_token: csrf, scope }, origin);
+  return formRequest({ user_code: userCode, provider, csrf_token: csrf }, origin);
 }
 
 function stubGithub(): void {
@@ -483,7 +482,7 @@ describe("device authorization", () => {
 
     const response = await app.request(
       "/device/verify",
-      verifyDevice(userCode, csrf, issuer, "twitter", "openid handle"),
+      verifyDevice(userCode, csrf, issuer, "twitter"),
       env,
     );
     expect(response.status).toBe(200);
@@ -505,11 +504,7 @@ describe("device authorization", () => {
       scopes: ["openid", "handle", "name"],
     });
     const csrf = await inspectDevice(env, userCode);
-    const verified = await app.request(
-      "/device/verify",
-      verifyDevice(userCode, csrf, issuer, "github", "openid name"),
-      env,
-    );
+    const verified = await app.request("/device/verify", verifyDevice(userCode, csrf), env);
     const state = new URL((await verified.json<{ redirect_to: string }>()).redirect_to).searchParams.get(
       "state",
     )!;
@@ -531,16 +526,18 @@ describe("device authorization", () => {
     )
       .bind(deviceHash)
       .first<{ scopes: string; claims_ciphertext: string }>();
-    expect(stored?.scopes).toBe('["openid","name"]');
+    expect(stored?.scopes).toBe('["openid","handle","name"]');
     expect(stored?.claims_ciphertext).not.toContain("mutable-name");
     await expect(openClaims(env.PAIRWISE_SECRET, deviceHash, stored!.claims_ciphertext)).resolves.toEqual({
+      preferred_username: "mutable-name",
       name: "Device User",
     });
 
     const token = await app.request("/token", deviceTokenRequest(deviceCode), env);
     const body = await token.json<{ id_token: string; scope: string }>();
-    expect(body.scope).toBe("openid name");
+    expect(body.scope).toBe("openid handle name");
     expect(decodeJwt(body.id_token)).toMatchObject({
+      preferred_username: "mutable-name",
       name: "Device User",
     });
     expect(decodeJwt(body.id_token)).not.toHaveProperty("email");
@@ -555,11 +552,7 @@ describe("device authorization", () => {
     const env = await testEnv();
     const { deviceCode, userCode } = await seedGrant(env, { scopes: ["openid", "name"] });
     const csrf = await inspectDevice(env, userCode);
-    const verified = await app.request(
-      "/device/verify",
-      verifyDevice(userCode, csrf, issuer, "github", "openid name"),
-      env,
-    );
+    const verified = await app.request("/device/verify", verifyDevice(userCode, csrf), env);
     const state = new URL((await verified.json<{ redirect_to: string }>()).redirect_to).searchParams.get(
       "state",
     )!;

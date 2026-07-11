@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { parseScopes, selectGrantedScopes, validateProviderScopes } from "../claims";
+import { parseScopes, validateProviderScopes } from "../claims";
 import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
 import { cleanupExpiredState } from "../cleanup";
 import { getClient, validateClient } from "../db";
@@ -160,7 +160,7 @@ deviceRoutes.post("/device/verify", async (c) => {
   if (originError) return originError;
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) return form;
-  const duplicateError = rejectDuplicateParameters(form, ["user_code", "provider", "csrf_token", "scope"]);
+  const duplicateError = rejectDuplicateParameters(form, ["user_code", "provider", "csrf_token"]);
   if (duplicateError) return duplicateError;
   const userCode = validUserCode(form.get("user_code") ?? "");
   const providerValue = form.get("provider") ?? "";
@@ -198,15 +198,9 @@ deviceRoutes.post("/device/verify", async (c) => {
     return oauthError("invalid_request", "invalid CSRF token", 403);
   }
 
-  let scopes: Scope[];
-  try {
-    scopes = selectGrantedScopes(parseStoredScopes(grant.scopes), form.get("scope"));
-  } catch {
-    return oauthError("invalid_scope");
-  }
-
   const upstreamState = randomToken();
   const stateHash = await sha256(upstreamState);
+  const scopes = parseStoredScopes(grant.scopes);
   const start = await startProvider(provider, c.env, upstreamState, scopes);
   const binding = await createPreAuthBinding();
   await cleanupExpiredState(c.env.DB);
@@ -223,7 +217,7 @@ deviceRoutes.post("/device/verify", async (c) => {
       start.verifier ?? null,
       start.nonce ?? null,
       grant.device_code_hash,
-      JSON.stringify(scopes),
+      grant.scopes,
       binding.hash,
       now() + 600,
       now(),
