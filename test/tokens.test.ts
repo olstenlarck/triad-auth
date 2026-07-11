@@ -2,7 +2,8 @@ import { exportJWK, generateKeyPair, jwtVerify } from "jose";
 import { expect, it } from "vite-plus/test";
 import { issueIdToken, publicJwk } from "../src/tokens";
 
-const validProviderSub = "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b";
+const validAccountSub = `acc_${"a".repeat(64)}`;
+const validProviderSub = `pid_github_${"b".repeat(64)}`;
 
 it("exports only allowlisted public signing JWK fields", async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
@@ -57,7 +58,7 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
     PAIRWISE_SECRET: "s".repeat(32),
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
-  const token = await issueIdToken(env, "triad-demo", "acct_123", validProviderSub);
+  const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub);
   const key = await crypto.subtle.importKey(
     "jwk",
     await publicJwk(env),
@@ -71,7 +72,8 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
   });
   expect(payload.sub).toBe(payload.pairwise_sub);
   expect(payload.provider_sub).toBe(validProviderSub);
-  expect(payload.account_sub).toBe("acct_123");
+  expect(payload.account_sub).toBe(validAccountSub);
+  expect(payload.pairwise_sub).toMatch(/^pws_[0-9a-f]{64}$/);
   expect(payload.sub).not.toBe(payload.provider_sub);
   expect(payload).not.toHaveProperty("email");
   expect(payload).not.toHaveProperty("preferred_username");
@@ -89,7 +91,7 @@ it.each([true, false])(
       PAIRWISE_SECRET: "s".repeat(32),
       SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
     } as never;
-    const token = await issueIdToken(env, "triad-demo", "acct_123", validProviderSub, {
+    const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub, {
       email: "user@example.com",
       email_verified: emailVerified,
       preferred_username: "mutable_handle",
@@ -125,7 +127,7 @@ it("rejects non-standard or malformed profile claims", async () => {
   } as never;
 
   await expect(
-    issueIdToken(env, "triad-demo", "acct_123", validProviderSub, {
+    issueIdToken(env, "triad-demo", validAccountSub, validProviderSub, {
       email: "user@example.com",
       role: "admin",
     } as never),
@@ -140,7 +142,7 @@ it("issues a five minute ID token", async () => {
     PAIRWISE_SECRET: "s".repeat(32),
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
-  const token = await issueIdToken(env, "triad-demo", "acct_123", validProviderSub);
+  const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub);
   const key = await crypto.subtle.importKey(
     "jwk",
     await publicJwk(env),
@@ -166,18 +168,18 @@ it("rejects a pairwise secret shorter than 32 characters", async () => {
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
 
-  await expect(issueIdToken(env, "triad-demo", "acct_123", validProviderSub)).rejects.toThrow(
+  await expect(issueIdToken(env, "triad-demo", validAccountSub, validProviderSub)).rejects.toThrow(
     "PAIRWISE_SECRET must be at least 32 characters",
   );
 });
 
 it.each([
   ["raw provider subject", "github:42"],
-  ["unsupported provider", "pid_facebook_d2ee98e4ac33ccc6387b157c7ed07f5b"],
+  ["unsupported provider", `pid_facebook_${"b".repeat(64)}`],
   ["missing prefix", "github_0u6Y5KwzzMY4exV8ftB_W8"],
-  ["short opaque value", "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5"],
-  ["long opaque value", "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5ba"],
-  ["invalid opaque character", "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5!"],
+  ["short opaque value", `pid_github_${"b".repeat(63)}`],
+  ["long opaque value", `pid_github_${"b".repeat(65)}`],
+  ["invalid opaque character", `pid_github_${"b".repeat(63)}!`],
 ] as const)("rejects a %s", async (_description, providerSub) => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
@@ -187,7 +189,7 @@ it.each([
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
 
-  await expect(issueIdToken(env, "triad-demo", "acct_123", providerSub)).rejects.toThrow(
+  await expect(issueIdToken(env, "triad-demo", validAccountSub, providerSub)).rejects.toThrow(
     "provider_sub must be an opaque Triad provider subject",
   );
 });

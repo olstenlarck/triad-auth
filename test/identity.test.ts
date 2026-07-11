@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { normalizeUserCode, pairwiseSubject, providerSubject } from "../src/crypto";
+import { accountSubject, normalizeUserCode, pairwiseSubject, providerSubject } from "../src/crypto";
 import { resolveIdentity } from "../src/db";
 import { createTestDb } from "./d1";
 
@@ -14,23 +14,27 @@ afterEach(() => {
 describe("identity contract", () => {
   it("matches stable separated opaque provider subject vectors", async () => {
     const secret = "0123456789abcdef0123456789abcdef";
-    // Independently calculated for provider-sub\0github:277398031 and provider-sub\0google:277398031.
+    const account = await accountSubject(secret, "github", "277398031");
     const github = await providerSubject(secret, "github", "277398031");
     const google = await providerSubject(secret, "google", "277398031");
-    expect(github).toMatch(/^pid_github_[0-9a-f]{32}$/);
-    expect(google).toMatch(/^pid_google_[0-9a-f]{32}$/);
+
+    expect(account).toMatch(/^acc_[0-9a-f]{64}$/);
+    expect(github).toMatch(/^pid_github_[0-9a-f]{64}$/);
+    expect(google).toMatch(/^pid_google_[0-9a-f]{64}$/);
+    expect(account.slice("acc_".length)).not.toBe(github.slice("pid_github_".length));
     expect(await providerSubject(secret, "github", "277398031")).toBe(github);
     expect(google.slice("pid_google_".length)).not.toBe(github.slice("pid_github_".length));
     expect(github).not.toContain("277398031");
   });
 
   it("keeps pairwise IDs stable within and distinct across clients", async () => {
-    const first = await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a");
-    expect(first).toMatch(/^ps_[0-9a-f]{32}$/);
-    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a")).toBe(
+    const first = await pairwiseSubject("a sufficiently long test secret", "acc_a", "client_a");
+
+    expect(first).toMatch(/^pws_[0-9a-f]{64}$/);
+    expect(await pairwiseSubject("a sufficiently long test secret", "acc_a", "client_a")).toBe(
       first,
     );
-    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_b")).not.toBe(
+    expect(await pairwiseSubject("a sufficiently long test secret", "acc_a", "client_b")).not.toBe(
       first,
     );
   });
@@ -42,6 +46,7 @@ describe("identity contract", () => {
   it("resolves concurrent first-time provider identities to one account without an orphan", async () => {
     const { db, close } = await createTestDb();
     cleanups.push(close);
+    const secret = "a sufficiently long account subject secret";
     let initialReads = 0;
     let release!: () => void;
     const bothRead = new Promise<void>((resolve) => {
@@ -102,11 +107,12 @@ describe("identity contract", () => {
     }) as D1Database;
 
     const accounts = await Promise.all([
-      resolveIdentity(concurrentDb, { provider: "github", id: "42" }),
-      resolveIdentity(concurrentDb, { provider: "github", id: "42" }),
+      resolveIdentity(concurrentDb, { provider: "github", id: "42" }, secret),
+      resolveIdentity(concurrentDb, { provider: "github", id: "42" }, secret),
     ]);
 
     expect(new Set(accounts).size).toBe(1);
+    expect(accounts[0]).toMatch(/^acc_[0-9a-f]{64}$/);
     expect(await db.prepare("SELECT COUNT(*) AS count FROM accounts").first("count")).toBe(1);
     expect(await db.prepare("SELECT COUNT(*) AS count FROM identities").first("count")).toBe(1);
   });

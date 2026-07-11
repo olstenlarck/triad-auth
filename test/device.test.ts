@@ -108,7 +108,9 @@ async function seedGrant(
       JSON.stringify(values.scopes ?? ["openid"]),
       status,
       status === "approved" ? "acct_device" : null,
-      status === "approved" ? "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b" : null,
+      status === "approved"
+        ? "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5bd2ee98e4ac33ccc6387b157c7ed07f5b"
+        : null,
       values.expiresIn ?? 600,
       values.interval ?? 5,
       values.lastPolled ? Math.floor(Date.now() / 1000) : null,
@@ -1004,7 +1006,9 @@ describe("device token exchange", () => {
           .bind(
             status,
             status === "approved" ? "acct_device" : null,
-            status === "approved" ? "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b" : null,
+            status === "approved"
+              ? "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5bd2ee98e4ac33ccc6387b157c7ed07f5b"
+              : null,
             deviceHash,
           )
           .run();

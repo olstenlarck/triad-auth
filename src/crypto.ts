@@ -142,9 +142,19 @@ export async function pairwiseSubject(
   accountId: string,
   clientId: string,
 ): Promise<string> {
-  const digest = await hmacSha256Bytes(secret, `${accountId}\0${clientId}`);
+  const digest = await hmacSha256Bytes(secret, `pairwise-sub\0${accountId}\0${clientId}`);
 
-  return `ps_${hexadecimal(digest.slice(0, 16))}`;
+  return `pws_${hexadecimal(digest)}`;
+}
+
+export async function accountSubject(
+  secret: string,
+  provider: ProviderName,
+  providerUserId: string,
+): Promise<string> {
+  const digest = await hmacSha256Bytes(secret, `account-sub\0${provider}:${providerUserId}`);
+
+  return `acc_${hexadecimal(digest)}`;
 }
 
 export async function providerSubject(
@@ -154,7 +164,7 @@ export async function providerSubject(
 ): Promise<string> {
   const digest = await hmacSha256Bytes(secret, `provider-sub\0${provider}:${providerUserId}`);
 
-  return `pid_${provider}_${hexadecimal(digest.slice(0, 16))}`;
+  return `pid_${provider}_${hexadecimal(digest)}`;
 }
 
 export function normalizeUserCode(value: string): string {

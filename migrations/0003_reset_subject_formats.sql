@@ -1,0 +1,9 @@
+DELETE FROM csrf_tokens;
+DELETE FROM browser_sessions;
+DELETE FROM consent_requests;
+DELETE FROM oauth_transactions;
+DELETE FROM authorization_codes;
+DELETE FROM device_grants;
+DELETE FROM consents;
+DELETE FROM identities;
+DELETE FROM accounts;

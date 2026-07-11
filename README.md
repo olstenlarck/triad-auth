@@ -191,7 +191,7 @@ curl --fail "$ISSUER/.well-known/jwks.json"
 
 Treat the `/api/providers` response as the enabled-provider list for that deployment. A supported callback path can exist while its provider is absent because its complete credential pair has not been uploaded.
 
-After the controller has configured an external provider, complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, `pairwise_sub` matches `ps_<32 lowercase hex>`, opaque `provider_sub` matches `pid_<provider>_<32 lowercase hex>`, `account_sub` starts with `acct_`, and `exp - iat` is 300 seconds. Profile claims must appear only when their scopes were requested.
+After the controller has configured an external provider, complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, `pairwise_sub` matches `pws_<64 lowercase hex>`, opaque `provider_sub` matches `pid_<provider>_<64 lowercase hex>`, `account_sub` matches `acc_<64 lowercase hex>`, and `exp - iat` is 300 seconds. Profile claims must appear only when their scopes were requested. The production Google authorization-code flow has also been completed successfully through callback, code exchange, and local token verification.
 
 ## Revocation behavior
 

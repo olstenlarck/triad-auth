@@ -1,4 +1,4 @@
-import { randomToken, timingSafeEqual } from "./crypto";
+import { accountSubject, timingSafeEqual } from "./crypto";
 import type { ClientRow, ProviderIdentity, ProviderName, Scope, TransactionRow } from "./types";
 
 export interface AuthorizationCodeRow {
@@ -234,7 +234,11 @@ export async function rememberConsent(
     .run();
 }
 
-export async function resolveIdentity(db: D1Database, identity: ProviderIdentity): Promise<string> {
+export async function resolveIdentity(
+  db: D1Database,
+  identity: ProviderIdentity,
+  secret: string,
+): Promise<string> {
   const existing = await db
     .prepare("SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?")
     .bind(identity.provider, identity.id)
@@ -244,7 +248,7 @@ export async function resolveIdentity(db: D1Database, identity: ProviderIdentity
     return existing.account_id;
   }
 
-  const accountId = `acct_${randomToken(18)}`;
+  const accountId = await accountSubject(secret, identity.provider, identity.id);
   const now = Math.floor(Date.now() / 1000);
 
   await db

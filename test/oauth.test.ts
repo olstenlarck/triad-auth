@@ -228,7 +228,9 @@ async function seedAuthorizationCode(
   await env.DB.prepare(
     `INSERT INTO authorization_codes
     (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at)
-    VALUES (?, ?, ?, 'acct_length', 'pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b', ?, unixepoch() + 120)`,
+    VALUES (?, ?, ?, 'acct_length',
+      'pid_github_d2ee98e4ac33ccc6387b157c7ed07f5bd2ee98e4ac33ccc6387b157c7ed07f5b',
+      ?, unixepoch() + 120)`,
   )
     .bind(await sha256(values.code), clientId, target, await sha256(values.verifier))
     .run();
@@ -981,7 +983,8 @@ describe("authorization-code routes", () => {
       `INSERT INTO device_grants
       (device_code_hash, user_code, client_id, status, account_id, provider_sub, expires_at,
         interval_seconds, created_at)
-      VALUES (?, 'ABCD2345', 'triad-demo', 'approved', 'acct_device', 'pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b',
+      VALUES (?, 'ABCD2345', 'triad-demo', 'approved', 'acct_device',
+        'pid_github_d2ee98e4ac33ccc6387b157c7ed07f5bd2ee98e4ac33ccc6387b157c7ed07f5b',
         unixepoch() + 600, 5, unixepoch())`,
     )
       .bind(await sha256(deviceCode))

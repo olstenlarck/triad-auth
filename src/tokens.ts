@@ -10,7 +10,7 @@ export async function issueIdToken(
   providerSub: string,
   claims: ProfileClaims = {},
 ): Promise<string> {
-  if (!/^pid_(google|github|twitter)_[0-9a-f]{32}$/.test(providerSub)) {
+  if (!/^pid_(google|github|twitter)_[0-9a-f]{64}$/.test(providerSub)) {
     throw new Error("provider_sub must be an opaque Triad provider subject");
   }
   if (env.PAIRWISE_SECRET.length < 32) {

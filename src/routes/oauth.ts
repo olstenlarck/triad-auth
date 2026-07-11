@@ -525,7 +525,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     }
     throw error;
   }
-  const accountId = await resolveIdentity(c.env.DB, identity);
+  const accountId = await resolveIdentity(c.env.DB, identity, c.env.PAIRWISE_SECRET);
   const providerSub = await providerSubject(c.env.PAIRWISE_SECRET, identity.provider, identity.id);
 
   if (tx.kind === "session") {
