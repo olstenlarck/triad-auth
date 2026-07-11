@@ -1,5 +1,11 @@
 import { randomToken, timingSafeEqual } from "./crypto";
-import type { ClientRow, ProviderIdentity, ProviderName, Scope, TransactionRow } from "./types";
+import type {
+  ClientRow,
+  ProviderIdentity,
+  ProviderName,
+  Scope,
+  TransactionRow,
+} from "./types";
 
 export interface AuthorizationCodeRow {
   account_id: string;
@@ -10,7 +16,10 @@ export interface AuthorizationCodeRow {
   claims_ciphertext: string | null;
 }
 
-type AuthorizationCodeCandidateRow = Pick<AuthorizationCodeRow, "code_challenge" | "provider">;
+type AuthorizationCodeCandidateRow = Pick<
+  AuthorizationCodeRow,
+  "code_challenge" | "provider"
+>;
 
 export interface DeviceGrantStateRow {
   client_id: string;
@@ -26,9 +35,14 @@ export interface ApprovedDeviceGrantRow {
   claims_ciphertext: string | null;
 }
 
-export async function getClient(db: D1Database, clientId: string): Promise<ClientRow | null> {
+export async function getClient(
+  db: D1Database,
+  clientId: string,
+): Promise<ClientRow | null> {
   return db
-    .prepare("SELECT client_id, name, redirect_uris, providers FROM clients WHERE client_id = ?")
+    .prepare(
+      "SELECT client_id, name, redirect_uris, providers FROM clients WHERE client_id = ?",
+    )
     .bind(clientId)
     .first<ClientRow>();
 }
@@ -68,7 +82,9 @@ export async function consumeTransaction(
   browserBindingHash: string,
 ): Promise<TransactionRow | null> {
   const row = await db
-    .prepare("SELECT * FROM oauth_transactions WHERE state_hash = ? AND expires_at > unixepoch()")
+    .prepare(
+      "SELECT * FROM oauth_transactions WHERE state_hash = ? AND expires_at > unixepoch()",
+    )
     .bind(stateHash)
     .first<TransactionRow>();
 
@@ -136,7 +152,10 @@ export async function approveDeviceGrant(
   return result.meta.changes === 1;
 }
 
-export async function denyDeviceGrant(db: D1Database, deviceCodeHash: string): Promise<boolean> {
+export async function denyDeviceGrant(
+  db: D1Database,
+  deviceCodeHash: string,
+): Promise<boolean> {
   const result = await db
     .prepare(
       `UPDATE device_grants SET status = 'denied'
@@ -234,9 +253,14 @@ export async function rememberConsent(
     .run();
 }
 
-export async function resolveIdentity(db: D1Database, identity: ProviderIdentity): Promise<string> {
+export async function resolveIdentity(
+  db: D1Database,
+  identity: ProviderIdentity,
+): Promise<string> {
   const existing = await db
-    .prepare("SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?")
+    .prepare(
+      "SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?",
+    )
     .bind(identity.provider, identity.id)
     .first<{ account_id: string }>();
 
@@ -260,13 +284,18 @@ export async function resolveIdentity(db: D1Database, identity: ProviderIdentity
       )
       .bind(identity.provider, identity.id, accountId, now)
       .run();
+
     const winner = await db
-      .prepare("SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?")
+      .prepare(
+        "SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?",
+      )
       .bind(identity.provider, identity.id)
       .first<{ account_id: string }>();
+
     if (!winner) {
       throw new Error("identity resolution failed");
     }
+
     if (winner.account_id !== accountId) {
       await db
         .prepare(
@@ -286,6 +315,7 @@ export async function resolveIdentity(db: D1Database, identity: ProviderIdentity
       )
       .bind(accountId, accountId)
       .run();
+
     throw error;
   }
 }
