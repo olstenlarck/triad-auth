@@ -1,6 +1,12 @@
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
-import { parseScopes, providerScopes, serializeScopes, validateProviderScopes } from "../claims";
+import {
+  parseScopes,
+  providerScopes,
+  selectGrantedScopes,
+  serializeScopes,
+  validateProviderScopes,
+} from "../claims";
 import { cleanupExpiredState } from "../cleanup";
 import { openClaims, providerSubject, randomToken, sealClaims, sha256, timingSafeEqual } from "../crypto";
 import {
@@ -298,7 +304,13 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
   if (authorized instanceof Response) return authorized;
   const row = await consumeConsentRequest(c.env.DB, authorized);
   if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
-  const scopes = parseStoredScopes(row.scopes);
+  let scopes: Scope[];
+  try {
+    scopes = selectGrantedScopes(parseStoredScopes(row.scopes), form.get("scope"));
+  } catch {
+    return oauthError("invalid_scope");
+  }
+  const serializedScopes = JSON.stringify(scopes);
   const upstreamState = randomToken();
   const stateHash = await sha256(upstreamState);
   const start = await startProvider(row.provider, c.env, upstreamState, scopes);
@@ -309,7 +321,7 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
       provider_verifier, provider_nonce, scopes, browser_binding_hash, expires_at, created_at)
     VALUES (?, 'authorization_code', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
       stateHash, row.client_id, row.redirect_uri, row.app_state, row.provider,
-      row.code_challenge, start.verifier ?? null, start.nonce ?? null, row.scopes,
+      row.code_challenge, start.verifier ?? null, start.nonce ?? null, serializedScopes,
       binding.hash, now() + 600, now(),
     ).run();
   setPreAuthCookie(c, stateHash, binding.token, row.provider);
@@ -383,7 +395,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
       ? await sealClaims(c.env.PAIRWISE_SECRET, tx.device_code_hash, identity.claims)
       : null;
     if (!tx.device_code_hash
-      || !(await approveDeviceGrant(c.env.DB, tx.device_code_hash, accountId, providerSub, claimsCiphertext))) {
+      || !(await approveDeviceGrant(c.env.DB, tx.device_code_hash, accountId, providerSub, claimsCiphertext, scopes))) {
       return oauthError("invalid_grant", "device request expired");
     }
     await rotateBrowserSession(c, accountId);

@@ -116,8 +116,9 @@ function verifyDevice(
   csrf: string,
   origin = issuer,
   provider: ProviderName = "github",
+  scope = "openid",
 ): RequestInit {
-  return formRequest({ user_code: userCode, provider, csrf_token: csrf }, origin);
+  return formRequest({ user_code: userCode, provider, csrf_token: csrf, scope }, origin);
 }
 
 function stubGithub(): void {
@@ -417,7 +418,11 @@ describe("device authorization", () => {
     const { userCode } = await seedGrant(env, { provider: "twitter", scopes: ["openid", "handle"] });
     const csrf = await inspectDevice(env, userCode);
 
-    const response = await app.request("/device/verify", verifyDevice(userCode, csrf, issuer, "twitter"), env);
+    const response = await app.request(
+      "/device/verify",
+      verifyDevice(userCode, csrf, issuer, "twitter", "openid handle"),
+      env,
+    );
     expect(response.status).toBe(200);
     const row = await env.DB.prepare(`SELECT provider, provider_verifier, provider_nonce, scopes
       FROM oauth_transactions`).first();
@@ -435,7 +440,11 @@ describe("device authorization", () => {
       scopes: ["openid", "handle", "name"],
     });
     const csrf = await inspectDevice(env, userCode);
-    const verified = await app.request("/device/verify", verifyDevice(userCode, csrf), env);
+    const verified = await app.request(
+      "/device/verify",
+      verifyDevice(userCode, csrf, issuer, "github", "openid name"),
+      env,
+    );
     const state = new URL((await verified.json<{ redirect_to: string }>()).redirect_to).searchParams.get("state")!;
     const cookieName = preAuthCookieName(await sha256(state));
     const binding = responseCookie(verified, cookieName);
@@ -447,18 +456,16 @@ describe("device authorization", () => {
     expect(callback.status).toBe(200);
     const stored = await env.DB.prepare(`SELECT scopes, claims_ciphertext FROM device_grants
       WHERE device_code_hash = ?`).bind(deviceHash).first<{ scopes: string; claims_ciphertext: string }>();
-    expect(stored?.scopes).toBe('["openid","handle","name"]');
+    expect(stored?.scopes).toBe('["openid","name"]');
     expect(stored?.claims_ciphertext).not.toContain("mutable-name");
     await expect(openClaims(env.PAIRWISE_SECRET, deviceHash, stored!.claims_ciphertext)).resolves.toEqual({
-      preferred_username: "mutable-name",
       name: "Device User",
     });
 
     const token = await app.request("/token", deviceTokenRequest(deviceCode), env);
     const body = await token.json<{ id_token: string; scope: string }>();
-    expect(body.scope).toBe("openid handle name");
+    expect(body.scope).toBe("openid name");
     expect(decodeJwt(body.id_token)).toMatchObject({
-      preferred_username: "mutable-name",
       name: "Device User",
     });
     expect(decodeJwt(body.id_token)).not.toHaveProperty("email");
@@ -470,7 +477,11 @@ describe("device authorization", () => {
     const env = await testEnv();
     const { deviceCode, userCode } = await seedGrant(env, { scopes: ["openid", "name"] });
     const csrf = await inspectDevice(env, userCode);
-    const verified = await app.request("/device/verify", verifyDevice(userCode, csrf), env);
+    const verified = await app.request(
+      "/device/verify",
+      verifyDevice(userCode, csrf, issuer, "github", "openid name"),
+      env,
+    );
     const state = new URL((await verified.json<{ redirect_to: string }>()).redirect_to).searchParams.get("state")!;
     const stateHash = await sha256(state);
     const binding = responseCookie(verified, preAuthCookieName(stateHash));

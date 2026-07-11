@@ -96,11 +96,12 @@ export async function approveDeviceGrant(
   accountId: string,
   providerSub: string,
   claimsCiphertext: string | null,
+  scopes: readonly Scope[],
 ): Promise<boolean> {
   const result = await db.prepare(`UPDATE device_grants
-    SET status = 'approved', account_id = ?, provider_sub = ?, claims_ciphertext = ?
+    SET status = 'approved', account_id = ?, provider_sub = ?, claims_ciphertext = ?, scopes = ?
     WHERE device_code_hash = ? AND status = 'pending' AND expires_at > unixepoch()`)
-    .bind(accountId, providerSub, claimsCiphertext, deviceCodeHash).run();
+    .bind(accountId, providerSub, claimsCiphertext, JSON.stringify(scopes), deviceCodeHash).run();
   return result.meta.changes === 1;
 }
 

@@ -32,6 +32,15 @@ export function serializeScopes(scopes: readonly Scope[]): string {
   return parseScopes(scopes.join(" ")).join(" ");
 }
 
+export function selectGrantedScopes(requested: readonly Scope[], value: string | null): Scope[] {
+  const granted = parseScopes(value ?? "openid");
+  if (granted.some((scope) => !requested.includes(scope))) {
+    throw new Error("invalid_scope");
+  }
+
+  return granted;
+}
+
 export function providerScopes(provider: ProviderName): ProfileScope[] {
   return [...capabilities[provider]];
 }

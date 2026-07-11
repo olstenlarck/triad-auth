@@ -67,14 +67,21 @@ async function beginConsent(env: Env, overrides: Record<string, string> = {}): P
   return { request, csrf: await inspectConsent(env, request) };
 }
 
-async function consentMutation(env: Env, request: string, csrf: string, action: "approve" | "deny", origin = issuer) {
+async function consentMutation(
+  env: Env,
+  request: string,
+  csrf: string,
+  action: "approve" | "deny",
+  origin = issuer,
+  scope = "openid",
+) {
   return app.request(`/api/consent/${encodeURIComponent(request)}/${action}`, {
     method: "POST",
     headers: {
       origin,
       "content-type": "application/x-www-form-urlencoded",
     },
-    body: new URLSearchParams({ csrf_token: csrf }),
+    body: new URLSearchParams({ csrf_token: csrf, scope }),
   }, env);
 }
 
@@ -82,8 +89,9 @@ async function approveConsent(
   env: Env,
   request: string,
   csrf: string,
+  scope = "openid",
 ): Promise<{ state: string; binding: string; cookieName: string; setCookie: string }> {
-  const response = await consentMutation(env, request, csrf, "approve");
+  const response = await consentMutation(env, request, csrf, "approve", issuer, scope);
   expect(response.status).toBe(200);
   const body = await response.json<{ redirect_to: string }>();
   const state = new URL(body.redirect_to).searchParams.get("state")!;
@@ -300,7 +308,7 @@ describe("authorization-code routes", () => {
   it("redirects a mandatory profile-value failure as access_denied without issuing a code", async () => {
     const env = await testEnv();
     const { request, csrf } = await beginConsent(env, { scope: "openid name" });
-    const approved = await approveConsent(env, request, csrf);
+    const approved = await approveConsent(env, request, csrf, "openid name");
     const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
@@ -350,15 +358,26 @@ describe("authorization-code routes", () => {
       scopes: ["openid", "email", "name"],
     });
 
-    const approved = await approveConsent(env, request, consentBody.csrf_token);
+    const approved = await approveConsent(env, request, consentBody.csrf_token, "openid name");
     const row = await env.DB.prepare(`SELECT provider, provider_nonce, provider_verifier, scopes
       FROM oauth_transactions WHERE state_hash = ?`).bind(await sha256(approved.state)).first();
     expect(row).toEqual({
       provider: "google",
       provider_nonce: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
       provider_verifier: null,
-      scopes: '["openid","email","name"]',
+      scopes: '["openid","name"]',
     });
+  });
+
+  it("rejects profile scopes that the client did not request", async () => {
+    const env = await testEnv();
+    const { request, csrf } = await beginConsent(env, { scope: "openid email" });
+
+    const response = await consentMutation(env, request, csrf, "approve", issuer, "openid avatar");
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "invalid_scope" });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
   });
 
   it("rejects a callback whose provider does not match the consumed transaction", async () => {
@@ -387,7 +406,7 @@ describe("authorization-code routes", () => {
       code_challenge: await sha256(verifier),
       scope: "name openid email email",
     });
-    const { state, binding } = await approveConsent(env, request, csrf);
+    const { state, binding } = await approveConsent(env, request, csrf, "openid email name");
     stubGithubProfile();
     const callback = await app.request(`/callback/github?state=${state}&code=provider-code`, {
       headers: { cookie: binding },

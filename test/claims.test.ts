@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseScopes,
   providerScopes,
+  selectGrantedScopes,
   serializeScopes,
   validateProviderScopes,
 } from "../src/claims";
@@ -33,6 +34,14 @@ describe("privacy scopes", () => {
     expect(() => validateProviderScopes("twitter", parseScopes("openid email"))).toThrow("invalid_scope");
     expect(() => validateProviderScopes("github", parseScopes("openid email handle name avatar")))
       .not.toThrow();
+  });
+
+  it("allows only a canonical subset of requested scopes", () => {
+    const requested = parseScopes("openid email name");
+
+    expect(selectGrantedScopes(requested, "name openid")).toEqual(["openid", "name"]);
+    expect(selectGrantedScopes(requested, null)).toEqual(["openid"]);
+    expect(() => selectGrantedScopes(requested, "openid avatar")).toThrow("invalid_scope");
   });
 });
 
