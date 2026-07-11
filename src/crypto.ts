@@ -13,10 +13,7 @@ export function base64url(bytes: Uint8Array): string {
     binary += String.fromCharCode(byte);
   }
 
-  return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
 function decodeBase64url(value: string): Uint8Array {
@@ -40,13 +37,9 @@ async function claimsKey(secret: string): Promise<CryptoKey> {
     throw new Error("PAIRWISE_SECRET must be at least 32 characters");
   }
 
-  const material = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    "HKDF",
-    false,
-    ["deriveKey"],
-  );
+  const material = await crypto.subtle.importKey("raw", encoder.encode(secret), "HKDF", false, [
+    "deriveKey",
+  ]);
 
   return crypto.subtle.deriveKey(
     { name: "HKDF", hash: "SHA-256", salt: claimsSalt, info: claimsInfo },
@@ -120,24 +113,14 @@ export function randomToken(bytes = 32): string {
 }
 
 export async function sha256(value: string): Promise<string> {
-  return base64url(
-    new Uint8Array(
-      await crypto.subtle.digest("SHA-256", encoder.encode(value)),
-    ),
-  );
+  return base64url(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
 }
 
-export async function hmacSha256(
-  secret: string,
-  value: string,
-): Promise<string> {
+export async function hmacSha256(secret: string, value: string): Promise<string> {
   return base64url(await hmacSha256Bytes(secret, value));
 }
 
-async function hmacSha256Bytes(
-  secret: string,
-  value: string,
-): Promise<Uint8Array> {
+async function hmacSha256Bytes(secret: string, value: string): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
@@ -169,10 +152,7 @@ export async function providerSubject(
   provider: ProviderName,
   providerUserId: string,
 ): Promise<string> {
-  const digest = await hmacSha256Bytes(
-    secret,
-    `provider-sub\0${provider}:${providerUserId}`,
-  );
+  const digest = await hmacSha256Bytes(secret, `provider-sub\0${provider}:${providerUserId}`);
 
   return `pid_${provider}_${hexadecimal(digest.slice(0, 16))}`;
 }
