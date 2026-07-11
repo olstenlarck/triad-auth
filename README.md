@@ -12,7 +12,9 @@ Every ID token uses the app-scoped identity as both `sub` and `pairwise_sub`.
 - `account_sub`: a random broker account identifier, stable across receiving Triad clients.
 - `provider_sub`: an opaque provider-global identifier that can correlate one upstream identity across receiving Triad clients without exposing the raw upstream ID. It is HMAC-derived from the provider name and immutable upstream ID; the raw ID remains only in Triad's identity mapping table and never enters tokens, UI, URLs, or logs.
 
-Identity-only authentication is the default. Clients may request the optional scopes `email`, `handle`, `name`, and `avatar`; every requested scope is mandatory for that transaction and is shown before approval. Their standard ID-token claims are `email` plus `email_verified`, `preferred_username`, `name`, and `picture` respectively. These values are mutable profile data, not identity keys.
+Identity-only authentication is the default. Clients may request the profile scopes `email`, `handle`, `name`, and `avatar` through the authorization URL or device request. Triad shows those requests at consent, and users may grant any subset. Their ID-token claims are `email` plus `email_verified`, `preferred_username`, `name`, and `picture` respectively. The custom `avatar` request scope maps to the standard `picture` claim. These values are mutable profile data, not identity keys.
+
+OIDC discovery reports `subject_types_supported: ["pairwise"]` because `pairwise` is the standard OpenID Connect subject type for a `sub` value that differs by client. Triad exposes that same value as `pairwise_sub` to make the identity contract explicit alongside `account_sub` and `provider_sub`.
 
 Consent records retain approved scope names, not profile values. D1 stores requested profile values only as row-bound authenticated ciphertext. A winning authorization-code or approved device-grant exchange atomically deletes its row before decrypting the claims, physically removing the ciphertext while preserving one-winner redemption. Abandoned profile ciphertext is exchangeable only until the authorization code's two-minute TTL or the device grant's ten-minute TTL. After expiry it remains encrypted and inaccessible to exchange, even if its row is still physically present. Bounded, sampled, traffic-driven cleanup physically deletes expired rows when later requests trigger it, so physical retention can exceed the protocol TTL when no later traffic arrives. Upstream access tokens are discarded after the provider response is mapped.
 
@@ -24,7 +26,7 @@ Provider capabilities are:
 | GitHub | Yes | Yes | Yes | Yes |
 | Twitter | No | Yes | Yes | Yes |
 
-Triad rejects unsupported provider/scope combinations before creating state or grants. If an account does not supply a requested, supported mandatory value, the transaction ends without a code or token.
+Triad rejects unsupported provider/scope combinations before creating state or grants. If an account does not supply a selected profile value, the transaction ends without a code or token.
 
 ## Supported flows
 
@@ -118,7 +120,7 @@ pnpm dev
 
 Open `http://localhost:8787/demo/` for the built-in PKCE and device demos. The account surface is at `http://localhost:8787/me/`.
 
-`pnpm dev` performs a complete Astro build and regenerates the inline-script CSP hashes before Wrangler starts. It passes `--var ISSUER:http://localhost:8787` to Wrangler, overriding only `ISSUER` for the local process; `ISSUER` is not a secret and does not belong in `.dev.vars`. The production `pnpm deploy` command passes no override and continues to use the canonical HTTPS `ISSUER` from `wrangler.toml`. Local development intentionally does not run a stale build watcher, so restart `pnpm dev` after changing Astro pages or browser scripts.
+`pnpm dev` performs a complete Astro build and regenerates the script CSP allowlist before Wrangler starts. It passes `--var ISSUER:http://localhost:8787` to Wrangler, overriding only `ISSUER` for the local process; `ISSUER` is not a secret and does not belong in `.dev.vars`. The production `pnpm deploy` command passes no override and continues to use the canonical HTTPS `ISSUER` from `wrangler.toml`. Local development intentionally does not run a stale build watcher, so restart `pnpm dev` after changing Astro pages or browser scripts.
 
 ## Checks
 
@@ -185,7 +187,7 @@ curl --fail "$ISSUER/.well-known/jwks.json"
 
 Treat the `/api/providers` response as the enabled-provider list for that deployment. A supported callback path can exist while its provider is absent because its complete credential pair has not been uploaded.
 
-After the controller has configured an external provider, complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, opaque `provider_sub` starts with `prv_<provider>_`, `account_sub` starts with `acct_`, and `exp - iat` is 300 seconds. Requested profile claims must appear only when their scopes were included.
+After the controller has configured an external provider, complete both flows at `$ISSUER/demo/` and confirm the returned token has `sub === pairwise_sub`, `pairwise_sub` matches `ps_<32 lowercase hex>`, opaque `provider_sub` matches `pid_<provider>_<32 lowercase hex>`, `account_sub` starts with `acct_`, and `exp - iat` is 300 seconds. Profile claims must appear only when their requested scopes were enabled at consent.
 
 ## Revocation behavior
 

@@ -6,8 +6,8 @@ import Shell from "../../components/Shell.astro";
   <section class="transaction shell narrow" aria-labelledby="device-title">
     <div class="transaction-head">
       <p>DEVICE FLOW</p>
-      <h1 id="device-title">PAIR THIS<br /><span>DEVICE.</span></h1>
-      <p class="lede">Enter the code shown on your device, then confirm its app, provider, and mandatory claims.</p>
+      <h1 id="device-title">AUTHORIZE<br /><span>THIS DEVICE.</span></h1>
+      <p class="lede">Enter the code shown on your device, review the connection, and choose what to share.</p>
     </div>
 
     <form id="device-form" class="device-form" method="post" action="/device/verify" aria-busy="false">
@@ -20,7 +20,7 @@ import Shell from "../../components/Shell.astro";
         <div><span>PROVIDER</span><strong id="device-provider-name">PENDING</strong></div>
       </div>
       <div id="device-disclosure" class="device-disclosure" hidden>
-        <strong>MANDATORY CLAIMS THIS APP WILL RECEIVE</strong>
+        <strong>IDENTITY + REQUESTED PROFILE CLAIMS</strong>
         <div id="device-disclosures" class="disclosure-list"></div>
       </div>
       <p id="device-status" class="demo-status" aria-live="polite">Enter all eight characters to inspect the request.</p>
@@ -31,6 +31,8 @@ import Shell from "../../components/Shell.astro";
   </section>
 
   <script>
+    import { renderDisclosureControls, selectedDisclosureScope } from "../../scripts/disclosure-controls";
+
     const form = document.querySelector<HTMLFormElement>("#device-form")!;
     const input = document.querySelector<HTMLInputElement>("#user-code")!;
     const csrf = document.querySelector<HTMLInputElement>("#device-csrf")!;
@@ -43,38 +45,6 @@ import Shell from "../../components/Shell.astro";
     const error = document.querySelector<HTMLElement>("#device-error")!;
     const fromUrl = new URLSearchParams(location.search).get("user_code") ?? "";
     let inspection = 0;
-
-    const disclosureDetails: Record<string, Array<[string, string, string]>> = {
-      openid: [
-        ["APP-SCOPED ID", "pairwise_sub", "Unique to this application. Different client, different value."],
-        ["BROKER ACCOUNT", "account_sub", "Stable across Triad clients and correlates this broker account between them."],
-        ["PROVIDER-GLOBAL ID", "provider_sub", "Correlatable across authorized Triad clients without exposing the upstream ID."],
-      ],
-      email: [["EMAIL + VERIFICATION STATUS", "email + email_verified", "Mutable profile data. Never use it as an identity key."]],
-      handle: [["PROVIDER HANDLE", "preferred_username", "The account handle reported by the selected provider."]],
-      name: [["DISPLAY NAME", "name", "The display name reported by the selected provider."]],
-      avatar: [["AVATAR URL", "picture", "The profile image URL reported by the selected provider."]],
-    };
-
-    function renderDisclosures(scopes: string[]) {
-      disclosures.replaceChildren();
-      disclosureBox.hidden = true;
-      for (const scope of scopes) {
-        const rows = disclosureDetails[scope];
-        if (!rows) throw new Error("This request contains an unsupported claim.");
-        for (const [label, claim, description] of rows) {
-          const row = document.createElement("div");
-          const labelNode = document.createElement("span");
-          const claimNode = document.createElement("strong");
-          const descriptionNode = document.createElement("small");
-          labelNode.textContent = label;
-          claimNode.textContent = claim;
-          descriptionNode.textContent = description;
-          row.append(labelNode, claimNode, descriptionNode);
-          disclosures.append(row);
-        }
-      }
-    }
 
     function resetInspectedRequest() {
       csrf.value = "";
@@ -133,13 +103,13 @@ import Shell from "../../components/Shell.astro";
         document.querySelector("#device-client")!.textContent = body.client_name ?? "UNKNOWN APP";
         document.querySelector("#device-provider-name")!.textContent = body.provider.toUpperCase();
         provider.value = body.provider;
-        renderDisclosures(body.scopes);
+        renderDisclosureControls(disclosures, body.scopes);
         disclosureBox.hidden = false;
         csrf.value = body.csrf_token;
         error.hidden = true;
         box.hidden = false;
         submit.disabled = false;
-        status.textContent = "Request found. Check the app, provider, and mandatory claims before approving.";
+        status.textContent = "Request found. Check the connection and choose what to share.";
         status.dataset.tone = "success";
       } catch {
         if (current !== inspection) return;
@@ -177,6 +147,7 @@ import Shell from "../../components/Shell.astro";
             user_code: input.value,
             provider: provider.value,
             csrf_token: csrf.value,
+            scope: selectedDisclosureScope(disclosures),
           }),
         });
         const body = await response.json() as { redirect_to?: string; error_description?: string };

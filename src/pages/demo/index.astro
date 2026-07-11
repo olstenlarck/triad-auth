@@ -9,29 +9,22 @@ import Shell from "../../components/Shell.astro";
 >
   <section class="transaction shell demo" aria-labelledby="demo-title">
     <div class="transaction-head demo-head">
-      <p>TRY THE BROKER</p>
-      <h1 id="demo-title">TWO FLOWS.<br /><span>ONE IDENTITY.</span></h1>
+      <p>TRY TRIAD</p>
+      <h1 id="demo-title">ONE REQUEST.<br /><span>TWO FLOWS.</span></h1>
       <p class="lede">
-        Choose an enabled provider and the optional claims this demo client requests. Both paths finish with the same locally verified identity contract.
+        Configure what the demo client asks for, then use a browser redirect or device code. Both paths return the same verifiable identity contract.
       </p>
     </div>
 
     <section class="demo-request" aria-labelledby="demo-request-title">
       <div class="demo-request-heading">
         <h2 id="demo-request-title">CONFIGURE THE CLIENT REQUEST</h2>
-        <p>Optional claims default off. Any claim selected here is mandatory for this transaction and shown again before approval.</p>
+        <p>Requested profile claims default off. Triad shows them again at consent, where the user chooses what to share.</p>
       </div>
-      <fieldset id="provider-fieldset" disabled>
-        <legend>UPSTREAM PROVIDER</legend>
-        <div id="provider-options" class="provider-selector">
-          <template id="provider-option-template">
-            <label>
-              <input type="radio" name="demo-provider" />
-              <span></span>
-            </label>
-          </template>
-        </div>
-      </fieldset>
+      <div class="provider-control">
+        <label for="demo-provider">PROVIDER</label>
+        <select id="demo-provider" disabled aria-describedby="provider-status"></select>
+      </div>
       <fieldset id="scope-fieldset" disabled>
         <legend>OPTIONAL CLAIM REQUEST</legend>
         <div class="scope-selector">
@@ -87,7 +80,7 @@ import Shell from "../../components/Shell.astro";
         <section id="device-identity" class="verified-result" aria-labelledby="device-result-title" hidden>
           <div class="verified-head">
             <span class="verified-symbol" aria-hidden="true">✓</span>
-            <div><span>SIGNATURE VALID</span><h3 id="device-result-title" tabindex="-1">VERIFIED IDENTITY</h3></div>
+            <div><span>SIGNATURE VALID</span><h3 id="device-result-title">VERIFIED IDENTITY</h3></div>
           </div>
           <dl class="verified-claims">
             <div><dt>pairwise_sub</dt><dd id="device-pairwise"></dd><small>App-scoped. Different for every client.</small></div>
@@ -95,7 +88,7 @@ import Shell from "../../components/Shell.astro";
             <div><dt>provider_sub</dt><dd id="device-provider"></dd><small>Provider-global and correlatable across Triad clients that receive it.</small></div>
           </dl>
           <section id="device-profile" class="verified-profile" aria-labelledby="device-profile-title" hidden>
-            <h4 id="device-profile-title">VERIFIED OPTIONAL CLAIMS</h4>
+            <h4 id="device-profile-title">SHARED CLAIMS</h4>
             <dl id="device-profile-claims"></dl>
           </section>
         </section>
@@ -124,12 +117,10 @@ import Shell from "../../components/Shell.astro";
     const deviceStatus = document.querySelector<HTMLElement>("#device-status")!;
     const deviceInstructions = document.querySelector<HTMLElement>("#device-instructions")!;
     const deviceIdentity = document.querySelector<HTMLElement>("#device-identity")!;
-    const providerFieldset = document.querySelector<HTMLFieldSetElement>("#provider-fieldset")!;
+    const providerSelect = document.querySelector<HTMLSelectElement>("#demo-provider")!;
     const scopeFieldset = document.querySelector<HTMLFieldSetElement>("#scope-fieldset")!;
-    const providerOptions = document.querySelector<HTMLElement>("#provider-options")!;
     const providerStatus = document.querySelector<HTMLElement>("#provider-status")!;
     const providerRetry = document.querySelector<HTMLButtonElement>("#provider-retry")!;
-    const providerTemplate = document.querySelector<HTMLTemplateElement>("#provider-option-template")!;
     const scopeInputs = [...document.querySelectorAll<HTMLInputElement>('input[name="demo-scope"]')];
     let providerCapabilities: ProviderCapability[] = [];
     let activeFlow: "browser" | "device" | null = null;
@@ -142,8 +133,7 @@ import Shell from "../../components/Shell.astro";
     let deviceController = new AbortController();
 
     function selectedCapability(): ProviderCapability | undefined {
-      const selected = document.querySelector<HTMLInputElement>('input[name="demo-provider"]:checked');
-      return providerCapabilities.find((provider) => provider.id === selected?.value);
+      return providerCapabilities.find((provider) => provider.id === providerSelect.value);
     }
 
     function selectedScopeRequest(provider: ProviderCapability): string {
@@ -161,7 +151,7 @@ import Shell from "../../components/Shell.astro";
       const providerName = selectedProvider?.id.toUpperCase() ?? "PROVIDER";
       document.querySelector<HTMLElement>("#browser-provider")!.textContent = selectedProvider?.id ?? "unavailable";
       browserStart.textContent = `SIGN IN WITH ${providerName}`;
-      providerFieldset.disabled = activeFlow !== null;
+      providerSelect.disabled = activeFlow !== null;
       scopeFieldset.disabled = activeFlow !== null;
       browserStart.disabled = activeFlow !== null || !selectedProvider;
       deviceStart.disabled = activeFlow !== null || !selectedProvider;
@@ -189,25 +179,22 @@ import Shell from "../../components/Shell.astro";
       providerRetry.disabled = true;
       providerStatus.textContent = "Loading enabled providers...";
       providerStatus.dataset.tone = "working";
-      providerFieldset.disabled = true;
+      providerSelect.disabled = true;
       scopeFieldset.disabled = true;
       browserStart.disabled = true;
       deviceStart.disabled = true;
       providerCapabilities = [];
-      providerOptions.querySelectorAll("label").forEach((option) => option.remove());
+      providerSelect.replaceChildren();
       try {
         providerCapabilities = await fetchProviderCapabilities();
         if (!providerCapabilities.length) throw new Error("No providers are enabled.");
         for (const provider of providerCapabilities) {
-          const option = providerTemplate.content.firstElementChild!.cloneNode(true) as HTMLLabelElement;
-          const input = option.querySelector<HTMLInputElement>("input")!;
-          const label = option.querySelector<HTMLElement>("span")!;
-          input.value = provider.id;
-          input.checked = provider === providerCapabilities[0];
-          label.textContent = provider.id.toUpperCase();
-          providerOptions.insertBefore(option, providerTemplate);
+          const option = document.createElement("option");
+          option.value = provider.id;
+          option.textContent = provider.id.toUpperCase();
+          providerSelect.append(option);
         }
-        providerFieldset.disabled = false;
+        providerSelect.disabled = false;
         scopeFieldset.disabled = false;
         providerStatus.textContent = "Only providers enabled by this Triad deployment appear here.";
         providerRetry.disabled = false;
@@ -281,7 +268,6 @@ import Shell from "../../components/Shell.astro";
       renderProfileClaims(document.querySelector<HTMLElement>("#device-profile-claims")!, identity.profile);
       deviceIdentity.hidden = false;
       message(deviceStatus, "Signature, issuer, audience, expiry, and identity claims verified.", "success");
-      document.querySelector<HTMLElement>("#device-result-title")!.focus();
     }
 
     function schedulePoll() {
@@ -465,7 +451,7 @@ import Shell from "../../components/Shell.astro";
       message(deviceStatus, "Browser history restored. No previous device request was resumed. Start a new flow.");
     }
 
-    providerOptions.addEventListener("change", () => updateRequestControls());
+    providerSelect.addEventListener("change", () => updateRequestControls());
     providerRetry.addEventListener("click", () => { void loadProviderControls(); });
     window.addEventListener("pagehide", stopDeviceFlow);
     window.addEventListener("pageshow", (event) => {

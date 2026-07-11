@@ -2,7 +2,7 @@
 
 ## Direction
 
-A black-box identity switchboard: true near-black, hard rectangular structure, oversized compressed headings, and an olive-yellow signal color. The landing page is brand-led; consent, device authorization, and account management are product-led versions of the same system.
+A black-box identity switchboard: true near-black, hard rectangular structure, oversized compressed headings, and a coral-orange signal color. The landing page is brand-led; consent, device authorization, and account management are product-led versions of the same system.
 
 ## Color
 
@@ -13,8 +13,8 @@ All authored colors use OKLCH.
 - Raised surface: `oklch(0.17 0.008 110)`
 - Ink: `oklch(0.97 0 0)`
 - Muted ink: `oklch(0.72 0.01 110)`
-- Primary signal: `oklch(0.84 0.17 110)`
-- Signal ink: `oklch(0.12 0.02 110)`
+- Primary signal: `oklch(0.72 0.19 38)`
+- Signal ink: `oklch(0.11 0.02 38)`
 - Secondary signal: `oklch(0.66 0.16 250)`
 - Danger: `oklch(0.66 0.2 25)`
 - Rules: `oklch(0.28 0.008 110)`
@@ -39,6 +39,6 @@ The landing hero uses one load sequence: rule, headline, then protocol strip. Pr
 - Buttons: heavy label, rectangular fill or rule-only treatment, 48px minimum height.
 - Provider actions: square ruled controls populated from enabled provider capabilities; provider branding never changes the control system.
 - Identity rows: label, human-readable value, copyable protocol value.
-- Consent disclosure: explicit recipient, selected provider, every mandatory requested claim, retention statement, and one approve/deny decision with no claim toggles.
+- Consent disclosure: explicit recipient, selected provider, fixed identity claims, off-by-default switches for requested profile claims, retention statement, and approve/cancel actions.
 - Status: text plus shape/icon treatment; never color alone.
 - Error states: plain language, stable layout, recovery action beside the error.

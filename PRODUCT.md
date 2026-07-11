@@ -18,7 +18,7 @@ Triad brokers upstream authentication. It gives applications a provider-global i
 
 ## Positioning
 
-One identity handshake, two useful IDs: global when you need continuity, pairwise when you need isolation.
+Identity that works: global when your products need continuity, app-scoped when they need isolation.
 
 ## Conversion & proof
 

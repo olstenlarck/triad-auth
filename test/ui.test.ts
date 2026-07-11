@@ -23,7 +23,7 @@ const readApplicationSources = async () => (await Promise.all(
 )).join("\n");
 
 it("builds both demo entry points", async () => {
-  await expect(readFile("dist/demo/index.html", "utf8")).resolves.toContain("TRY THE BROKER");
+  await expect(readFile("dist/demo/index.html", "utf8")).resolves.toContain("TRY TRIAD");
   await expect(readFile("dist/demo/callback/index.html", "utf8")).resolves.toContain("VERIFYING IDENTITY");
 });
 
@@ -73,19 +73,23 @@ it("implements complete PKCE and device demo contracts", async () => {
 });
 
 it("submits transaction-bound CSRF tokens from both product forms", async () => {
-  const [consent, device] = await Promise.all([
+  const [consent, device, disclosures] = await Promise.all([
     readFile("src/pages/consent.astro", "utf8"),
     readFile("src/pages/device/verify.astro", "utf8"),
+    readFile("src/scripts/disclosure-controls.ts", "utf8"),
   ]);
 
   expect(consent).toContain("csrf_token");
   expect(consent).toContain('"content-type": "application/x-www-form-urlencoded"');
-  expect(consent).toContain("without exposing the upstream ID");
+  expect(disclosures).toContain("without exposing its raw account ID");
   expect(device).toContain('type="hidden" name="provider"');
   expect(device).toContain('type="hidden" name="csrf_token"');
   expect(device).not.toContain('type="radio"');
   expect(device).not.toContain('value="google"');
   expect(device).not.toContain('value="x"');
+  expect(consent).toContain("selectedDisclosureScope");
+  expect(device).toContain("selectedDisclosureScope");
+  expect(disclosures).toContain('input.type = "checkbox"');
 });
 
 it("keeps device verification navigation under same-origin JavaScript control", async () => {
@@ -117,10 +121,10 @@ it("uses accurate consent action labels and a stable recovery route", async () =
   expect(consent).toContain('href="/demo/"');
   expect(consent).toContain('const active = action === "approve" ? approve : deny');
   expect(consent).toContain("active.textContent = action ===");
-  expect(consent).toContain('approve.textContent = "APPROVE REQUEST"');
-  expect(consent).toContain('deny.textContent = "DENY REQUEST"');
+  expect(consent).toContain('approve.textContent = "APPROVE CONNECTION"');
+  expect(consent).toContain('deny.textContent = "CANCEL"');
   expect(consent).not.toContain("approve.textContent = action ===");
-  expect(consent).toContain("Triad stores approved scope names");
+  expect(consent).toContain("Triad shares only the claims you turn on");
   expect(consent).toContain("Claims become non-exchangeable at expiry.");
   expect(consent).toContain("Physical encrypted-row deletion is bounded, traffic-driven cleanup and can occur later.");
 });
@@ -132,8 +136,12 @@ it("presents Triad rather than a GitHub-only broker", async () => {
   expect(landing).toContain("GOOGLE");
   expect(landing).toContain("GITHUB");
   expect(landing).toContain("TWITTER");
+  expect(landing).toContain("IDENTITY,");
+  expect(landing).toContain("THAT WORKS.");
+  expect(landing).not.toContain("Broker upstream");
+  expect(landing).not.toContain("NO KEYBOARD?");
   expect(landing).not.toContain("github:107691503");
-  expect(landing).toContain("prv_twitter_R4");
+  expect(landing).toContain("pid_twitter_5a8f");
 });
 
 it("uses twitter and never x as provider vocabulary", async () => {
@@ -149,7 +157,7 @@ it("loads provider capabilities and sends one canonical demo scope request", asy
 
   expect(demo).toContain("fetchProviderCapabilities");
   expect(demo).toContain("canonicalScopeRequest");
-  expect(demo).toContain('name="demo-provider"');
+  expect(demo).toContain('<select id="demo-provider"');
   expect(demo).toContain('name="demo-scope"');
   expect(demo).toContain('value="email"');
   expect(demo).toContain('value="handle"');
@@ -166,7 +174,7 @@ it("locks the shared provider request while either demo flow is active", async (
   expect(demo).toContain('let activeFlow: "browser" | "device" | null = null;');
   expect(demo).toContain('if (!beginFlow("browser")) return;');
   expect(demo).toContain('if (!beginFlow("device")) return;');
-  expect(demo).toContain("providerFieldset.disabled = activeFlow !== null;");
+  expect(demo).toContain("providerSelect.disabled = activeFlow !== null;");
   expect(demo).toContain("scopeFieldset.disabled = activeFlow !== null;");
   expect(demo).toContain("browserStart.disabled = activeFlow !== null || !selectedProvider;");
   expect(demo).toContain("deviceStart.disabled = activeFlow !== null || !selectedProvider;");
@@ -177,7 +185,7 @@ it("resets stale demo state after persisted pageshow without resuming a grant", 
   const demo = await readFile("src/pages/demo/index.astro", "utf8");
   const reset = demo.slice(
     demo.indexOf("function resetRestoredPage"),
-    demo.indexOf('providerOptions.addEventListener("change"'),
+    demo.indexOf('providerSelect.addEventListener("change"'),
   );
 
   expect(demo).toContain('window.addEventListener("pageshow", (event) => {');
@@ -234,29 +242,27 @@ it("restores demo controls without replacing a browser start error", async () =>
   expect(finish).toContain("updateRequestControls(false)");
 });
 
-it("renders transaction-bound provider and mandatory requested claims without consent checkboxes", async () => {
-  const [consent, device] = await Promise.all([
+it("renders fixed identity claims and selectable requested profile claims", async () => {
+  const [consent, device, controls] = await Promise.all([
     readFile("src/pages/consent.astro", "utf8"),
     readFile("src/pages/device/verify.astro", "utf8"),
+    readFile("src/scripts/disclosure-controls.ts", "utf8"),
   ]);
 
   expect(consent).toContain("body.provider");
   expect(consent).toContain("body.scopes");
-  expect(consent).toContain("renderDisclosures");
-  expect(consent).not.toContain('type="checkbox"');
+  expect(consent).toContain("renderDisclosureControls");
   expect(consent).toContain('act("approve")');
   expect(consent).toContain('act("deny")');
   expect(device).toContain("body.provider");
   expect(device).toContain("body.scopes");
-  expect(device).toContain("renderDisclosures");
+  expect(device).toContain("renderDisclosureControls");
   expect(device).toContain('id="device-disclosure" class="device-disclosure" hidden');
   expect(device).toContain("disclosureBox.hidden = false");
-  expect(device).not.toContain('type="checkbox"');
   expect(device).not.toContain('value="github"');
-  expect(consent).toContain('["EMAIL + VERIFICATION STATUS", "email + email_verified"');
-  expect(device).toContain('["EMAIL + VERIFICATION STATUS", "email + email_verified"');
-  expect(consent).not.toContain('"VERIFIED EMAIL"');
-  expect(device).not.toContain('"VERIFIED EMAIL"');
+  expect(controls).toContain('input.name = "granted-scope"');
+  expect(controls).toContain("Share your email address and its verification status.");
+  expect(controls).not.toContain("Never use it as an identity key");
 });
 
 it("always clears device transaction disclosure when inspection is reset or rejected", async () => {
@@ -272,7 +278,7 @@ it("always clears device transaction disclosure when inspection is reset or reje
   expect(device.match(/resetInspectedRequest\(\);/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
 });
 
-it("renders verified optional claims through text content", async () => {
+it("renders shared claims without moving focus to successful results", async () => {
   const [demo, callback] = await Promise.all([
     readFile("src/pages/demo/index.astro", "utf8"),
     readFile("src/pages/demo/callback.astro", "utf8"),
@@ -281,6 +287,10 @@ it("renders verified optional claims through text content", async () => {
   expect(demo).toContain("identity.profile");
   expect(callback).toContain("verified.profile");
   expect(`${demo}\n${callback}`).not.toMatch(/profile[\s\S]{0,240}innerHTML/);
+  expect(`${demo}\n${callback}`).not.toContain("VERIFIED OPTIONAL CLAIMS");
+  expect(`${demo}\n${callback}`).toContain("SHARED CLAIMS");
+  expect(demo).not.toContain('document.querySelector<HTMLElement>("#device-result-title")!.focus()');
+  expect(callback).not.toContain('document.querySelector<HTMLElement>("#callback-result-title")!.focus()');
 });
 
 it("keeps navigation and copy provider-neutral outside provider context", async () => {
@@ -288,7 +298,20 @@ it("keeps navigation and copy provider-neutral outside provider context", async 
   const ui = files.join("\n");
 
   expect(files[0]).toContain('href="/demo/"');
+  expect(files[0]).not.toContain('href="/me/">ME');
+  expect(files[0]).toContain('href="/me/">ACCOUNT');
   expect(ui).not.toContain("—");
+});
+
+it("uses the coral signal and separates account sign out", async () => {
+  const [css, account] = await Promise.all([
+    readFile("src/styles/global.css", "utf8"),
+    readFile("src/pages/me.astro", "utf8"),
+  ]);
+
+  expect(css).toContain("--signal: oklch(0.72 0.19 38);");
+  expect(css).toMatch(/\.account-actions\s*\{[^}]*margin-top:/s);
+  expect(account).toContain('class="actions account-actions"');
 });
 
 it("caps long transaction headings at narrow viewports", async () => {

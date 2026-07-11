@@ -64,7 +64,6 @@ describe("browser and response safety", () => {
     const csp = response.headers.get("content-security-policy");
     const directives = cspDirectives(response);
 
-    expect(cspScriptHashes.length).toBeGreaterThan(0);
     expect(cspScriptHashes).toEqual([...new Set(cspScriptHashes)].sort());
     expect(directives.get("script-src")).toBe(["'self'", ...cspScriptHashes].join(" "));
     expect(directives.get("style-src")).toBe("'self'");

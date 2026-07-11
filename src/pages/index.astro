@@ -4,12 +4,12 @@ import Shell from "../components/Shell.astro";
 
 <Shell title="Triad | global and pairwise identity" description="A small identity broker with provider-global, account, and per-app identifiers.">
   <section class="hero shell">
-    <p class="hero-signal">ONE HANDSHAKE. THREE EXPLICIT IDS.</p>
-    <h1>IDENTITY,<br /><span>BOTH WAYS.</span></h1>
+    <p class="hero-signal">ONE LOGIN. THREE EXPLICIT IDS.</p>
+    <h1>IDENTITY,<br /><span>THAT WORKS.</span></h1>
     <div class="hero-bottom">
       <p>
-        Global when your apps need continuity. Pairwise when they need isolation.
-        One small Triad broker for browser apps and devices without keyboards.
+        One sign-in layer for browser, CLI, and device apps. Keep continuity across your products,
+        or give every client its own private user ID.
       </p>
       <div class="actions">
         <a class="button primary" href="/demo/">TRY THE BROKER →</a>
@@ -26,7 +26,7 @@ import Shell from "../components/Shell.astro";
     <dl class="claim-ledger">
       <div>
         <dt>provider_sub</dt>
-        <dd>prv_twitter_R4...</dd>
+        <dd>pid_twitter_5a8f...</dd>
         <p>Provider-global and correlatable across Triad clients that receive it, without exposing the upstream ID.</p>
       </div>
       <div>
@@ -62,7 +62,7 @@ import Shell from "../components/Shell.astro";
 &amp;code_challenge_method=S256</code></pre>
     </div>
     <ol class="flow-list">
-      <li><strong>Broker upstream.</strong><span>Triad maps the provider's immutable identity, then discards the upstream access token.</span></li>
+      <li><strong>Choose a provider.</strong><span>Triad maps its stable identity, then discards the provider access token.</span></li>
       <li><strong>Exchange once.</strong><span>Your app exchanges the short-lived code with its PKCE verifier.</span></li>
       <li><strong>Verify locally.</strong><span>Check ES256, issuer, audience, and expiry against the published JWKS.</span></li>
     </ol>
@@ -71,8 +71,8 @@ import Shell from "../components/Shell.astro";
   <section class="device-callout shell" aria-labelledby="device-title">
     <p class="device-code" aria-hidden="true">F7KQ-2M9X</p>
     <div>
-      <h2 id="device-title">NO KEYBOARD?<br /><span>NO PROBLEM.</span></h2>
-      <p>Issue a device code, let the user approve it in any browser, then poll the standard token endpoint.</p>
+      <h2 id="device-title">AUTHORIZE<br /><span>ANOTHER DEVICE.</span></h2>
+      <p>Show a short code on the device. The user opens Triad in a browser, reviews the connection, and approves it.</p>
       <a class="text-link" href="/device/verify/">OPEN DEVICE VERIFICATION →</a>
     </div>
   </section>

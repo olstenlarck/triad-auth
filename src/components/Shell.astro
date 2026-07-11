@@ -33,15 +33,15 @@ const {
       <nav aria-label="Main navigation">
         <a class="nav-demo" href="/demo/">DEMO</a>
         <a class="nav-secondary" href="/.well-known/openid-configuration">DISCOVERY</a>
-        <a class="nav-secondary" href="/me/">ME</a>
         <a href="https://github.com/olstenlarck/triad-auth">SOURCE ↗</a>
       </nav>
     </header>
     <main id="content"><slot /></main>
     <footer class="site-footer shell">
-      <span>MULTI-PROVIDER UPSTREAM</span>
-      <span>AUTHORIZATION CODE + DEVICE FLOW</span>
-      <span>OPEN SOURCE</span>
+      <a href="/demo/">TRY TRIAD</a>
+      <a href="/.well-known/openid-configuration">DISCOVERY</a>
+      <a href="/me/">ACCOUNT</a>
+      <a href="https://github.com/olstenlarck/triad-auth">SOURCE ↗</a>
     </footer>
   </body>
 </html>

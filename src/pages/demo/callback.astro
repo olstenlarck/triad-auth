@@ -21,7 +21,7 @@ import Shell from "../../components/Shell.astro";
     <section id="callback-identity" class="verified-result" aria-labelledby="callback-result-title" hidden>
       <div class="verified-head">
         <span class="verified-symbol" aria-hidden="true">✓</span>
-        <div><span>SIGNATURE VALID</span><h2 id="callback-result-title" tabindex="-1">VERIFIED IDENTITY</h2></div>
+        <div><span>SIGNATURE VALID</span><h2 id="callback-result-title">VERIFIED IDENTITY</h2></div>
       </div>
       <dl class="verified-claims">
         <div><dt>pairwise_sub</dt><dd id="callback-pairwise"></dd><small>App-scoped. Use this as triad-demo's private user key.</small></div>
@@ -29,7 +29,7 @@ import Shell from "../../components/Shell.astro";
         <div><dt>provider_sub</dt><dd id="callback-provider"></dd><small>Provider-global and correlatable across Triad clients that receive it.</small></div>
       </dl>
       <section id="callback-profile" class="verified-profile" aria-labelledby="callback-profile-title" hidden>
-        <h3 id="callback-profile-title">VERIFIED OPTIONAL CLAIMS</h3>
+        <h3 id="callback-profile-title">SHARED CLAIMS</h3>
         <dl id="callback-profile-claims"></dl>
       </section>
       <div class="verified-meta"><span>ISSUER</span><code id="callback-issuer"></code><span>EXPIRES</span><time id="callback-expiry"></time></div>
@@ -131,7 +131,6 @@ import Shell from "../../components/Shell.astro";
             loading.hidden = true;
             identity.hidden = false;
             status.textContent = "The ID token is verified. These values came from its signed payload.";
-            document.querySelector<HTMLElement>("#callback-result-title")!.focus();
           } catch {
             fail("The returned ID token could not be exchanged or verified. Nothing from the token has been trusted or displayed.");
           }
