@@ -61,7 +61,9 @@ function discoveryDocument(value: unknown): DiscoveryDocument {
   if (!value || typeof value !== "object") {
     throw new Error("The broker discovery document is invalid.");
   }
+
   const candidate = value as Record<string, unknown>;
+
   for (const field of [
     "issuer",
     "authorization_endpoint",
@@ -105,6 +107,7 @@ function providerCapabilities(value: unknown): ProviderCapability[] {
     ) {
       throw new Error("The provider list is invalid.");
     }
+
     seen.add(id);
 
     return { id: id as ProviderName, scopes: scopes as ProfileScope[] };
@@ -126,6 +129,7 @@ function optionalString(payload: Record<string, unknown>, claim: string): string
 function verifiedProfile(payload: Record<string, unknown>): VerifiedProfile {
   const email = optionalString(payload, "email");
   const emailVerified = payload.email_verified;
+
   if (emailVerified !== undefined && (email === undefined || typeof emailVerified !== "boolean")) {
     throw new Error("The verified token has invalid profile claims.");
   }
@@ -159,7 +163,11 @@ export async function createPkce(): Promise<{
 
 export function devicePollDecision(error: string, intervalMs: number): DevicePollDecision {
   if (error === "authorization_pending") {
-    return { continuePolling: true, intervalMs, message: "Waiting for browser approval." };
+    return {
+      continuePolling: true,
+      intervalMs,
+      message: "Waiting for browser approval.",
+    };
   }
   if (error === "slow_down") {
     return {
@@ -194,6 +202,7 @@ export async function fetchDiscovery(
   signal?: AbortSignal,
 ): Promise<DiscoveryDocument> {
   const endpoint = new URL("/.well-known/openid-configuration", brokerOrigin);
+
   return discoveryDocument(await json(await fetch(endpoint, { signal })));
 }
 
@@ -202,6 +211,7 @@ export async function fetchProviderCapabilities(
   signal?: AbortSignal,
 ): Promise<ProviderCapability[]> {
   const endpoint = new URL("/api/providers", brokerOrigin);
+
   return providerCapabilities(await json(await fetch(endpoint, { signal })));
 }
 
@@ -210,6 +220,7 @@ export function canonicalScopeRequest(
   selected: readonly string[],
 ): string {
   const selectedScopes = new Set(selected);
+
   if ([...selectedScopes].some((scope) => !provider.scopes.includes(scope as ProfileScope))) {
     throw new Error("The selected provider does not support every selected scope.");
   }
@@ -225,6 +236,7 @@ export async function verifyIdentityToken(
 ): Promise<VerifiedIdentity> {
   const discovery = await fetchDiscovery(brokerOrigin, signal);
   const protectedHeader = decodeProtectedHeader(token);
+
   if (protectedHeader.alg !== "ES256" || typeof protectedHeader.kid !== "string") {
     throw new Error("The token has no matching ES256 signing key.");
   }
@@ -234,6 +246,7 @@ export async function verifyIdentityToken(
     jwks && typeof jwks === "object" && Array.isArray((jwks as { keys?: unknown }).keys)
       ? (jwks as { keys: Record<string, unknown>[] }).keys
       : [];
+
   const jwk = keys.find(
     (candidate) =>
       candidate.kid === protectedHeader.kid &&
@@ -242,6 +255,7 @@ export async function verifyIdentityToken(
       candidate.use === "sig" &&
       candidate.alg === "ES256",
   );
+
   if (!jwk) {
     throw new Error("The token has no matching ES256 signing key.");
   }
@@ -252,6 +266,7 @@ export async function verifyIdentityToken(
     issuer: discovery.issuer,
     audience: clientId,
   });
+
   if (
     typeof payload.sub !== "string" ||
     typeof payload.pairwise_sub !== "string" ||

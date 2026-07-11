@@ -50,6 +50,7 @@ function disclosureText(disclosure: Disclosure): DocumentFragment {
   const label = document.createElement("span");
   const claim = document.createElement("strong");
   const description = document.createElement("small");
+
   label.textContent = disclosure.label;
   claim.textContent = disclosure.claim;
   description.textContent = disclosure.description;
@@ -66,6 +67,7 @@ export function renderDisclosureControls(container: HTMLElement, scopes: readonl
   }
 
   container.replaceChildren();
+
   for (const disclosure of identityDisclosures) {
     const row = document.createElement("div");
     row.appendChild(disclosureText(disclosure));
@@ -80,21 +82,26 @@ export function renderDisclosureControls(container: HTMLElement, scopes: readonl
 
     const row = document.createElement("label");
     row.className = "disclosure-choice";
+
     const input = document.createElement("input");
     input.type = "checkbox";
     input.name = "granted-scope";
     input.value = scope;
     input.checked = true;
     input.disabled = true;
+
     const switchMark = document.createElement("span");
     switchMark.className = "disclosure-switch";
     switchMark.setAttribute("aria-hidden", "true");
+
     const content = document.createElement("span");
     content.className = "disclosure-copy";
     content.appendChild(disclosureText(disclosure));
+
     row.appendChild(input);
     row.appendChild(switchMark);
     row.appendChild(content);
+
     container.appendChild(row);
   }
 }

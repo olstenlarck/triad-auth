@@ -7,7 +7,12 @@ import { enabledProviders, startProvider } from "../providers";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { consumeCsrfToken, createCsrfToken } from "../security";
 import type { Env, ProviderName } from "../types";
-import { oauthError, parseOAuthForm, rejectDuplicateParameters, requireSameOrigin } from "./oauth";
+import {
+  oauthError,
+  parseOAuthForm,
+  rejectDuplicateParameters,
+  requireSameOrigin,
+} from "./oauth";
 
 const now = () => Math.floor(Date.now() / 1000);
 const providers = new Set<ProviderName>(["google", "github", "twitter"]);
@@ -20,7 +25,10 @@ interface BrowserSession {
 
 const accountPurpose = (sessionHash: string) => `account:${sessionHash}`;
 
-async function requireSession(db: D1Database, token?: string): Promise<BrowserSession | null> {
+async function requireSession(
+  db: D1Database,
+  token?: string,
+): Promise<BrowserSession | null> {
   if (!token) {
     return null;
   }
@@ -46,6 +54,7 @@ async function authorizeMutation(
   if (form instanceof Response) {
     return form;
   }
+
   const duplicateError = rejectDuplicateParameters(form, ["csrf_token"]);
   if (duplicateError) {
     return duplicateError;
@@ -80,6 +89,7 @@ accountRoutes.get("/session/start/:provider", async (c) => {
   ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
+
   const provider = c.req.param("provider") as ProviderName;
   if (!providers.has(provider)) {
     return oauthError("invalid_request", "unsupported provider");
@@ -87,10 +97,12 @@ accountRoutes.get("/session/start/:provider", async (c) => {
   if (!enabledProviders(c.env).includes(provider)) {
     return oauthError("invalid_request", "provider unavailable");
   }
+
   const state = randomToken();
   const stateHash = await sha256(state);
   const start = await startProvider(provider, c.env, state, ["openid"]);
   const binding = await createPreAuthBinding();
+
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(
     `INSERT INTO oauth_transactions
@@ -108,6 +120,7 @@ accountRoutes.get("/session/start/:provider", async (c) => {
       now(),
     )
     .run();
+
   setPreAuthCookie(c, stateHash, binding.token, provider);
 
   return c.redirect(start.url, 302);
@@ -118,12 +131,14 @@ accountRoutes.get("/api/me", async (c) => {
   if (!session) {
     return oauthError("login_required", undefined, 401);
   }
+
   const identities = await c.env.DB.prepare(
     `SELECT provider, provider_user_id FROM identities
     WHERE account_id = ? ORDER BY created_at`,
   )
     .bind(session.accountId)
     .all<{ provider: string; provider_user_id: string }>();
+
   const clients = await c.env.DB.prepare(
     `SELECT c.client_id, c.name, x.updated_at
     FROM consents x JOIN clients c ON c.client_id = x.client_id
@@ -131,9 +146,14 @@ accountRoutes.get("/api/me", async (c) => {
   )
     .bind(session.accountId)
     .all<{ client_id: string; name: string; updated_at: number }>();
+
   const providerSubs = await Promise.all(
     identities.results.map((row) =>
-      providerSubject(c.env.PAIRWISE_SECRET, row.provider as ProviderName, row.provider_user_id),
+      providerSubject(
+        c.env.PAIRWISE_SECRET,
+        row.provider as ProviderName,
+        row.provider_user_id,
+      ),
     ),
   );
 
@@ -141,7 +161,10 @@ accountRoutes.get("/api/me", async (c) => {
     account_sub: session.accountId,
     identities: providerSubs,
     clients: clients.results,
-    csrf_token: await createCsrfToken(c.env.DB, accountPurpose(session.sessionHash)),
+    csrf_token: await createCsrfToken(
+      c.env.DB,
+      accountPurpose(session.sessionHash),
+    ),
   });
 });
 
@@ -150,29 +173,41 @@ accountRoutes.delete("/api/me/clients/:clientId", async (c) => {
   if (originError) {
     return originError;
   }
+
   const session = await requireSession(c.env.DB, getCookie(c, "triad_session"));
   if (!session) {
     return oauthError("login_required", undefined, 401);
   }
-  const authorizationError = await authorizeMutation(c.env.DB, session, c.req.raw);
+
+  const authorizationError = await authorizeMutation(
+    c.env.DB,
+    session,
+    c.req.raw,
+  );
   if (authorizationError) {
     return authorizationError;
   }
+
   const clientId = c.req.param("clientId");
   if (!clientId || clientId.length > clientIdLimit) {
     return oauthError("invalid_request", "Authorization not found.", 404);
   }
+
   const result = await c.env.DB.prepare(
     "DELETE FROM consents WHERE account_id = ? AND client_id = ?",
   )
     .bind(session.accountId, clientId)
     .run();
+
   if (result.meta.changes !== 1) {
     return oauthError("invalid_request", "Authorization not found.", 404);
   }
 
   return c.json({
-    csrf_token: await createCsrfToken(c.env.DB, accountPurpose(session.sessionHash)),
+    csrf_token: await createCsrfToken(
+      c.env.DB,
+      accountPurpose(session.sessionHash),
+    ),
   });
 });
 
@@ -181,21 +216,36 @@ accountRoutes.post("/session/logout", async (c) => {
   if (originError) {
     return originError;
   }
+
   const session = await requireSession(c.env.DB, getCookie(c, "triad_session"));
   if (!session) {
     return oauthError("login_required", undefined, 401);
   }
-  const authorizationError = await authorizeMutation(c.env.DB, session, c.req.raw);
+
+  const authorizationError = await authorizeMutation(
+    c.env.DB,
+    session,
+    c.req.raw,
+  );
   if (authorizationError) {
     return authorizationError;
   }
-  const result = await c.env.DB.prepare("DELETE FROM browser_sessions WHERE session_hash = ?")
+
+  const result = await c.env.DB.prepare(
+    "DELETE FROM browser_sessions WHERE session_hash = ?",
+  )
     .bind(session.sessionHash)
     .run();
+
   if (result.meta.changes !== 1) {
     return oauthError("login_required", undefined, 401);
   }
-  deleteCookie(c, "triad_session", { path: "/", secure: true, sameSite: "Lax" });
+
+  deleteCookie(c, "triad_session", {
+    path: "/",
+    secure: true,
+    sameSite: "Lax",
+  });
 
   return c.body(null, 204);
 });
