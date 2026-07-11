@@ -191,8 +191,12 @@ it("defaults to identity only and canonicalizes requested scopes", () => {
 });
 
 it("enforces provider capabilities", () => {
-  expect(() => validateProviderScopes("google", parseScopes("openid handle"))).toThrow("invalid_scope");
-  expect(() => validateProviderScopes("twitter", parseScopes("openid email"))).toThrow("invalid_scope");
+  expect(() => validateProviderScopes("google", parseScopes("openid handle"))).toThrow(
+    "invalid_scope",
+  );
+  expect(() => validateProviderScopes("twitter", parseScopes("openid email"))).toThrow(
+    "invalid_scope",
+  );
   expect(() =>
     validateProviderScopes("github", parseScopes("openid email handle name avatar")),
   ).not.toThrow();

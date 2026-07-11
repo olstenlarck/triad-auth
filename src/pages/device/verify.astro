@@ -85,7 +85,7 @@ import Shell from "../../components/Shell.astro";
     }
 
     async function inspect() {
-      if (input.value.replace(/[^A-Z0-9]/gi, "").length !== 8) return;
+      if (input.value.replace(/[^A-Z0-9]/gi, "").length !== 8) {return;}
       const current = ++inspection;
       form.setAttribute("aria-busy", "true");
       status.textContent = "Checking this device code.";
@@ -98,7 +98,7 @@ import Shell from "../../components/Shell.astro";
           csrf_token?: string;
           error_description?: string;
         };
-        if (current !== inspection) return;
+        if (current !== inspection) {return;}
         form.setAttribute("aria-busy", "false");
         if (
           !response.ok ||
@@ -127,7 +127,7 @@ import Shell from "../../components/Shell.astro";
         status.textContent = "Request found. Check the app, provider, and required claims before approving.";
         status.dataset.tone = "success";
       } catch {
-        if (current !== inspection) return;
+        if (current !== inspection) {return;}
         resetInspectedRequest();
         form.setAttribute("aria-busy", "false");
         error.textContent = "The broker could not inspect this device code.";
@@ -141,7 +141,7 @@ import Shell from "../../components/Shell.astro";
     input.addEventListener("input", () => {
       input.value = format(input.value);
       clearInspection();
-      if (input.value.replace(/[^A-Z0-9]/g, "").length === 8) void inspect();
+      if (input.value.replace(/[^A-Z0-9]/g, "").length === 8) {void inspect();}
     });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -180,6 +180,6 @@ import Shell from "../../components/Shell.astro";
         error.hidden = false;
       }
     });
-    if (fromUrl) void inspect();
+    if (fromUrl) {void inspect();}
   </script>
 </Shell>

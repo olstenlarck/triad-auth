@@ -28,13 +28,20 @@ class SqliteD1Statement {
   ) {}
 
   bind(...values: unknown[]): D1PreparedStatement {
-    return new SqliteD1Statement(this.database, this.query, values) as unknown as D1PreparedStatement;
+    return new SqliteD1Statement(
+      this.database,
+      this.query,
+      values,
+    ) as unknown as D1PreparedStatement;
   }
 
   async first<T = Record<string, unknown>>(column?: string): Promise<T | null> {
     const row = this.database.prepare(this.query).get(...(this.values as never[])) as
-      Record<string, unknown> | undefined;
-    if (!row) return null;
+      | Record<string, unknown>
+      | undefined;
+    if (!row) {
+      return null;
+    }
     return (column === undefined ? row : row[column]) as T;
   }
 
@@ -59,9 +66,13 @@ class SqliteD1Statement {
 export class SqliteD1 {
   private readonly database = new DatabaseSync(":memory:");
 
-  static async create(migrations = ["0001_init.sql", "0002_multi_provider.sql"]): Promise<SqliteD1> {
+  static async create(
+    migrations = ["0001_init.sql", "0002_multi_provider.sql"],
+  ): Promise<SqliteD1> {
     const d1 = new SqliteD1();
-    for (const name of migrations) d1.applyMigration(name);
+    for (const name of migrations) {
+      d1.applyMigration(name);
+    }
     return d1;
   }
 
@@ -77,7 +88,9 @@ export class SqliteD1 {
     this.database.exec("BEGIN");
     try {
       const results: D1Result<T>[] = [];
-      for (const statement of statements) results.push(await statement.run<T>());
+      for (const statement of statements) {
+        results.push(await statement.run<T>());
+      }
       this.database.exec("COMMIT");
       return results;
     } catch (error) {

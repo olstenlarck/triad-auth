@@ -1,5 +1,5 @@
 import { exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { parseScopes } from "../src/claims";
 import { enabledProviders, finishProvider, startProvider } from "../src/providers";
 import type { Env } from "../src/types";
@@ -47,9 +47,15 @@ async function googleIdToken(
     .setProtectedHeader({ alg: "RS256", kid: "google-test-key" })
     .setIssuer(claims.issuer ?? "https://accounts.google.com")
     .setAudience(claims.audience ?? "google-client");
-  if (claims.issuedAt !== false) token.setIssuedAt();
-  if (claims.expiration !== false) token.setExpirationTime("5m");
-  if (claims.subject !== null) token.setSubject(claims.subject ?? "google-user-123");
+  if (claims.issuedAt !== false) {
+    token.setIssuedAt();
+  }
+  if (claims.expiration !== false) {
+    token.setExpirationTime("5m");
+  }
+  if (claims.subject !== null) {
+    token.setSubject(claims.subject ?? "google-user-123");
+  }
   return token.sign(googlePrivateKey);
 }
 
@@ -101,10 +107,12 @@ describe("provider configuration", () => {
       const fetch = vi.fn();
       vi.stubGlobal("fetch", fetch);
 
-      await expect(startProvider(provider, env(overrides), "state")).rejects.toThrow("not configured");
-      await expect(finishProvider(provider, env(overrides), "code", "verifier", "nonce")).rejects.toThrow(
+      await expect(startProvider(provider, env(overrides), "state")).rejects.toThrow(
         "not configured",
       );
+      await expect(
+        finishProvider(provider, env(overrides), "code", "verifier", "nonce"),
+      ).rejects.toThrow("not configured");
       expect(fetch).not.toHaveBeenCalled();
     },
   );
@@ -129,7 +137,9 @@ describe("Google provider", () => {
   });
 
   it("requests only the Google scopes mapped from requested profile claims", async () => {
-    const email = new URL((await startProvider("google", env(), "state", parseScopes("openid email"))).url);
+    const email = new URL(
+      (await startProvider("google", env(), "state", parseScopes("openid email"))).url,
+    );
     const profile = new URL(
       (await startProvider("google", env(), "state", parseScopes("openid name avatar"))).url,
     );
@@ -212,9 +222,9 @@ describe("Google provider", () => {
   it("rejects an ID token with the wrong nonce", async () => {
     stubGoogle(await googleIdToken({ nonce: "wrong-nonce" }));
 
-    await expect(finishProvider("google", env(), "provider-code", undefined, "google-nonce")).rejects.toThrow(
-      "nonce",
-    );
+    await expect(
+      finishProvider("google", env(), "provider-code", undefined, "google-nonce"),
+    ).rejects.toThrow("nonce");
   });
 
   it.each([
@@ -231,9 +241,9 @@ describe("Google provider", () => {
   it("rejects a verified Google ID token without an immutable subject", async () => {
     stubGoogle(await googleIdToken({ subject: null }));
 
-    await expect(finishProvider("google", env(), "provider-code", undefined, "google-nonce")).rejects.toThrow(
-      "subject",
-    );
+    await expect(
+      finishProvider("google", env(), "provider-code", undefined, "google-nonce"),
+    ).rejects.toThrow("subject");
   });
 
   it.each([
@@ -267,7 +277,9 @@ describe("GitHub provider", () => {
     const identity = new URL(
       (await startProvider("github", env(), "state", parseScopes("openid handle name avatar"))).url,
     );
-    const email = new URL((await startProvider("github", env(), "state", parseScopes("openid email"))).url);
+    const email = new URL(
+      (await startProvider("github", env(), "state", parseScopes("openid email"))).url,
+    );
 
     expect(identity.searchParams.has("scope")).toBe(false);
     expect(email.searchParams.get("scope")).toBe("user:email");
@@ -276,7 +288,9 @@ describe("GitHub provider", () => {
   it("chooses only a verified primary GitHub email and discards unrequested fields", async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }),
+      )
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -328,8 +342,12 @@ describe("GitHub provider", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
-        .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, name: null }), { status: 200 })),
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ id: 42, name: null }), { status: 200 }),
+        ),
     );
 
     const failure = await finishProvider(
@@ -420,7 +438,9 @@ describe("GitHub provider", () => {
         "fetch",
         vi
           .fn()
-          .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+          .mockResolvedValueOnce(
+            new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }),
+          )
           .mockResolvedValueOnce(new Response(JSON.stringify({ id }), { status: 200 })),
       );
 
@@ -445,9 +465,15 @@ describe("Twitter provider", () => {
       code_challenge_method: "S256",
     });
     expect(start.verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    const challenge = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(start.verifier));
+    const challenge = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(start.verifier),
+    );
     const binary = String.fromCharCode(...new Uint8Array(challenge));
-    const expectedChallenge = btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+    const expectedChallenge = btoa(binary)
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replace(/=+$/, "");
     expect(target.searchParams.get("code_challenge")).toBe(expectedChallenge);
     expect(start.nonce).toBeUndefined();
   });
@@ -455,7 +481,9 @@ describe("Twitter provider", () => {
   it("requests only Twitter user fields mapped from requested claims", async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }),
+      )
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -518,7 +546,9 @@ describe("Twitter provider", () => {
       );
     vi.stubGlobal("fetch", fetch);
 
-    await expect(finishProvider("twitter", env(), "provider-code", "upstream-verifier")).resolves.toEqual({
+    await expect(
+      finishProvider("twitter", env(), "provider-code", "upstream-verifier"),
+    ).resolves.toEqual({
       provider: "twitter",
       id: "2244994945",
     });
@@ -592,17 +622,22 @@ describe("Twitter provider", () => {
     );
   });
 
-  it.each([undefined, null, 42, "", "42.0", "-42"])("rejects an invalid Twitter data.id: %s", async (id) => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
-        .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id } }), { status: 200 })),
-    );
+  it.each([undefined, null, 42, "", "42.0", "-42"])(
+    "rejects an invalid Twitter data.id: %s",
+    async (id) => {
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }),
+          )
+          .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id } }), { status: 200 })),
+      );
 
-    await expect(finishProvider("twitter", env(), "provider-code", "upstream-verifier")).rejects.toThrow(
-      "data.id",
-    );
-  });
+      await expect(
+        finishProvider("twitter", env(), "provider-code", "upstream-verifier"),
+      ).rejects.toThrow("data.id");
+    },
+  );
 });

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import app from "../src/index";
 import { providerSubject, sha256 } from "../src/crypto";
 import { preAuthCookieName } from "../src/pre-auth";
@@ -14,7 +14,9 @@ const cleanups: Array<() => void> = [];
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  for (const cleanup of cleanups.splice(0)) cleanup();
+  for (const cleanup of cleanups.splice(0)) {
+    cleanup();
+  }
 });
 
 async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
@@ -33,7 +35,9 @@ async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
 }
 
 async function seedSession(env: Env, token = "existing-session"): Promise<string> {
-  await env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_account', unixepoch())").run();
+  await env.DB.prepare(
+    "INSERT INTO accounts (id, created_at) VALUES ('acct_account', unixepoch())",
+  ).run();
   await env.DB.prepare(
     `INSERT INTO identities
     (provider, provider_user_id, account_id, created_at)
@@ -49,7 +53,10 @@ async function seedSession(env: Env, token = "existing-session"): Promise<string
   return token;
 }
 
-async function inspectAccount(env: Env, token: string): Promise<{ csrf_token: string; clients: unknown[] }> {
+async function inspectAccount(
+  env: Env,
+  token: string,
+): Promise<{ csrf_token: string; clients: unknown[] }> {
   const response = await app.request(
     "/api/me",
     {
@@ -158,8 +165,12 @@ describe("account sessions", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
-        .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, name: null }), { status: 200 })),
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ id: 42, name: null }), { status: 200 }),
+        ),
     );
 
     const response = await app.request(
@@ -174,7 +185,9 @@ describe("account sessions", () => {
     expect(response.headers.get("location")).toBe(`${issuer}/me/?error=access_denied`);
     expect(response.headers.get("set-cookie")).toContain("Path=/callback/github");
     expect(logged).not.toHaveBeenCalled();
-    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM browser_sessions").first("count")).toBe(0);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM browser_sessions").first("count"),
+    ).toBe(0);
   });
 
   it("rejects an unavailable session provider before creating state", async () => {
@@ -184,7 +197,9 @@ describe("account sessions", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({ error: "invalid_request" });
-    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count"),
+    ).toBe(0);
   });
 
   it("returns opaque provider subjects instead of raw upstream identity IDs", async () => {
@@ -280,7 +295,9 @@ describe("account sessions", () => {
     );
     expect(completed.status).toBe(302);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(completed.headers.get("set-cookie")).toMatch(new RegExp(`${cookieName}=;.*Max-Age=0`, "i"));
+    expect(completed.headers.get("set-cookie")).toMatch(
+      new RegExp(`${cookieName}=;.*Max-Age=0`, "i"),
+    );
   });
 
   it("completes two concurrent session starts with independent pre-auth cookies", async () => {
@@ -372,7 +389,9 @@ describe("account sessions", () => {
       env,
     );
     expect(missingCsrf.status).toBe(403);
-    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM browser_sessions").first("count")).toBe(1);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM browser_sessions").first("count"),
+    ).toBe(1);
   });
 
   it("returns a session-bound CSRF token and revokes consent once", async () => {
@@ -389,7 +408,12 @@ describe("account sessions", () => {
 
     const crossOrigin = await app.request(
       "/api/me/clients/triad-demo",
-      accountMutation("/api/me/clients/triad-demo", token, account.csrf_token, "https://evil.example"),
+      accountMutation(
+        "/api/me/clients/triad-demo",
+        token,
+        account.csrf_token,
+        "https://evil.example",
+      ),
       env,
     );
     expect(crossOrigin.status).toBe(403);
@@ -456,7 +480,9 @@ describe("account sessions", () => {
 
     expect(response.status).toBe(204);
     expect(response.headers.get("set-cookie")).toMatch(/triad_session=;.*Max-Age=0/i);
-    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM browser_sessions").first("count")).toBe(0);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM browser_sessions").first("count"),
+    ).toBe(0);
   });
 
   it("rotates an existing session after a successful GitHub callback", async () => {
@@ -532,7 +558,7 @@ describe("account sessions", () => {
     expect(source).toContain("let loadGeneration = 0");
     expect(source).toContain("loadController?.abort()");
     expect(source).toContain("signal: controller.signal");
-    expect(source).toContain("if (generation !== loadGeneration) return");
+    expect(source).toMatch(/if \(generation !== loadGeneration\)\s*\{\s*return;\s*\}/);
     expect(source).toContain("async function recoverAccount");
     const recovery = source.slice(
       source.indexOf("async function recoverAccount"),

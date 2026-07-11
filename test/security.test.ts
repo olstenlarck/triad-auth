@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import app from "../src/index";
 import { cspScriptHashes } from "../src/generated/csp-script-hashes";
 import {
@@ -16,13 +16,17 @@ function cspDirectives(response: Response): Map<string, string> {
   const directives = new Map<string, string>();
   for (const directive of (response.headers.get("content-security-policy") ?? "").split(";")) {
     const [name, ...values] = directive.trim().split(/\s+/);
-    if (name) directives.set(name, values.join(" "));
+    if (name) {
+      directives.set(name, values.join(" "));
+    }
   }
   return directives;
 }
 
 async function cspHash(source: string): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source)));
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source)),
+  );
   return `'sha256-${btoa(String.fromCharCode(...digest))}'`;
 }
 
@@ -58,9 +62,9 @@ describe("browser and response safety", () => {
 
     expect(() => assertSameOrigin(canonical, "https://auth.example/issuer")).not.toThrow();
     expect(() => assertSameOrigin(crossOrigin, "https://auth.example")).toThrow("invalid_origin");
-    expect(() => assertSameOrigin(new Request("https://auth.example/api"), "https://auth.example")).toThrow(
-      "invalid_origin",
-    );
+    expect(() =>
+      assertSameOrigin(new Request("https://auth.example/api"), "https://auth.example"),
+    ).toThrow("invalid_origin");
   });
 
   it("allows only self and generated script hashes without nonces or unsafe-inline", async () => {
@@ -72,7 +76,11 @@ describe("browser and response safety", () => {
     const csp = response.headers.get("content-security-policy");
     const directives = cspDirectives(response);
 
-    expect(cspScriptHashes).toEqual([...new Set(cspScriptHashes)].sort());
+    expect(cspScriptHashes).toEqual(
+      [...new Set(cspScriptHashes)].sort((left, right) =>
+        String(left).localeCompare(String(right)),
+      ),
+    );
     expect(directives.get("script-src")).toBe(["'self'", ...cspScriptHashes].join(" "));
     expect(directives.get("style-src")).toBe("'self'");
     expect(csp?.match(/'sha256-[^']+'/g) ?? []).toEqual(cspScriptHashes);
@@ -83,7 +91,9 @@ describe("browser and response safety", () => {
     expect(csp).toContain("object-src 'none'");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
-    expect(response.headers.get("permissions-policy")).toBe("camera=(), microphone=(), geolocation=()");
+    expect(response.headers.get("permissions-policy")).toBe(
+      "camera=(), microphone=(), geolocation=()",
+    );
   });
 
   it("does not rewrite or authorize arbitrary response markup", async () => {
@@ -143,11 +153,15 @@ describe("browser and response safety", () => {
     try {
       const first = await createCsrfToken(db, "consent");
       await db
-        .prepare("INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, 0, 0)")
+        .prepare(
+          "INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, 0, 0)",
+        )
         .bind("expired-hash", "expired-purpose")
         .run();
       const second = await createCsrfToken(db, "consent");
-      const count = await db.prepare("SELECT COUNT(*) AS count FROM csrf_tokens").first<{ count: number }>();
+      const count = await db
+        .prepare("SELECT COUNT(*) AS count FROM csrf_tokens")
+        .first<{ count: number }>();
 
       expect(second).not.toBe(first);
       expect(count?.count).toBe(1);

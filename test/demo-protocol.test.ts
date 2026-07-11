@@ -1,5 +1,5 @@
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import {
   canonicalScopeRequest,
   createPkce,
@@ -67,7 +67,8 @@ async function token(
 
 function stubMetadata(keys: Record<string, unknown>[] = [publicJwk]) {
   const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    const url =
+      typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     if (url === `${brokerOrigin}/.well-known/openid-configuration`) {
       return Response.json({
         issuer,
@@ -76,13 +77,18 @@ function stubMetadata(keys: Record<string, unknown>[] = [publicJwk]) {
         device_authorization_endpoint: `${brokerOrigin}/device/code`,
         jwks_uri: `${brokerOrigin}/.well-known/jwks.json`,
         response_types_supported: ["code"],
-        grant_types_supported: ["authorization_code", "urn:ietf:params:oauth:grant-type:device_code"],
+        grant_types_supported: [
+          "authorization_code",
+          "urn:ietf:params:oauth:grant-type:device_code",
+        ],
         code_challenge_methods_supported: ["S256"],
         subject_types_supported: ["pairwise"],
         id_token_signing_alg_values_supported: ["ES256"],
       });
     }
-    if (url === `${brokerOrigin}/.well-known/jwks.json`) return Response.json({ keys });
+    if (url === `${brokerOrigin}/.well-known/jwks.json`) {
+      return Response.json({ keys });
+    }
     return new Response("Not found", { status: 404 });
   });
   vi.stubGlobal("fetch", fetch);
@@ -110,12 +116,14 @@ describe("browser ID token verification", () => {
   it("fetches discovery and JWKS before returning verified identity claims", async () => {
     const fetch = stubMetadata();
 
-    await expect(verifyIdentityToken(await token(), clientId, brokerOrigin)).resolves.toMatchObject({
-      pairwiseSub: "ps_demo",
-      accountSub: "acct_demo",
-      providerSub: "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b",
-      issuer,
-    });
+    await expect(verifyIdentityToken(await token(), clientId, brokerOrigin)).resolves.toMatchObject(
+      {
+        pairwiseSub: "ps_demo",
+        accountSub: "acct_demo",
+        providerSub: "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b",
+        issuer,
+      },
+    );
     expect(fetch.mock.calls.map(([input]) => String(input))).toEqual([
       `${brokerOrigin}/.well-known/openid-configuration`,
       `${brokerOrigin}/.well-known/jwks.json`,
@@ -166,7 +174,9 @@ describe("browser ID token verification", () => {
     ["expiry", { expiresAt: 1 }],
   ])("rejects an invalid %s", async (_name, overrides) => {
     stubMetadata();
-    await expect(verifyIdentityToken(await token(overrides), clientId, brokerOrigin)).rejects.toThrow();
+    await expect(
+      verifyIdentityToken(await token(overrides), clientId, brokerOrigin),
+    ).rejects.toThrow();
   });
 
   it.each([
@@ -176,9 +186,9 @@ describe("browser ID token verification", () => {
     ["subject", { subject: "different", pairwiseSub: "ps_demo" }],
   ])("rejects an invalid %s identity contract", async (_name, overrides) => {
     stubMetadata();
-    await expect(verifyIdentityToken(await token(overrides), clientId, brokerOrigin)).rejects.toThrow(
-      "identity claims",
-    );
+    await expect(
+      verifyIdentityToken(await token(overrides), clientId, brokerOrigin),
+    ).rejects.toThrow("identity claims");
   });
 
   it("returns typed optional standard claims from a verified token", async () => {
@@ -216,9 +226,9 @@ describe("browser ID token verification", () => {
   ])("rejects a malformed optional %s claim", async (_name, profileClaims) => {
     stubMetadata();
 
-    await expect(verifyIdentityToken(await token({ profileClaims }), clientId, brokerOrigin)).rejects.toThrow(
-      "profile claims",
-    );
+    await expect(
+      verifyIdentityToken(await token({ profileClaims }), clientId, brokerOrigin),
+    ).rejects.toThrow("profile claims");
   });
 });
 
@@ -238,14 +248,23 @@ describe("provider capabilities", () => {
       { id: "google", scopes: ["email", "name", "avatar"] },
       { id: "twitter", scopes: ["handle", "name", "avatar"] },
     ]);
-    expect(fetch).toHaveBeenCalledWith(new URL("/api/providers", brokerOrigin), { signal: undefined });
+    expect(fetch).toHaveBeenCalledWith(new URL("/api/providers", brokerOrigin), {
+      signal: undefined,
+    });
   });
 
   it("serializes selected supported scopes in canonical order", () => {
-    const provider = { id: "github" as const, scopes: ["email", "handle", "name", "avatar"] as const };
+    const provider = {
+      id: "github" as const,
+      scopes: ["email", "handle", "name", "avatar"] as const,
+    };
 
-    expect(canonicalScopeRequest(provider, ["avatar", "email", "email"])).toBe("openid email avatar");
-    expect(() => canonicalScopeRequest(provider, ["unsupported"])).toThrow("unsupported scope");
+    expect(canonicalScopeRequest(provider, ["avatar", "email", "email"])).toBe(
+      "openid email avatar",
+    );
+    expect(() => canonicalScopeRequest(provider, ["unsupported"])).toThrow(
+      "support every selected scope",
+    );
   });
 });
 

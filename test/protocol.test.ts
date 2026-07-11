@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { validateClient } from "../src/db";
 import { parseScope, validatePkceChallenge, validatePkceVerifier } from "../src/protocol";
 import type { ClientRow, ProviderName } from "../src/types";
 
-const client = (redirectUris = '["https://app.example/callback"]', providers = '["github"]'): ClientRow => ({
+const client = (
+  redirectUris = '["https://app.example/callback"]',
+  providers = '["github"]',
+): ClientRow => ({
   client_id: "client_a",
   name: "Example",
   redirect_uris: redirectUris,
@@ -32,17 +35,22 @@ describe("protocol validation", () => {
     expect(() =>
       validateClient(client(), "https://app.example/callback/", "github", "https://auth.example"),
     ).toThrow("invalid redirect_uri");
-    expect(() => validateClient(client(undefined, "[]"), null, "github", "https://auth.example")).toThrow(
-      "provider not allowed for client",
-    );
-    expect(() => validateClient(client(), null, "google" as ProviderName, "https://auth.example")).toThrow(
-      "provider not allowed for client",
-    );
+    expect(() =>
+      validateClient(client(undefined, "[]"), null, "github", "https://auth.example"),
+    ).toThrow("provider not allowed for client");
+    expect(() =>
+      validateClient(client(), null, "google" as ProviderName, "https://auth.example"),
+    ).toThrow("provider not allowed for client");
   });
 
   it("rejects malformed client allowlist arrays", () => {
     expect(() =>
-      validateClient(client("{}"), "https://app.example/callback", "github", "https://auth.example"),
+      validateClient(
+        client("{}"),
+        "https://app.example/callback",
+        "github",
+        "https://auth.example",
+      ),
     ).toThrow();
     expect(() =>
       validateClient(client(undefined, "not json"), null, "github", "https://auth.example"),

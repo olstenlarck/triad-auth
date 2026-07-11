@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import app from "../src/index";
 import { sha256 } from "../src/crypto";
 import { enforceRateLimit } from "../src/rate-limit";
@@ -15,7 +15,9 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
-  for (const cleanup of cleanups.splice(0)) cleanup();
+  for (const cleanup of cleanups.splice(0)) {
+    cleanup();
+  }
 });
 
 async function testDb(): Promise<D1Database> {
@@ -67,9 +69,9 @@ describe("D1 rate limiter", () => {
     );
 
     expect(accepted.filter(Boolean)).toHaveLength(3);
-    expect(await db.prepare("SELECT count FROM rate_limits WHERE bucket = 'callback'").first("count")).toBe(
-      3,
-    );
+    expect(
+      await db.prepare("SELECT count FROM rate_limits WHERE bucket = 'callback'").first("count"),
+    ).toBe(3);
   });
 
   it("accepts again in the next window without requiring cleanup", async () => {
@@ -102,7 +104,9 @@ describe("D1 rate limiter", () => {
           return typeof value === "function" ? value.bind(target) : value;
         }
         return (query: string) => {
-          if (/^DELETE FROM rate_limits/i.test(query)) cleanupQueries++;
+          if (/^DELETE FROM rate_limits/i.test(query)) {
+            cleanupQueries++;
+          }
           return target.prepare(query);
         };
       },
@@ -155,7 +159,9 @@ describe("D1 rate limiter", () => {
         .first("count"),
     ).toBe(50);
     expect(
-      await db.prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE bucket = 'active'").first("count"),
+      await db
+        .prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE bucket = 'active'")
+        .first("count"),
     ).toBe(1);
   });
 });
@@ -167,8 +173,12 @@ describe("public route rate limits", () => {
     second.PAIRWISE_SECRET = "q".repeat(32);
     await app.request("/authorize?provider=github", { headers: ipHeaders }, first);
     await app.request("/authorize?provider=github", { headers: ipHeaders }, second);
-    const firstHash = await first.DB.prepare("SELECT key_hash FROM rate_limits").first<string>("key_hash");
-    const secondHash = await second.DB.prepare("SELECT key_hash FROM rate_limits").first<string>("key_hash");
+    const firstHash = await first.DB.prepare("SELECT key_hash FROM rate_limits").first<string>(
+      "key_hash",
+    );
+    const secondHash = await second.DB.prepare("SELECT key_hash FROM rate_limits").first<string>(
+      "key_hash",
+    );
 
     expect(firstHash).not.toBe(await sha256("203.0.113.10"));
     expect(secondHash).not.toBe(firstHash);
@@ -188,7 +198,9 @@ describe("public route rate limits", () => {
   it("limits account authorization starts to 10 per minute per IP", async () => {
     const env = await testEnv();
     for (let attempt = 0; attempt < 10; attempt++) {
-      expect((await app.request("/session/start/github", { headers: ipHeaders }, env)).status).toBe(302);
+      expect((await app.request("/session/start/github", { headers: ipHeaders }, env)).status).toBe(
+        302,
+      );
     }
     await expectLimited(await app.request("/session/start/github", { headers: ipHeaders }, env));
     expect(
@@ -207,25 +219,33 @@ describe("public route rate limits", () => {
   it("limits downstream authorization starts to 20 per minute per IP", async () => {
     const env = await testEnv();
     for (let attempt = 0; attempt < 20; attempt++) {
-      expect((await app.request("/authorize?provider=github", { headers: ipHeaders }, env)).status).toBe(400);
+      expect(
+        (await app.request("/authorize?provider=github", { headers: ipHeaders }, env)).status,
+      ).toBe(400);
     }
-    await expectLimited(await app.request("/authorize?provider=github", { headers: ipHeaders }, env));
+    await expectLimited(
+      await app.request("/authorize?provider=github", { headers: ipHeaders }, env),
+    );
   });
 
   it("limits device issuance to 10 per minute per IP", async () => {
     const env = await testEnv();
     for (let attempt = 0; attempt < 10; attempt++) {
-      expect((await app.request("/device/code", { method: "POST", headers: ipHeaders }, env)).status).toBe(
-        400,
-      );
+      expect(
+        (await app.request("/device/code", { method: "POST", headers: ipHeaders }, env)).status,
+      ).toBe(400);
     }
-    await expectLimited(await app.request("/device/code", { method: "POST", headers: ipHeaders }, env));
+    await expectLimited(
+      await app.request("/device/code", { method: "POST", headers: ipHeaders }, env),
+    );
   });
 
   it("limits device inspection to 30 per minute per IP", async () => {
     const env = await testEnv();
     for (let attempt = 0; attempt < 30; attempt++) {
-      expect((await app.request("/api/device/INVALID", { headers: ipHeaders }, env)).status).toBe(404);
+      expect((await app.request("/api/device/INVALID", { headers: ipHeaders }, env)).status).toBe(
+        404,
+      );
     }
     await expectLimited(await app.request("/api/device/INVALID", { headers: ipHeaders }, env));
   });
@@ -263,7 +283,9 @@ describe("public route rate limits", () => {
           return typeof value === "function" ? value.bind(target) : value;
         }
         return (query: string) => {
-          if (/^\s*SELECT[\s\S]*FROM (?:clients|authorization_codes|device_grants)\b/i.test(query)) {
+          if (
+            /^\s*SELECT[\s\S]*FROM (?:clients|authorization_codes|device_grants)\b/i.test(query)
+          ) {
             protectedLookups++;
           }
           return target.prepare(query);
@@ -332,6 +354,8 @@ describe("public route rate limits", () => {
 
     expect(response.status).toBe(500);
     expect(logged).toHaveBeenCalled();
-    expect(logged.mock.calls.flat().map(String).join(" ")).not.toMatch(/github-secret|provider-artifact/);
+    expect(logged.mock.calls.flat().map(String).join(" ")).not.toMatch(
+      /github-secret|provider-artifact/,
+    );
   });
 });

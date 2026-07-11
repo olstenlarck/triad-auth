@@ -20,11 +20,18 @@ const profileClaimKeys = new Set<keyof ProfileClaims>([
 ]);
 
 export function parseScopes(value?: string): Scope[] {
-  if (value === undefined) return ["openid"];
+  if (value === undefined) {
+    return ["openid"];
+  }
+
   const requested = new Set(value.split(/\s+/).filter(Boolean));
-  if (!requested.has("openid") || [...requested].some((scope) => !SCOPES.includes(scope as Scope))) {
+  if (
+    !requested.has("openid") ||
+    [...requested].some((scope) => !SCOPES.includes(scope as Scope))
+  ) {
     throw new Error("invalid_scope");
   }
+
   return SCOPES.filter((scope) => requested.has(scope));
 }
 
@@ -60,5 +67,6 @@ export function validateProfileClaims(value: unknown): ProfileClaims {
   if ("email_verified" in claims && typeof claims.email_verified !== "boolean") {
     throw new Error("invalid profile claims");
   }
+
   return { ...claims } as ProfileClaims;
 }

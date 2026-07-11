@@ -2,7 +2,14 @@ import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { parseScopes, providerScopes, serializeScopes, validateProviderScopes } from "../claims";
 import { cleanupExpiredState } from "../cleanup";
-import { openClaims, providerSubject, randomToken, sealClaims, sha256, timingSafeEqual } from "../crypto";
+import {
+  openClaims,
+  providerSubject,
+  randomToken,
+  sealClaims,
+  sha256,
+  timingSafeEqual,
+} from "../crypto";
 import {
   approveDeviceGrant,
   consumeAuthorizationCode,
@@ -17,8 +24,18 @@ import {
   resolveIdentity,
   validateClient,
 } from "../db";
-import { enabledProviders, finishProvider, MandatoryProfileValueError, startProvider } from "../providers";
-import { clearPreAuthCookie, createPreAuthBinding, preAuthCookieName, setPreAuthCookie } from "../pre-auth";
+import {
+  enabledProviders,
+  finishProvider,
+  MandatoryProfileValueError,
+  startProvider,
+} from "../providers";
+import {
+  clearPreAuthCookie,
+  createPreAuthBinding,
+  preAuthCookieName,
+  setPreAuthCookie,
+} from "../pre-auth";
 import { validatePkceChallenge, validatePkceVerifier } from "../protocol";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken } from "../security";
@@ -44,15 +61,26 @@ function parseStoredScopes(value: string): Scope[] {
     throw new Error("invalid stored scopes");
   }
   const scopes = parseScopes(stored.join(" "));
-  if (JSON.stringify(scopes) !== JSON.stringify(stored)) throw new Error("invalid stored scopes");
+  if (JSON.stringify(scopes) !== JSON.stringify(stored)) {
+    throw new Error("invalid stored scopes");
+  }
+
   return scopes;
 }
 
-export const oauthError = (error: string, description?: string, status = 400) =>
-  new Response(JSON.stringify({ error, ...(description ? { error_description: description } : {}) }), {
-    status,
-    headers: { "content-type": "application/json", "cache-control": "no-store", pragma: "no-cache" },
-  });
+export function oauthError(error: string, description?: string, status = 400): Response {
+  return new Response(
+    JSON.stringify({ error, ...(description ? { error_description: description } : {}) }),
+    {
+      status,
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+        pragma: "no-cache",
+      },
+    },
+  );
+}
 
 interface ConsentRequestRow {
   request_hash: string;
@@ -65,16 +93,22 @@ interface ConsentRequestRow {
   expires_at: number;
 }
 
-async function consumeConsentRequest(db: D1Database, requestHash: string): Promise<ConsentRequestRow | null> {
+async function consumeConsentRequest(
+  db: D1Database,
+  requestHash: string,
+): Promise<ConsentRequestRow | null> {
   const row = await db
     .prepare("SELECT * FROM consent_requests WHERE request_hash = ? AND expires_at > unixepoch()")
     .bind(requestHash)
     .first<ConsentRequestRow>();
-  if (!row) return null;
+  if (!row) {
+    return null;
+  }
   const consumed = await db
     .prepare("DELETE FROM consent_requests WHERE request_hash = ?")
     .bind(requestHash)
     .run();
+
   return consumed.meta.changes === 1 ? row : null;
 }
 
@@ -85,6 +119,7 @@ async function requireConsentMutation(
 ): Promise<string | Response> {
   const requestHash = await sha256(ticket);
   const valid = await consumeCsrfToken(db, csrfToken, consentPurpose(requestHash));
+
   return valid ? requestHash : oauthError("invalid_request", "invalid CSRF token", 403);
 }
 
@@ -94,6 +129,7 @@ export function requireSameOrigin(request: Request, issuer: string): Response | 
   } catch {
     return oauthError("invalid_request", "invalid origin", 403);
   }
+
   return null;
 }
 
@@ -110,12 +146,16 @@ export async function parseOAuthForm(request: Request): Promise<URLSearchParams 
   }
 
   const reader = request.body?.getReader();
-  if (!reader) return new URLSearchParams();
+  if (!reader) {
+    return new URLSearchParams();
+  }
   const chunks: Uint8Array[] = [];
   let length = 0;
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      break;
+    }
     length += value.byteLength;
     if (length > oauthBodyLimit) {
       await reader.cancel().catch(() => undefined);
@@ -129,10 +169,14 @@ export async function parseOAuthForm(request: Request): Promise<URLSearchParams 
     body.set(chunk, offset);
     offset += chunk.byteLength;
   }
+
   return new URLSearchParams(new TextDecoder().decode(body));
 }
 
-export function rejectDuplicateParameters(form: URLSearchParams, names: readonly string[]): Response | null {
+export function rejectDuplicateParameters(
+  form: URLSearchParams,
+  names: readonly string[],
+): Response | null {
   return names.some((name) => form.getAll(name).length > 1)
     ? oauthError("invalid_request", "duplicate parameter")
     : null;
@@ -140,14 +184,19 @@ export function rejectDuplicateParameters(form: URLSearchParams, names: readonly
 
 export const oauthRoutes = new Hono<{ Bindings: Env }>();
 
-async function rotateBrowserSession(c: Context<{ Bindings: Env }>, accountId: string): Promise<void> {
+async function rotateBrowserSession(
+  c: Context<{ Bindings: Env }>,
+  accountId: string,
+): Promise<void> {
   await cleanupExpiredState(c.env.DB);
   const session = randomToken();
   const oldSession = getCookie(c, "triad_session");
   const statements = [];
   if (oldSession) {
     statements.push(
-      c.env.DB.prepare("DELETE FROM browser_sessions WHERE session_hash = ?").bind(await sha256(oldSession)),
+      c.env.DB.prepare("DELETE FROM browser_sessions WHERE session_hash = ?").bind(
+        await sha256(oldSession),
+      ),
     );
   }
   statements.push(
@@ -166,22 +215,30 @@ async function rotateBrowserSession(c: Context<{ Bindings: Env }>, accountId: st
   });
 }
 
-async function finishAccessDenied(c: Context<{ Bindings: Env }>, tx: TransactionRow): Promise<Response> {
+async function finishAccessDenied(
+  c: Context<{ Bindings: Env }>,
+  tx: TransactionRow,
+): Promise<Response> {
   if (tx.kind === "device") {
     if (!tx.device_code_hash || !(await denyDeviceGrant(c.env.DB, tx.device_code_hash))) {
       return oauthError("invalid_grant", "device request expired");
     }
+
     return c.html(
       "<!doctype html><meta charset=utf-8><title>Denied</title><h1>Denied</h1><p>You can return to your device.</p>",
     );
   }
   if (tx.kind === "authorization_code") {
-    if (!tx.redirect_uri || !tx.app_state) return oauthError("server_error", undefined, 500);
+    if (!tx.redirect_uri || !tx.app_state) {
+      return oauthError("server_error", undefined, 500);
+    }
     const target = new URL(tx.redirect_uri);
     target.searchParams.set("error", "access_denied");
     target.searchParams.set("state", tx.app_state);
+
     return c.redirect(target.toString(), 302);
   }
+
   return c.redirect(`${c.env.ISSUER}/me/?error=access_denied`, 302);
 }
 
@@ -236,19 +293,33 @@ oauthRoutes.get("/api/providers", (c) =>
 
 oauthRoutes.get("/authorize", async (c) => {
   if (
-    !(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "authorization-start", 20))
+    !(await enforceRequestRateLimit(
+      c.env.DB,
+      c.req.raw,
+      c.env.PAIRWISE_SECRET,
+      "authorization-start",
+      20,
+    ))
   ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const q = c.req.query();
   const provider = parseProvider(q.provider);
-  if (!provider) return oauthError("invalid_request", "unsupported provider");
-  if (!enabledProviders(c.env).includes(provider))
-    return oauthError("invalid_request", "provider unavailable");
-  if (!q.client_id || !q.redirect_uri || !q.state || !q.code_challenge) {
-    return oauthError("invalid_request", "client_id, redirect_uri, state and code_challenge are required");
+  if (!provider) {
+    return oauthError("invalid_request", "unsupported provider");
   }
-  if (q.response_type !== "code") return oauthError("unsupported_response_type");
+  if (!enabledProviders(c.env).includes(provider)) {
+    return oauthError("invalid_request", "provider unavailable");
+  }
+  if (!q.client_id || !q.redirect_uri || !q.state || !q.code_challenge) {
+    return oauthError(
+      "invalid_request",
+      "client_id, redirect_uri, state and code_challenge are required",
+    );
+  }
+  if (q.response_type !== "code") {
+    return oauthError("unsupported_response_type");
+  }
   if (q.code_challenge_method !== "S256" || !validatePkceChallenge(q.code_challenge)) {
     return oauthError("invalid_request", "valid S256 PKCE is required");
   }
@@ -267,7 +338,9 @@ oauthRoutes.get("/authorize", async (c) => {
     return oauthError("invalid_scope");
   }
   const client = await getClient(c.env.DB, q.client_id);
-  if (!client) return oauthError("unauthorized_client");
+  if (!client) {
+    return oauthError("unauthorized_client");
+  }
   try {
     validateClient(client, q.redirect_uri, provider, c.env.ISSUER);
   } catch (error) {
@@ -293,6 +366,7 @@ oauthRoutes.get("/authorize", async (c) => {
       now(),
     )
     .run();
+
   return c.redirect(`${c.env.ISSUER}/consent/?request=${encodeURIComponent(request)}`, 302);
 });
 
@@ -305,8 +379,11 @@ oauthRoutes.get("/api/consent/:request", async (c) => {
   )
     .bind(requestHash)
     .first<{ provider: string; scopes: string; client_name: string }>();
-  if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
+  if (!row) {
+    return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
+  }
   const csrfToken = await createCsrfToken(c.env.DB, consentPurpose(requestHash));
+
   return c.json({
     client_name: row.client_name,
     provider: row.provider,
@@ -317,17 +394,25 @@ oauthRoutes.get("/api/consent/:request", async (c) => {
 
 oauthRoutes.post("/api/consent/:request/approve", async (c) => {
   const originError = requireSameOrigin(c.req.raw, c.env.ISSUER);
-  if (originError) return originError;
+  if (originError) {
+    return originError;
+  }
   const form = await parseOAuthForm(c.req.raw);
-  if (form instanceof Response) return form;
+  if (form instanceof Response) {
+    return form;
+  }
   const authorized = await requireConsentMutation(
     c.env.DB,
     c.req.param("request"),
     form.get("csrf_token") ?? "",
   );
-  if (authorized instanceof Response) return authorized;
+  if (authorized instanceof Response) {
+    return authorized;
+  }
   const row = await consumeConsentRequest(c.env.DB, authorized);
-  if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
+  if (!row) {
+    return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
+  }
   const scopes = parseStoredScopes(row.scopes);
   const upstreamState = randomToken();
   const stateHash = await sha256(upstreamState);
@@ -356,30 +441,48 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
     )
     .run();
   setPreAuthCookie(c, stateHash, binding.token, row.provider);
+
   return c.json({ redirect_to: start.url });
 });
 
 oauthRoutes.post("/api/consent/:request/deny", async (c) => {
   const originError = requireSameOrigin(c.req.raw, c.env.ISSUER);
-  if (originError) return originError;
+  if (originError) {
+    return originError;
+  }
   const form = await parseOAuthForm(c.req.raw);
-  if (form instanceof Response) return form;
+  if (form instanceof Response) {
+    return form;
+  }
   const authorized = await requireConsentMutation(
     c.env.DB,
     c.req.param("request"),
     form.get("csrf_token") ?? "",
   );
-  if (authorized instanceof Response) return authorized;
+  if (authorized instanceof Response) {
+    return authorized;
+  }
   const row = await consumeConsentRequest(c.env.DB, authorized);
-  if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
+  if (!row) {
+    return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
+  }
   const target = new URL(row.redirect_uri);
   target.searchParams.set("error", "access_denied");
   target.searchParams.set("state", row.app_state);
+
   return c.json({ redirect_to: target.toString() });
 });
 
 oauthRoutes.get("/callback/:provider", async (c) => {
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "provider-callback", 30))) {
+  if (
+    !(await enforceRequestRateLimit(
+      c.env.DB,
+      c.req.raw,
+      c.env.PAIRWISE_SECRET,
+      "provider-callback",
+      30,
+    ))
+  ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const provider = parseProvider(c.req.param("provider"));
@@ -392,12 +495,18 @@ oauthRoutes.get("/callback/:provider", async (c) => {
   }
   const stateHash = await sha256(state);
   const browserBinding = getCookie(c, preAuthCookieName(stateHash));
-  if (!browserBinding) return oauthError("invalid_grant", "expired or invalid state");
+  if (!browserBinding) {
+    return oauthError("invalid_grant", "expired or invalid state");
+  }
   const tx = await consumeTransaction(c.env.DB, stateHash, await sha256(browserBinding));
-  if (!tx || tx.provider !== provider) return oauthError("invalid_grant", "expired or invalid state");
+  if (!tx || tx.provider !== provider) {
+    return oauthError("invalid_grant", "expired or invalid state");
+  }
   clearPreAuthCookie(c, stateHash, tx.provider);
 
-  if (denied) return finishAccessDenied(c, tx);
+  if (denied) {
+    return finishAccessDenied(c, tx);
+  }
 
   const scopes = parseStoredScopes(tx.scopes);
   let identity;
@@ -411,7 +520,9 @@ oauthRoutes.get("/callback/:provider", async (c) => {
       scopes,
     );
   } catch (error) {
-    if (error instanceof MandatoryProfileValueError) return finishAccessDenied(c, tx);
+    if (error instanceof MandatoryProfileValueError) {
+      return finishAccessDenied(c, tx);
+    }
     throw error;
   }
   const accountId = await resolveIdentity(c.env.DB, identity);
@@ -419,6 +530,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
 
   if (tx.kind === "session") {
     await rotateBrowserSession(c, accountId);
+
     return c.redirect(`${c.env.ISSUER}/me/`, 302);
   }
   if (tx.kind === "device") {
@@ -428,17 +540,26 @@ oauthRoutes.get("/callback/:provider", async (c) => {
         : null;
     if (
       !tx.device_code_hash ||
-      !(await approveDeviceGrant(c.env.DB, tx.device_code_hash, accountId, providerSub, claimsCiphertext))
+      !(await approveDeviceGrant(
+        c.env.DB,
+        tx.device_code_hash,
+        accountId,
+        providerSub,
+        claimsCiphertext,
+      ))
     ) {
       return oauthError("invalid_grant", "device request expired");
     }
     await rotateBrowserSession(c, accountId);
+
     return c.html(
       "<!doctype html><meta charset=utf-8><title>Authorized</title><h1>Authorized</h1><p>You can return to your device.</p>",
     );
   }
 
-  if (!tx.redirect_uri || !tx.code_challenge) return oauthError("server_error", undefined, 500);
+  if (!tx.redirect_uri || !tx.code_challenge) {
+    return oauthError("server_error", undefined, 500);
+  }
   const authCode = randomToken();
   const codeHash = await sha256(authCode);
   const claimsCiphertext = identity.claims
@@ -467,13 +588,18 @@ oauthRoutes.get("/callback/:provider", async (c) => {
   await rotateBrowserSession(c, accountId);
   const target = new URL(tx.redirect_uri);
   target.searchParams.set("code", authCode);
-  if (tx.app_state) target.searchParams.set("state", tx.app_state);
+  if (tx.app_state) {
+    target.searchParams.set("state", tx.app_state);
+  }
+
   return c.redirect(target.toString(), 302);
 });
 
 oauthRoutes.post("/token", async (c) => {
   const form = await parseOAuthForm(c.req.raw);
-  if (form instanceof Response) return form;
+  if (form instanceof Response) {
+    return form;
+  }
   const grantType = form.get("grant_type") ?? "";
   if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "token", 60))) {
     return grantType === "urn:ietf:params:oauth:grant-type:device_code"
@@ -488,9 +614,12 @@ oauthRoutes.post("/token", async (c) => {
     "redirect_uri",
     "device_code",
   ]);
-  if (duplicateError) return duplicateError;
+  if (duplicateError) {
+    return duplicateError;
+  }
   const clientId = form.get("client_id") ?? "";
-  const client = clientId && clientId.length <= clientIdLimit ? await getClient(c.env.DB, clientId) : null;
+  const client =
+    clientId && clientId.length <= clientIdLimit ? await getClient(c.env.DB, clientId) : null;
   if (!client) {
     return oauthError("invalid_client");
   }
@@ -519,12 +648,15 @@ oauthRoutes.post("/token", async (c) => {
       return oauthError("invalid_client");
     }
     const row = await consumeAuthorizationCode(c.env.DB, codeHash, clientId, redirectUri);
-    if (!row) return oauthError("invalid_grant");
+    if (!row) {
+      return oauthError("invalid_grant");
+    }
     const scopes = parseStoredScopes(row.scopes);
     const claims = row.claims_ciphertext
       ? await openClaims(c.env.PAIRWISE_SECRET, codeHash, row.claims_ciphertext)
       : {};
     await rememberConsent(c.env.DB, row.account_id, clientId, scopes);
+
     return c.json({
       token_type: "Bearer",
       expires_in: 300,
@@ -535,10 +667,14 @@ oauthRoutes.post("/token", async (c) => {
 
   if (grantType === "urn:ietf:params:oauth:grant-type:device_code") {
     const deviceCode = form.get("device_code") ?? "";
-    if (!deviceCode || deviceCode.length > deviceCodeLimit) return oauthError("invalid_grant");
+    if (!deviceCode || deviceCode.length > deviceCodeLimit) {
+      return oauthError("invalid_grant");
+    }
     const hash = await sha256(deviceCode);
     const initialState = await getDeviceGrantState(c.env.DB, hash);
-    if (!initialState || initialState.client_id !== clientId) return oauthError("invalid_grant");
+    if (!initialState || initialState.client_id !== clientId) {
+      return oauthError("invalid_grant");
+    }
     try {
       validateClient(client, null, initialState.provider, c.env.ISSUER);
     } catch {
@@ -552,22 +688,40 @@ oauthRoutes.post("/token", async (c) => {
           ? await openClaims(c.env.PAIRWISE_SECRET, hash, approved.claims_ciphertext)
           : {};
         await rememberConsent(c.env.DB, approved.account_id, clientId, scopes);
+
         return c.json({
           token_type: "Bearer",
           expires_in: 300,
           scope: serializeScopes(scopes),
-          id_token: await issueIdToken(c.env, clientId, approved.account_id, approved.provider_sub, claims),
+          id_token: await issueIdToken(
+            c.env,
+            clientId,
+            approved.account_id,
+            approved.provider_sub,
+            claims,
+          ),
         });
       }
 
       const state = await getDeviceGrantState(c.env.DB, hash);
-      if (!state || state.client_id !== clientId) return oauthError("invalid_grant");
-      if (state.expires_at <= now()) return oauthError("expired_token");
-      if (state.status === "approved") return oauthError("invalid_grant");
-      if (state.status === "denied") return oauthError("access_denied");
+      if (!state || state.client_id !== clientId) {
+        return oauthError("invalid_grant");
+      }
+      if (state.expires_at <= now()) {
+        return oauthError("expired_token");
+      }
+      if (state.status === "approved") {
+        return oauthError("invalid_grant");
+      }
+      if (state.status === "denied") {
+        return oauthError("access_denied");
+      }
       const polling = await pollPendingDeviceGrant(c.env.DB, hash, clientId);
-      if (polling) return oauthError(polling);
+      if (polling) {
+        return oauthError(polling);
+      }
     }
+
     return oauthError("invalid_grant");
   }
 
@@ -576,5 +730,9 @@ oauthRoutes.post("/token", async (c) => {
 
 oauthRoutes.onError((_error, c) => {
   console.error("OAuth route failed");
-  return c.json({ error: "server_error" }, 500, { "cache-control": "no-store", pragma: "no-cache" });
+
+  return c.json({ error: "server_error" }, 500, {
+    "cache-control": "no-store",
+    pragma: "no-cache",
+  });
 });

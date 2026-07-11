@@ -30,7 +30,9 @@ export function securityHeaders(): MiddlewareHandler {
 
 export function assertSameOrigin(request: Request, issuer: string): void {
   const origin = request.headers.get("origin");
-  if (!origin || origin !== new URL(issuer).origin) throw new Error("invalid_origin");
+  if (!origin || origin !== new URL(issuer).origin) {
+    throw new Error("invalid_origin");
+  }
 }
 
 export async function createCsrfToken(db: D1Database, purpose: string): Promise<string> {
@@ -47,15 +49,21 @@ export async function createCsrfToken(db: D1Database, purpose: string): Promise<
     )
     .bind(await sha256(token), purpose, createdAt + csrfLifetimeSeconds, createdAt)
     .run();
+
   return token;
 }
 
-export async function consumeCsrfToken(db: D1Database, token: string, purpose: string): Promise<boolean> {
+export async function consumeCsrfToken(
+  db: D1Database,
+  token: string,
+  purpose: string,
+): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000);
   const result = await db
     .prepare("DELETE FROM csrf_tokens WHERE token_hash = ? AND purpose = ? AND expires_at > ?")
     .bind(await sha256(token), purpose, now)
     .run();
+
   return result.meta.changes === 1;
 }
 
@@ -63,5 +71,6 @@ export function noStore(response: Response): Response {
   const next = new Response(response.body, response);
   next.headers.set("cache-control", "no-store");
   next.headers.set("pragma", "no-cache");
+
   return next;
 }

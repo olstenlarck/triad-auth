@@ -97,7 +97,7 @@ import Shell from "../../components/Shell.astro";
       ];
       container.replaceChildren();
       for (const [claim, value] of claims) {
-        if (value === undefined) continue;
+        if (value === undefined) {continue;}
         const row = document.createElement("div");
         const term = document.createElement("dt");
         const description = document.createElement("dd");
@@ -138,7 +138,7 @@ import Shell from "../../components/Shell.astro";
             });
             const body = (await response.json()) as { id_token?: string; error_description?: string };
             if (!response.ok || !body.id_token)
-              throw new Error(body.error_description ?? "Token exchange failed.");
+              {throw new Error(body.error_description ?? "Token exchange failed.");}
 
             status.textContent =
               "Code exchanged. Verifying ES256 signature, issuer, audience, expiry, and identity claims.";

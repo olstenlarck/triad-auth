@@ -81,8 +81,8 @@ import Shell from "../components/Shell.astro";
     }
 
     async function takeCsrfToken(): Promise<string> {
-      if (!csrfToken) await load();
-      if (!csrfToken) throw new Error("Could not refresh account security state.");
+      if (!csrfToken) {await load();}
+      if (!csrfToken) {throw new Error("Could not refresh account security state.");}
       const token = csrfToken;
       csrfToken = "";
       return token;
@@ -109,15 +109,15 @@ import Shell from "../components/Shell.astro";
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ csrf_token: token }),
         });
-        if (!revoked.ok) throw await responseError(revoked, "Could not revoke this authorization.");
+        if (!revoked.ok) {throw await responseError(revoked, "Could not revoke this authorization.");}
         const next = (await revoked.json()) as { csrf_token?: string };
         if (!next.csrf_token)
-          throw new Error("Authorization changed, but security state could not be refreshed.");
+          {throw new Error("Authorization changed, but security state could not be refreshed.");}
         csrfToken = next.csrf_token;
         row.remove();
         appCount.textContent = String(--remainingClients);
         if (!remainingClients)
-          list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;
+          {list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;}
       } catch (reason) {
         await recoverAccount(reason, "Could not revoke this authorization.");
       } finally {
@@ -135,7 +135,7 @@ import Shell from "../components/Shell.astro";
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ csrf_token: token }),
         });
-        if (!response.ok) throw await responseError(response, "Could not sign out.");
+        if (!response.ok) {throw await responseError(response, "Could not sign out.");}
         location.reload();
       } catch (reason) {
         await recoverAccount(reason, "Could not sign out.");
@@ -153,7 +153,7 @@ import Shell from "../components/Shell.astro";
       providerRetry.disabled = true;
       try {
         const providers = await fetchProviderCapabilities(location.origin, controller.signal);
-        if (!providers.length) throw new Error("No sign-in providers are enabled.");
+        if (!providers.length) {throw new Error("No sign-in providers are enabled.");}
         providerActions.replaceChildren();
         for (const provider of providers) {
           const link = document.createElement("a");
@@ -163,7 +163,7 @@ import Shell from "../components/Shell.astro";
           providerActions.append(link);
         }
       } catch (reason) {
-        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        if (reason instanceof DOMException && reason.name === "AbortError") {return;}
         providerActions.textContent = "Sign-in providers could not be loaded.";
         providerRetry.hidden = false;
       } finally {
@@ -183,7 +183,7 @@ import Shell from "../components/Shell.astro";
       setMutationControls(true);
       try {
         const response = await fetch("/api/me", { signal: controller.signal });
-        if (generation !== loadGeneration) return;
+        if (generation !== loadGeneration) {return;}
         if (response.status === 401) {
           document.querySelector("#account-summary")!.textContent =
             "No active broker session on this browser.";
@@ -200,9 +200,9 @@ import Shell from "../components/Shell.astro";
           csrf_token?: string;
           error?: string;
         };
-        if (generation !== loadGeneration) return;
-        if (!response.ok) throw new Error(body.error ?? "Could not load your session.");
-        if (!body.csrf_token) throw new Error("Account security state is unavailable.");
+        if (generation !== loadGeneration) {return;}
+        if (!response.ok) {throw new Error(body.error ?? "Could not load your session.");}
+        if (!body.csrf_token) {throw new Error("Account security state is unavailable.");}
         document.querySelector("#account-summary")!.textContent =
           "This is the identity map Triad holds for you.";
         document.querySelector("#account-sub")!.textContent = body.account_sub ?? "NONE";
@@ -213,7 +213,7 @@ import Shell from "../components/Shell.astro";
         appCount.textContent = String(remainingClients);
         list.replaceChildren();
         if (!clients.length)
-          list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;
+          {list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;}
         for (const client of clients) {
           const row = document.createElement("article");
           row.className = "authorized-app";

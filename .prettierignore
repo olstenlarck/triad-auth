@@ -1,9 +1,0 @@
-.astro/
-.git/
-.superpowers/
-.wrangler/
-dist/
-node_modules/
-src/generated/
-.dev.vars
-pnpm-lock.yaml

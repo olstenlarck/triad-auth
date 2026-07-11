@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import { normalizeUserCode, pairwiseSubject, providerSubject } from "../src/crypto";
 import { resolveIdentity } from "../src/db";
 import { createTestDb } from "./d1";
@@ -6,7 +6,9 @@ import { createTestDb } from "./d1";
 const cleanups: Array<() => void> = [];
 
 afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) cleanup();
+  for (const cleanup of cleanups.splice(0)) {
+    cleanup();
+  }
 });
 
 describe("identity contract", () => {
@@ -25,8 +27,12 @@ describe("identity contract", () => {
   it("keeps pairwise IDs stable within and distinct across clients", async () => {
     const first = await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a");
     expect(first).toMatch(/^ps_[0-9a-f]{32}$/);
-    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a")).toBe(first);
-    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_b")).not.toBe(first);
+    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a")).toBe(
+      first,
+    );
+    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_b")).not.toBe(
+      first,
+    );
   });
 
   it("normalizes device codes", () => {
@@ -49,11 +55,17 @@ describe("identity contract", () => {
         }
         return (query: string) => {
           const statement = target.prepare(query);
-          if (!query.startsWith("SELECT account_id FROM identities WHERE provider")) return statement;
+          if (!query.startsWith("SELECT account_id FROM identities WHERE provider")) {
+            return statement;
+          }
           return new Proxy(statement, {
             get(statementTarget, statementProperty, statementReceiver) {
               if (statementProperty !== "bind") {
-                const value = Reflect.get(statementTarget, statementProperty, statementReceiver) as unknown;
+                const value = Reflect.get(
+                  statementTarget,
+                  statementProperty,
+                  statementReceiver,
+                ) as unknown;
                 return typeof value === "function" ? value.bind(statementTarget) : value;
               }
               return (...values: unknown[]) => {
@@ -61,7 +73,11 @@ describe("identity contract", () => {
                 return new Proxy(bound, {
                   get(boundTarget, boundProperty, boundReceiver) {
                     if (boundProperty !== "first") {
-                      const value = Reflect.get(boundTarget, boundProperty, boundReceiver) as unknown;
+                      const value = Reflect.get(
+                        boundTarget,
+                        boundProperty,
+                        boundReceiver,
+                      ) as unknown;
                       return typeof value === "function" ? value.bind(boundTarget) : value;
                     }
                     return async <T>(column?: string): Promise<T | null> => {
@@ -70,7 +86,9 @@ describe("identity contract", () => {
                           ? await boundTarget.first<T>()
                           : await boundTarget.first<T>(column);
                       initialReads++;
-                      if (initialReads === 2) release();
+                      if (initialReads === 2) {
+                        release();
+                      }
                       await bothRead;
                       return row;
                     };

@@ -1,6 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import app from "../src/index";
-import { cleanupExpiredState, stateCleanupBatchSize, stateCleanupSampleDenominator } from "../src/cleanup";
+import {
+  cleanupExpiredState,
+  stateCleanupBatchSize,
+  stateCleanupSampleDenominator,
+} from "../src/cleanup";
 import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
 
@@ -14,7 +18,9 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
-  for (const cleanup of cleanups.splice(0)) cleanup();
+  for (const cleanup of cleanups.splice(0)) {
+    cleanup();
+  }
 });
 
 async function testDb(): Promise<D1Database> {
@@ -97,7 +103,9 @@ describe("ephemeral D1 cleanup", () => {
           return typeof value === "function" ? value.bind(target) : value;
         }
         return (query: string) => {
-          if (/^DELETE FROM /i.test(query)) cleanupQueries.push(query);
+          if (/^DELETE FROM /i.test(query)) {
+            cleanupQueries.push(query);
+          }
           return target.prepare(query);
         };
       },
@@ -111,7 +119,9 @@ describe("ephemeral D1 cleanup", () => {
 
     expect(stateCleanupBatchSize / stateCleanupSampleDenominator).toBeGreaterThan(1);
     expect(cleanupQueries).toHaveLength(6);
-    expect(cleanupQueries.every((query) => query.includes(`LIMIT ${stateCleanupBatchSize}`))).toBe(true);
+    expect(cleanupQueries.every((query) => query.includes(`LIMIT ${stateCleanupBatchSize}`))).toBe(
+      true,
+    );
     for (const table of [
       "consent_requests",
       "oauth_transactions",
@@ -158,9 +168,13 @@ describe("ephemeral D1 cleanup", () => {
       env,
     );
     expect(creation.status).toBe(200);
-    expect(await db.prepare("SELECT COUNT(*) AS count FROM consent_requests").first("count")).toBe(0);
+    expect(await db.prepare("SELECT COUNT(*) AS count FROM consent_requests").first("count")).toBe(
+      0,
+    );
 
-    await db.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_token_cleanup', 0)").run();
+    await db
+      .prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_token_cleanup', 0)")
+      .run();
     await db
       .prepare(
         `INSERT INTO authorization_codes
@@ -181,6 +195,8 @@ describe("ephemeral D1 cleanup", () => {
     );
     expect(token.status).toBe(400);
     await expect(token.json()).resolves.toEqual({ error: "unsupported_grant_type" });
-    expect(await db.prepare("SELECT COUNT(*) AS count FROM authorization_codes").first("count")).toBe(0);
+    expect(
+      await db.prepare("SELECT COUNT(*) AS count FROM authorization_codes").first("count"),
+    ).toBe(0);
   });
 });

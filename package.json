@@ -4,19 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm build && wrangler dev --var ISSUER:http://localhost:8787",
-    "build": "astro build && node scripts/generate-csp-hashes.mjs",
-    "deploy": "pnpm build && wrangler deploy",
-    "db:local": "wrangler d1 migrations apply triad-auth --local",
-    "db:remote": "wrangler d1 migrations apply triad-auth --remote",
-    "keygen": "node scripts/generate-key.mjs",
     "check:config": "node scripts/check-config.mjs",
     "check:deploy": "wrangler deploy --dry-run",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "check": "pnpm format:check && pnpm typecheck && pnpm build && pnpm test && pnpm check:deploy",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "db:local": "wrangler d1 migrations apply triad-auth --local",
+    "db:remote": "wrangler d1 migrations apply triad-auth --remote",
+    "deploy": "vp run build && wrangler deploy",
+    "dev": "vp run build && wrangler dev --var ISSUER:http://localhost:8787",
+    "keygen": "node scripts/generate-key.mjs"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.2.8",
@@ -27,16 +21,11 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260710.1",
-    "prettier": "^3.9.5",
-    "prettier-plugin-astro": "^0.14.1",
-    "typescript": "^7.0.2",
-    "vitest": "^3.2.4",
+    "eslint-plugin-perfectionist": "^5.10.0",
+    "typescript": "^6.0.3",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
     "wrangler": "^4.24.3"
   },
-  "prettier": {
-    "plugins": [
-      "prettier-plugin-astro"
-    ],
-    "printWidth": 110
-  }
+  "packageManager": "pnpm@11.11.0"
 }

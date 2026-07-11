@@ -1,9 +1,10 @@
----
-name: clean-code
-description: Use when writing, refactoring, or reviewing code for readability, maintainability, clarity, naming, structure, and simplicity in any language or project.
----
+- always use `vp run check` and `vp run build`.
+- do not touch vite.config.ts!
+- always use typescript v6, for now.
 
 # Clean code
+
+> Use when writing, refactoring, or reviewing code for readability, maintainability, clarity, naming, structure, and simplicity in any language or project.
 
 - Prefer clear, unsurprising code over clever or compressed code.
 - Use descriptive names that communicate intent without explanatory comments.

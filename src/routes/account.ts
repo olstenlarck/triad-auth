@@ -21,7 +21,10 @@ interface BrowserSession {
 const accountPurpose = (sessionHash: string) => `account:${sessionHash}`;
 
 async function requireSession(db: D1Database, token?: string): Promise<BrowserSession | null> {
-  if (!token) return null;
+  if (!token) {
+    return null;
+  }
+
   const sessionHash = await sha256(token);
   const row = await db
     .prepare(
@@ -30,6 +33,7 @@ async function requireSession(db: D1Database, token?: string): Promise<BrowserSe
     )
     .bind(sessionHash)
     .first<{ account_id: string }>();
+
   return row ? { accountId: row.account_id, sessionHash } : null;
 }
 
@@ -39,10 +43,19 @@ async function authorizeMutation(
   request: Request,
 ): Promise<Response | null> {
   const form = await parseOAuthForm(request);
-  if (form instanceof Response) return form;
+  if (form instanceof Response) {
+    return form;
+  }
   const duplicateError = rejectDuplicateParameters(form, ["csrf_token"]);
-  if (duplicateError) return duplicateError;
-  return (await consumeCsrfToken(db, form.get("csrf_token") ?? "", accountPurpose(session.sessionHash)))
+  if (duplicateError) {
+    return duplicateError;
+  }
+
+  return (await consumeCsrfToken(
+    db,
+    form.get("csrf_token") ?? "",
+    accountPurpose(session.sessionHash),
+  ))
     ? null
     : oauthError("invalid_request", "invalid CSRF token", 403);
 }
@@ -56,13 +69,24 @@ accountRoutes.use("*", async (c, next) => {
 });
 
 accountRoutes.get("/session/start/:provider", async (c) => {
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "session-start", 10))) {
+  if (
+    !(await enforceRequestRateLimit(
+      c.env.DB,
+      c.req.raw,
+      c.env.PAIRWISE_SECRET,
+      "session-start",
+      10,
+    ))
+  ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const provider = c.req.param("provider") as ProviderName;
-  if (!providers.has(provider)) return oauthError("invalid_request", "unsupported provider");
-  if (!enabledProviders(c.env).includes(provider))
+  if (!providers.has(provider)) {
+    return oauthError("invalid_request", "unsupported provider");
+  }
+  if (!enabledProviders(c.env).includes(provider)) {
     return oauthError("invalid_request", "provider unavailable");
+  }
   const state = randomToken();
   const stateHash = await sha256(state);
   const start = await startProvider(provider, c.env, state, ["openid"]);
@@ -74,15 +98,26 @@ accountRoutes.get("/session/start/:provider", async (c) => {
       scopes, browser_binding_hash, expires_at, created_at)
     VALUES (?, 'session', 'triad-account', ?, ?, ?, '["openid"]', ?, ?, ?)`,
   )
-    .bind(stateHash, provider, start.verifier ?? null, start.nonce ?? null, binding.hash, now() + 600, now())
+    .bind(
+      stateHash,
+      provider,
+      start.verifier ?? null,
+      start.nonce ?? null,
+      binding.hash,
+      now() + 600,
+      now(),
+    )
     .run();
   setPreAuthCookie(c, stateHash, binding.token, provider);
+
   return c.redirect(start.url, 302);
 });
 
 accountRoutes.get("/api/me", async (c) => {
   const session = await requireSession(c.env.DB, getCookie(c, "triad_session"));
-  if (!session) return oauthError("login_required", undefined, 401);
+  if (!session) {
+    return oauthError("login_required", undefined, 401);
+  }
   const identities = await c.env.DB.prepare(
     `SELECT provider, provider_user_id FROM identities
     WHERE account_id = ? ORDER BY created_at`,
@@ -101,6 +136,7 @@ accountRoutes.get("/api/me", async (c) => {
       providerSubject(c.env.PAIRWISE_SECRET, row.provider as ProviderName, row.provider_user_id),
     ),
   );
+
   return c.json({
     account_sub: session.accountId,
     identities: providerSubs,
@@ -111,33 +147,55 @@ accountRoutes.get("/api/me", async (c) => {
 
 accountRoutes.delete("/api/me/clients/:clientId", async (c) => {
   const originError = requireSameOrigin(c.req.raw, c.env.ISSUER);
-  if (originError) return originError;
+  if (originError) {
+    return originError;
+  }
   const session = await requireSession(c.env.DB, getCookie(c, "triad_session"));
-  if (!session) return oauthError("login_required", undefined, 401);
+  if (!session) {
+    return oauthError("login_required", undefined, 401);
+  }
   const authorizationError = await authorizeMutation(c.env.DB, session, c.req.raw);
-  if (authorizationError) return authorizationError;
+  if (authorizationError) {
+    return authorizationError;
+  }
   const clientId = c.req.param("clientId");
   if (!clientId || clientId.length > clientIdLimit) {
     return oauthError("invalid_request", "Authorization not found.", 404);
   }
-  const result = await c.env.DB.prepare("DELETE FROM consents WHERE account_id = ? AND client_id = ?")
+  const result = await c.env.DB.prepare(
+    "DELETE FROM consents WHERE account_id = ? AND client_id = ?",
+  )
     .bind(session.accountId, clientId)
     .run();
-  if (result.meta.changes !== 1) return oauthError("invalid_request", "Authorization not found.", 404);
-  return c.json({ csrf_token: await createCsrfToken(c.env.DB, accountPurpose(session.sessionHash)) });
+  if (result.meta.changes !== 1) {
+    return oauthError("invalid_request", "Authorization not found.", 404);
+  }
+
+  return c.json({
+    csrf_token: await createCsrfToken(c.env.DB, accountPurpose(session.sessionHash)),
+  });
 });
 
 accountRoutes.post("/session/logout", async (c) => {
   const originError = requireSameOrigin(c.req.raw, c.env.ISSUER);
-  if (originError) return originError;
+  if (originError) {
+    return originError;
+  }
   const session = await requireSession(c.env.DB, getCookie(c, "triad_session"));
-  if (!session) return oauthError("login_required", undefined, 401);
+  if (!session) {
+    return oauthError("login_required", undefined, 401);
+  }
   const authorizationError = await authorizeMutation(c.env.DB, session, c.req.raw);
-  if (authorizationError) return authorizationError;
+  if (authorizationError) {
+    return authorizationError;
+  }
   const result = await c.env.DB.prepare("DELETE FROM browser_sessions WHERE session_hash = ?")
     .bind(session.sessionHash)
     .run();
-  if (result.meta.changes !== 1) return oauthError("login_required", undefined, 401);
+  if (result.meta.changes !== 1) {
+    return oauthError("login_required", undefined, 401);
+  }
   deleteCookie(c, "triad_session", { path: "/", secure: true, sameSite: "Lax" });
+
   return c.body(null, 204);
 });

@@ -1,5 +1,5 @@
 import { decodeJwt, exportJWK, generateKeyPair } from "jose";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import app from "../src/index";
 import { openClaims, sha256 } from "../src/crypto";
 import { preAuthCookieName } from "../src/pre-auth";
@@ -20,7 +20,9 @@ beforeAll(async () => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  for (const cleanup of cleanups.splice(0)) cleanup();
+  for (const cleanup of cleanups.splice(0)) {
+    cleanup();
+  }
 });
 
 async function testEnv(canonicalIssuer = issuer, overrides: Partial<Env> = {}): Promise<Env> {
@@ -192,7 +194,9 @@ function tokenRequest(
     code,
     ...overrides,
   });
-  if (verifier !== undefined) body.set("code_verifier", verifier);
+  if (verifier !== undefined) {
+    body.set("code_verifier", verifier);
+  }
   return {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -218,7 +222,9 @@ async function seedAuthorizationCode(
       .bind(clientId, JSON.stringify([target]))
       .run();
   }
-  await env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_length', unixepoch())").run();
+  await env.DB.prepare(
+    "INSERT INTO accounts (id, created_at) VALUES ('acct_length', unixepoch())",
+  ).run();
   await env.DB.prepare(
     `INSERT INTO authorization_codes
     (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at)
@@ -266,7 +272,9 @@ describe("authorization-code routes", () => {
     expect(columns.get("device_grants")).toEqual(
       expect.arrayContaining(["provider", "scopes", "claims_ciphertext"]),
     );
-    const clients = await env.DB.prepare("SELECT client_id, providers FROM clients ORDER BY client_id").all();
+    const clients = await env.DB.prepare(
+      "SELECT client_id, providers FROM clients ORDER BY client_id",
+    ).all();
     expect(clients.results).toEqual([
       { client_id: "triad-account", providers: '["google","github","twitter"]' },
       { client_id: "triad-demo", providers: '["google","github","twitter"]' },
@@ -322,7 +330,9 @@ describe("authorization-code routes", () => {
       ]) {
         expect(await db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first("count")).toBe(0);
       }
-      const codeColumns = await db.prepare("PRAGMA table_info(authorization_codes)").all<{ name: string }>();
+      const codeColumns = await db
+        .prepare("PRAGMA table_info(authorization_codes)")
+        .all<{ name: string }>();
       expect(codeColumns.results.map(({ name }) => name)).toContain("provider");
     } finally {
       sqlite.close();
@@ -366,8 +376,12 @@ describe("authorization-code routes", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
-        .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, name: null }), { status: 200 })),
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ id: 42, name: null }), { status: 200 }),
+        ),
     );
 
     const callback = await app.request(
@@ -386,8 +400,12 @@ describe("authorization-code routes", () => {
       state: "client-state",
     });
     expect(logged).not.toHaveBeenCalled();
-    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM authorization_codes").first("count")).toBe(0);
-    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count")).toBe(0);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM authorization_codes").first("count"),
+    ).toBe(0);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM oauth_transactions").first("count"),
+    ).toBe(0);
   });
 
   it("rejects unavailable providers and provider-incompatible scopes before consent creation", async () => {
@@ -406,7 +424,9 @@ describe("authorization-code routes", () => {
 
     await expect(unavailable.json()).resolves.toMatchObject({ error: "invalid_request" });
     await expect(incompatible.json()).resolves.toMatchObject({ error: "invalid_scope" });
-    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM consent_requests").first("count")).toBe(0);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM consent_requests").first("count"),
+    ).toBe(0);
   });
 
   it("persists the selected Google provider, nonce, and canonical scopes through consent", async () => {
@@ -419,7 +439,11 @@ describe("authorization-code routes", () => {
       scope: "name openid email email",
     });
     const consent = await app.request(`/api/consent/${request}`, undefined, env);
-    const consentBody = await consent.json<{ csrf_token: string; provider: string; scopes: string[] }>();
+    const consentBody = await consent.json<{
+      csrf_token: string;
+      provider: string;
+      scopes: string[];
+    }>();
     expect(consentBody).toMatchObject({
       provider: "google",
       scopes: ["openid", "email", "name"],
@@ -496,7 +520,9 @@ describe("authorization-code routes", () => {
     expect(stored?.scopes).toBe('["openid","email","name"]');
     expect(stored?.claims_ciphertext).toMatch(/^v1\./);
     expect(stored?.claims_ciphertext).not.toContain("user@example.com");
-    await expect(openClaims(env.PAIRWISE_SECRET, codeHash, stored!.claims_ciphertext)).resolves.toEqual({
+    await expect(
+      openClaims(env.PAIRWISE_SECRET, codeHash, stored!.claims_ciphertext),
+    ).resolves.toEqual({
       email: "user@example.com",
       email_verified: true,
       name: "User",
@@ -528,8 +554,12 @@ describe("authorization-code routes", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }))
-        .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: "2244994945" } }), { status: 200 })),
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ access_token: "temporary" }), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ data: { id: "2244994945" } }), { status: 200 }),
+        ),
     );
 
     const callback = await app.request(
@@ -602,8 +632,15 @@ describe("authorization-code routes", () => {
       const accepted = await app.request(authorizeUrl({ redirect_uri: callback }), undefined, env);
       expect(accepted.status).toBe(302);
 
-      for (const rejected of [`${canonicalIssuer}/demo/callback`, "https://other.example/demo/callback/"]) {
-        const response = await app.request(authorizeUrl({ redirect_uri: rejected }), undefined, env);
+      for (const rejected of [
+        `${canonicalIssuer}/demo/callback`,
+        "https://other.example/demo/callback/",
+      ]) {
+        const response = await app.request(
+          authorizeUrl({ redirect_uri: rejected }),
+          undefined,
+          env,
+        );
         expect(response.status).toBe(400);
         expect(response.headers.has("location")).toBe(false);
       }
@@ -611,7 +648,11 @@ describe("authorization-code routes", () => {
   );
 
   it("advertises canonical scopes, claims, and only pairwise subject identifiers", async () => {
-    const response = await app.request("/.well-known/openid-configuration", undefined, await testEnv());
+    const response = await app.request(
+      "/.well-known/openid-configuration",
+      undefined,
+      await testEnv(),
+    );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -636,9 +677,9 @@ describe("authorization-code routes", () => {
     const { request, csrf } = await beginConsent(env);
     const approved = await consentMutation(env, request, csrf, "approve");
     expect(approved.status).toBe(200);
-    const state = new URL((await approved.json<{ redirect_to: string }>()).redirect_to).searchParams.get(
-      "state",
-    )!;
+    const state = new URL(
+      (await approved.json<{ redirect_to: string }>()).redirect_to,
+    ).searchParams.get("state")!;
     const cookieName = preAuthCookieName(await sha256(state));
     const binding = responseCookie(approved, cookieName);
     const fetch = stubGithub();
@@ -667,11 +708,17 @@ describe("authorization-code routes", () => {
     );
     expect(completed.status).toBe(302);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(completed.headers.get("set-cookie")).toMatch(new RegExp(`${cookieName}=;.*Max-Age=0`, "i"));
+    expect(completed.headers.get("set-cookie")).toMatch(
+      new RegExp(`${cookieName}=;.*Max-Age=0`, "i"),
+    );
   });
 
   it("mounts security headers on the root Hono application", async () => {
-    const response = await app.request(authorizeUrl({ client_id: "unknown" }), undefined, await testEnv());
+    const response = await app.request(
+      authorizeUrl({ client_id: "unknown" }),
+      undefined,
+      await testEnv(),
+    );
 
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
@@ -723,7 +770,13 @@ describe("authorization-code routes", () => {
     async (action) => {
       const env = await testEnv();
       const { request, csrf: first } = await beginConsent(env);
-      const crossOrigin = await consentMutation(env, request, first, action, "https://evil.example");
+      const crossOrigin = await consentMutation(
+        env,
+        request,
+        first,
+        action,
+        "https://evil.example",
+      );
       expect(crossOrigin.status).toBe(403);
 
       const current = await inspectConsent(env, request);
@@ -763,7 +816,10 @@ describe("authorization-code routes", () => {
       `/api/consent/${request}/approve`,
       {
         method: "POST",
-        headers: { origin: "https://evil.example", "content-type": "application/x-www-form-urlencoded" },
+        headers: {
+          origin: "https://evil.example",
+          "content-type": "application/x-www-form-urlencoded",
+        },
         body: unreadable,
         duplex: "half",
       } as unknown as RequestInit,
@@ -840,7 +896,9 @@ describe("authorization-code routes", () => {
       app.request(callback, { headers: { cookie: binding } }, env),
       app.request(callback, { headers: { cookie: binding } }, env),
     ]);
-    expect(responses.map((response) => response.status).sort()).toEqual([302, 400]);
+    expect(
+      responses.map((response) => response.status).sort((left, right) => left - right),
+    ).toEqual([302, 400]);
     const rejected = responses.find((response) => response.status === 400)!;
     await expect(rejected.json()).resolves.toMatchObject({ error: "invalid_grant" });
     expect(fetch).toHaveBeenCalledTimes(2);
@@ -897,19 +955,28 @@ describe("authorization-code routes", () => {
       app.request("/token", tokenRequest(code, verifier), env),
       app.request("/token", tokenRequest(code, verifier), env),
     ]);
-    expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
+    expect(
+      responses.map((response) => response.status).sort((left, right) => left - right),
+    ).toEqual([200, 400]);
     const exchanged = responses.find((response) => response.status === 200)!;
     const replay = responses.find((response) => response.status === 400)!;
     expect(exchanged.headers.get("cache-control")).toBe("no-store");
-    await expect(exchanged.json()).resolves.toMatchObject({ token_type: "Bearer", expires_in: 300 });
+    await expect(exchanged.json()).resolves.toMatchObject({
+      token_type: "Bearer",
+      expires_in: 300,
+    });
     await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
-    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM authorization_codes").first("count")).toBe(0);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM authorization_codes").first("count"),
+    ).toBe(0);
   });
 
   it("returns a five-minute lifetime for an approved device token", async () => {
     const env = await testEnv();
     const deviceCode = "d".repeat(43);
-    await env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_device', unixepoch())").run();
+    await env.DB.prepare(
+      "INSERT INTO accounts (id, created_at) VALUES ('acct_device', unixepoch())",
+    ).run();
     await env.DB.prepare(
       `INSERT INTO device_grants
       (device_code_hash, user_code, client_id, status, account_id, provider_sub, expires_at,

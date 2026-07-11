@@ -65,7 +65,11 @@ async function hmacSha256Bytes(secret: string, value: string): Promise<Uint8Arra
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
 }
 
-export async function pairwiseSubject(secret: string, accountId: string, clientId: string): Promise<string> {
+export async function pairwiseSubject(
+  secret: string,
+  accountId: string,
+  clientId: string,
+): Promise<string> {
   const digest = await hmacSha256Bytes(secret, `${accountId}\0${clientId}`);
   return `ps_${hexadecimal(digest.slice(0, 16))}`;
 }
@@ -231,40 +235,35 @@ Expected: all tests pass.
 
 - Modify: `package.json`
 - Modify: `pnpm-lock.yaml`
-- Create: `.prettierignore`
-- Modify: all supported project text files through Prettier
+- Create: `vite.config.ts`
+- Create: `src/env.d.ts`
+- Modify: all supported project text files through Vite+ Oxfmt and Oxlint
 - Add: `AGENTS.md`
 
 **Interfaces:**
 
-- Produces: `pnpm format` and `pnpm format:check`.
-- Changes: `pnpm check` includes `format:check`.
+- Produces: Vite+ format, lint, type-check, test, build, and task workflows.
+- Changes: `vp run check` includes formatting, linting, type checking, and a Wrangler dry-run.
 
-- [ ] **Step 1: Add formatting dependencies and scripts**
+- [ ] **Step 1: Migrate the project to Vite+**
 
-Run: `pnpm add -D prettier prettier-plugin-astro`
+Run: `vp migrate --no-interactive --no-agent --no-hooks --no-editor`
 
-Add scripts:
-
-```json
-"format": "prettier --write .",
-"format:check": "prettier --check .",
-"check": "pnpm format:check && pnpm typecheck && pnpm build && pnpm test && pnpm check:deploy"
-```
+Configure Vite+ to use TypeScript 6, the Vite+ test import, Oxfmt, type-aware Oxlint, and the required task commands.
 
 Ignore generated and secret paths: `dist`, `.astro`, `.wrangler`, `node_modules`, `.dev.vars`, and `src/generated`.
 
 - [ ] **Step 2: Format the repository and inspect the diff**
 
-Run: `pnpm format`
+Run: `vp run check`
 
 Expected: supported files are consistently formatted; secrets and generated output are untouched.
 
 - [ ] **Step 3: Run the complete verification suite**
 
-Run: `pnpm check:config && pnpm check`
+Run: `vp run check && vp run test && vp run build`
 
-Expected: formatting, typecheck, Astro build, all Vitest tests, config validation, and Wrangler dry-run pass.
+Expected: formatting, type-aware linting, type checking, Astro build, all Vite+ tests, config validation, and Wrangler dry-run pass.
 
 - [ ] **Step 4: Validate responsive browser surfaces**
 
@@ -272,7 +271,7 @@ Run the local Worker and inspect landing, demo, consent, device verification, ca
 
 - [ ] **Step 5: Review, commit, push, and deploy**
 
-Inspect `git status`, `git diff`, and recent commits; commit only intended files using lowercase Conventional Commit subjects. Push `main`, run `pnpm deploy`, and record the Worker version.
+Inspect `git status`, `git diff`, and recent commits; commit only intended files using lowercase Conventional Commit subjects. Push `main`, run `vp run deploy`, and record the Worker version.
 
 - [ ] **Step 6: Smoke-test production**
 

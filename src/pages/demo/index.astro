@@ -192,7 +192,7 @@ import Shell from "../../components/Shell.astro";
       for (const input of scopeInputs) {
         const supported = selectedProvider?.scopes.some((scope) => scope === input.value) ?? false;
         input.disabled = requestLocked || !supported;
-        if (!supported) input.checked = false;
+        if (!supported) {input.checked = false;}
       }
       const providerName = selectedProvider?.id.toUpperCase() ?? "PROVIDER";
       document.querySelector<HTMLElement>("#browser-provider")!.textContent =
@@ -209,14 +209,14 @@ import Shell from "../../components/Shell.astro";
     }
 
     function beginFlow(flow: "browser" | "device"): boolean {
-      if (activeFlow !== null) return false;
+      if (activeFlow !== null) {return false;}
       activeFlow = flow;
       updateRequestControls(false);
       return true;
     }
 
     function finishFlow(flow: "browser" | "device") {
-      if (activeFlow !== flow) return;
+      if (activeFlow !== flow) {return;}
       activeFlow = null;
       updateRequestControls(false);
     }
@@ -234,7 +234,7 @@ import Shell from "../../components/Shell.astro";
       providerSelect.replaceChildren();
       try {
         providerCapabilities = await fetchProviderCapabilities();
-        if (!providerCapabilities.length) throw new Error("No providers are enabled.");
+        if (!providerCapabilities.length) {throw new Error("No providers are enabled.");}
         for (const provider of providerCapabilities) {
           const option = document.createElement("option");
           option.value = provider.id;
@@ -266,7 +266,7 @@ import Shell from "../../components/Shell.astro";
       ];
       container.replaceChildren();
       for (const [claim, value] of claims) {
-        if (value === undefined) continue;
+        if (value === undefined) {continue;}
         const row = document.createElement("div");
         const term = document.createElement("dt");
         const description = document.createElement("dd");
@@ -284,7 +284,7 @@ import Shell from "../../components/Shell.astro";
     }
 
     function stopPolling() {
-      if (pollTimer !== undefined) window.clearTimeout(pollTimer);
+      if (pollTimer !== undefined) {window.clearTimeout(pollTimer);}
       pollTimer = undefined;
     }
 
@@ -318,7 +318,7 @@ import Shell from "../../components/Shell.astro";
     }
 
     function schedulePoll() {
-      if (stopped) return;
+      if (stopped) {return;}
       const remaining = expiresAt - Date.now();
       if (remaining <= 0) {
         message(deviceStatus, "This device code expired. Start a new device flow.", "error");
@@ -331,7 +331,7 @@ import Shell from "../../components/Shell.astro";
     }
 
     async function pollDevice() {
-      if (stopped) return;
+      if (stopped) {return;}
       if (!activeDeviceCode || Date.now() >= expiresAt) {
         message(deviceStatus, "This device code expired. Start a new device flow.", "error");
         deviceStart.textContent = "START NEW DEVICE FLOW";
@@ -351,7 +351,7 @@ import Shell from "../../components/Shell.astro";
           }),
         });
         const body = (await response.json()) as { id_token?: string; error?: string };
-        if (stopped) return;
+        if (stopped) {return;}
         if (response.ok && body.id_token) {
           stopPolling();
           message(deviceStatus, "Token received. Verifying its signature and claims.");
@@ -361,7 +361,7 @@ import Shell from "../../components/Shell.astro";
             location.origin,
             deviceController.signal,
           );
-          if (stopped) return;
+          if (stopped) {return;}
           stopDeviceFlow();
           renderIdentity(verified);
           deviceStart.textContent = "START NEW DEVICE FLOW";
@@ -373,7 +373,7 @@ import Shell from "../../components/Shell.astro";
           const decision = devicePollDecision(body.error, intervalMs);
           intervalMs = decision.intervalMs;
           message(deviceStatus, decision.message);
-          if (stopped) return;
+          if (stopped) {return;}
           schedulePoll();
           return;
         }
@@ -383,7 +383,7 @@ import Shell from "../../components/Shell.astro";
         stopDeviceFlow();
         finishFlow("device");
       } catch (reason) {
-        if (stopped || (reason instanceof DOMException && reason.name === "AbortError")) return;
+        if (stopped || (reason instanceof DOMException && reason.name === "AbortError")) {return;}
         message(
           deviceStatus,
           "The device flow could not be verified. Check your connection and start again.",
@@ -397,9 +397,9 @@ import Shell from "../../components/Shell.astro";
 
     browserStart.addEventListener("click", async () => {
       const selectedProvider = selectedCapability();
-      if (!selectedProvider) return;
+      if (!selectedProvider) {return;}
       const requestedScope = selectedScopeRequest(selectedProvider);
-      if (!beginFlow("browser")) return;
+      if (!beginFlow("browser")) {return;}
       browserStart.textContent = "PREPARING PKCE";
       message(browserStatus, "Loading broker discovery and creating a one-time PKCE request.");
       try {
@@ -431,9 +431,9 @@ import Shell from "../../components/Shell.astro";
 
     deviceStart.addEventListener("click", async () => {
       const selectedProvider = selectedCapability();
-      if (!selectedProvider) return;
+      if (!selectedProvider) {return;}
       const requestedScope = selectedScopeRequest(selectedProvider);
-      if (!beginFlow("device")) return;
+      if (!beginFlow("device")) {return;}
       stopped = false;
       deviceController = new AbortController();
       deviceStart.disabled = true;
@@ -443,7 +443,7 @@ import Shell from "../../components/Shell.astro";
       message(deviceStatus, "Requesting a one-time device code.");
       try {
         const discovery = await fetchDiscovery(location.origin, deviceController.signal);
-        if (stopped) return;
+        if (stopped) {return;}
         const response = await fetch(discovery.device_authorization_endpoint, {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -462,7 +462,7 @@ import Shell from "../../components/Shell.astro";
           interval?: number;
           error_description?: string;
         };
-        if (stopped) return;
+        if (stopped) {return;}
         if (
           !response.ok ||
           !body.device_code ||
@@ -485,10 +485,10 @@ import Shell from "../../components/Shell.astro";
         deviceInstructions.hidden = false;
         deviceStart.textContent = "FLOW IN PROGRESS";
         message(deviceStatus, "Waiting for browser approval.");
-        if (stopped) return;
+        if (stopped) {return;}
         schedulePoll();
       } catch (reason) {
-        if (stopped || (reason instanceof DOMException && reason.name === "AbortError")) return;
+        if (stopped || (reason instanceof DOMException && reason.name === "AbortError")) {return;}
         message(deviceStatus, "A device code could not be issued. Check the broker and try again.", "error");
         deviceStart.textContent = "START DEVICE FLOW";
         stopDeviceFlow();
@@ -522,7 +522,7 @@ import Shell from "../../components/Shell.astro";
     });
     window.addEventListener("pagehide", stopDeviceFlow);
     window.addEventListener("pageshow", (event) => {
-      if (!event.persisted) return;
+      if (!event.persisted) {return;}
       resetRestoredPage();
     });
     void loadProviderControls();

@@ -30,7 +30,9 @@ if (missing.length > 0) {
 for (const pair of providerPairs) {
   const configured = pair.filter((name) => config[name]);
   if (configured.length === 1) {
-    configurationErrors.push(`Incomplete provider configuration: ${pair.find((name) => !config[name])}`);
+    configurationErrors.push(
+      `Incomplete provider configuration: ${pair.find((name) => !config[name])}`,
+    );
   }
 }
 
@@ -39,7 +41,9 @@ if (!providerPairs.some((pair) => pair.every((name) => config[name]))) {
 }
 
 if (configurationErrors.length > 0) {
-  for (const error of configurationErrors) console.error(error);
+  for (const error of configurationErrors) {
+    console.error(error);
+  }
   process.exit(1);
 }
 
@@ -66,7 +70,9 @@ if (config.PAIRWISE_SECRET.length < 32) {
 }
 
 if (errors.length > 0) {
-  for (const error of errors) console.error(error);
+  for (const error of errors) {
+    console.error(error);
+  }
   process.exit(1);
 }
 

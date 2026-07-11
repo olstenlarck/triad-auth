@@ -67,8 +67,12 @@ import { parseScope, validatePkceChallenge, validatePkceVerifier } from "../src/
 describe("identity contract", () => {
   it("keeps pairwise IDs stable within and distinct across clients", async () => {
     const first = await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a");
-    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a")).toBe(first);
-    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_b")).not.toBe(first);
+    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_a")).toBe(
+      first,
+    );
+    expect(await pairwiseSubject("a sufficiently long test secret", "acct_a", "client_b")).not.toBe(
+      first,
+    );
   });
 });
 
@@ -418,7 +422,9 @@ import { readFile } from "node:fs/promises";
 
 it("builds both demo entry points", async () => {
   await expect(readFile("dist/demo/index.html", "utf8")).resolves.toContain("TRY THE BROKER");
-  await expect(readFile("dist/demo/callback/index.html", "utf8")).resolves.toContain("VERIFYING IDENTITY");
+  await expect(readFile("dist/demo/callback/index.html", "utf8")).resolves.toContain(
+    "VERIFYING IDENTITY",
+  );
 });
 ```
 
@@ -520,7 +526,12 @@ git commit -m "feat: finish account session safety"
 - [ ] **Step 1: Add a failing configuration check**
 
 ```js
-const required = ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SIGNING_PRIVATE_JWK", "PAIRWISE_SECRET"];
+const required = [
+  "GITHUB_CLIENT_ID",
+  "GITHUB_CLIENT_SECRET",
+  "SIGNING_PRIVATE_JWK",
+  "PAIRWISE_SECRET",
+];
 const missing = required.filter((name) => !process.env[name]);
 if (missing.length) {
   console.error(`Missing required configuration: ${missing.join(", ")}`);

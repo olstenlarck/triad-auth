@@ -29,13 +29,20 @@ function parseStoredScopes(value: string): Scope[] {
     throw new Error("invalid stored scopes");
   }
   const scopes = parseScopes(stored.join(" "));
-  if (JSON.stringify(scopes) !== JSON.stringify(stored)) throw new Error("invalid stored scopes");
+  if (JSON.stringify(scopes) !== JSON.stringify(stored)) {
+    throw new Error("invalid stored scopes");
+  }
+
   return scopes;
 }
 
 function validUserCode(value: string): string | null {
-  if (!value || value.length > userCodeInputLimit) return null;
+  if (!value || value.length > userCodeInputLimit) {
+    return null;
+  }
+
   const normalized = normalizeUserCode(value);
+
   return userCodePattern.test(normalized) ? normalized : null;
 }
 
@@ -48,23 +55,32 @@ deviceRoutes.use("*", async (c, next) => {
 });
 
 deviceRoutes.post("/device/code", async (c) => {
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "device-issue", 10))) {
+  if (
+    !(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "device-issue", 10))
+  ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const form = await parseOAuthForm(c.req.raw);
-  if (form instanceof Response) return form;
+  if (form instanceof Response) {
+    return form;
+  }
   const duplicateError = rejectDuplicateParameters(form, ["client_id", "provider", "scope"]);
-  if (duplicateError) return duplicateError;
+  if (duplicateError) {
+    return duplicateError;
+  }
   const clientId = form.get("client_id") ?? "";
-  if (!clientId || clientId.length > clientIdLimit) return oauthError("invalid_client");
+  if (!clientId || clientId.length > clientIdLimit) {
+    return oauthError("invalid_client");
+  }
   const providerValue = form.get("provider");
   const provider =
     providerValue && providerValue.length <= providerLimit ? parseProvider(providerValue) : null;
   if (!provider) {
     return oauthError("invalid_request", "unsupported provider");
   }
-  if (!enabledProviders(c.env).includes(provider))
+  if (!enabledProviders(c.env).includes(provider)) {
     return oauthError("invalid_request", "provider unavailable");
+  }
   let scopes: Scope[];
   try {
     scopes = parseScopes(form.get("scope") ?? undefined);
@@ -73,7 +89,9 @@ deviceRoutes.post("/device/code", async (c) => {
     return oauthError("invalid_scope");
   }
   const client = await getClient(c.env.DB, clientId);
-  if (!client) return oauthError("invalid_client");
+  if (!client) {
+    return oauthError("invalid_client");
+  }
   try {
     validateClient(client, null, provider, c.env.ISSUER);
   } catch (error) {
@@ -93,7 +111,15 @@ deviceRoutes.post("/device/code", async (c) => {
       (device_code_hash, user_code, client_id, provider, scopes, status, expires_at, interval_seconds, created_at)
       VALUES (?, ?, ?, ?, ?, 'pending', ?, 5, ?)`,
     )
-      .bind(deviceCodeHash, normalized, clientId, provider, JSON.stringify(scopes), now() + 600, now())
+      .bind(
+        deviceCodeHash,
+        normalized,
+        clientId,
+        provider,
+        JSON.stringify(scopes),
+        now() + 600,
+        now(),
+      )
       .run();
     if (result.meta.changes === 1) {
       inserted = true;
@@ -102,9 +128,14 @@ deviceRoutes.post("/device/code", async (c) => {
     const collision = await c.env.DB.prepare("SELECT 1 FROM device_grants WHERE user_code = ?")
       .bind(normalized)
       .first();
-    if (!collision) return oauthError("server_error", undefined, 500);
+    if (!collision) {
+      return oauthError("server_error", undefined, 500);
+    }
   }
-  if (!inserted) return oauthError("server_error", undefined, 500);
+  if (!inserted) {
+    return oauthError("server_error", undefined, 500);
+  }
+
   return c.json({
     device_code: deviceCode,
     user_code: userCode,
@@ -118,11 +149,21 @@ deviceRoutes.post("/device/code", async (c) => {
 deviceRoutes.get("/device/verify", (c) => c.env.ASSETS.fetch(c.req.raw));
 
 deviceRoutes.get("/api/device/:code", async (c) => {
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "device-inspect", 30))) {
+  if (
+    !(await enforceRequestRateLimit(
+      c.env.DB,
+      c.req.raw,
+      c.env.PAIRWISE_SECRET,
+      "device-inspect",
+      30,
+    ))
+  ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const code = validUserCode(c.req.param("code"));
-  if (!code) return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
+  if (!code) {
+    return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
+  }
   const row = await c.env.DB.prepare(
     `SELECT d.device_code_hash, d.client_id, c.name AS client_name,
       d.provider, d.scopes, d.expires_at
@@ -138,14 +179,19 @@ deviceRoutes.get("/api/device/:code", async (c) => {
       scopes: string;
       expires_at: number;
     }>();
-  if (!row) return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
+  if (!row) {
+    return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
+  }
   const client = await getClient(c.env.DB, row.client_id);
-  if (!client) return oauthError("unauthorized_client", undefined, 404);
+  if (!client) {
+    return oauthError("unauthorized_client", undefined, 404);
+  }
   try {
     validateClient(client, null, row.provider, c.env.ISSUER);
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message, 404);
   }
+
   return c.json({
     client_name: row.client_name,
     provider: row.provider,
@@ -157,15 +203,23 @@ deviceRoutes.get("/api/device/:code", async (c) => {
 
 deviceRoutes.post("/device/verify", async (c) => {
   const originError = requireSameOrigin(c.req.raw, c.env.ISSUER);
-  if (originError) return originError;
+  if (originError) {
+    return originError;
+  }
   const form = await parseOAuthForm(c.req.raw);
-  if (form instanceof Response) return form;
+  if (form instanceof Response) {
+    return form;
+  }
   const duplicateError = rejectDuplicateParameters(form, ["user_code", "provider", "csrf_token"]);
-  if (duplicateError) return duplicateError;
+  if (duplicateError) {
+    return duplicateError;
+  }
   const userCode = validUserCode(form.get("user_code") ?? "");
   const providerValue = form.get("provider") ?? "";
   const provider = providerValue.length <= providerLimit ? parseProvider(providerValue) : null;
-  if (!userCode) return oauthError("invalid_grant", "invalid or expired user code");
+  if (!userCode) {
+    return oauthError("invalid_grant", "invalid or expired user code");
+  }
   if (!provider) {
     return oauthError("invalid_request", "unsupported provider");
   }
@@ -180,20 +234,30 @@ deviceRoutes.post("/device/verify", async (c) => {
       provider: ProviderName;
       scopes: string;
     }>();
-  if (!grant) return oauthError("invalid_grant", "invalid or expired user code");
-  if (grant.provider !== provider)
+  if (!grant) {
+    return oauthError("invalid_grant", "invalid or expired user code");
+  }
+  if (grant.provider !== provider) {
     return oauthError("invalid_request", "provider does not match device grant");
-  if (!enabledProviders(c.env).includes(provider))
+  }
+  if (!enabledProviders(c.env).includes(provider)) {
     return oauthError("invalid_request", "provider unavailable");
+  }
   const client = await getClient(c.env.DB, grant.client_id);
-  if (!client) return oauthError("unauthorized_client");
+  if (!client) {
+    return oauthError("unauthorized_client");
+  }
   try {
     validateClient(client, null, provider, c.env.ISSUER);
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message);
   }
   if (
-    !(await consumeCsrfToken(c.env.DB, form.get("csrf_token") ?? "", devicePurpose(grant.device_code_hash)))
+    !(await consumeCsrfToken(
+      c.env.DB,
+      form.get("csrf_token") ?? "",
+      devicePurpose(grant.device_code_hash),
+    ))
   ) {
     return oauthError("invalid_request", "invalid CSRF token", 403);
   }
@@ -224,10 +288,15 @@ deviceRoutes.post("/device/verify", async (c) => {
     )
     .run();
   setPreAuthCookie(c, stateHash, binding.token, provider);
+
   return c.json({ redirect_to: start.url });
 });
 
 deviceRoutes.onError((_error, c) => {
   console.error("device route failed");
-  return c.json({ error: "server_error" }, 500, { "cache-control": "no-store", pragma: "no-cache" });
+
+  return c.json({ error: "server_error" }, 500, {
+    "cache-control": "no-store",
+    pragma: "no-cache",
+  });
 });

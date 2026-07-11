@@ -50,12 +50,17 @@ function base64url(bytes: Uint8Array): string {
 }
 
 async function json(response: Response): Promise<unknown> {
-  if (!response.ok) throw new Error("The broker metadata could not be loaded.");
+  if (!response.ok) {
+    throw new Error("The broker metadata could not be loaded.");
+  }
+
   return response.json();
 }
 
 function discoveryDocument(value: unknown): DiscoveryDocument {
-  if (!value || typeof value !== "object") throw new Error("The broker discovery document is invalid.");
+  if (!value || typeof value !== "object") {
+    throw new Error("The broker discovery document is invalid.");
+  }
   const candidate = value as Record<string, unknown>;
   for (const field of [
     "issuer",
@@ -64,18 +69,29 @@ function discoveryDocument(value: unknown): DiscoveryDocument {
     "device_authorization_endpoint",
     "jwks_uri",
   ] as const) {
-    if (typeof candidate[field] !== "string") throw new Error("The broker discovery document is invalid.");
+    if (typeof candidate[field] !== "string") {
+      throw new Error("The broker discovery document is invalid.");
+    }
   }
+
   return candidate as unknown as DiscoveryDocument;
 }
 
 function providerCapabilities(value: unknown): ProviderCapability[] {
-  if (!value || typeof value !== "object" || !Array.isArray((value as { providers?: unknown }).providers)) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !Array.isArray((value as { providers?: unknown }).providers)
+  ) {
     throw new Error("The provider list is invalid.");
   }
+
   const seen = new Set<string>();
+
   return (value as { providers: unknown[] }).providers.map((value) => {
-    if (!value || typeof value !== "object") throw new Error("The provider list is invalid.");
+    if (!value || typeof value !== "object") {
+      throw new Error("The provider list is invalid.");
+    }
     const { id, scopes } = value as { id?: unknown; scopes?: unknown };
     if (
       typeof id !== "string" ||
@@ -90,15 +106,20 @@ function providerCapabilities(value: unknown): ProviderCapability[] {
       throw new Error("The provider list is invalid.");
     }
     seen.add(id);
+
     return { id: id as ProviderName, scopes: scopes as ProfileScope[] };
   });
 }
 
 function optionalString(payload: Record<string, unknown>, claim: string): string | undefined {
   const value = payload[claim];
-  if (value === undefined) return undefined;
-  if (typeof value !== "string" || value.length === 0)
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || value.length === 0) {
     throw new Error("The verified token has invalid profile claims.");
+  }
+
   return value;
 }
 
@@ -108,6 +129,7 @@ function verifiedProfile(payload: Record<string, unknown>): VerifiedProfile {
   if (emailVerified !== undefined && (email === undefined || typeof emailVerified !== "boolean")) {
     throw new Error("The verified token has invalid profile claims.");
   }
+
   return {
     ...(email === undefined ? {} : { email }),
     ...(emailVerified === undefined ? {} : { emailVerified }),
@@ -121,12 +143,17 @@ function optionalValue<Key extends keyof VerifiedProfile>(key: Key, value: Verif
   return value === undefined ? {} : ({ [key]: value } as Pick<VerifiedProfile, Key>);
 }
 
-export async function createPkce(): Promise<{ verifier: string; challenge: string; state: string }> {
+export async function createPkce(): Promise<{
+  verifier: string;
+  challenge: string;
+  state: string;
+}> {
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(64)));
   const challenge = base64url(
     new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))),
   );
   const state = base64url(crypto.getRandomValues(new Uint8Array(32)));
+
   return { verifier, challenge, state };
 }
 
@@ -142,7 +169,11 @@ export function devicePollDecision(error: string, intervalMs: number): DevicePol
     };
   }
   if (error === "access_denied") {
-    return { continuePolling: false, intervalMs, message: "Authorization was denied in the browser." };
+    return {
+      continuePolling: false,
+      intervalMs,
+      message: "Authorization was denied in the browser.",
+    };
   }
   if (error === "expired_token") {
     return {
@@ -174,11 +205,15 @@ export async function fetchProviderCapabilities(
   return providerCapabilities(await json(await fetch(endpoint, { signal })));
 }
 
-export function canonicalScopeRequest(provider: ProviderCapability, selected: readonly string[]): string {
+export function canonicalScopeRequest(
+  provider: ProviderCapability,
+  selected: readonly string[],
+): string {
   const selectedScopes = new Set(selected);
   if ([...selectedScopes].some((scope) => !provider.scopes.includes(scope as ProfileScope))) {
-    throw new Error("The selected provider does not support an unsupported scope.");
+    throw new Error("The selected provider does not support every selected scope.");
   }
+
   return ["openid", ...profileScopeOrder.filter((scope) => selectedScopes.has(scope))].join(" ");
 }
 
@@ -207,7 +242,9 @@ export async function verifyIdentityToken(
       candidate.use === "sig" &&
       candidate.alg === "ES256",
   );
-  if (!jwk) throw new Error("The token has no matching ES256 signing key.");
+  if (!jwk) {
+    throw new Error("The token has no matching ES256 signing key.");
+  }
 
   const key = await importJWK(jwk as JsonWebKey, "ES256");
   const { payload } = await jwtVerify(token, key, {

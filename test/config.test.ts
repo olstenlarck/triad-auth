@@ -1,5 +1,5 @@
 import { exportJWK, generateKeyPair } from "jose";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 declare const process: {
   cwd(): string;
@@ -26,7 +26,8 @@ declare const process: {
 };
 
 const { spawnSync } = process.getBuiltinModule("node:child_process");
-const { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = process.getBuiltinModule("node:fs");
+const { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } =
+  process.getBuiltinModule("node:fs");
 const { tmpdir } = process.getBuiltinModule("node:os");
 const { join, resolve } = process.getBuiltinModule("node:path");
 const checker = resolve(process.cwd(), "scripts/check-config.mjs");
@@ -36,7 +37,12 @@ const providerPairs = {
   GITHUB: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
   TWITTER: ["TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET"],
 } as const;
-const secretNames = [...Object.values(providerPairs).flat(), "SIGNING_PRIVATE_JWK", "PAIRWISE_SECRET"].sort();
+const compareStrings = (left: string, right: string) => left.localeCompare(right);
+const secretNames = [
+  ...Object.values(providerPairs).flat(),
+  "SIGNING_PRIVATE_JWK",
+  "PAIRWISE_SECRET",
+].sort(compareStrings);
 
 function runCheck(cwd: string, env: Record<string, string> = {}) {
   return spawnSync(process.execPath, [checker], { cwd, encoding: "utf8", env });
@@ -83,10 +89,12 @@ describe("deployment configuration", () => {
     };
     const config = readFileSync("wrangler.toml", "utf8");
 
-    expect(packageJson.scripts.dev).toBe("pnpm build && wrangler dev --var ISSUER:http://localhost:8787");
-    expect(packageJson.scripts.deploy).toBe("pnpm build && wrangler deploy");
-    expect(packageJson.scripts.check).toBe(
-      "pnpm format:check && pnpm typecheck && pnpm build && pnpm test && pnpm check:deploy",
+    expect(packageJson.scripts.dev).toBe(
+      "vp run build && wrangler dev --var ISSUER:http://localhost:8787",
+    );
+    expect(packageJson.scripts.deploy).toBe("vp run build && wrangler deploy");
+    expect(readFileSync("vite.config.ts", "utf8")).toContain(
+      'command: "vp check --fix && vp exec wrangler deploy --dry-run"',
     );
     expect(config).toContain('ISSUER = "https://triad-auth-broker.equator-owl-studio.workers.dev"');
   });
@@ -158,7 +166,9 @@ describe("deployment configuration", () => {
       const output = `${result.stdout}${result.stderr}`;
 
       expect(result.status).toBe(1);
-      expect(result.stderr.trim()).toBe("At least one complete provider credential pair is required");
+      expect(result.stderr.trim()).toBe(
+        "At least one complete provider credential pair is required",
+      );
       expect(result.stdout).toBe("");
       expect(output).not.toContain(privateJwk);
       expect(output).not.toContain(pairwiseSecret);
@@ -170,12 +180,36 @@ describe("deployment configuration", () => {
   it("rejects every half-configured provider pair without exposing values", async () => {
     const privateJwk = await generatePrivateJwk();
     const cases = [
-      { configured: "GOOGLE_CLIENT_ID", missing: "GOOGLE_CLIENT_SECRET", fallback: providerPairs.GITHUB },
-      { configured: "GOOGLE_CLIENT_SECRET", missing: "GOOGLE_CLIENT_ID", fallback: providerPairs.GITHUB },
-      { configured: "GITHUB_CLIENT_ID", missing: "GITHUB_CLIENT_SECRET", fallback: providerPairs.GOOGLE },
-      { configured: "GITHUB_CLIENT_SECRET", missing: "GITHUB_CLIENT_ID", fallback: providerPairs.GOOGLE },
-      { configured: "TWITTER_CLIENT_ID", missing: "TWITTER_CLIENT_SECRET", fallback: providerPairs.GITHUB },
-      { configured: "TWITTER_CLIENT_SECRET", missing: "TWITTER_CLIENT_ID", fallback: providerPairs.GITHUB },
+      {
+        configured: "GOOGLE_CLIENT_ID",
+        missing: "GOOGLE_CLIENT_SECRET",
+        fallback: providerPairs.GITHUB,
+      },
+      {
+        configured: "GOOGLE_CLIENT_SECRET",
+        missing: "GOOGLE_CLIENT_ID",
+        fallback: providerPairs.GITHUB,
+      },
+      {
+        configured: "GITHUB_CLIENT_ID",
+        missing: "GITHUB_CLIENT_SECRET",
+        fallback: providerPairs.GOOGLE,
+      },
+      {
+        configured: "GITHUB_CLIENT_SECRET",
+        missing: "GITHUB_CLIENT_ID",
+        fallback: providerPairs.GOOGLE,
+      },
+      {
+        configured: "TWITTER_CLIENT_ID",
+        missing: "TWITTER_CLIENT_SECRET",
+        fallback: providerPairs.GITHUB,
+      },
+      {
+        configured: "TWITTER_CLIENT_SECRET",
+        missing: "TWITTER_CLIENT_ID",
+        fallback: providerPairs.GITHUB,
+      },
     ] as const;
 
     for (const testCase of cases) {
@@ -217,21 +251,23 @@ describe("deployment configuration", () => {
       .filter((name) => /(?:_CLIENT_(?:ID|SECRET)|_PRIVATE_JWK|PAIRWISE_SECRET)$/.test(name));
     const exampleNames = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]);
     const wranglerNames = [
-      ...wrangler.slice(wrangler.indexOf("# Add required secrets")).matchAll(/\b[A-Z][A-Z0-9_]+\b/g),
+      ...wrangler
+        .slice(wrangler.indexOf("# Add required secrets"))
+        .matchAll(/\b[A-Z][A-Z0-9_]+\b/g),
     ]
       .map((match) => match[0])
       .filter((name) => name !== "NAME");
 
-    expect(envFields.map(({ name }) => name).sort()).toEqual(secretNames);
+    expect(envFields.map(({ name }) => name).sort(compareStrings)).toEqual(secretNames);
     expect(
       envFields
         .filter(({ optional }) => optional)
         .map(({ name }) => name)
-        .sort(),
-    ).toEqual(Object.values(providerPairs).flat().sort());
-    expect([...new Set(checkerNames)].sort()).toEqual(secretNames);
-    expect(exampleNames.sort()).toEqual(secretNames);
-    expect(wranglerNames.sort()).toEqual(secretNames);
+        .sort(compareStrings),
+    ).toEqual(Object.values(providerPairs).flat().sort(compareStrings));
+    expect([...new Set(checkerNames)].sort(compareStrings)).toEqual(secretNames);
+    expect(exampleNames.sort(compareStrings)).toEqual(secretNames);
+    expect(wranglerNames.sort(compareStrings)).toEqual(secretNames);
   });
 
   it("documents exact provider links and local and production callbacks", () => {
@@ -303,11 +339,15 @@ describe("deployment configuration", () => {
   it("documents migration before deployment and exact post-deploy smoke checks", () => {
     const readme = readFileSync("README.md", "utf8");
 
-    expect(readme).toContain("pnpm check\npnpm db:remote\npnpm deploy");
+    expect(readme).toContain(
+      "vp run check\nvp run test\nvp run build\nvp run db:remote\nvp run deploy",
+    );
     expect(readme).toContain('curl --fail "$ISSUER/api/providers"');
     expect(readme).toContain('curl --fail "$ISSUER/.well-known/openid-configuration"');
     expect(readme).toContain("Supported callback paths on this issuer are:");
-    expect(readme).toContain("`/api/providers` is authoritative for which providers are currently enabled");
+    expect(readme).toContain(
+      "`/api/providers` is authoritative for which providers are currently enabled",
+    );
   });
 
   it("loads .dev.vars as data without evaluating shell syntax", async () => {

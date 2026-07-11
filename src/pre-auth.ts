@@ -14,6 +14,7 @@ const cookieOptions = (provider: ProviderName) => ({
 
 export async function createPreAuthBinding(): Promise<{ token: string; hash: string }> {
   const token = randomToken();
+
   return { token, hash: await sha256(token) };
 }
 
@@ -23,7 +24,10 @@ export function setPreAuthCookie(
   token: string,
   provider: ProviderName,
 ): void {
-  setCookie(c, preAuthCookieName(stateHash), token, { ...cookieOptions(provider), maxAge: 10 * 60 });
+  setCookie(c, preAuthCookieName(stateHash), token, {
+    ...cookieOptions(provider),
+    maxAge: 10 * 60,
+  });
 }
 
 export function clearPreAuthCookie(

@@ -40,14 +40,14 @@ Downstream clients are registered in D1 with exact redirect URI and provider all
 ## Requirements
 
 - Node.js 22.12 or newer
-- pnpm 11
+- Vite+ (`vp`)
 - An account with each upstream provider you want to configure
 - A Cloudflare account for D1 and deployment
 
 Install dependencies:
 
 ```sh
-pnpm install
+vp install
 ```
 
 ## Provider app setup
@@ -89,7 +89,7 @@ Create the ignored local configuration file:
 
 ```sh
 cp .dev.vars.example .dev.vars
-pnpm keygen
+vp run keygen
 openssl rand -base64 32
 ```
 
@@ -98,7 +98,7 @@ Fill the two broker secrets and at least one complete provider credential pair i
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: the Google web client pair.
 - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`: the GitHub OAuth App pair.
 - `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET`: the Twitter OAuth 2.0 pair.
-- `SIGNING_PRIVATE_JWK`: the one-line JSON from `pnpm keygen`, wrapped in single quotes.
+- `SIGNING_PRIVATE_JWK`: the one-line JSON from `vp run keygen`, wrapped in single quotes.
 - `PAIRWISE_SECRET`: at least 32 high-entropy characters, wrapped in quotes when needed.
 
 Provider pairs are optional individually, but half-configured pairs are invalid and at least one complete pair is required. `/api/providers` and all provider controls expose only providers whose complete pair is configured. Locally, leave unused provider assignments empty. In production, a provider remains unavailable until both credentials have been uploaded.
@@ -106,7 +106,7 @@ Provider pairs are optional individually, but half-configured pairs are invalid 
 Validate the file without sourcing it in a shell:
 
 ```sh
-pnpm check:config
+vp run check:config
 ```
 
 The validator parses only `.dev.vars` into an isolated in-memory map, ignores ambient environment values, trims each parsed value for validation, requires valid signing/pairwise secrets plus at least one complete provider pair, rejects every half-pair, and never prints configured values.
@@ -114,22 +114,24 @@ The validator parses only `.dev.vars` into an isolated in-memory map, ignores am
 Initialize local D1 and start the Worker:
 
 ```sh
-pnpm db:local
-pnpm dev
+vp run db:local
+vp run dev
 ```
 
 Open `http://localhost:8787/demo/` for the built-in PKCE and device demos. The account surface is at `http://localhost:8787/me/`.
 
-`pnpm dev` performs a complete Astro build and regenerates the script CSP allowlist before Wrangler starts. It passes `--var ISSUER:http://localhost:8787` to Wrangler, overriding only `ISSUER` for the local process; `ISSUER` is not a secret and does not belong in `.dev.vars`. The production `pnpm deploy` command passes no override and continues to use the canonical HTTPS `ISSUER` from `wrangler.toml`. Local development intentionally does not run a stale build watcher, so restart `pnpm dev` after changing Astro pages or browser scripts.
+`vp run dev` performs a complete Astro build and regenerates the script CSP allowlist before Wrangler starts. It passes `--var ISSUER:http://localhost:8787` to Wrangler, overriding only `ISSUER` for the local process; `ISSUER` is not a secret and does not belong in `.dev.vars`. The production `vp run deploy` command passes no override and continues to use the canonical HTTPS `ISSUER` from `wrangler.toml`. Local development intentionally does not run a stale build watcher, so restart `vp run dev` after changing Astro pages or browser scripts.
 
 ## Checks
 
 ```sh
-pnpm check:config
-pnpm check
+vp run check:config
+vp run check
+vp run test
+vp run build
 ```
 
-`pnpm check` runs TypeScript, the Astro production build with CSP hash generation, all Vitest tests, and `wrangler deploy --dry-run`. Building before tests makes the command reliable in a fresh checkout where `dist/` does not exist. The dry-run syntax is verified against the installed Wrangler CLI.
+`vp run check` runs Vite+ formatting, type-aware linting, TypeScript checks, and `wrangler deploy --dry-run`. `vp run test` runs the complete test suite, while `vp run build` produces the Astro assets and regenerates the CSP allowlist.
 
 ## Production deployment
 
@@ -154,14 +156,14 @@ The Worker uses the `triad-auth` D1 database and the remote `triad-demo` registr
 To set or rotate runtime values, use Wrangler's interactive secret prompt so values do not enter shell history:
 
 ```sh
-pnpm exec wrangler secret put GOOGLE_CLIENT_ID
-pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET
-pnpm exec wrangler secret put GITHUB_CLIENT_ID
-pnpm exec wrangler secret put GITHUB_CLIENT_SECRET
-pnpm exec wrangler secret put TWITTER_CLIENT_ID
-pnpm exec wrangler secret put TWITTER_CLIENT_SECRET
-pnpm exec wrangler secret put SIGNING_PRIVATE_JWK
-pnpm exec wrangler secret put PAIRWISE_SECRET
+vp exec wrangler secret put GOOGLE_CLIENT_ID
+vp exec wrangler secret put GOOGLE_CLIENT_SECRET
+vp exec wrangler secret put GITHUB_CLIENT_ID
+vp exec wrangler secret put GITHUB_CLIENT_SECRET
+vp exec wrangler secret put TWITTER_CLIENT_ID
+vp exec wrangler secret put TWITTER_CLIENT_SECRET
+vp exec wrangler secret put SIGNING_PRIVATE_JWK
+vp exec wrangler secret put PAIRWISE_SECRET
 ```
 
 `SIGNING_PRIVATE_JWK` and `PAIRWISE_SECRET` are always required. Upload both values in a provider pair before expecting that provider to appear in `/api/providers` or any provider control.
@@ -169,12 +171,14 @@ pnpm exec wrangler secret put PAIRWISE_SECRET
 After changing secrets, verify locally, apply pending remote migrations, and only then deploy the canonical configuration:
 
 ```sh
-pnpm check
-pnpm db:remote
-pnpm deploy
+vp run check
+vp run test
+vp run build
+vp run db:remote
+vp run deploy
 ```
 
-`pnpm db:remote` must succeed before `pnpm deploy`; do not serve code that expects a schema migration before that migration is applied.
+`vp run db:remote` must succeed before `vp run deploy`; do not serve code that expects a schema migration before that migration is applied.
 
 Verify the deployment:
 
@@ -211,8 +215,8 @@ Authorization codes, device codes, CSRF tokens, and upstream state are one-time 
 - Cloudflare Worker, D1, and static assets
 - Astro 7
 - Hono and JOSE
-- TypeScript 7 and Vitest
-- pnpm 11
+- TypeScript 6 and Vite+ Test
+- Vite+
 
 ## License
 

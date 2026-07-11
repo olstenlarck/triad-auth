@@ -3,7 +3,9 @@ export const stateCleanupSampleDenominator = 16;
 
 export async function cleanupExpiredState(db: D1Database): Promise<void> {
   const sample = crypto.getRandomValues(new Uint8Array(1))[0];
-  if (sample >= 256 / stateCleanupSampleDenominator) return;
+  if (sample >= 256 / stateCleanupSampleDenominator) {
+    return;
+  }
 
   const timestamp = Math.floor(Date.now() / 1000);
   await db.batch([

@@ -1,7 +1,14 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { validateProviderScopes } from "./claims";
 import { randomToken, sha256 } from "./crypto";
-import type { Env, ProfileClaims, ProfileScope, ProviderIdentity, ProviderName, Scope } from "./types";
+import type {
+  Env,
+  ProfileClaims,
+  ProfileScope,
+  ProviderIdentity,
+  ProviderName,
+  Scope,
+} from "./types";
 
 interface ProviderStart {
   url: string;
@@ -44,7 +51,8 @@ const callback = (provider: ProviderName, env: Env) => `${env.ISSUER}/callback/$
 const configured = (clientId?: string, clientSecret?: string) =>
   Boolean(clientId?.trim() && clientSecret?.trim());
 
-const formEncode = (value: string) => new URLSearchParams({ value }).toString().slice("value=".length);
+const formEncode = (value: string) =>
+  new URLSearchParams({ value }).toString().slice("value=".length);
 
 function providerCredentials(provider: ProviderName, env: Env): ProviderCredentials {
   const [clientId, clientSecret] =
@@ -53,15 +61,25 @@ function providerCredentials(provider: ProviderName, env: Env): ProviderCredenti
       : provider === "twitter"
         ? [env.TWITTER_CLIENT_ID, env.TWITTER_CLIENT_SECRET]
         : [env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET];
-  if (!clientId?.trim() || !clientSecret?.trim()) throw new Error(`${provider} provider is not configured`);
+  if (!clientId?.trim() || !clientSecret?.trim()) {
+    throw new Error(`${provider} provider is not configured`);
+  }
+
   return { clientId, clientSecret };
 }
 
 export function enabledProviders(env: Env): ProviderName[] {
   const providers: ProviderName[] = [];
-  if (configured(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET)) providers.push("google");
-  if (configured(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET)) providers.push("github");
-  if (configured(env.TWITTER_CLIENT_ID, env.TWITTER_CLIENT_SECRET)) providers.push("twitter");
+  if (configured(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET)) {
+    providers.push("google");
+  }
+  if (configured(env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET)) {
+    providers.push("github");
+  }
+  if (configured(env.TWITTER_CLIENT_ID, env.TWITTER_CLIENT_SECRET)) {
+    providers.push("twitter");
+  }
+
   return providers;
 }
 
@@ -88,6 +106,7 @@ export async function startProvider(
       state,
       nonce,
     }).toString();
+
     return { url: url.toString(), nonce };
   }
 
@@ -103,6 +122,7 @@ export async function startProvider(
       code_challenge: await sha256(verifier),
       code_challenge_method: "S256",
     }).toString();
+
     return { url: url.toString(), verifier };
   }
 
@@ -112,18 +132,28 @@ export async function startProvider(
     redirect_uri: callback(provider, env),
     state,
   });
-  if (scopes.includes("email")) params.set("scope", "user:email");
+  if (scopes.includes("email")) {
+    params.set("scope", "user:email");
+  }
   url.search = params.toString();
+
   return { url: url.toString() };
 }
 
 async function tokenRequest(url: string, body: URLSearchParams, headers?: Record<string, string>) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json", ...headers },
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      accept: "application/json",
+      ...headers,
+    },
     body,
   });
-  if (!response.ok) throw new Error(`provider token exchange failed (${response.status})`);
+  if (!response.ok) {
+    throw new Error(`provider token exchange failed (${response.status})`);
+  }
+
   return response.json<Record<string, unknown>>();
 }
 
@@ -134,7 +164,9 @@ async function finishGoogle(
   nonce?: string,
   scopes: readonly Scope[] = ["openid"],
 ): Promise<ProviderResult> {
-  if (!nonce) throw new Error("Google nonce is required");
+  if (!nonce) {
+    throw new Error("Google nonce is required");
+  }
   const token = await tokenRequest(
     "https://oauth2.googleapis.com/token",
     new URLSearchParams({
@@ -145,14 +177,18 @@ async function finishGoogle(
       grant_type: "authorization_code",
     }),
   );
-  if (typeof token.id_token !== "string") throw new Error("Google response missing ID token");
+  if (typeof token.id_token !== "string") {
+    throw new Error("Google response missing ID token");
+  }
   const { payload } = await jwtVerify(token.id_token, googleJwks, {
     algorithms: ["RS256"],
     issuer: ["https://accounts.google.com", "accounts.google.com"],
     audience: credentials.clientId,
     requiredClaims: ["exp", "iat"],
   });
-  if (payload.nonce !== nonce) throw new Error("Google ID token nonce mismatch");
+  if (payload.nonce !== nonce) {
+    throw new Error("Google ID token nonce mismatch");
+  }
   if (typeof payload.sub !== "string" || payload.sub.length === 0) {
     throw new Error("Google ID token missing subject");
   }
@@ -164,8 +200,13 @@ async function finishGoogle(
     }
     claims.email_verified = payload.email_verified;
   }
-  if (scopes.includes("name")) claims.name = mandatoryString("google", "name", payload.name);
-  if (scopes.includes("avatar")) claims.picture = mandatoryString("google", "avatar", payload.picture);
+  if (scopes.includes("name")) {
+    claims.name = mandatoryString("google", "name", payload.name);
+  }
+  if (scopes.includes("avatar")) {
+    claims.picture = mandatoryString("google", "avatar", payload.picture);
+  }
+
   return { id: payload.sub, claims };
 }
 
@@ -173,6 +214,7 @@ function mandatoryString(provider: ProviderName, scope: ProfileScope, value: unk
   if (typeof value !== "string" || value.length === 0) {
     throw new MandatoryProfileValueError(provider, scope);
   }
+
   return value;
 }
 
@@ -197,28 +239,42 @@ async function finishGitHub(
       redirect_uri: callback("github", env),
     }),
   );
-  if (typeof token.access_token !== "string") throw new Error("GitHub response missing access token");
-  const response = await fetch("https://api.github.com/user", { headers: githubHeaders(token.access_token) });
-  if (!response.ok) throw new Error(`GitHub user lookup failed (${response.status})`);
+  if (typeof token.access_token !== "string") {
+    throw new Error("GitHub response missing access token");
+  }
+  const response = await fetch("https://api.github.com/user", {
+    headers: githubHeaders(token.access_token),
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub user lookup failed (${response.status})`);
+  }
   const user = await response.json<{
     id?: unknown;
     login?: unknown;
     name?: unknown;
     avatar_url?: unknown;
   }>();
-  if (!Number.isSafeInteger(user.id)) throw new Error("GitHub response missing numeric id");
+  if (!Number.isSafeInteger(user.id)) {
+    throw new Error("GitHub response missing numeric id");
+  }
 
   const claims: ProfileClaims = {};
   if (scopes.includes("handle")) {
     claims.preferred_username = mandatoryString("github", "handle", user.login);
   }
-  if (scopes.includes("name")) claims.name = mandatoryString("github", "name", user.name);
-  if (scopes.includes("avatar")) claims.picture = mandatoryString("github", "avatar", user.avatar_url);
+  if (scopes.includes("name")) {
+    claims.name = mandatoryString("github", "name", user.name);
+  }
+  if (scopes.includes("avatar")) {
+    claims.picture = mandatoryString("github", "avatar", user.avatar_url);
+  }
   if (scopes.includes("email")) {
     const emailsResponse = await fetch("https://api.github.com/user/emails", {
       headers: githubHeaders(token.access_token),
     });
-    if (!emailsResponse.ok) throw new Error(`GitHub email lookup failed (${emailsResponse.status})`);
+    if (!emailsResponse.ok) {
+      throw new Error(`GitHub email lookup failed (${emailsResponse.status})`);
+    }
     const emails = await emailsResponse.json<unknown>();
     const primary = Array.isArray(emails)
       ? emails.find(
@@ -229,9 +285,14 @@ async function finishGitHub(
             (entry as Record<string, unknown>).verified === true,
         )
       : undefined;
-    claims.email = mandatoryString("github", "email", primary && (primary as Record<string, unknown>).email);
+    claims.email = mandatoryString(
+      "github",
+      "email",
+      primary && (primary as Record<string, unknown>).email,
+    );
     claims.email_verified = true;
   }
+
   return { id: String(user.id), claims };
 }
 
@@ -242,7 +303,10 @@ async function finishTwitter(
   verifier?: string,
   scopes: readonly Scope[] = ["openid"],
 ): Promise<ProviderResult> {
-  if (!verifier) throw new Error("Twitter PKCE verifier is required");
+  if (!verifier) {
+    throw new Error("Twitter PKCE verifier is required");
+  }
+
   const basicCredentials = `${formEncode(credentials.clientId)}:${formEncode(credentials.clientSecret)}`;
   const token = await tokenRequest(
     "https://api.x.com/2/oauth2/token",
@@ -254,7 +318,9 @@ async function finishTwitter(
     }),
     { authorization: `Basic ${btoa(basicCredentials)}` },
   );
-  if (typeof token.access_token !== "string") throw new Error("Twitter response missing access token");
+  if (typeof token.access_token !== "string") {
+    throw new Error("Twitter response missing access token");
+  }
 
   const url = new URL("https://api.x.com/2/users/me");
   const fields = [
@@ -262,11 +328,15 @@ async function finishTwitter(
     ...(scopes.includes("name") ? ["name"] : []),
     ...(scopes.includes("avatar") ? ["profile_image_url"] : []),
   ];
-  if (fields.length > 0) url.searchParams.set("user.fields", fields.join(","));
+  if (fields.length > 0) {
+    url.searchParams.set("user.fields", fields.join(","));
+  }
   const response = await fetch(url.toString(), {
     headers: { authorization: `Bearer ${token.access_token}`, accept: "application/json" },
   });
-  if (!response.ok) throw new Error(`Twitter user lookup failed (${response.status})`);
+  if (!response.ok) {
+    throw new Error(`Twitter user lookup failed (${response.status})`);
+  }
   const user = await response.json<{
     data?: { id?: unknown; username?: unknown; name?: unknown; profile_image_url?: unknown };
   }>();
@@ -277,10 +347,13 @@ async function finishTwitter(
   if (scopes.includes("handle")) {
     claims.preferred_username = mandatoryString("twitter", "handle", user.data.username);
   }
-  if (scopes.includes("name")) claims.name = mandatoryString("twitter", "name", user.data.name);
+  if (scopes.includes("name")) {
+    claims.name = mandatoryString("twitter", "name", user.data.name);
+  }
   if (scopes.includes("avatar")) {
     claims.picture = mandatoryString("twitter", "avatar", user.data.profile_image_url);
   }
+
   return { id: user.data.id, claims };
 }
 
@@ -300,6 +373,7 @@ export async function finishProvider(
       : provider === "twitter"
         ? await finishTwitter(env, credentials, code, verifier, scopes)
         : await finishGitHub(env, credentials, code, scopes);
+
   return Object.keys(result.claims).length > 0
     ? { provider, id: result.id, claims: result.claims }
     : { provider, id: result.id };

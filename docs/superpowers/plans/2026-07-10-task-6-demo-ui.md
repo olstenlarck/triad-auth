@@ -48,7 +48,9 @@ import { expect, it } from "vitest";
 
 it("builds both demo entry points", async () => {
   await expect(readFile("dist/demo/index.html", "utf8")).resolves.toContain("TRY THE BROKER");
-  await expect(readFile("dist/demo/callback/index.html", "utf8")).resolves.toContain("VERIFYING IDENTITY");
+  await expect(readFile("dist/demo/callback/index.html", "utf8")).resolves.toContain(
+    "VERIFYING IDENTITY",
+  );
 });
 ```
 

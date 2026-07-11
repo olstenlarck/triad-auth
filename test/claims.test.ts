@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { parseScopes, providerScopes, serializeScopes, validateProviderScopes } from "../src/claims";
+import { describe, expect, it } from "vite-plus/test";
+import {
+  parseScopes,
+  providerScopes,
+  serializeScopes,
+  validateProviderScopes,
+} from "../src/claims";
 import { base64url, openClaims, sealClaims } from "../src/crypto";
 
 const base64urlAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -24,8 +29,12 @@ describe("privacy scopes", () => {
     expect(providerScopes("google")).toEqual(["email", "name", "avatar"]);
     expect(providerScopes("github")).toEqual(["email", "handle", "name", "avatar"]);
     expect(providerScopes("twitter")).toEqual(["handle", "name", "avatar"]);
-    expect(() => validateProviderScopes("google", parseScopes("openid handle"))).toThrow("invalid_scope");
-    expect(() => validateProviderScopes("twitter", parseScopes("openid email"))).toThrow("invalid_scope");
+    expect(() => validateProviderScopes("google", parseScopes("openid handle"))).toThrow(
+      "invalid_scope",
+    );
+    expect(() => validateProviderScopes("twitter", parseScopes("openid email"))).toThrow(
+      "invalid_scope",
+    );
     expect(() =>
       validateProviderScopes("github", parseScopes("openid email handle name avatar")),
     ).not.toThrow();
@@ -76,6 +85,8 @@ describe("transient profile claims", () => {
 
   it("requires a sufficiently strong claims-encryption secret", async () => {
     await expect(sealClaims("short", "code:abc", {})).rejects.toThrow("at least 32 characters");
-    await expect(openClaims("short", "code:abc", "v1.invalid")).rejects.toThrow("at least 32 characters");
+    await expect(openClaims("short", "code:abc", "v1.invalid")).rejects.toThrow(
+      "at least 32 characters",
+    );
   });
 });

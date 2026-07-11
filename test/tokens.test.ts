@@ -1,5 +1,5 @@
 import { exportJWK, generateKeyPair, jwtVerify } from "jose";
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { issueIdToken, publicJwk } from "../src/tokens";
 
 const validProviderSub = "pid_github_d2ee98e4ac33ccc6387b157c7ed07f5b";
@@ -44,7 +44,9 @@ it.each([
   const jwk = { ...(await exportJWK(privateKey)), [field]: value };
   const env = { SIGNING_PRIVATE_JWK: JSON.stringify(jwk) } as never;
 
-  await expect(publicJwk(env)).rejects.toThrow("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+  await expect(publicJwk(env)).rejects.toThrow(
+    "SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key",
+  );
 });
 
 it("issues a pairwise standard subject plus explicit global subjects", async () => {

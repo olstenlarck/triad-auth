@@ -61,7 +61,7 @@ import Shell from "../components/Shell.astro";
 
     async function act(action: "approve" | "deny") {
       if (!request || !csrfToken)
-        return fail("This request is not ready. Reload the page to inspect it again.");
+        {return fail("This request is not ready. Reload the page to inspect it again.");}
       approve.disabled = true;
       deny.disabled = true;
       error.hidden = true;
@@ -76,7 +76,7 @@ import Shell from "../components/Shell.astro";
         });
         const body = (await response.json()) as { redirect_to?: string; error_description?: string };
         if (!response.ok || !body.redirect_to)
-          return fail(body.error_description ?? "This request could not be completed. Reload and try again.");
+          {return fail(body.error_description ?? "This request could not be completed. Reload and try again.");}
         location.assign(body.redirect_to);
       } catch {
         fail("The broker could not complete this request. Reload the page to inspect it again.");
@@ -106,7 +106,7 @@ import Shell from "../components/Shell.astro";
             !Array.isArray(body.scopes) ||
             !body.scopes.includes("openid")
           )
-            return fail(body.error_description ?? "This authorization request expired.");
+            {return fail(body.error_description ?? "This authorization request expired.");}
           csrfToken = body.csrf_token;
           document.querySelector("#client-name")!.textContent = body.client_name ?? "UNKNOWN APP";
           document.querySelector("#provider-name")!.textContent = body.provider.toUpperCase();

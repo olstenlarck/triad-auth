@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 
 declare const process: {
   getBuiltinModule(name: "node:fs"): {
@@ -23,7 +23,9 @@ const readApplicationSources = async () =>
 
 it("builds both demo entry points", async () => {
   await expect(readFile("dist/demo/index.html", "utf8")).resolves.toContain("TRY TRIAD");
-  await expect(readFile("dist/demo/callback/index.html", "utf8")).resolves.toContain("VERIFYING IDENTITY");
+  await expect(readFile("dist/demo/callback/index.html", "utf8")).resolves.toContain(
+    "VERIFYING IDENTITY",
+  );
 });
 
 it("ships and links a local switchboard favicon", async () => {
@@ -36,7 +38,9 @@ it("ships and links a local switchboard favicon", async () => {
 it("seeds the built-in demo without encoding an environment-specific callback", async () => {
   const migration = await readFile("migrations/0001_init.sql", "utf8");
 
-  expect(migration).toContain("VALUES ('triad-demo', 'Triad demo', '[]', '[\"github\"]', unixepoch());");
+  expect(migration).toContain(
+    "VALUES ('triad-demo', 'Triad demo', '[]', '[\"github\"]', unixepoch());",
+  );
   expect(migration).not.toContain("'local-dev'");
   expect(migration).not.toContain("localhost");
   expect(migration).not.toContain('["google","github","x"]');
@@ -113,7 +117,7 @@ it("aborts device requests and prevents rescheduling after pagehide", async () =
   expect(demo).toContain("new AbortController()");
   expect(demo).toContain("deviceController.abort()");
   expect(demo.match(/signal: deviceController\.signal/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
-  expect(demo.match(/if \(stopped\) return;/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+  expect(demo.match(/if \(stopped\)\s*\{\s*return;\s*\}/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
   expect(demo).toContain('window.addEventListener("pagehide", stopDeviceFlow)');
 });
 
@@ -177,8 +181,8 @@ it("locks the shared provider request while either demo flow is active", async (
   const demo = await readFile("src/pages/demo/index.astro", "utf8");
 
   expect(demo).toContain('let activeFlow: "browser" | "device" | null = null;');
-  expect(demo).toContain('if (!beginFlow("browser")) return;');
-  expect(demo).toContain('if (!beginFlow("device")) return;');
+  expect(demo).toMatch(/if \(!beginFlow\("browser"\)\)\s*\{\s*return;\s*\}/);
+  expect(demo).toMatch(/if \(!beginFlow\("device"\)\)\s*\{\s*return;\s*\}/);
   expect(demo).toContain("providerSelect.disabled = activeFlow !== null;");
   expect(demo).toContain("scopeFieldset.disabled = activeFlow !== null;");
   expect(demo).toContain("browserStart.disabled = activeFlow !== null || !selectedProvider;");
@@ -194,7 +198,7 @@ it("resets stale demo state after persisted pageshow without resuming a grant", 
   );
 
   expect(demo).toContain('window.addEventListener("pageshow", (event) => {');
-  expect(demo).toContain("if (!event.persisted) return;");
+  expect(demo).toMatch(/if \(!event\.persisted\)\s*\{\s*return;\s*\}/);
   expect(demo).toContain("resetRestoredPage();");
   expect(reset).toContain("stopDeviceFlow();");
   expect(reset).toContain("activeFlow = null;");
@@ -233,7 +237,9 @@ it("populates account sign-in actions from enabled providers", async () => {
 
   expect(account).toContain("fetchProviderCapabilities");
   expect(account).toContain("/session/start/${provider.id}");
-  expect(account).toContain('providerActions.textContent = "Sign-in providers could not be loaded."');
+  expect(account).toContain(
+    'providerActions.textContent = "Sign-in providers could not be loaded."',
+  );
   expect(account).not.toContain('href="/session/start/github"');
 });
 
@@ -299,8 +305,12 @@ it("renders shared claims without moving focus to successful results", async () 
   expect(`${demo}\n${callback}`).not.toMatch(/profile[\s\S]{0,240}innerHTML/);
   expect(`${demo}\n${callback}`).not.toContain("VERIFIED OPTIONAL CLAIMS");
   expect(`${demo}\n${callback}`).toContain("SHARED CLAIMS");
-  expect(demo).not.toContain('document.querySelector<HTMLElement>("#device-result-title")!.focus()');
-  expect(callback).not.toContain('document.querySelector<HTMLElement>("#callback-result-title")!.focus()');
+  expect(demo).not.toContain(
+    'document.querySelector<HTMLElement>("#device-result-title")!.focus()',
+  );
+  expect(callback).not.toContain(
+    'document.querySelector<HTMLElement>("#callback-result-title")!.focus()',
+  );
 });
 
 it("keeps navigation and copy provider-neutral outside provider context", async () => {
