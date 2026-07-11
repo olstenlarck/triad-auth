@@ -170,6 +170,21 @@ it("states the identity-only privacy default and optional claim contract", async
   expect(landing).toContain("<dt>avatar</dt><dd>picture</dd>");
 });
 
+it("places provider evidence after the hero and keeps desktop device phrases intact", async () => {
+  const [landing, css] = await Promise.all([
+    readFile("src/pages/index.astro", "utf8"),
+    readFile("src/styles/global.css", "utf8"),
+  ]);
+  const hero = landing.indexOf('class="hero shell"');
+  const band = landing.indexOf('class="provider-band"');
+  const identity = landing.indexOf('class="identity-model shell"');
+
+  expect(hero).toBeLessThan(band);
+  expect(band).toBeLessThan(identity);
+  expect(css).toMatch(/\.device-code\s*\{[^}]*white-space: nowrap;/s);
+  expect(css).toMatch(/\.device-callout h2 span\s*\{[^}]*white-space: nowrap;/s);
+});
+
 it("uses twitter and never x as provider vocabulary", async () => {
   const ui = await readApplicationSources();
 

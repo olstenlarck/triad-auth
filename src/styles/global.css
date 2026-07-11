@@ -483,6 +483,14 @@ h3 {
   letter-spacing: -0.035em;
   line-height: 1;
   text-align: center;
+  white-space: nowrap;
+}
+.device-callout h2 {
+  max-width: none;
+  font-size: clamp(2.5rem, 4.5vw, 4.5rem);
+}
+.device-callout h2 span {
+  white-space: nowrap;
 }
 .device-callout > div > p {
   margin-block: 2rem;
@@ -1216,6 +1224,9 @@ h3 {
   }
   .device-callout {
     grid-template-columns: 1fr;
+  }
+  .device-callout h2 span {
+    white-space: normal;
   }
   .request-party {
     grid-template-columns: 3.5rem 1fr;
