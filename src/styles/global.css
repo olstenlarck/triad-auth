@@ -278,6 +278,7 @@ h3 {
 }
 
 .identity-model,
+.privacy-scopes,
 .quickstart,
 .device-callout {
   padding-block: clamp(5rem, 10vw, 9rem);
@@ -331,6 +332,68 @@ h3 {
 }
 .claim-ledger .signal-row dd {
   color: var(--signal);
+}
+
+.privacy-contract {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+}
+.privacy-default,
+.scope-manifest {
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+.privacy-default {
+  border-right: 1px solid var(--signal);
+}
+.privacy-default > span,
+.scope-manifest > p {
+  display: block;
+  margin: 0 0 1rem;
+  color: var(--signal);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.privacy-default h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 0.9;
+}
+.privacy-default code {
+  display: block;
+  margin-top: 2rem;
+  color: var(--signal);
+  font-weight: 700;
+}
+.privacy-default p {
+  max-width: 46ch;
+  margin: 1rem 0 0;
+  color: var(--muted);
+}
+.scope-manifest dl {
+  margin: 0;
+  border-top: 1px solid var(--rule-soft);
+}
+.scope-manifest dl > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.7fr) 1.3fr;
+  gap: 1rem;
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.scope-manifest dt {
+  color: var(--signal);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.scope-manifest dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .provider-band {
@@ -1125,6 +1188,17 @@ h3 {
   .claim-ledger > div {
     grid-template-columns: 1fr;
     gap: 0.4rem;
+  }
+  .privacy-contract {
+    grid-template-columns: 1fr;
+  }
+  .privacy-default {
+    border-right: 0;
+    border-bottom: 1px solid var(--signal);
+  }
+  .scope-manifest dl > div {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
   }
   .provider-list {
     align-items: flex-start;

@@ -152,6 +152,21 @@ it("presents Triad rather than a GitHub-only broker", async () => {
   expect(landing).toContain("pid_twitter_5a8f");
 });
 
+it("states the identity-only privacy default and optional claim contract", async () => {
+  const landing = await readFile("src/pages/index.astro", "utf8");
+
+  expect(landing).toContain("ASK FOR LESS.");
+  expect(landing).toContain("REVEAL LESS.");
+  expect(landing).toContain("IDENTITY ONLY");
+  expect(landing).toContain(
+    "No raw provider ID, email, handle, name, avatar, or provider access token.",
+  );
+  expect(landing).toContain("email + email_verified");
+  expect(landing).toContain("preferred_username");
+  expect(landing).toContain("<dt>name</dt><dd>name</dd>");
+  expect(landing).toContain("<dt>avatar</dt><dd>picture</dd>");
+});
+
 it("uses twitter and never x as provider vocabulary", async () => {
   const ui = await readApplicationSources();
 

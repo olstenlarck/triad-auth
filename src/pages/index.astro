@@ -37,15 +37,42 @@ import Shell from "../components/Shell.astro";
       </div>
       <div>
         <dt>account_sub</dt>
-        <dd>acct_oD4s93...</dd>
+        <dd>acc_4da6c809...</dd>
         <p>Broker-global. Correlates one Triad account across clients.</p>
       </div>
       <div class="signal-row">
         <dt>pairwise_sub</dt>
-        <dd>ps_9c0e7b2a...</dd>
+        <dd>pws_9c0e7b2a...</dd>
         <p>Stable inside one app. Different client, different identifier.</p>
       </div>
     </dl>
+  </section>
+
+  <section class="privacy-scopes shell" aria-labelledby="privacy-title">
+    <div class="section-heading">
+      <h2 id="privacy-title">ASK FOR LESS.<br />REVEAL LESS.</h2>
+      <p>
+        A client chooses its request. Triad shows the complete list before approval, and shares nothing beyond
+        it.
+      </p>
+    </div>
+    <div class="privacy-contract">
+      <article class="privacy-default">
+        <span>DEFAULT REQUEST</span>
+        <h3>IDENTITY ONLY</h3>
+        <code>scope=openid</code>
+        <p>No raw provider ID, email, handle, name, avatar, or provider access token.</p>
+      </article>
+      <div class="scope-manifest">
+        <p>OPTIONAL PROFILE SCOPES</p>
+        <dl>
+          <div><dt>email</dt><dd>email + email_verified</dd></div>
+          <div><dt>handle</dt><dd>preferred_username</dd></div>
+          <div><dt>name</dt><dd>name</dd></div>
+          <div><dt>avatar</dt><dd>picture</dd></div>
+        </dl>
+      </div>
+    </div>
   </section>
 
   <section class="provider-band" aria-label="Supported identity providers">
