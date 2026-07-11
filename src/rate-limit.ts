@@ -17,10 +17,12 @@ export async function enforceRateLimit(
   ) {
     throw new Error("invalid rate limit configuration");
   }
+
   const timestamp = Math.floor(Date.now() / 1000);
   const windowStart = Math.floor(timestamp / windowSeconds) * windowSeconds;
   const keyHash = await sha256(key);
   const cleanupSample = crypto.getRandomValues(new Uint8Array(1))[0];
+
   if (cleanupSample < 8) {
     await db
       .prepare(
@@ -31,6 +33,7 @@ export async function enforceRateLimit(
       .bind(timestamp)
       .run();
   }
+
   const row = await db
     .prepare(
       `INSERT INTO rate_limits (bucket, key_hash, window_start, expires_at, count)
@@ -41,6 +44,7 @@ export async function enforceRateLimit(
     )
     .bind(bucket, keyHash, windowStart, windowStart + windowSeconds, limit)
     .first<{ count: number }>();
+
   return row !== null;
 }
 
@@ -54,5 +58,6 @@ export async function enforceRequestRateLimit(
 ): Promise<boolean> {
   const ip = request.headers.get("cf-connecting-ip");
   const key = ip === null ? "unknown" : await hmacSha256(secret, `triad-rate-limit\0${ip}`);
+
   return enforceRateLimit(db, bucket, key, limit, windowSeconds);
 }

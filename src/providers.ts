@@ -61,6 +61,7 @@ function providerCredentials(provider: ProviderName, env: Env): ProviderCredenti
       : provider === "twitter"
         ? [env.TWITTER_CLIENT_ID, env.TWITTER_CLIENT_SECRET]
         : [env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET];
+
   if (!clientId?.trim() || !clientSecret?.trim()) {
     throw new Error(`${provider} provider is not configured`);
   }
@@ -90,7 +91,9 @@ export async function startProvider(
   scopes: readonly Scope[] = ["openid"],
 ): Promise<ProviderStart> {
   const { clientId } = providerCredentials(provider, env);
+
   validateProviderScopes(provider, scopes);
+
   if (provider === "google") {
     const nonce = randomToken();
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -113,6 +116,7 @@ export async function startProvider(
   if (provider === "twitter") {
     const verifier = randomToken();
     const url = new URL("https://x.com/i/oauth2/authorize");
+
     url.search = new URLSearchParams({
       response_type: "code",
       client_id: clientId,
@@ -132,9 +136,11 @@ export async function startProvider(
     redirect_uri: callback(provider, env),
     state,
   });
+
   if (scopes.includes("email")) {
     params.set("scope", "user:email");
   }
+
   url.search = params.toString();
 
   return { url: url.toString() };
@@ -150,6 +156,7 @@ async function tokenRequest(url: string, body: URLSearchParams, headers?: Record
     },
     body,
   });
+
   if (!response.ok) {
     throw new Error(`provider token exchange failed (${response.status})`);
   }
@@ -167,6 +174,7 @@ async function finishGoogle(
   if (!nonce) {
     throw new Error("Google nonce is required");
   }
+
   const token = await tokenRequest(
     "https://oauth2.googleapis.com/token",
     new URLSearchParams({
@@ -177,22 +185,27 @@ async function finishGoogle(
       grant_type: "authorization_code",
     }),
   );
+
   if (typeof token.id_token !== "string") {
     throw new Error("Google response missing ID token");
   }
+
   const { payload } = await jwtVerify(token.id_token, googleJwks, {
     algorithms: ["RS256"],
     issuer: ["https://accounts.google.com", "accounts.google.com"],
     audience: credentials.clientId,
     requiredClaims: ["exp", "iat"],
   });
+
   if (payload.nonce !== nonce) {
     throw new Error("Google ID token nonce mismatch");
   }
   if (typeof payload.sub !== "string" || payload.sub.length === 0) {
     throw new Error("Google ID token missing subject");
   }
+
   const claims: ProfileClaims = {};
+
   if (scopes.includes("email")) {
     claims.email = mandatoryString("google", "email", payload.email);
     if (typeof payload.email_verified !== "boolean") {
@@ -239,26 +252,32 @@ async function finishGitHub(
       redirect_uri: callback("github", env),
     }),
   );
+
   if (typeof token.access_token !== "string") {
     throw new Error("GitHub response missing access token");
   }
+
   const response = await fetch("https://api.github.com/user", {
     headers: githubHeaders(token.access_token),
   });
+
   if (!response.ok) {
     throw new Error(`GitHub user lookup failed (${response.status})`);
   }
+
   const user = await response.json<{
     id?: unknown;
     login?: unknown;
     name?: unknown;
     avatar_url?: unknown;
   }>();
+
   if (!Number.isSafeInteger(user.id)) {
     throw new Error("GitHub response missing numeric id");
   }
 
   const claims: ProfileClaims = {};
+
   if (scopes.includes("handle")) {
     claims.preferred_username = mandatoryString("github", "handle", user.login);
   }
@@ -272,9 +291,11 @@ async function finishGitHub(
     const emailsResponse = await fetch("https://api.github.com/user/emails", {
       headers: githubHeaders(token.access_token),
     });
+
     if (!emailsResponse.ok) {
       throw new Error(`GitHub email lookup failed (${emailsResponse.status})`);
     }
+
     const emails = await emailsResponse.json<unknown>();
     const primary = Array.isArray(emails)
       ? emails.find(
@@ -285,11 +306,13 @@ async function finishGitHub(
             (entry as Record<string, unknown>).verified === true,
         )
       : undefined;
+
     claims.email = mandatoryString(
       "github",
       "email",
       primary && (primary as Record<string, unknown>).email,
     );
+
     claims.email_verified = true;
   }
 
@@ -318,6 +341,7 @@ async function finishTwitter(
     }),
     { authorization: `Basic ${btoa(basicCredentials)}` },
   );
+
   if (typeof token.access_token !== "string") {
     throw new Error("Twitter response missing access token");
   }
@@ -328,22 +352,37 @@ async function finishTwitter(
     ...(scopes.includes("name") ? ["name"] : []),
     ...(scopes.includes("avatar") ? ["profile_image_url"] : []),
   ];
+
   if (fields.length > 0) {
     url.searchParams.set("user.fields", fields.join(","));
   }
+
   const response = await fetch(url.toString(), {
-    headers: { authorization: `Bearer ${token.access_token}`, accept: "application/json" },
+    headers: {
+      authorization: `Bearer ${token.access_token}`,
+      accept: "application/json",
+    },
   });
+
   if (!response.ok) {
     throw new Error(`Twitter user lookup failed (${response.status})`);
   }
+
   const user = await response.json<{
-    data?: { id?: unknown; username?: unknown; name?: unknown; profile_image_url?: unknown };
+    data?: {
+      id?: unknown;
+      username?: unknown;
+      name?: unknown;
+      profile_image_url?: unknown;
+    };
   }>();
+
   if (typeof user.data?.id !== "string" || !/^[1-9][0-9]*$/.test(user.data.id)) {
     throw new Error("Twitter response missing valid data.id");
   }
+
   const claims: ProfileClaims = {};
+
   if (scopes.includes("handle")) {
     claims.preferred_username = mandatoryString("twitter", "handle", user.data.username);
   }
@@ -366,7 +405,9 @@ export async function finishProvider(
   scopes: readonly Scope[] = ["openid"],
 ): Promise<ProviderIdentity> {
   const credentials = providerCredentials(provider, env);
+
   validateProviderScopes(provider, scopes);
+
   const result =
     provider === "google"
       ? await finishGoogle(env, credentials, code, nonce, scopes)

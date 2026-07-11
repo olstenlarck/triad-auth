@@ -30,6 +30,7 @@ export function securityHeaders(): MiddlewareHandler {
 
 export function assertSameOrigin(request: Request, issuer: string): void {
   const origin = request.headers.get("origin");
+
   if (!origin || origin !== new URL(issuer).origin) {
     throw new Error("invalid_origin");
   }
@@ -37,8 +38,10 @@ export function assertSameOrigin(request: Request, issuer: string): void {
 
 export async function createCsrfToken(db: D1Database, purpose: string): Promise<string> {
   await cleanupExpiredState(db);
+
   const token = randomToken();
   const createdAt = Math.floor(Date.now() / 1000);
+
   await db
     .prepare(
       `INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, ?, ?)

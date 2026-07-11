@@ -8,5 +8,6 @@ export function parseScope(value?: string): "openid" {
   if (value === undefined || value === "openid") {
     return "openid";
   }
+
   throw new Error("unsupported_scope");
 }
