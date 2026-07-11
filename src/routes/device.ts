@@ -49,12 +49,6 @@ function validUserCode(value: string): string | null {
 
 export const deviceRoutes = new Hono<{ Bindings: Env }>();
 
-deviceRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("cache-control", "no-store");
-  c.header("pragma", "no-cache");
-});
-
 deviceRoutes.post("/device/code", async (c) => {
   if (
     !(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "device-issue", 10))

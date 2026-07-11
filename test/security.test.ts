@@ -37,7 +37,12 @@ describe("browser and response safety", () => {
       ASSETS: {
         fetch: async (request: Request) => {
           requestedUrl = request.url;
-          return new Response("<h1>static page</h1>", { headers: { "content-type": "text/html" } });
+          return new Response("<h1>static page</h1>", {
+            headers: {
+              "cache-control": "public, max-age=31536000, immutable",
+              "content-type": "text/html",
+            },
+          });
         },
       } as Fetcher,
     } as Env;
@@ -47,6 +52,7 @@ describe("browser and response safety", () => {
     expect(requestedUrl).toBe("https://auth.example/demo/");
     await expect(response.text()).resolves.toBe("<h1>static page</h1>");
     expect(response.headers.get("content-security-policy")).toContain("default-src 'self'");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
 

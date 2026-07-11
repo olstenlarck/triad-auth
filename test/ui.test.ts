@@ -183,6 +183,9 @@ it("places provider evidence after the hero and keeps desktop device phrases int
   expect(band).toBeLessThan(identity);
   expect(css).toMatch(/\.device-code\s*\{[^}]*white-space: nowrap;/s);
   expect(css).toMatch(/\.device-callout h2 span\s*\{[^}]*white-space: nowrap;/s);
+  expect(css).toMatch(
+    /@media \(max-width: 900px\)\s*\{[^}]*\.device-callout\s*\{[^}]*grid-template-columns: 1fr;/s,
+  );
 });
 
 it("uses twitter and never x as provider vocabulary", async () => {

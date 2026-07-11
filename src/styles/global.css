@@ -1173,6 +1173,12 @@ h3 {
   color: var(--muted);
 }
 
+@media (max-width: 900px) {
+  .device-callout {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
   .site-header nav .nav-secondary {
     display: none;

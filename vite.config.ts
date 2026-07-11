@@ -39,7 +39,6 @@ export default defineConfig({
   },
   run: {
     cache: {
-      scripts: true, // Cache package.json scripts (default: false)
       tasks: true, // Cache task definitions (default: true)
     },
 
@@ -69,7 +68,7 @@ export default defineConfig({
         input: [
           "**/vite.config.ts",
           "**/package.json",
-          "**/*.{ts,tsx,js,jsx,mjs,cjs}",
+          "**/*.{ts,tsx,js,jsx,mjs,cjs,astro,css,toml,json,yaml}",
           "!**/dist/**/*",
           "!**/node_modules/**/*",
         ],

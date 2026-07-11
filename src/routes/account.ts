@@ -63,12 +63,6 @@ async function authorizeMutation(
 
 export const accountRoutes = new Hono<{ Bindings: Env }>();
 
-accountRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("cache-control", "no-store");
-  c.header("pragma", "no-cache");
-});
-
 accountRoutes.get("/session/start/:provider", async (c) => {
   if (
     !(await enforceRequestRateLimit(

@@ -242,12 +242,6 @@ async function finishAccessDenied(
   return c.redirect(`${c.env.ISSUER}/me/?error=access_denied`, 302);
 }
 
-oauthRoutes.use("*", async (c, next) => {
-  await next();
-  c.header("cache-control", "no-store");
-  c.header("pragma", "no-cache");
-});
-
 oauthRoutes.use("/token", async (c, next) => {
   await next();
   await cleanupExpiredState(c.env.DB);

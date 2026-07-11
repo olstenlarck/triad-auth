@@ -112,11 +112,17 @@ describe("deployment configuration", () => {
     expect(astroConfig).toContain('output: "server"');
     expect(worker).toContain('import("@astrojs/cloudflare/handler")');
     expect(worker).toContain('c.req.path.startsWith("/__astro_")');
-    expect(worker).toContain("return handle(c.req.raw, c.env, c.executionCtx as unknown as ExecutionContext)");
+    expect(worker).toContain(
+      "return handle(c.req.raw, c.env, c.executionCtx as unknown as ExecutionContext)",
+    );
     expect(worker).toContain("return c.env.ASSETS.fetch(c.req.raw)");
     expect(worker).not.toContain('from "astro/hono"');
     expect(pages.every((page) => page.includes("export const prerender = true"))).toBe(true);
-    expect(readFileSync("vite.config.ts", "utf8")).toContain("vp exec astro build");
+    const viteConfig = readFileSync("vite.config.ts", "utf8");
+
+    expect(viteConfig).toContain("vp exec astro build");
+    expect(viteConfig).not.toContain("scripts: true");
+    expect(viteConfig).toContain('"**/*.{ts,tsx,js,jsx,mjs,cjs,astro,css,toml,json,yaml}"');
     expect(config).toContain('ISSUER = "https://triad-auth-broker.equator-owl-studio.workers.dev"');
     expect(config).toContain('[env.local.vars]\nISSUER = "http://localhost:4321"');
   });
