@@ -43,7 +43,7 @@ import Shell from "../../components/Shell.astro";
   </section>
 
   <script>
-    import { renderDisclosureControls } from "../../scripts/disclosure-controls";
+    import { renderDisclosures } from "../../scripts/disclosure-controls";
 
     const form = document.querySelector<HTMLFormElement>("#device-form")!;
     const input = document.querySelector<HTMLInputElement>("#user-code")!;
@@ -118,7 +118,7 @@ import Shell from "../../components/Shell.astro";
         document.querySelector("#device-client")!.textContent = body.client_name ?? "UNKNOWN APP";
         document.querySelector("#device-provider-name")!.textContent = body.provider.toUpperCase();
         provider.value = body.provider;
-        renderDisclosureControls(disclosures, body.scopes);
+        renderDisclosures(disclosures, body.scopes);
         disclosureBox.hidden = false;
         csrf.value = body.csrf_token;
         error.hidden = true;

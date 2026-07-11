@@ -92,9 +92,8 @@ it("submits transaction-bound CSRF tokens from both product forms", async () => 
   expect(device).not.toContain('type="radio"');
   expect(device).not.toContain('value="google"');
   expect(device).not.toContain('value="x"');
-  expect(disclosures).toContain('input.type = "checkbox"');
-  expect(disclosures).toContain("input.checked = true");
-  expect(disclosures).toContain("input.disabled = true");
+  expect(disclosures).not.toContain('document.createElement("input")');
+  expect(disclosures).not.toContain("disclosure-switch");
 });
 
 it("keeps device verification navigation under same-origin JavaScript control", async () => {
@@ -256,7 +255,7 @@ it("restores demo controls without replacing a browser start error", async () =>
   expect(finish).toContain("updateRequestControls(false)");
 });
 
-it("renders fixed identity claims and checked required profile claims", async () => {
+it("renders every mandatory disclosure as a factual ledger row", async () => {
   const [consent, device, controls] = await Promise.all([
     readFile("src/pages/consent.astro", "utf8"),
     readFile("src/pages/device/verify.astro", "utf8"),
@@ -265,18 +264,19 @@ it("renders fixed identity claims and checked required profile claims", async ()
 
   expect(consent).toContain("body.provider");
   expect(consent).toContain("body.scopes");
-  expect(consent).toContain("renderDisclosureControls");
+  expect(consent).toContain("renderDisclosures");
   expect(consent).toContain('act("approve")');
   expect(consent).toContain('act("deny")');
   expect(device).toContain("body.provider");
   expect(device).toContain("body.scopes");
-  expect(device).toContain("renderDisclosureControls");
+  expect(device).toContain("renderDisclosures");
   expect(device).toContain('id="device-disclosure" class="device-disclosure" hidden');
   expect(device).toContain("disclosureBox.hidden = false");
   expect(device).not.toContain('value="github"');
-  expect(controls).toContain('input.name = "granted-scope"');
-  expect(controls).toContain("input.checked = true");
-  expect(controls).toContain("input.disabled = true");
+  expect(controls).toContain("export function renderDisclosures");
+  expect(controls).not.toContain('document.createElement("input")');
+  expect(controls).not.toContain("disclosure-switch");
+  expect(controls.match(/row\.appendChild\(disclosureText\(disclosure\)\)/g)).toHaveLength(2);
   expect(controls).toContain("Share your email address and its verification status.");
   expect(controls).not.toContain("Never use it as an identity key");
 });

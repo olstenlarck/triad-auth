@@ -33,7 +33,7 @@ import Shell from "../components/Shell.astro";
   </section>
 
   <script>
-    import { renderDisclosureControls } from "../scripts/disclosure-controls";
+    import { renderDisclosures } from "../scripts/disclosure-controls";
 
     const request = new URLSearchParams(location.search).get("request");
     const panel = document.querySelector<HTMLElement>("#consent-panel")!;
@@ -115,7 +115,7 @@ import Shell from "../components/Shell.astro";
           document.querySelector(".app-glyph")!.textContent = (body.client_name ?? "A")
             .slice(0, 1)
             .toUpperCase();
-          renderDisclosureControls(disclosures, body.scopes);
+          renderDisclosures(disclosures, body.scopes);
           panel.setAttribute("aria-busy", "false");
           approve.disabled = false;
           deny.disabled = false;
