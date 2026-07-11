@@ -44,7 +44,7 @@ describe("browser and response safety", () => {
             },
           });
         },
-      } as Fetcher,
+      } as unknown as Fetcher,
     } as Env;
 
     const response = await app.request("https://auth.example/demo/", {}, env);
@@ -54,6 +54,20 @@ describe("browser and response safety", () => {
     expect(response.headers.get("content-security-policy")).toContain("default-src 'self'");
     expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("applies security headers when Workers Assets returns immutable headers", async () => {
+    const env = {
+      ASSETS: {
+        fetch: () => fetch("data:text/html,%3Ch1%3Estatic%20page%3C%2Fh1%3E"),
+      } as unknown as Fetcher,
+    } as Env;
+
+    const response = await app.request("https://auth.example/demo/", {}, env);
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe("<h1>static page</h1>");
+    expect(response.headers.get("content-security-policy")).toContain("default-src 'self'");
   });
 
   it("accepts the canonical origin and rejects cross-origin mutation", () => {

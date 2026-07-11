@@ -40,7 +40,9 @@ app.notFound(async (c) => {
     return handle(c.req.raw, c.env, c.executionCtx as unknown as ExecutionContext);
   }
 
-  return c.env.ASSETS.fetch(c.req.raw);
+  const asset = await c.env.ASSETS.fetch(c.req.raw);
+
+  return new Response(asset.body, asset);
 });
 
 app.onError((_error, c) => {

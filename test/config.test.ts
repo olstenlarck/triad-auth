@@ -115,7 +115,8 @@ describe("deployment configuration", () => {
     expect(worker).toContain(
       "return handle(c.req.raw, c.env, c.executionCtx as unknown as ExecutionContext)",
     );
-    expect(worker).toContain("return c.env.ASSETS.fetch(c.req.raw)");
+    expect(worker).toContain("const asset = await c.env.ASSETS.fetch(c.req.raw)");
+    expect(worker).toContain("return new Response(asset.body, asset)");
     expect(worker).not.toContain('from "astro/hono"');
     expect(pages.every((page) => page.includes("export const prerender = true"))).toBe(true);
     const viteConfig = readFileSync("vite.config.ts", "utf8");
