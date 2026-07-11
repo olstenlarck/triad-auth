@@ -1,5 +1,7 @@
 ---
 import Shell from "../components/Shell.astro";
+
+export const prerender = true;
 ---
 
 <Shell
@@ -92,7 +94,7 @@ import Shell from "../components/Shell.astro";
       <div class="code-meta"><span>GET /authorize</span><span>01 / 03</span></div>
       <pre><code>?client_id=triad-demo
 &amp;provider=github
-&amp;redirect_uri=http://localhost:8787/demo/callback/
+&amp;redirect_uri=http://localhost:4321/demo/callback/
 &amp;code_challenge=...
 &amp;code_challenge_method=S256</code></pre>
     </div>

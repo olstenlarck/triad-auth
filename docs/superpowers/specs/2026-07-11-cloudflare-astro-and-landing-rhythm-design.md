@@ -25,7 +25,7 @@ Use `@astrojs/cloudflare`, which integrates `@cloudflare/vite-plugin` into Astro
 - Configure the Cloudflare adapter in `astro.config.mjs`.
 - Keep all current Astro pages prerendered so their HTML, CSS, JavaScript, and fonts are deployed as hashed Workers Assets and served through Cloudflare's asset network.
 - Keep `src/index.ts` as the custom Hono Worker entrypoint for OAuth, OIDC, device, session, and account routes.
-- Use the adapter's Hono integration to serve Astro assets/pages through the Cloudflare-aware request pipeline while preserving API precedence and protocol-specific 404 responses.
+- Let Hono retain API precedence, delegate Astro's private prerender control requests to `@astrojs/cloudflare/handler`, and keep ordinary prerendered pages on the direct Workers Assets fallback.
 - Preserve the D1 binding, `ASSETS` binding, issuer, provider secrets, security headers, and canonical Workers URL.
 - Keep trailing-slash URLs and directory-format output.
 

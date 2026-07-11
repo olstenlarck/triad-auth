@@ -22,8 +22,8 @@ const readApplicationSources = async () =>
   (await Promise.all(applicationSources.map((path) => readFile(path, "utf8")))).join("\n");
 
 it("builds both demo entry points", async () => {
-  await expect(readFile("dist/demo/index.html", "utf8")).resolves.toContain("TRY TRIAD");
-  await expect(readFile("dist/demo/callback/index.html", "utf8")).resolves.toContain(
+  await expect(readFile("dist/client/demo/index.html", "utf8")).resolves.toContain("TRY TRIAD");
+  await expect(readFile("dist/client/demo/callback/index.html", "utf8")).resolves.toContain(
     "VERIFYING IDENTITY",
   );
 });

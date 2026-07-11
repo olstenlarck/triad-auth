@@ -85,18 +85,40 @@ function writeDevVars(directory: string, values: Record<string, string>): void {
 describe("deployment configuration", () => {
   it("overrides only the local dev issuer while preserving canonical production deployment", () => {
     const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+      dependencies: Record<string, string>;
       scripts: Record<string, string>;
     };
     const config = readFileSync("wrangler.toml", "utf8");
+    const astroConfig = readFileSync("astro.config.mjs", "utf8");
+    const worker = readFileSync("src/index.ts", "utf8");
+    const pages = [
+      "src/pages/index.astro",
+      "src/pages/me.astro",
+      "src/pages/consent.astro",
+      "src/pages/device/verify.astro",
+      "src/pages/demo/index.astro",
+      "src/pages/demo/callback.astro",
+    ].map((path) => readFileSync(path, "utf8"));
 
-    expect(packageJson.scripts.dev).toBe(
-      "vp run build && wrangler dev --var ISSUER:http://localhost:8787",
+    expect(packageJson.dependencies).toHaveProperty("@astrojs/cloudflare");
+    expect(packageJson.scripts.build).toBe(
+      "vp exec astro build && node scripts/generate-csp-hashes.mjs",
     );
-    expect(packageJson.scripts.deploy).toBe("vp run build && wrangler deploy");
-    expect(readFileSync("vite.config.ts", "utf8")).toContain(
-      'command: "vp check --fix && vp exec wrangler deploy --dry-run"',
-    );
+    expect(packageJson.scripts.deploy).toBe("vp run build && vp exec wrangler deploy");
+    expect(packageJson.scripts.dev).toBe("CLOUDFLARE_ENV=local vp exec astro dev");
+    expect(packageJson.scripts.preview).toBe("vp run build && vp exec astro preview");
+    expect(astroConfig).toContain('from "@astrojs/cloudflare"');
+    expect(astroConfig).toContain("adapter: cloudflare(");
+    expect(astroConfig).toContain('output: "server"');
+    expect(worker).toContain('import("@astrojs/cloudflare/handler")');
+    expect(worker).toContain('c.req.path.startsWith("/__astro_")');
+    expect(worker).toContain("return handle(c.req.raw, c.env, c.executionCtx as unknown as ExecutionContext)");
+    expect(worker).toContain("return c.env.ASSETS.fetch(c.req.raw)");
+    expect(worker).not.toContain('from "astro/hono"');
+    expect(pages.every((page) => page.includes("export const prerender = true"))).toBe(true);
+    expect(readFileSync("vite.config.ts", "utf8")).toContain("vp exec astro build");
     expect(config).toContain('ISSUER = "https://triad-auth-broker.equator-owl-studio.workers.dev"');
+    expect(config).toContain('[env.local.vars]\nISSUER = "http://localhost:4321"');
   });
 
   it("uses a compatibility date supported by the locked workerd baseline", () => {
@@ -106,9 +128,10 @@ describe("deployment configuration", () => {
     const workerdVersion = lockfile.match(/^  workerd@(\d+\.\d+\.\d+):$/m)?.[1];
     const latestSupportedDate: Record<string, string> = {
       "1.20260702.1": "2026-07-09",
+      "1.20260708.1": "2026-07-09",
     };
 
-    expect(workerdVersion).toBe("1.20260702.1");
+    expect(workerdVersion).toBe("1.20260708.1");
     expect(compatibilityDate).toBeDefined();
     expect(compatibilityDate! <= latestSupportedDate[workerdVersion!]).toBe(true);
   });
@@ -285,11 +308,11 @@ describe("deployment configuration", () => {
     expect(readme).toContain("https://developer.x.com/en/portal/dashboard");
     expect(readme).toContain("https://developer.x.com/en/portal/projects-and-apps");
     expect(setupCallbacks).toEqual([
-      "http://localhost:8787/callback/google",
+      "http://localhost:4321/callback/google",
       "<ISSUER>/callback/google",
-      "http://localhost:8787/callback/github",
+      "http://localhost:4321/callback/github",
       "<ISSUER>/callback/github",
-      "http://localhost:8787/callback/twitter",
+      "http://localhost:4321/callback/twitter",
       "<ISSUER>/callback/twitter",
     ]);
     for (const provider of ["google", "github", "twitter"]) {

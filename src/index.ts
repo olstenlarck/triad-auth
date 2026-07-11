@@ -12,7 +12,7 @@ app.route("/", oauthRoutes);
 app.route("/", deviceRoutes);
 app.route("/", accountRoutes);
 
-app.notFound((c) => {
+app.notFound(async (c) => {
   const protocolPaths = new Set(["/authorize", "/token", "/device/code", "/device/verify"]);
   const protocolPrefixes = ["/callback/", "/session/", "/api/", "/.well-known/"];
 
@@ -21,6 +21,12 @@ app.notFound((c) => {
     protocolPrefixes.some((prefix) => c.req.path.startsWith(prefix))
   ) {
     return c.text("404 Not Found", 404);
+  }
+
+  if (c.req.path.startsWith("/__astro_")) {
+    const { handle } = await import("@astrojs/cloudflare/handler");
+
+    return handle(c.req.raw, c.env, c.executionCtx as unknown as ExecutionContext);
   }
 
   return c.env.ASSETS.fetch(c.req.raw);

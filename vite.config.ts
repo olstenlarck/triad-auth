@@ -64,7 +64,8 @@ export default defineConfig({
       },
 
       check: {
-        command: "vp check --fix && vp exec wrangler deploy --dry-run",
+        command:
+          "vp check --fix && vp exec astro build && node scripts/generate-csp-hashes.mjs && vp exec wrangler deploy --dry-run",
         input: [
           "**/vite.config.ts",
           "**/package.json",
@@ -77,16 +78,6 @@ export default defineConfig({
       bundle: {
         command: "vp run -r bundle",
         input: ["**/*.ts", "!**/dist/**/*", "!**/node_modules/**/*"],
-      },
-
-      build: {
-        command: "astro build && node scripts/generate-csp-hashes.mjs",
-        input: [
-          "**/src/**/*.{ts,mjs,js,astro}",
-          "packages/*/{src,test}/**/*.ts",
-          "!**/dist/**/*",
-          "!**/node_modules/**/*",
-        ],
       },
 
       test: {

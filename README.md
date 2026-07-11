@@ -9,14 +9,16 @@ This repository is an MVP, not a general-purpose identity platform. It makes dow
 Every ID token uses the app-scoped identity as both `sub` and `pairwise_sub`.
 
 - `pairwise_sub`: an HMAC-derived identifier unique to the broker account and downstream `client_id`.
-- `account_sub`: a random broker account identifier, stable across receiving Triad clients.
+- `account_sub`: an HMAC-derived broker account identifier, stable across receiving Triad clients.
 - `provider_sub`: an opaque provider-global identifier that can correlate one upstream identity across receiving Triad clients without exposing the raw upstream ID. It is HMAC-derived from the provider name and immutable upstream ID; the raw ID remains only in Triad's identity mapping table and never enters tokens, UI, URLs, or logs.
 
-Identity-only authentication is the default. Clients may request the profile scopes `email`, `handle`, `name`, and `avatar` through the authorization URL or device request; every requested scope is mandatory for that transaction and appears as a checked, disabled control at consent. Their ID-token claims are `email` plus `email_verified`, `preferred_username`, `name`, and `picture` respectively. The custom `avatar` request scope maps to the standard `picture` claim. These values are mutable profile data, not identity keys.
+Identity-only authentication is the default. Clients may request the profile scopes `email`, `handle`, `name`, and `avatar` through the authorization URL or device request; every requested scope is mandatory for that transaction and appears as a factual disclosure row at consent. Their ID-token claims are `email` plus `email_verified`, `preferred_username`, `name`, and `picture` respectively. The custom `avatar` request scope maps to the standard `picture` claim. These values are mutable profile data, not identity keys.
 
 OIDC discovery reports `subject_types_supported: ["pairwise"]` because `pairwise` is the standard OpenID Connect subject type for a `sub` value that differs by client. Triad exposes that same value as `pairwise_sub` to make the identity contract explicit alongside `account_sub` and `provider_sub`.
 
 Consent records retain approved scope names, not profile values. D1 stores requested profile values only as row-bound authenticated ciphertext. A winning authorization-code or approved device-grant exchange atomically deletes its row before decrypting the claims, physically removing the ciphertext while preserving one-winner redemption. Abandoned profile ciphertext is exchangeable only until the authorization code's two-minute TTL or the device grant's ten-minute TTL. After expiry it remains encrypted and inaccessible to exchange, even if its row is still physically present. Bounded, sampled, traffic-driven cleanup physically deletes expired rows when later requests trigger it, so physical retention can exceed the protocol TTL when no later traffic arrives. Upstream access tokens are discarded after the provider response is mapped.
+
+Broker browser sessions expire after 30 days. The hashed D1 session row and the secure browser cookie use the same lifetime.
 
 Provider capabilities are:
 
@@ -52,13 +54,13 @@ vp install
 
 ## Provider app setup
 
-Provider redirect URIs must match exactly, including scheme, host, path, and trailing-slash absence. Use `http://localhost:8787` as the local issuer. For production, replace `<ISSUER>` below with the stable HTTPS Worker origin, with no trailing slash.
+Provider redirect URIs must match exactly, including scheme, host, path, and trailing-slash absence. Use `http://localhost:4321` as the local issuer. For production, replace `<ISSUER>` below with the stable HTTPS Worker origin, with no trailing slash.
 
 ### Google
 
 Open [Google Auth Platform](https://console.cloud.google.com/auth/overview) to configure branding, audience, and required contact information. Then open [Google Auth Platform clients](https://console.cloud.google.com/auth/clients), select **Create client**, choose **Web application**, and add each environment you use under **Authorized redirect URIs**:
 
-- Local: `http://localhost:8787/callback/google`
+- Local: `http://localhost:4321/callback/google`
 - Production: `<ISSUER>/callback/google`
 
 Save the generated client ID and client secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
@@ -67,8 +69,8 @@ Save the generated client ID and client secret as `GOOGLE_CLIENT_ID` and `GOOGLE
 
 Open [GitHub's new OAuth App form](https://github.com/settings/applications/new). Set **Homepage URL** to the issuer and **Authorization callback URL** to the callback for the environment:
 
-- Local homepage: `http://localhost:8787`
-- Local callback: `http://localhost:8787/callback/github`
+- Local homepage: `http://localhost:4321`
+- Local callback: `http://localhost:4321/callback/github`
 - Production homepage: `<ISSUER>`
 - Production callback: `<ISSUER>/callback/github`
 
@@ -78,7 +80,7 @@ A GitHub OAuth App supports one callback URL, so use separate apps or update the
 
 Triad's canonical provider name is **Twitter** and its route/configuration identifier is always `twitter`; X branding and `x.com` hostnames are used only by the external provider portal and API endpoints. Open the [Twitter developer dashboard](https://developer.x.com/en/portal/dashboard) or [Projects & Apps](https://developer.x.com/en/portal/projects-and-apps), create or select an app, and open its user authentication settings. Enable OAuth 2.0, choose a confidential **Web App** client, and add the exact callback URI for each environment you use:
 
-- Local: `http://localhost:8787/callback/twitter`
+- Local: `http://localhost:4321/callback/twitter`
 - Production: `<ISSUER>/callback/twitter`
 
 Set the website URL to the corresponding issuer. Save the OAuth 2.0 Client ID and Client Secret from **Keys and tokens** as `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET`. Triad requests only `tweet.read users.read`; it does not request offline access.
@@ -118,9 +120,9 @@ vp run db:local
 vp run dev
 ```
 
-Open `http://localhost:8787/demo/` for the built-in PKCE and device demos. The account surface is at `http://localhost:8787/me/`.
+Open `http://localhost:4321/demo/` for the built-in PKCE and device demos. The account surface is at `http://localhost:4321/me/`.
 
-`vp run dev` performs a complete Astro build and regenerates the script CSP allowlist before Wrangler starts. It passes `--var ISSUER:http://localhost:8787` to Wrangler, overriding only `ISSUER` for the local process; `ISSUER` is not a secret and does not belong in `.dev.vars`. The production `vp run deploy` command passes no override and continues to use the canonical HTTPS `ISSUER` from `wrangler.toml`. Local development intentionally does not run a stale build watcher, so restart `vp run dev` after changing Astro pages or browser scripts.
+`vp run dev` starts Astro through its Cloudflare adapter and Vite plugin, so the custom Worker runs in `workerd` with local D1 and secrets. The `local` Wrangler environment changes only the issuer to `http://localhost:4321`; production continues to use the canonical HTTPS issuer. Astro keeps page and browser-script changes live during development.
 
 ## Checks
 
@@ -131,7 +133,7 @@ vp run test
 vp run build
 ```
 
-`vp run check` runs Vite+ formatting, type-aware linting, TypeScript checks, and `wrangler deploy --dry-run`. `vp run test` runs the complete test suite, while `vp run build` produces the Astro assets and regenerates the CSP allowlist.
+`vp run check` runs Vite+ formatting, type-aware linting, TypeScript checks, an Astro Cloudflare build, and `wrangler deploy --dry-run`. `vp run test` runs the complete test suite. `vp run build` prerenders the six Astro pages, bundles the custom Hono Worker through Cloudflare's Vite plugin, emits hashed Workers Assets, and regenerates the CSP allowlist.
 
 ## Production deployment
 

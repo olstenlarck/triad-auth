@@ -4,15 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "vp exec astro build && node scripts/generate-csp-hashes.mjs",
     "check:config": "node scripts/check-config.mjs",
     "check:deploy": "wrangler deploy --dry-run",
     "db:local": "wrangler d1 migrations apply triad-auth --local",
     "db:remote": "wrangler d1 migrations apply triad-auth --remote",
-    "deploy": "vp run build && wrangler deploy",
-    "dev": "vp run build && wrangler dev --var ISSUER:http://localhost:8787",
-    "keygen": "node scripts/generate-key.mjs"
+    "deploy": "vp run build && vp exec wrangler deploy",
+    "dev": "CLOUDFLARE_ENV=local vp exec astro dev",
+    "keygen": "node scripts/generate-key.mjs",
+    "preview": "vp run build && vp exec astro preview"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^14.1.2",
     "@fontsource-variable/archivo": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "astro": "^7.0.7",
@@ -25,7 +28,7 @@
     "typescript": "^6.0.3",
     "vite-plus": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "^4.24.3"
+    "wrangler": "^4.110.0"
   },
   "packageManager": "pnpm@11.11.0"
 }

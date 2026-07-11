@@ -4,7 +4,7 @@
 
 **Goal:** Correct landing-page composition and build Triad through Astro's official Cloudflare Vite-plugin integration without changing protocol behavior.
 
-**Architecture:** Move visual evidence earlier and constrain the device callout with responsive typography. Install `@astrojs/cloudflare`, prerender all pages into Workers Assets, and connect the custom Hono Worker to Astro's Cloudflare-aware Hono middleware while retaining API route ownership.
+**Architecture:** Move visual evidence earlier and constrain the device callout with responsive typography. Install `@astrojs/cloudflare`, prerender all pages into Workers Assets, and let the custom Hono Worker delegate Astro's private prerender control requests to the Cloudflare handler while retaining API route ownership and its direct asset fallback.
 
 **Tech Stack:** Astro 7, `@astrojs/cloudflare`, `@cloudflare/vite-plugin`, Vite+ TypeScript 6, Hono, Wrangler, Workers Assets, D1.
 
@@ -69,7 +69,7 @@ git commit -m "fix: strengthen landing page rhythm"
 git push origin main
 ```
 
-### Task 2: Cloudflare Astro adapter and Hono pipeline
+### Task 2: Cloudflare Astro adapter and prerender bridge
 
 **Files:**
 
@@ -90,7 +90,7 @@ git push origin main
 **Interfaces:**
 
 - Adds: `@astrojs/cloudflare` adapter with `imageService: "passthrough"`.
-- Adds: Astro Cloudflare middleware from `@astrojs/cloudflare/hono` and `astro/hono`.
+- Adds: Astro's custom-entrypoint handler from `@astrojs/cloudflare/handler`.
 - Keeps: Hono's `ExportedHandler<Env>` default export and Wrangler `main = "src/index.ts"`.
 
 - [ ] **Step 1: Write failing configuration tests**
@@ -106,7 +106,9 @@ expect(packageJson.scripts.deploy).toBe("vp run build && vp exec wrangler deploy
 expect(astroConfig).toContain('from "@astrojs/cloudflare"');
 expect(astroConfig).toContain("adapter: cloudflare(");
 expect(astroConfig).toContain('output: "server"');
-expect(applicationSources.every((source) => source.includes("export const prerender = true"))).toBe(true);
+expect(applicationSources.every((source) => source.includes("export const prerender = true"))).toBe(
+  true,
+);
 ```
 
 - [ ] **Step 2: Run the config test and verify expected failure**
@@ -139,26 +141,27 @@ export default defineConfig({
 
 Add `export const prerender = true;` to every Astro page frontmatter.
 
-- [ ] **Step 5: Connect the Hono Worker to Astro's Cloudflare pipeline**
+- [ ] **Step 5: Delegate Astro prerender requests to the Cloudflare handler**
 
-Add Cloudflare setup before application routes and Astro route handlers after protocol routes:
+Keep application routes and ordinary asset fallback unchanged, and route only Astro's private build requests through the adapter handler:
 
 ```ts
-import { cf } from "@astrojs/cloudflare/hono";
-import { actions, i18n, middleware, pages } from "astro/hono";
+app.notFound(async (c) => {
+  if (isProtocolPath(c.req.path)) {
+    return c.text("404 Not Found", 404);
+  }
 
-app.use("*", securityHeaders());
-app.use(cf());
-app.use(actions());
-app.use(middleware());
-app.route("/", oauthRoutes);
-app.route("/", deviceRoutes);
-app.route("/", accountRoutes);
-app.use(pages());
-app.use(i18n());
+  if (c.req.path.startsWith("/__astro_")) {
+    const { handle } = await import("@astrojs/cloudflare/handler");
+
+    return handle(c.req.raw, c.env, c.executionCtx);
+  }
+
+  return c.env.ASSETS.fetch(c.req.raw);
+});
 ```
 
-Retain the existing protocol-aware `notFound` behavior and `ASSETS` fallback.
+The dynamic import keeps Node-based route tests from resolving the workerd-only `cloudflare:workers` module. Runtime pages remain static assets and preserve the existing security-header middleware path.
 
 - [ ] **Step 6: Normalize scripts and Vite+ task ownership**
 
