@@ -7,12 +7,7 @@ import { enabledProviders, startProvider } from "../providers";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { consumeCsrfToken, createCsrfToken } from "../security";
 import type { Env, ProviderName } from "../types";
-import {
-  oauthError,
-  parseOAuthForm,
-  rejectDuplicateParameters,
-  requireSameOrigin,
-} from "./oauth";
+import { oauthError, parseOAuthForm, rejectDuplicateParameters, requireSameOrigin } from "./oauth";
 
 const now = () => Math.floor(Date.now() / 1000);
 const providers = new Set<ProviderName>(["google", "github", "twitter"]);
@@ -25,10 +20,7 @@ interface BrowserSession {
 
 const accountPurpose = (sessionHash: string) => `account:${sessionHash}`;
 
-async function requireSession(
-  db: D1Database,
-  token?: string,
-): Promise<BrowserSession | null> {
+async function requireSession(db: D1Database, token?: string): Promise<BrowserSession | null> {
   if (!token) {
     return null;
   }
@@ -149,11 +141,7 @@ accountRoutes.get("/api/me", async (c) => {
 
   const providerSubs = await Promise.all(
     identities.results.map((row) =>
-      providerSubject(
-        c.env.PAIRWISE_SECRET,
-        row.provider as ProviderName,
-        row.provider_user_id,
-      ),
+      providerSubject(c.env.PAIRWISE_SECRET, row.provider as ProviderName, row.provider_user_id),
     ),
   );
 
@@ -161,10 +149,7 @@ accountRoutes.get("/api/me", async (c) => {
     account_sub: session.accountId,
     identities: providerSubs,
     clients: clients.results,
-    csrf_token: await createCsrfToken(
-      c.env.DB,
-      accountPurpose(session.sessionHash),
-    ),
+    csrf_token: await createCsrfToken(c.env.DB, accountPurpose(session.sessionHash)),
   });
 });
 
@@ -179,11 +164,7 @@ accountRoutes.delete("/api/me/clients/:clientId", async (c) => {
     return oauthError("login_required", undefined, 401);
   }
 
-  const authorizationError = await authorizeMutation(
-    c.env.DB,
-    session,
-    c.req.raw,
-  );
+  const authorizationError = await authorizeMutation(c.env.DB, session, c.req.raw);
   if (authorizationError) {
     return authorizationError;
   }
@@ -204,10 +185,7 @@ accountRoutes.delete("/api/me/clients/:clientId", async (c) => {
   }
 
   return c.json({
-    csrf_token: await createCsrfToken(
-      c.env.DB,
-      accountPurpose(session.sessionHash),
-    ),
+    csrf_token: await createCsrfToken(c.env.DB, accountPurpose(session.sessionHash)),
   });
 });
 
@@ -222,18 +200,12 @@ accountRoutes.post("/session/logout", async (c) => {
     return oauthError("login_required", undefined, 401);
   }
 
-  const authorizationError = await authorizeMutation(
-    c.env.DB,
-    session,
-    c.req.raw,
-  );
+  const authorizationError = await authorizeMutation(c.env.DB, session, c.req.raw);
   if (authorizationError) {
     return authorizationError;
   }
 
-  const result = await c.env.DB.prepare(
-    "DELETE FROM browser_sessions WHERE session_hash = ?",
-  )
+  const result = await c.env.DB.prepare("DELETE FROM browser_sessions WHERE session_hash = ?")
     .bind(session.sessionHash)
     .run();
 

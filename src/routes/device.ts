@@ -28,6 +28,7 @@ function parseStoredScopes(value: string): Scope[] {
   if (!Array.isArray(stored) || !stored.every((scope) => typeof scope === "string")) {
     throw new Error("invalid stored scopes");
   }
+
   const scopes = parseScopes(stored.join(" "));
   if (JSON.stringify(scopes) !== JSON.stringify(stored)) {
     throw new Error("invalid stored scopes");
@@ -60,38 +61,47 @@ deviceRoutes.post("/device/code", async (c) => {
   ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
+
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) {
     return form;
   }
+
   const duplicateError = rejectDuplicateParameters(form, ["client_id", "provider", "scope"]);
   if (duplicateError) {
     return duplicateError;
   }
+
   const clientId = form.get("client_id") ?? "";
   if (!clientId || clientId.length > clientIdLimit) {
     return oauthError("invalid_client");
   }
+
   const providerValue = form.get("provider");
   const provider =
     providerValue && providerValue.length <= providerLimit ? parseProvider(providerValue) : null;
+
   if (!provider) {
     return oauthError("invalid_request", "unsupported provider");
   }
   if (!enabledProviders(c.env).includes(provider)) {
     return oauthError("invalid_request", "provider unavailable");
   }
+
   let scopes: Scope[];
+
   try {
     scopes = parseScopes(form.get("scope") ?? undefined);
     validateProviderScopes(provider, scopes);
   } catch {
     return oauthError("invalid_scope");
   }
+
   const client = await getClient(c.env.DB, clientId);
   if (!client) {
     return oauthError("invalid_client");
   }
+
   try {
     validateClient(client, null, provider, c.env.ISSUER);
   } catch (error) {
@@ -99,12 +109,16 @@ deviceRoutes.post("/device/code", async (c) => {
   }
 
   await cleanupExpiredState(c.env.DB);
+
   const deviceCode = randomToken(32);
   const deviceCodeHash = await sha256(deviceCode);
+
   let userCode = "";
   let inserted = false;
+
   for (let attempt = 0; attempt < userCodeAttempts; attempt++) {
     userCode = makeUserCode();
+
     const normalized = normalizeUserCode(userCode);
     const result = await c.env.DB.prepare(
       `INSERT OR IGNORE INTO device_grants
@@ -121,17 +135,21 @@ deviceRoutes.post("/device/code", async (c) => {
         now(),
       )
       .run();
+
     if (result.meta.changes === 1) {
       inserted = true;
       break;
     }
+
     const collision = await c.env.DB.prepare("SELECT 1 FROM device_grants WHERE user_code = ?")
       .bind(normalized)
       .first();
+
     if (!collision) {
       return oauthError("server_error", undefined, 500);
     }
   }
+
   if (!inserted) {
     return oauthError("server_error", undefined, 500);
   }
@@ -160,10 +178,12 @@ deviceRoutes.get("/api/device/:code", async (c) => {
   ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
+
   const code = validUserCode(c.req.param("code"));
   if (!code) {
     return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
   }
+
   const row = await c.env.DB.prepare(
     `SELECT d.device_code_hash, d.client_id, c.name AS client_name,
       d.provider, d.scopes, d.expires_at
@@ -179,13 +199,16 @@ deviceRoutes.get("/api/device/:code", async (c) => {
       scopes: string;
       expires_at: number;
     }>();
+
   if (!row) {
     return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
   }
+
   const client = await getClient(c.env.DB, row.client_id);
   if (!client) {
     return oauthError("unauthorized_client", undefined, 404);
   }
+
   try {
     validateClient(client, null, row.provider, c.env.ISSUER);
   } catch (error) {
@@ -206,23 +229,28 @@ deviceRoutes.post("/device/verify", async (c) => {
   if (originError) {
     return originError;
   }
+
   const form = await parseOAuthForm(c.req.raw);
   if (form instanceof Response) {
     return form;
   }
+
   const duplicateError = rejectDuplicateParameters(form, ["user_code", "provider", "csrf_token"]);
   if (duplicateError) {
     return duplicateError;
   }
+
   const userCode = validUserCode(form.get("user_code") ?? "");
   const providerValue = form.get("provider") ?? "";
   const provider = providerValue.length <= providerLimit ? parseProvider(providerValue) : null;
+
   if (!userCode) {
     return oauthError("invalid_grant", "invalid or expired user code");
   }
   if (!provider) {
     return oauthError("invalid_request", "unsupported provider");
   }
+
   const grant = await c.env.DB.prepare(
     `SELECT device_code_hash, client_id, provider, scopes FROM device_grants
     WHERE user_code = ? AND status = 'pending' AND expires_at > unixepoch()`,
@@ -234,6 +262,7 @@ deviceRoutes.post("/device/verify", async (c) => {
       provider: ProviderName;
       scopes: string;
     }>();
+
   if (!grant) {
     return oauthError("invalid_grant", "invalid or expired user code");
   }
@@ -243,15 +272,18 @@ deviceRoutes.post("/device/verify", async (c) => {
   if (!enabledProviders(c.env).includes(provider)) {
     return oauthError("invalid_request", "provider unavailable");
   }
+
   const client = await getClient(c.env.DB, grant.client_id);
   if (!client) {
     return oauthError("unauthorized_client");
   }
+
   try {
     validateClient(client, null, provider, c.env.ISSUER);
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message);
   }
+
   if (
     !(await consumeCsrfToken(
       c.env.DB,
@@ -267,6 +299,7 @@ deviceRoutes.post("/device/verify", async (c) => {
   const scopes = parseStoredScopes(grant.scopes);
   const start = await startProvider(provider, c.env, upstreamState, scopes);
   const binding = await createPreAuthBinding();
+
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(
     `INSERT INTO oauth_transactions
@@ -287,6 +320,7 @@ deviceRoutes.post("/device/verify", async (c) => {
       now(),
     )
     .run();
+
   setPreAuthCookie(c, stateHash, binding.token, provider);
 
   return c.json({ redirect_to: start.url });
