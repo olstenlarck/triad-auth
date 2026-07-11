@@ -381,7 +381,7 @@ it("caps long transaction headings at narrow viewports", async () => {
   );
 
   expect(mobile).toMatch(/#consent-title\s*\{\s*font-size: clamp\(2\.2rem, 11vw, 3\.7rem\);\s*\}/);
-  expect(mobile).toMatch(/#callback-title\s*\{\s*font-size: clamp\(2\.8rem, 14vw, 3\.7rem\);\s*\}/);
+  expect(mobile).toMatch(/#callback-title\s*\{\s*font-size: clamp\(2\.2rem, 11vw, 3\.7rem\);\s*\}/);
   expect(mobile).toMatch(/\.device-app\s*\{\s*flex-direction: column;\s*\}/);
 });
 

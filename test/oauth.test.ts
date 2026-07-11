@@ -341,6 +341,37 @@ describe("authorization-code routes", () => {
     }
   });
 
+  it("resets prototype identity state without deleting clients or rate limits", async () => {
+    const sqlite = await SqliteD1.create(["0001_init.sql", "0002_multi_provider.sql"]);
+    const db = sqlite as unknown as D1Database;
+
+    try {
+      await db.batch([
+        db.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_legacy', 1)"),
+        db.prepare(`INSERT INTO identities (provider, provider_user_id, account_id, created_at)
+          VALUES ('github', '42', 'acct_legacy', 1)`),
+        db.prepare(`INSERT INTO consents (account_id, client_id, scopes, updated_at)
+          VALUES ('acct_legacy', 'triad-demo', '["openid"]', 1)`),
+        db.prepare(`INSERT INTO browser_sessions (session_hash, account_id, expires_at, created_at)
+          VALUES ('session', 'acct_legacy', 9999999999, 1)`),
+        db.prepare(`INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at)
+          VALUES ('csrf', 'account:session', 9999999999, 1)`),
+        db.prepare(`INSERT INTO rate_limits (bucket, key_hash, window_start, expires_at, count)
+          VALUES ('test', 'key', 1, 9999999999, 1)`),
+      ]);
+
+      sqlite.applyMigration("0003_reset_subject_formats.sql");
+
+      for (const table of ["accounts", "identities", "consents", "browser_sessions", "csrf_tokens"]) {
+        expect(await db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first("count")).toBe(0);
+      }
+      expect(await db.prepare("SELECT COUNT(*) AS count FROM clients").first("count")).toBe(2);
+      expect(await db.prepare("SELECT COUNT(*) AS count FROM rate_limits").first("count")).toBe(1);
+    } finally {
+      sqlite.close();
+    }
+  });
+
   it.each([
     ["google", { GOOGLE_CLIENT_ID: "google-client", GOOGLE_CLIENT_SECRET: "google-secret" }],
     ["github", {}],

@@ -1173,7 +1173,7 @@ h3 {
     font-size: clamp(2.2rem, 11vw, 3.7rem);
   }
   #callback-title {
-    font-size: clamp(2.8rem, 14vw, 3.7rem);
+    font-size: clamp(2.2rem, 11vw, 3.7rem);
   }
   .site-footer {
     align-items: flex-start;
