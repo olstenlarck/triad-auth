@@ -8,6 +8,7 @@ export async function cleanupExpiredState(db: D1Database): Promise<void> {
   }
 
   const timestamp = Math.floor(Date.now() / 1000);
+
   await db.batch([
     db
       .prepare(

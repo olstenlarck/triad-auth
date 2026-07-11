@@ -13,18 +13,8 @@ app.route("/", deviceRoutes);
 app.route("/", accountRoutes);
 
 app.notFound((c) => {
-  const protocolPaths = new Set([
-    "/authorize",
-    "/token",
-    "/device/code",
-    "/device/verify",
-  ]);
-  const protocolPrefixes = [
-    "/callback/",
-    "/session/",
-    "/api/",
-    "/.well-known/",
-  ];
+  const protocolPaths = new Set(["/authorize", "/token", "/device/code", "/device/verify"]);
+  const protocolPrefixes = ["/callback/", "/session/", "/api/", "/.well-known/"];
 
   if (
     protocolPaths.has(c.req.path) ||

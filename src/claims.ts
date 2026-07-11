@@ -46,6 +46,7 @@ export function providerScopes(provider: ProviderName): ProfileScope[] {
 export function validateProviderScopes(provider: ProviderName, scopes: readonly Scope[]): void {
   const canonical = parseScopes(scopes.join(" "));
   const supported = new Set(capabilities[provider]);
+
   if (canonical.some((scope) => scope !== "openid" && !supported.has(scope))) {
     throw new Error("invalid_scope");
   }
@@ -55,15 +56,18 @@ export function validateProfileClaims(value: unknown): ProfileClaims {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("invalid profile claims");
   }
+
   const claims = value as Record<string, unknown>;
   if (Object.keys(claims).some((key) => !profileClaimKeys.has(key as keyof ProfileClaims))) {
     throw new Error("invalid profile claims");
   }
+
   for (const key of ["email", "preferred_username", "name", "picture"] as const) {
     if (key in claims && (typeof claims[key] !== "string" || claims[key].length === 0)) {
       throw new Error("invalid profile claims");
     }
   }
+
   if ("email_verified" in claims && typeof claims.email_verified !== "boolean") {
     throw new Error("invalid profile claims");
   }

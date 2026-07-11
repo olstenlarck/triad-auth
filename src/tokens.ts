@@ -21,11 +21,7 @@ export async function issueIdToken(
     kid?: string;
   };
   const key = await importJWK(privateJwk, "ES256");
-  const pairwiseSub = await pairwiseSubject(
-    env.PAIRWISE_SECRET,
-    accountId,
-    clientId,
-  );
+  const pairwiseSub = await pairwiseSubject(env.PAIRWISE_SECRET, accountId, clientId);
 
   const profileClaims = validateProfileClaims(claims);
 
@@ -59,17 +55,13 @@ export async function publicJwk(env: Env): Promise<Record<string, unknown>> {
     typeof jwk.y !== "string" ||
     typeof jwk.d !== "string"
   ) {
-    throw new Error(
-      "SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key",
-    );
+    throw new Error("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
   }
 
   try {
     await importJWK(jwk as JsonWebKey, "ES256");
   } catch {
-    throw new Error(
-      "SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key",
-    );
+    throw new Error("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
   }
 
   return {
