@@ -140,15 +140,15 @@ vp run build
 The public broker is deployed at:
 
 ```text
-https://triad-auth-broker.equator-owl-studio.workers.dev
+https://triad.wgw.lol
 ```
 
 Supported callback paths on this issuer are:
 
 ```text
-https://triad-auth-broker.equator-owl-studio.workers.dev/callback/google
-https://triad-auth-broker.equator-owl-studio.workers.dev/callback/github
-https://triad-auth-broker.equator-owl-studio.workers.dev/callback/twitter
+https://triad.wgw.lol/callback/google
+https://triad.wgw.lol/callback/github
+https://triad.wgw.lol/callback/twitter
 ```
 
 These callback paths describe adapter support, not provider enablement. `/api/providers` is authoritative for which providers are currently enabled; only providers with complete credential pairs appear there or in provider controls.
@@ -185,7 +185,7 @@ vp run deploy
 Verify the deployment:
 
 ```sh
-ISSUER="https://triad-auth-broker.equator-owl-studio.workers.dev"
+ISSUER="https://triad.wgw.lol"
 curl --fail "$ISSUER/api/providers"
 curl --fail "$ISSUER/.well-known/openid-configuration"
 curl --fail "$ISSUER/.well-known/jwks.json"

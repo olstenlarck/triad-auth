@@ -34,6 +34,7 @@ describe("browser and response safety", () => {
   it("applies security headers to static assets served through the Worker fallback", async () => {
     let requestedUrl = "";
     const env = {
+      ISSUER: "https://auth.example",
       ASSETS: {
         fetch: async (request: Request) => {
           requestedUrl = request.url;
@@ -58,6 +59,7 @@ describe("browser and response safety", () => {
 
   it("applies security headers when Workers Assets returns immutable headers", async () => {
     const env = {
+      ISSUER: "https://auth.example",
       ASSETS: {
         fetch: () => fetch("data:text/html,%3Ch1%3Estatic%20page%3C%2Fh1%3E"),
       } as unknown as Fetcher,

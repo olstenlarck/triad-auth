@@ -124,7 +124,7 @@ describe("deployment configuration", () => {
     expect(viteConfig).toContain("vp exec astro build");
     expect(viteConfig).not.toContain("scripts: true");
     expect(viteConfig).toContain('"**/*.{ts,tsx,js,jsx,mjs,cjs,astro,css,toml,json,yaml}"');
-    expect(config).toContain('ISSUER = "https://triad-auth-broker.equator-owl-studio.workers.dev"');
+    expect(config).toContain('ISSUER = "https://triad.wgw.lol"');
     expect(config).toContain('[env.local.vars]\nISSUER = "http://localhost:4321"');
   });
 
@@ -307,7 +307,7 @@ describe("deployment configuration", () => {
         /^- (?:Local|Production)(?: callback)?: `([^`]+\/callback\/(?:google|github|twitter))`$/gm,
       ),
     ].map((match) => match[1]);
-    const issuer = "https://triad-auth-broker.equator-owl-studio.workers.dev";
+    const issuer = "https://triad.wgw.lol";
 
     expect(readme).toContain("https://console.cloud.google.com/auth/clients");
     expect(readme).toContain("https://console.cloud.google.com/auth/overview");

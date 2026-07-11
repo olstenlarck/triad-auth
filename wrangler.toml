@@ -9,7 +9,7 @@ database_id = "96cf3b9f-ab29-4e04-ac26-9e71a2fd3f2f"
 migrations_dir = "migrations"
 
 [vars]
-ISSUER = "https://triad-auth-broker.equator-owl-studio.workers.dev"
+ISSUER = "https://triad.wgw.lol"
 
 [env.local.vars]
 ISSUER = "http://localhost:4321"

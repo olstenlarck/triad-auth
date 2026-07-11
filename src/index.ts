@@ -8,8 +8,35 @@ import type { Env } from "./types";
 const app = new Hono<{ Bindings: Env }>();
 const protocolPaths = new Set(["/authorize", "/token", "/device/code", "/device/verify"]);
 const protocolPrefixes = ["/callback/", "/session/", "/account/", "/api/", "/.well-known/"];
+const browserPagePaths = new Set([
+  "/",
+  "/consent/",
+  "/demo/",
+  "/demo/callback/",
+  "/device/verify/",
+  "/me/",
+]);
 
 app.use("*", securityHeaders());
+app.use("*", async (c, next) => {
+  const requestUrl = new URL(c.req.url);
+  const issuer = new URL(c.env.ISSUER);
+  const localRequest = requestUrl.hostname === "localhost";
+
+  if (
+    c.req.method === "GET" &&
+    !localRequest &&
+    requestUrl.origin !== issuer.origin &&
+    browserPagePaths.has(c.req.path)
+  ) {
+    return c.redirect(
+      new URL(`${requestUrl.pathname}${requestUrl.search}`, issuer).toString(),
+      308,
+    );
+  }
+
+  await next();
+});
 app.use("*", async (c, next) => {
   await next();
 
