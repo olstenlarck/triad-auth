@@ -362,7 +362,13 @@ describe("authorization-code routes", () => {
 
       sqlite.applyMigration("0003_reset_subject_formats.sql");
 
-      for (const table of ["accounts", "identities", "consents", "browser_sessions", "csrf_tokens"]) {
+      for (const table of [
+        "accounts",
+        "identities",
+        "consents",
+        "browser_sessions",
+        "csrf_tokens",
+      ]) {
         expect(await db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first("count")).toBe(0);
       }
       expect(await db.prepare("SELECT COUNT(*) AS count FROM clients").first("count")).toBe(2);
