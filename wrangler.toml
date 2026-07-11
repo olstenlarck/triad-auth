@@ -10,9 +10,11 @@ migrations_dir = "migrations"
 
 [vars]
 ISSUER = "https://triad.wgw.lol"
+PROVIDER_CALLBACK_ORIGIN = "https://triad-auth-broker.equator-owl-studio.workers.dev"
 
 [env.local.vars]
 ISSUER = "http://localhost:4321"
+PROVIDER_CALLBACK_ORIGIN = "http://localhost:4321"
 
 [[env.local.d1_databases]]
 binding = "DB"

@@ -54,14 +54,14 @@ vp install
 
 ## Provider app setup
 
-Provider redirect URIs must match exactly, including scheme, host, path, and trailing-slash absence. Use `http://localhost:4321` as the local issuer. For production, replace `<ISSUER>` below with the stable HTTPS Worker origin, with no trailing slash.
+Provider redirect URIs must match exactly, including scheme, host, path, and trailing-slash absence. Local callbacks use `http://localhost:4321`. Production keeps the already-registered Workers callback origin while `https://triad.wgw.lol` is the public issuer; the callback immediately returns code and state to the custom domain before exchange.
 
 ### Google
 
 Open [Google Auth Platform](https://console.cloud.google.com/auth/overview) to configure branding, audience, and required contact information. Then open [Google Auth Platform clients](https://console.cloud.google.com/auth/clients), select **Create client**, choose **Web application**, and add each environment you use under **Authorized redirect URIs**:
 
 - Local: `http://localhost:4321/callback/google`
-- Production: `<ISSUER>/callback/google`
+- Production: `https://triad-auth-broker.equator-owl-studio.workers.dev/callback/google`
 
 Save the generated client ID and client secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
@@ -71,8 +71,8 @@ Open [GitHub's new OAuth App form](https://github.com/settings/applications/new)
 
 - Local homepage: `http://localhost:4321`
 - Local callback: `http://localhost:4321/callback/github`
-- Production homepage: `<ISSUER>`
-- Production callback: `<ISSUER>/callback/github`
+- Production homepage: `https://triad.wgw.lol`
+- Production callback: `https://triad-auth-broker.equator-owl-studio.workers.dev/callback/github`
 
 A GitHub OAuth App supports one callback URL, so use separate apps or update the callback when switching environments. Save the client ID and generated client secret as `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
 
@@ -81,7 +81,7 @@ A GitHub OAuth App supports one callback URL, so use separate apps or update the
 Triad's canonical provider name is **Twitter** and its route/configuration identifier is always `twitter`; X branding and `x.com` hostnames are used only by the external provider portal and API endpoints. Open the [Twitter developer dashboard](https://developer.x.com/en/portal/dashboard) or [Projects & Apps](https://developer.x.com/en/portal/projects-and-apps), create or select an app, and open its user authentication settings. Enable OAuth 2.0, choose a confidential **Web App** client, and add the exact callback URI for each environment you use:
 
 - Local: `http://localhost:4321/callback/twitter`
-- Production: `<ISSUER>/callback/twitter`
+- Production: `https://triad-auth-broker.equator-owl-studio.workers.dev/callback/twitter`
 
 Set the website URL to the corresponding issuer. Save the OAuth 2.0 Client ID and Client Secret from **Keys and tokens** as `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET`. Triad requests only `tweet.read users.read`; it does not request offline access.
 
@@ -146,9 +146,9 @@ https://triad.wgw.lol
 Supported callback paths on this issuer are:
 
 ```text
-https://triad.wgw.lol/callback/google
-https://triad.wgw.lol/callback/github
-https://triad.wgw.lol/callback/twitter
+https://triad-auth-broker.equator-owl-studio.workers.dev/callback/google
+https://triad-auth-broker.equator-owl-studio.workers.dev/callback/github
+https://triad-auth-broker.equator-owl-studio.workers.dev/callback/twitter
 ```
 
 These callback paths describe adapter support, not provider enablement. `/api/providers` is authoritative for which providers are currently enabled; only providers with complete credential pairs appear there or in provider controls.

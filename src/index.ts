@@ -27,8 +27,13 @@ app.use("*", async (c, next) => {
     c.req.method === "GET" &&
     !localRequest &&
     requestUrl.origin !== issuer.origin &&
-    browserPagePaths.has(c.req.path)
+    (browserPagePaths.has(c.req.path) || c.req.path.startsWith("/callback/"))
   ) {
+    if (c.req.path.startsWith("/callback/")) {
+      c.header("cache-control", "no-store");
+      c.header("pragma", "no-cache");
+    }
+
     return c.redirect(
       new URL(`${requestUrl.pathname}${requestUrl.search}`, issuer).toString(),
       308,

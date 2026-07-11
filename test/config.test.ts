@@ -125,6 +125,9 @@ describe("deployment configuration", () => {
     expect(viteConfig).not.toContain("scripts: true");
     expect(viteConfig).toContain('"**/*.{ts,tsx,js,jsx,mjs,cjs,astro,css,toml,json,yaml}"');
     expect(config).toContain('ISSUER = "https://triad.wgw.lol"');
+    expect(config).toContain(
+      'PROVIDER_CALLBACK_ORIGIN = "https://triad-auth-broker.equator-owl-studio.workers.dev"',
+    );
     expect(config).toContain('[env.local.vars]\nISSUER = "http://localhost:4321"');
   });
 
@@ -307,7 +310,7 @@ describe("deployment configuration", () => {
         /^- (?:Local|Production)(?: callback)?: `([^`]+\/callback\/(?:google|github|twitter))`$/gm,
       ),
     ].map((match) => match[1]);
-    const issuer = "https://triad.wgw.lol";
+    const callbackOrigin = "https://triad-auth-broker.equator-owl-studio.workers.dev";
 
     expect(readme).toContain("https://console.cloud.google.com/auth/clients");
     expect(readme).toContain("https://console.cloud.google.com/auth/overview");
@@ -316,14 +319,14 @@ describe("deployment configuration", () => {
     expect(readme).toContain("https://developer.x.com/en/portal/projects-and-apps");
     expect(setupCallbacks).toEqual([
       "http://localhost:4321/callback/google",
-      "<ISSUER>/callback/google",
+      `${callbackOrigin}/callback/google`,
       "http://localhost:4321/callback/github",
-      "<ISSUER>/callback/github",
+      `${callbackOrigin}/callback/github`,
       "http://localhost:4321/callback/twitter",
-      "<ISSUER>/callback/twitter",
+      `${callbackOrigin}/callback/twitter`,
     ]);
     for (const provider of ["google", "github", "twitter"]) {
-      expect(readme).toContain(`${issuer}/callback/${provider}`);
+      expect(readme).toContain(`${callbackOrigin}/callback/${provider}`);
     }
   });
 

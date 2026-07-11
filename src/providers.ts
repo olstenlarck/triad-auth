@@ -46,7 +46,8 @@ export class MandatoryProfileValueError extends Error {
 
 const googleJwks = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 
-const callback = (provider: ProviderName, env: Env) => `${env.ISSUER}/callback/${provider}`;
+const callback = (provider: ProviderName, env: Env) =>
+  `${env.PROVIDER_CALLBACK_ORIGIN ?? env.ISSUER}/callback/${provider}`;
 
 const configured = (clientId?: string, clientSecret?: string) =>
   Boolean(clientId?.trim() && clientSecret?.trim());

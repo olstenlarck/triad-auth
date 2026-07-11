@@ -14,6 +14,7 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   ISSUER: string;
+  PROVIDER_CALLBACK_ORIGIN?: string;
   SIGNING_PRIVATE_JWK: string;
   PAIRWISE_SECRET: string;
   GITHUB_CLIENT_ID?: string;
