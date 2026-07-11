@@ -624,6 +624,14 @@ oauthRoutes.post("/token", async (c) => {
   if (suppliedClientId.length > clientIdLimit) {
     return oauthError("invalid_client");
   }
+  if (
+    grantType !== "authorization_code" &&
+    grantType !== "urn:ietf:params:oauth:grant-type:device_code"
+  ) {
+    const client = suppliedClientId ? await getClient(c.env.DB, suppliedClientId) : null;
+
+    return client ? oauthError("unsupported_grant_type") : oauthError("invalid_client");
+  }
 
   if (grantType === "authorization_code") {
     const code = form.get("code") ?? "";
