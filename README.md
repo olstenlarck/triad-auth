@@ -18,7 +18,7 @@ OIDC discovery reports `subject_types_supported: ["pairwise"]` because `pairwise
 
 Consent records retain approved scope names, not profile values. D1 stores requested profile values only as row-bound authenticated ciphertext. A winning authorization-code or approved device-grant exchange atomically deletes its row before decrypting the claims, physically removing the ciphertext while preserving one-winner redemption. Abandoned profile ciphertext is exchangeable only until the authorization code's two-minute TTL or the device grant's ten-minute TTL. After expiry it remains encrypted and inaccessible to exchange, even if its row is still physically present. Bounded, sampled, traffic-driven cleanup physically deletes expired rows when later requests trigger it, so physical retention can exceed the protocol TTL when no later traffic arrives. Upstream access tokens are discarded after the provider response is mapped.
 
-Broker browser sessions expire after 30 days. The hashed D1 session row and the secure browser cookie use the same lifetime.
+Broker browser sessions expire after seven days. The hashed D1 session row and the secure browser cookie use the same lifetime.
 
 Provider capabilities are:
 

@@ -513,7 +513,7 @@ describe("account sessions", () => {
 
     expect(response.status).toBe(302);
     const cookie = responseCookie(response, "triad_session");
-    expect(cookie.header).toContain("Max-Age=2592000");
+    expect(cookie.header).toContain("Max-Age=604800");
     expect(cookie.header).toContain("Path=/");
     expect(cookie.header).toContain("HttpOnly");
     expect(cookie.header).toContain("Secure");

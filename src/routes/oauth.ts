@@ -45,6 +45,7 @@ import { issueIdToken, publicJwk } from "../tokens";
 import type { Env, ProviderName, Scope, TransactionRow } from "../types";
 
 const now = () => Math.floor(Date.now() / 1000);
+const browserSessionLifetimeSeconds = 60 * 60 * 24 * 7;
 const consentPurpose = (requestHash: string) => `consent:${requestHash}`;
 const oauthBodyLimit = 4096;
 const clientIdLimit = 128;
@@ -205,7 +206,7 @@ async function rotateBrowserSession(
     c.env.DB.prepare(
       `INSERT INTO browser_sessions
     (session_hash, account_id, expires_at, created_at) VALUES (?, ?, ?, ?)`,
-    ).bind(await sha256(session), accountId, now() + 60 * 60 * 24 * 30, now()),
+    ).bind(await sha256(session), accountId, now() + browserSessionLifetimeSeconds, now()),
   );
   await c.env.DB.batch(statements);
   setCookie(c, "triad_session", session, {
@@ -213,7 +214,7 @@ async function rotateBrowserSession(
     secure: true,
     sameSite: "Lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 30,
+    maxAge: browserSessionLifetimeSeconds,
   });
 }
 
