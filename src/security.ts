@@ -37,18 +37,23 @@ export async function createCsrfToken(db: D1Database, purpose: string): Promise<
   await cleanupExpiredState(db);
   const token = randomToken();
   const createdAt = Math.floor(Date.now() / 1000);
-  await db.prepare(`INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, ?, ?)
+  await db
+    .prepare(
+      `INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, ?, ?)
     ON CONFLICT(purpose) DO UPDATE SET
       token_hash = excluded.token_hash,
       expires_at = excluded.expires_at,
-      created_at = excluded.created_at`)
-    .bind(await sha256(token), purpose, createdAt + csrfLifetimeSeconds, createdAt).run();
+      created_at = excluded.created_at`,
+    )
+    .bind(await sha256(token), purpose, createdAt + csrfLifetimeSeconds, createdAt)
+    .run();
   return token;
 }
 
 export async function consumeCsrfToken(db: D1Database, token: string, purpose: string): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000);
-  const result = await db.prepare("DELETE FROM csrf_tokens WHERE token_hash = ? AND purpose = ? AND expires_at > ?")
+  const result = await db
+    .prepare("DELETE FROM csrf_tokens WHERE token_hash = ? AND purpose = ? AND expires_at > ?")
     .bind(await sha256(token), purpose, now)
     .run();
   return result.meta.changes === 1;

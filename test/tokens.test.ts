@@ -44,9 +44,7 @@ it.each([
   const jwk = { ...(await exportJWK(privateKey)), [field]: value };
   const env = { SIGNING_PRIVATE_JWK: JSON.stringify(jwk) } as never;
 
-  await expect(publicJwk(env)).rejects.toThrow(
-    "SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key",
-  );
+  await expect(publicJwk(env)).rejects.toThrow("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
 });
 
 it("issues a pairwise standard subject plus explicit global subjects", async () => {
@@ -79,38 +77,41 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
   expect(payload).not.toHaveProperty("picture");
 });
 
-it.each([true, false])("issues exactly the supplied standard profile claims with email_verified=%s", async (emailVerified) => {
-  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
-  const env = {
-    ISSUER: "https://issuer.example",
-    PAIRWISE_SECRET: "s".repeat(32),
-    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
-  } as never;
-  const token = await issueIdToken(env, "triad-demo", "acct_123", validProviderSub, {
-    email: "user@example.com",
-    email_verified: emailVerified,
-    preferred_username: "mutable_handle",
-    picture: "https://images.example/user",
-  });
-  const key = await crypto.subtle.importKey(
-    "jwk",
-    await publicJwk(env),
-    { name: "ECDSA", namedCurve: "P-256" },
-    false,
-    ["verify"],
-  );
+it.each([true, false])(
+  "issues exactly the supplied standard profile claims with email_verified=%s",
+  async (emailVerified) => {
+    const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+    const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+    const env = {
+      ISSUER: "https://issuer.example",
+      PAIRWISE_SECRET: "s".repeat(32),
+      SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+    } as never;
+    const token = await issueIdToken(env, "triad-demo", "acct_123", validProviderSub, {
+      email: "user@example.com",
+      email_verified: emailVerified,
+      preferred_username: "mutable_handle",
+      picture: "https://images.example/user",
+    });
+    const key = await crypto.subtle.importKey(
+      "jwk",
+      await publicJwk(env),
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["verify"],
+    );
 
-  const { payload } = await jwtVerify(token, key);
+    const { payload } = await jwtVerify(token, key);
 
-  expect(payload).toMatchObject({
-    email: "user@example.com",
-    email_verified: emailVerified,
-    preferred_username: "mutable_handle",
-    picture: "https://images.example/user",
-  });
-  expect(payload).not.toHaveProperty("name");
-});
+    expect(payload).toMatchObject({
+      email: "user@example.com",
+      email_verified: emailVerified,
+      preferred_username: "mutable_handle",
+      picture: "https://images.example/user",
+    });
+    expect(payload).not.toHaveProperty("name");
+  },
+);
 
 it("rejects non-standard or malformed profile claims", async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
@@ -121,13 +122,12 @@ it("rejects non-standard or malformed profile claims", async () => {
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
 
-  await expect(issueIdToken(
-    env,
-    "triad-demo",
-    "acct_123",
-    validProviderSub,
-    { email: "user@example.com", role: "admin" } as never,
-  )).rejects.toThrow("invalid profile claims");
+  await expect(
+    issueIdToken(env, "triad-demo", "acct_123", validProviderSub, {
+      email: "user@example.com",
+      role: "admin",
+    } as never),
+  ).rejects.toThrow("invalid profile claims");
 });
 
 it("issues a five minute ID token", async () => {

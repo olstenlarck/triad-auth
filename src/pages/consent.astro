@@ -26,8 +26,9 @@ import Shell from "../components/Shell.astro";
       <a id="consent-restart" class="button secondary" href="/demo/" hidden>RETURN TO DEMO</a>
     </div>
     <p class="fine-print">
-      Triad shares only the claims you turn on. The app never receives the provider access token.
-      Triad stores approved scope names. Claims become non-exchangeable at expiry. Physical encrypted-row deletion is bounded, traffic-driven cleanup and can occur later.
+      Triad shares only the claims you turn on. The app never receives the provider access token. Triad stores
+      approved scope names. Claims become non-exchangeable at expiry. Physical encrypted-row deletion is
+      bounded, traffic-driven cleanup and can occur later.
     </p>
   </section>
 
@@ -59,7 +60,8 @@ import Shell from "../components/Shell.astro";
     }
 
     async function act(action: "approve" | "deny") {
-      if (!request || !csrfToken) return fail("This request is not ready. Reload the page to inspect it again.");
+      if (!request || !csrfToken)
+        return fail("This request is not ready. Reload the page to inspect it again.");
       approve.disabled = true;
       deny.disabled = true;
       error.hidden = true;
@@ -74,8 +76,9 @@ import Shell from "../components/Shell.astro";
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams(values),
         });
-        const body = await response.json() as { redirect_to?: string; error_description?: string };
-        if (!response.ok || !body.redirect_to) return fail(body.error_description ?? "This request could not be completed. Reload and try again.");
+        const body = (await response.json()) as { redirect_to?: string; error_description?: string };
+        if (!response.ok || !body.redirect_to)
+          return fail(body.error_description ?? "This request could not be completed. Reload and try again.");
         location.assign(body.redirect_to);
       } catch {
         fail("The broker could not complete this request. Reload the page to inspect it again.");
@@ -88,7 +91,7 @@ import Shell from "../components/Shell.astro";
       fetch(`/api/consent/${encodeURIComponent(request)}`)
         .then(async (response) => ({
           response,
-          body: await response.json() as {
+          body: (await response.json()) as {
             client_name?: string;
             provider?: string;
             scopes?: string[];
@@ -98,18 +101,22 @@ import Shell from "../components/Shell.astro";
         }))
         .then(({ response, body }) => {
           if (
-            !response.ok
-            || !body.csrf_token
-            || !body.provider
-            || !["google", "github", "twitter"].includes(body.provider)
-            || !Array.isArray(body.scopes)
-            || !body.scopes.includes("openid")
-          ) return fail(body.error_description ?? "This authorization request expired.");
+            !response.ok ||
+            !body.csrf_token ||
+            !body.provider ||
+            !["google", "github", "twitter"].includes(body.provider) ||
+            !Array.isArray(body.scopes) ||
+            !body.scopes.includes("openid")
+          )
+            return fail(body.error_description ?? "This authorization request expired.");
           csrfToken = body.csrf_token;
           document.querySelector("#client-name")!.textContent = body.client_name ?? "UNKNOWN APP";
           document.querySelector("#provider-name")!.textContent = body.provider.toUpperCase();
-          document.querySelector("#consent-summary")!.textContent = `${body.client_name ?? "This app"} wants to connect through ${body.provider}. Turn on only the requested profile claims you want to share.`;
-          document.querySelector(".app-glyph")!.textContent = (body.client_name ?? "A").slice(0, 1).toUpperCase();
+          document.querySelector("#consent-summary")!.textContent =
+            `${body.client_name ?? "This app"} wants to connect through ${body.provider}. Turn on only the requested profile claims you want to share.`;
+          document.querySelector(".app-glyph")!.textContent = (body.client_name ?? "A")
+            .slice(0, 1)
+            .toUpperCase();
           renderDisclosureControls(disclosures, body.scopes);
           panel.setAttribute("aria-busy", "false");
           approve.disabled = false;

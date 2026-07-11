@@ -37,11 +37,13 @@ export async function sealClaims(secret: string, context: string, claims: Profil
   const key = await claimsKey(secret);
   const validated = validateProfileClaims(claims);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv, additionalData: encoder.encode(context), tagLength: 128 },
-    key,
-    encoder.encode(JSON.stringify(validated)),
-  ));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv, additionalData: encoder.encode(context), tagLength: 128 },
+      key,
+      encoder.encode(JSON.stringify(validated)),
+    ),
+  );
   const payload = new Uint8Array(iv.length + ciphertext.length);
   payload.set(iv);
   payload.set(ciphertext, iv.length);

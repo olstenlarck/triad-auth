@@ -2,12 +2,18 @@
 import Shell from "../../components/Shell.astro";
 ---
 
-<Shell title="Verify identity | Triad" description="Verify a Triad ID token returned by the authorization-code flow." mode="product">
+<Shell
+  title="Verify identity | Triad"
+  description="Verify a Triad ID token returned by the authorization-code flow."
+  mode="product"
+>
   <section class="transaction shell narrow callback" aria-labelledby="callback-title">
     <div class="transaction-head">
       <p>VERIFYING IDENTITY</p>
       <h1 id="callback-title">CHECKING THE<br /><span>SIGNED RESULT.</span></h1>
-      <p id="callback-status" class="lede" aria-live="polite">Checking state before contacting the token endpoint.</p>
+      <p id="callback-status" class="lede" aria-live="polite">
+        Checking state before contacting the token endpoint.
+      </p>
     </div>
 
     <div id="callback-loading" class="verification-progress" aria-busy="true">
@@ -24,15 +30,30 @@ import Shell from "../../components/Shell.astro";
         <div><span>SIGNATURE VALID</span><h2 id="callback-result-title">VERIFIED IDENTITY</h2></div>
       </div>
       <dl class="verified-claims">
-        <div><dt>pairwise_sub</dt><dd id="callback-pairwise"></dd><small>App-scoped. Use this as triad-demo's private user key.</small></div>
-        <div><dt>account_sub</dt><dd id="callback-account"></dd><small>Broker-global. Correlates this account across Triad clients.</small></div>
-        <div><dt>provider_sub</dt><dd id="callback-provider"></dd><small>Provider-global and correlatable across Triad clients that receive it.</small></div>
+        <div>
+          <dt>pairwise_sub</dt><dd id="callback-pairwise"></dd><small
+            >App-scoped. Use this as triad-demo's private user key.</small
+          >
+        </div>
+        <div>
+          <dt>account_sub</dt><dd id="callback-account"></dd><small
+            >Broker-global. Correlates this account across Triad clients.</small
+          >
+        </div>
+        <div>
+          <dt>provider_sub</dt><dd id="callback-provider"></dd><small
+            >Provider-global and correlatable across Triad clients that receive it.</small
+          >
+        </div>
       </dl>
       <section id="callback-profile" class="verified-profile" aria-labelledby="callback-profile-title" hidden>
         <h3 id="callback-profile-title">SHARED CLAIMS</h3>
         <dl id="callback-profile-claims"></dl>
       </section>
-      <div class="verified-meta"><span>ISSUER</span><code id="callback-issuer"></code><span>EXPIRES</span><time id="callback-expiry"></time></div>
+      <div class="verified-meta">
+        <span>ISSUER</span><code id="callback-issuer"></code><span>EXPIRES</span><time id="callback-expiry"
+        ></time>
+      </div>
       <a class="button primary" href="/demo/">RUN ANOTHER FLOW</a>
     </section>
   </section>
@@ -115,10 +136,12 @@ import Shell from "../../components/Shell.astro";
                 code_verifier: verifier,
               }),
             });
-            const body = await response.json() as { id_token?: string; error_description?: string };
-            if (!response.ok || !body.id_token) throw new Error(body.error_description ?? "Token exchange failed.");
+            const body = (await response.json()) as { id_token?: string; error_description?: string };
+            if (!response.ok || !body.id_token)
+              throw new Error(body.error_description ?? "Token exchange failed.");
 
-            status.textContent = "Code exchanged. Verifying ES256 signature, issuer, audience, expiry, and identity claims.";
+            status.textContent =
+              "Code exchanged. Verifying ES256 signature, issuer, audience, expiry, and identity claims.";
             const verified = await verifyIdentityToken(body.id_token, clientId);
             document.querySelector<HTMLElement>("#callback-pairwise")!.textContent = verified.pairwiseSub;
             document.querySelector<HTMLElement>("#callback-account")!.textContent = verified.accountSub;
@@ -132,7 +155,9 @@ import Shell from "../../components/Shell.astro";
             identity.hidden = false;
             status.textContent = "The ID token is verified. These values came from its signed payload.";
           } catch {
-            fail("The returned ID token could not be exchanged or verified. Nothing from the token has been trusted or displayed.");
+            fail(
+              "The returned ID token could not be exchanged or verified. Nothing from the token has been trusted or displayed.",
+            );
           }
         })();
       }

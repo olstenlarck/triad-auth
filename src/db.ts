@@ -27,8 +27,10 @@ export interface ApprovedDeviceGrantRow {
 }
 
 export async function getClient(db: D1Database, clientId: string): Promise<ClientRow | null> {
-  return db.prepare("SELECT client_id, name, redirect_uris, providers FROM clients WHERE client_id = ?")
-    .bind(clientId).first<ClientRow>();
+  return db
+    .prepare("SELECT client_id, name, redirect_uris, providers FROM clients WHERE client_id = ?")
+    .bind(clientId)
+    .first<ClientRow>();
 }
 
 export function validateClient(
@@ -37,12 +39,15 @@ export function validateClient(
   provider: ProviderName,
   issuer: string,
 ): void {
-  const redirectUris: unknown = client.client_id === "triad-demo"
-    ? [`${issuer}/demo/callback/`]
-    : JSON.parse(client.redirect_uris);
+  const redirectUris: unknown =
+    client.client_id === "triad-demo" ? [`${issuer}/demo/callback/`] : JSON.parse(client.redirect_uris);
   const providers: unknown = JSON.parse(client.providers);
-  if (!Array.isArray(redirectUris) || !redirectUris.every((value) => typeof value === "string")
-    || !Array.isArray(providers) || !providers.every((value) => typeof value === "string")) {
+  if (
+    !Array.isArray(redirectUris) ||
+    !redirectUris.every((value) => typeof value === "string") ||
+    !Array.isArray(providers) ||
+    !providers.every((value) => typeof value === "string")
+  ) {
     throw new Error("invalid client allowlist");
   }
   if (redirectUri !== null && !redirectUris.includes(redirectUri)) {
@@ -58,13 +63,19 @@ export async function consumeTransaction(
   stateHash: string,
   browserBindingHash: string,
 ): Promise<TransactionRow | null> {
-  const row = await db.prepare("SELECT * FROM oauth_transactions WHERE state_hash = ? AND expires_at > unixepoch()")
-    .bind(stateHash).first<TransactionRow>();
+  const row = await db
+    .prepare("SELECT * FROM oauth_transactions WHERE state_hash = ? AND expires_at > unixepoch()")
+    .bind(stateHash)
+    .first<TransactionRow>();
   if (!row || !timingSafeEqual(row.browser_binding_hash, browserBindingHash)) return null;
-  return db.prepare(`DELETE FROM oauth_transactions
+  return db
+    .prepare(
+      `DELETE FROM oauth_transactions
     WHERE state_hash = ? AND browser_binding_hash = ? AND expires_at > unixepoch()
-    RETURNING *`)
-    .bind(stateHash, browserBindingHash).first<TransactionRow>();
+    RETURNING *`,
+    )
+    .bind(stateHash, browserBindingHash)
+    .first<TransactionRow>();
 }
 
 export async function getAuthorizationCode(
@@ -73,9 +84,13 @@ export async function getAuthorizationCode(
   clientId: string,
   redirectUri: string,
 ): Promise<AuthorizationCodeCandidateRow | null> {
-  return db.prepare(`SELECT code_challenge, provider FROM authorization_codes
-    WHERE code_hash = ? AND client_id = ? AND redirect_uri = ? AND consumed_at IS NULL AND expires_at > unixepoch()`)
-    .bind(codeHash, clientId, redirectUri).first<AuthorizationCodeCandidateRow>();
+  return db
+    .prepare(
+      `SELECT code_challenge, provider FROM authorization_codes
+    WHERE code_hash = ? AND client_id = ? AND redirect_uri = ? AND consumed_at IS NULL AND expires_at > unixepoch()`,
+    )
+    .bind(codeHash, clientId, redirectUri)
+    .first<AuthorizationCodeCandidateRow>();
 }
 
 export async function consumeAuthorizationCode(
@@ -84,10 +99,14 @@ export async function consumeAuthorizationCode(
   clientId: string,
   redirectUri: string,
 ): Promise<AuthorizationCodeRow | null> {
-  return db.prepare(`DELETE FROM authorization_codes
+  return db
+    .prepare(
+      `DELETE FROM authorization_codes
     WHERE code_hash = ? AND client_id = ? AND redirect_uri = ? AND consumed_at IS NULL AND expires_at > unixepoch()
-    RETURNING account_id, provider, provider_sub, code_challenge, scopes, claims_ciphertext`)
-    .bind(codeHash, clientId, redirectUri).first<AuthorizationCodeRow>();
+    RETURNING account_id, provider, provider_sub, code_challenge, scopes, claims_ciphertext`,
+    )
+    .bind(codeHash, clientId, redirectUri)
+    .first<AuthorizationCodeRow>();
 }
 
 export async function approveDeviceGrant(
@@ -98,17 +117,25 @@ export async function approveDeviceGrant(
   claimsCiphertext: string | null,
   scopes: readonly Scope[],
 ): Promise<boolean> {
-  const result = await db.prepare(`UPDATE device_grants
+  const result = await db
+    .prepare(
+      `UPDATE device_grants
     SET status = 'approved', account_id = ?, provider_sub = ?, claims_ciphertext = ?, scopes = ?
-    WHERE device_code_hash = ? AND status = 'pending' AND expires_at > unixepoch()`)
-    .bind(accountId, providerSub, claimsCiphertext, JSON.stringify(scopes), deviceCodeHash).run();
+    WHERE device_code_hash = ? AND status = 'pending' AND expires_at > unixepoch()`,
+    )
+    .bind(accountId, providerSub, claimsCiphertext, JSON.stringify(scopes), deviceCodeHash)
+    .run();
   return result.meta.changes === 1;
 }
 
 export async function denyDeviceGrant(db: D1Database, deviceCodeHash: string): Promise<boolean> {
-  const result = await db.prepare(`UPDATE device_grants SET status = 'denied'
-    WHERE device_code_hash = ? AND status = 'pending' AND expires_at > unixepoch()`)
-    .bind(deviceCodeHash).run();
+  const result = await db
+    .prepare(
+      `UPDATE device_grants SET status = 'denied'
+    WHERE device_code_hash = ? AND status = 'pending' AND expires_at > unixepoch()`,
+    )
+    .bind(deviceCodeHash)
+    .run();
   return result.meta.changes === 1;
 }
 
@@ -117,21 +144,29 @@ export async function consumeApprovedDeviceGrant(
   deviceCodeHash: string,
   clientId: string,
 ): Promise<ApprovedDeviceGrantRow | null> {
-  return db.prepare(`DELETE FROM device_grants
+  return db
+    .prepare(
+      `DELETE FROM device_grants
     WHERE device_code_hash = ? AND client_id = ? AND status = 'approved'
       AND consumed_at IS NULL AND account_id IS NOT NULL AND provider_sub IS NOT NULL
       AND expires_at > unixepoch()
-    RETURNING account_id, provider_sub, scopes, claims_ciphertext`)
-    .bind(deviceCodeHash, clientId).first<ApprovedDeviceGrantRow>();
+    RETURNING account_id, provider_sub, scopes, claims_ciphertext`,
+    )
+    .bind(deviceCodeHash, clientId)
+    .first<ApprovedDeviceGrantRow>();
 }
 
 export async function getDeviceGrantState(
   db: D1Database,
   deviceCodeHash: string,
 ): Promise<DeviceGrantStateRow | null> {
-  return db.prepare(`SELECT client_id, status, expires_at, provider FROM device_grants
-    WHERE device_code_hash = ?`)
-    .bind(deviceCodeHash).first<DeviceGrantStateRow>();
+  return db
+    .prepare(
+      `SELECT client_id, status, expires_at, provider FROM device_grants
+    WHERE device_code_hash = ?`,
+    )
+    .bind(deviceCodeHash)
+    .first<DeviceGrantStateRow>();
 }
 
 export async function pollPendingDeviceGrant(
@@ -139,22 +174,33 @@ export async function pollPendingDeviceGrant(
   deviceCodeHash: string,
   clientId: string,
 ): Promise<"authorization_pending" | "slow_down" | null> {
-  const slow = () => db.prepare(`UPDATE device_grants
+  const slow = () =>
+    db
+      .prepare(
+        `UPDATE device_grants
     SET interval_seconds = interval_seconds + 5, last_polled_at = unixepoch()
     WHERE device_code_hash = ? AND client_id = ? AND status = 'pending' AND consumed_at IS NULL
       AND expires_at > unixepoch() AND last_polled_at IS NOT NULL
       AND unixepoch() - last_polled_at < interval_seconds
-    RETURNING device_code_hash`).bind(deviceCodeHash, clientId).first();
+    RETURNING device_code_hash`,
+      )
+      .bind(deviceCodeHash, clientId)
+      .first();
   if (await slow()) return "slow_down";
 
-  const accepted = await db.prepare(`UPDATE device_grants SET last_polled_at = unixepoch()
+  const accepted = await db
+    .prepare(
+      `UPDATE device_grants SET last_polled_at = unixepoch()
     WHERE device_code_hash = ? AND client_id = ? AND status = 'pending' AND consumed_at IS NULL
       AND expires_at > unixepoch()
       AND (last_polled_at IS NULL OR unixepoch() - last_polled_at >= interval_seconds)
-    RETURNING device_code_hash`).bind(deviceCodeHash, clientId).first();
+    RETURNING device_code_hash`,
+    )
+    .bind(deviceCodeHash, clientId)
+    .first();
   if (accepted) return "authorization_pending";
 
-  return await slow() ? "slow_down" : null;
+  return (await slow()) ? "slow_down" : null;
 }
 
 export async function rememberConsent(
@@ -163,37 +209,60 @@ export async function rememberConsent(
   clientId: string,
   scopes: readonly Scope[],
 ): Promise<void> {
-  await db.prepare(`INSERT INTO consents (account_id, client_id, scopes, updated_at)
+  await db
+    .prepare(
+      `INSERT INTO consents (account_id, client_id, scopes, updated_at)
     VALUES (?, ?, ?, unixepoch())
-    ON CONFLICT(account_id, client_id) DO UPDATE SET scopes = excluded.scopes, updated_at = excluded.updated_at`)
-    .bind(accountId, clientId, JSON.stringify(scopes)).run();
+    ON CONFLICT(account_id, client_id) DO UPDATE SET scopes = excluded.scopes, updated_at = excluded.updated_at`,
+    )
+    .bind(accountId, clientId, JSON.stringify(scopes))
+    .run();
 }
 
 export async function resolveIdentity(db: D1Database, identity: ProviderIdentity): Promise<string> {
-  const existing = await db.prepare("SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?")
-    .bind(identity.provider, identity.id).first<{ account_id: string }>();
+  const existing = await db
+    .prepare("SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?")
+    .bind(identity.provider, identity.id)
+    .first<{ account_id: string }>();
   if (existing) return existing.account_id;
 
   const accountId = `acct_${randomToken(18)}`;
   const now = Math.floor(Date.now() / 1000);
-  await db.prepare("INSERT OR IGNORE INTO accounts (id, created_at) VALUES (?, ?)").bind(accountId, now).run();
+  await db
+    .prepare("INSERT OR IGNORE INTO accounts (id, created_at) VALUES (?, ?)")
+    .bind(accountId, now)
+    .run();
   try {
-    await db.prepare(`INSERT OR IGNORE INTO identities
-      (provider, provider_user_id, account_id, created_at) VALUES (?, ?, ?, ?)`)
-      .bind(identity.provider, identity.id, accountId, now).run();
-    const winner = await db.prepare("SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?")
-      .bind(identity.provider, identity.id).first<{ account_id: string }>();
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO identities
+      (provider, provider_user_id, account_id, created_at) VALUES (?, ?, ?, ?)`,
+      )
+      .bind(identity.provider, identity.id, accountId, now)
+      .run();
+    const winner = await db
+      .prepare("SELECT account_id FROM identities WHERE provider = ? AND provider_user_id = ?")
+      .bind(identity.provider, identity.id)
+      .first<{ account_id: string }>();
     if (!winner) throw new Error("identity resolution failed");
     if (winner.account_id !== accountId) {
-      await db.prepare(`DELETE FROM accounts WHERE id = ?
-        AND NOT EXISTS (SELECT 1 FROM identities WHERE account_id = ?)`)
-        .bind(accountId, accountId).run();
+      await db
+        .prepare(
+          `DELETE FROM accounts WHERE id = ?
+        AND NOT EXISTS (SELECT 1 FROM identities WHERE account_id = ?)`,
+        )
+        .bind(accountId, accountId)
+        .run();
     }
     return winner.account_id;
   } catch (error) {
-    await db.prepare(`DELETE FROM accounts WHERE id = ?
-      AND NOT EXISTS (SELECT 1 FROM identities WHERE account_id = ?)`)
-      .bind(accountId, accountId).run();
+    await db
+      .prepare(
+        `DELETE FROM accounts WHERE id = ?
+      AND NOT EXISTS (SELECT 1 FROM identities WHERE account_id = ?)`,
+      )
+      .bind(accountId, accountId)
+      .run();
     throw error;
   }
 }

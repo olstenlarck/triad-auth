@@ -19,7 +19,10 @@ declare const process: {
     writeFileSync(path: string, data: string): void;
   };
   getBuiltinModule(name: "node:os"): { tmpdir(): string };
-  getBuiltinModule(name: "node:path"): { join(...paths: string[]): string; resolve(...paths: string[]): string };
+  getBuiltinModule(name: "node:path"): {
+    join(...paths: string[]): string;
+    resolve(...paths: string[]): string;
+  };
 };
 
 const { spawnSync } = process.getBuiltinModule("node:child_process");
@@ -33,11 +36,7 @@ const providerPairs = {
   GITHUB: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
   TWITTER: ["TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET"],
 } as const;
-const secretNames = [
-  ...Object.values(providerPairs).flat(),
-  "SIGNING_PRIVATE_JWK",
-  "PAIRWISE_SECRET",
-].sort();
+const secretNames = [...Object.values(providerPairs).flat(), "SIGNING_PRIVATE_JWK", "PAIRWISE_SECRET"].sort();
 
 function runCheck(cwd: string, env: Record<string, string> = {}) {
   return spawnSync(process.execPath, [checker], { cwd, encoding: "utf8", env });
@@ -71,7 +70,9 @@ function signingValues(privateJwk: string): Record<string, string> {
 function writeDevVars(directory: string, values: Record<string, string>): void {
   writeFileSync(
     join(directory, ".dev.vars"),
-    `${Object.entries(values).map(([name, value]) => envLine(name, `'${value}'`)).join("\n")}\n`,
+    `${Object.entries(values)
+      .map(([name, value]) => envLine(name, `'${value}'`))
+      .join("\n")}\n`,
   );
 }
 
@@ -82,12 +83,10 @@ describe("deployment configuration", () => {
     };
     const config = readFileSync("wrangler.toml", "utf8");
 
-    expect(packageJson.scripts.dev).toBe(
-      "pnpm build && wrangler dev --var ISSUER:http://localhost:8787",
-    );
+    expect(packageJson.scripts.dev).toBe("pnpm build && wrangler dev --var ISSUER:http://localhost:8787");
     expect(packageJson.scripts.deploy).toBe("pnpm build && wrangler deploy");
     expect(packageJson.scripts.check).toBe(
-      "pnpm typecheck && pnpm build && pnpm test && pnpm check:deploy",
+      "pnpm format:check && pnpm typecheck && pnpm build && pnpm test && pnpm check:deploy",
     );
     expect(config).toContain('ISSUER = "https://triad-auth-broker.equator-owl-studio.workers.dev"');
   });
@@ -217,14 +216,19 @@ describe("deployment configuration", () => {
       .map((match) => match[1])
       .filter((name) => /(?:_CLIENT_(?:ID|SECRET)|_PRIVATE_JWK|PAIRWISE_SECRET)$/.test(name));
     const exampleNames = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]);
-    const wranglerNames = [...wrangler.slice(wrangler.indexOf("# Add required secrets"))
-      .matchAll(/\b[A-Z][A-Z0-9_]+\b/g)]
+    const wranglerNames = [
+      ...wrangler.slice(wrangler.indexOf("# Add required secrets")).matchAll(/\b[A-Z][A-Z0-9_]+\b/g),
+    ]
       .map((match) => match[0])
       .filter((name) => name !== "NAME");
 
     expect(envFields.map(({ name }) => name).sort()).toEqual(secretNames);
-    expect(envFields.filter(({ optional }) => optional).map(({ name }) => name).sort())
-      .toEqual(Object.values(providerPairs).flat().sort());
+    expect(
+      envFields
+        .filter(({ optional }) => optional)
+        .map(({ name }) => name)
+        .sort(),
+    ).toEqual(Object.values(providerPairs).flat().sort());
     expect([...new Set(checkerNames)].sort()).toEqual(secretNames);
     expect(exampleNames.sort()).toEqual(secretNames);
     expect(wranglerNames.sort()).toEqual(secretNames);
@@ -232,9 +236,11 @@ describe("deployment configuration", () => {
 
   it("documents exact provider links and local and production callbacks", () => {
     const readme = readFileSync("README.md", "utf8");
-    const setupCallbacks = [...readme.matchAll(
-      /^- (?:Local|Production)(?: callback)?: `([^`]+\/callback\/(?:google|github|twitter))`$/gm,
-    )].map((match) => match[1]);
+    const setupCallbacks = [
+      ...readme.matchAll(
+        /^- (?:Local|Production)(?: callback)?: `([^`]+\/callback\/(?:google|github|twitter))`$/gm,
+      ),
+    ].map((match) => match[1]);
     const issuer = "https://triad-auth-broker.equator-owl-studio.workers.dev";
 
     expect(readme).toContain("https://console.cloud.google.com/auth/clients");
@@ -258,13 +264,15 @@ describe("deployment configuration", () => {
   it("documents the exact capability matrix, selectable scopes, and Twitter upstream scopes", () => {
     const readme = readFileSync("README.md", "utf8");
 
-    expect(readme).toContain("| Google | Yes | No | Yes | Yes |");
-    expect(readme).toContain("| GitHub | Yes | Yes | Yes | Yes |");
-    expect(readme).toContain("| Twitter | No | Yes | Yes | Yes |");
+    expect(readme).toMatch(/\| Google\s+\| Yes\s+\| No\s+\| Yes\s+\| Yes\s+\|/);
+    expect(readme).toMatch(/\| GitHub\s+\| Yes\s+\| Yes\s+\| Yes\s+\| Yes\s+\|/);
+    expect(readme).toMatch(/\| Twitter\s+\| No\s+\| Yes\s+\| Yes\s+\| Yes\s+\|/);
     expect(readme).toContain("users may grant any subset");
     expect(readme).toContain("`avatar` request scope maps to the standard `picture` claim");
     expect(readme).toContain("`pairwise` is the standard OpenID Connect subject type");
-    expect(readme).toContain("Triad requests only `tweet.read users.read`; it does not request offline access.");
+    expect(readme).toContain(
+      "Triad requests only `tweet.read users.read`; it does not request offline access.",
+    );
     expect(readme).toContain("encrypted");
     expect(readme).toContain("opaque provider-global identifier");
     expect(readme).toContain("five minutes");
@@ -307,13 +315,16 @@ describe("deployment configuration", () => {
     const marker = join(directory, "shell-command-ran");
     const privateJwk = await generatePrivateJwk();
     try {
-      writeFileSync(join(directory, ".dev.vars"), [
-        envLine("GITHUB_CLIENT_ID", '"github-client"'),
-        envLine("GITHUB_CLIENT_SECRET", `'$(touch ${marker})'`),
-        envLine("SIGNING_PRIVATE_JWK", `'${privateJwk}'`),
-        envLine("PAIRWISE_SECRET", `'${"p".repeat(32)}'`),
-        "",
-      ].join("\n"));
+      writeFileSync(
+        join(directory, ".dev.vars"),
+        [
+          envLine("GITHUB_CLIENT_ID", '"github-client"'),
+          envLine("GITHUB_CLIENT_SECRET", `'$(touch ${marker})'`),
+          envLine("SIGNING_PRIVATE_JWK", `'${privateJwk}'`),
+          envLine("PAIRWISE_SECRET", `'${"p".repeat(32)}'`),
+          "",
+        ].join("\n"),
+      );
 
       const result = runCheck(directory);
 
@@ -331,13 +342,16 @@ describe("deployment configuration", () => {
   it("rejects invalid signing keys and short pairwise secrets without revealing them", () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     try {
-      writeFileSync(join(directory, ".dev.vars"), [
-        envLine("GITHUB_CLIENT_ID", "github-client"),
-        envLine("GITHUB_CLIENT_SECRET", "github-secret"),
-        envLine("SIGNING_PRIVATE_JWK", "'{}'"),
-        envLine("PAIRWISE_SECRET", "too-short"),
-        "",
-      ].join("\n"));
+      writeFileSync(
+        join(directory, ".dev.vars"),
+        [
+          envLine("GITHUB_CLIENT_ID", "github-client"),
+          envLine("GITHUB_CLIENT_SECRET", "github-secret"),
+          envLine("SIGNING_PRIVATE_JWK", "'{}'"),
+          envLine("PAIRWISE_SECRET", "too-short"),
+          "",
+        ].join("\n"),
+      );
 
       const result = runCheck(directory);
       const output = `${result.stdout}${result.stderr}`;
@@ -376,13 +390,16 @@ describe("deployment configuration", () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     const ambient = validAmbientConfig(await generatePrivateJwk());
     try {
-      writeFileSync(join(directory, ".dev.vars"), [
-        envLine("GITHUB_CLIENT_ID", "file-id"),
-        envLine("GITHUB_CLIENT_SECRET", "file-secret"),
-        envLine("SIGNING_PRIVATE_JWK", "'{}'"),
-        envLine("PAIRWISE_SECRET", "short"),
-        "",
-      ].join("\n"));
+      writeFileSync(
+        join(directory, ".dev.vars"),
+        [
+          envLine("GITHUB_CLIENT_ID", "file-id"),
+          envLine("GITHUB_CLIENT_SECRET", "file-secret"),
+          envLine("SIGNING_PRIVATE_JWK", "'{}'"),
+          envLine("PAIRWISE_SECRET", "short"),
+          "",
+        ].join("\n"),
+      );
 
       const result = runCheck(directory, ambient);
       const output = `${result.stdout}${result.stderr}`;
@@ -402,13 +419,16 @@ describe("deployment configuration", () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     const privateJwk = await generatePrivateJwk();
     try {
-      writeFileSync(join(directory, ".dev.vars"), [
-        envLine("GITHUB_CLIENT_ID", "file-id"),
-        envLine("GITHUB_CLIENT_SECRET", "file-secret"),
-        envLine("SIGNING_PRIVATE_JWK", `'  ${privateJwk}  '`),
-        envLine("PAIRWISE_SECRET", `'  ${"p".repeat(28)}  '`),
-        "",
-      ].join("\n"));
+      writeFileSync(
+        join(directory, ".dev.vars"),
+        [
+          envLine("GITHUB_CLIENT_ID", "file-id"),
+          envLine("GITHUB_CLIENT_SECRET", "file-secret"),
+          envLine("SIGNING_PRIVATE_JWK", `'  ${privateJwk}  '`),
+          envLine("PAIRWISE_SECRET", `'  ${"p".repeat(28)}  '`),
+          "",
+        ].join("\n"),
+      );
 
       const result = runCheck(directory);
       const output = `${result.stdout}${result.stderr}`;

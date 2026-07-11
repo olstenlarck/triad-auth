@@ -78,12 +78,14 @@ function providerCapabilities(value: unknown): ProviderCapability[] {
     if (!value || typeof value !== "object") throw new Error("The provider list is invalid.");
     const { id, scopes } = value as { id?: unknown; scopes?: unknown };
     if (
-      typeof id !== "string"
-      || !providerNames.has(id as ProviderName)
-      || seen.has(id)
-      || !Array.isArray(scopes)
-      || scopes.some((scope) => typeof scope !== "string" || !profileScopeOrder.includes(scope as ProfileScope))
-      || new Set(scopes).size !== scopes.length
+      typeof id !== "string" ||
+      !providerNames.has(id as ProviderName) ||
+      seen.has(id) ||
+      !Array.isArray(scopes) ||
+      scopes.some(
+        (scope) => typeof scope !== "string" || !profileScopeOrder.includes(scope as ProfileScope),
+      ) ||
+      new Set(scopes).size !== scopes.length
     ) {
       throw new Error("The provider list is invalid.");
     }
@@ -95,7 +97,8 @@ function providerCapabilities(value: unknown): ProviderCapability[] {
 function optionalString(payload: Record<string, unknown>, claim: string): string | undefined {
   const value = payload[claim];
   if (value === undefined) return undefined;
-  if (typeof value !== "string" || value.length === 0) throw new Error("The verified token has invalid profile claims.");
+  if (typeof value !== "string" || value.length === 0)
+    throw new Error("The verified token has invalid profile claims.");
   return value;
 }
 
@@ -115,15 +118,14 @@ function verifiedProfile(payload: Record<string, unknown>): VerifiedProfile {
 }
 
 function optionalValue<Key extends keyof VerifiedProfile>(key: Key, value: VerifiedProfile[Key]) {
-  return value === undefined ? {} : { [key]: value } as Pick<VerifiedProfile, Key>;
+  return value === undefined ? {} : ({ [key]: value } as Pick<VerifiedProfile, Key>);
 }
 
 export async function createPkce(): Promise<{ verifier: string; challenge: string; state: string }> {
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(64)));
-  const challenge = base64url(new Uint8Array(await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(verifier),
-  )));
+  const challenge = base64url(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))),
+  );
   const state = base64url(crypto.getRandomValues(new Uint8Array(32)));
   return { verifier, challenge, state };
 }
@@ -143,9 +145,17 @@ export function devicePollDecision(error: string, intervalMs: number): DevicePol
     return { continuePolling: false, intervalMs, message: "Authorization was denied in the browser." };
   }
   if (error === "expired_token") {
-    return { continuePolling: false, intervalMs, message: "This device code expired. Start a new device flow." };
+    return {
+      continuePolling: false,
+      intervalMs,
+      message: "This device code expired. Start a new device flow.",
+    };
   }
-  return { continuePolling: false, intervalMs, message: "The device flow could not be completed. Start again." };
+  return {
+    continuePolling: false,
+    intervalMs,
+    message: "The device flow could not be completed. Start again.",
+  };
 }
 
 export async function fetchDiscovery(
@@ -164,10 +174,7 @@ export async function fetchProviderCapabilities(
   return providerCapabilities(await json(await fetch(endpoint, { signal })));
 }
 
-export function canonicalScopeRequest(
-  provider: ProviderCapability,
-  selected: readonly string[],
-): string {
+export function canonicalScopeRequest(provider: ProviderCapability, selected: readonly string[]): string {
   const selectedScopes = new Set(selected);
   if ([...selectedScopes].some((scope) => !provider.scopes.includes(scope as ProfileScope))) {
     throw new Error("The selected provider does not support an unsupported scope.");
@@ -188,15 +195,17 @@ export async function verifyIdentityToken(
   }
 
   const jwks = await json(await fetch(discovery.jwks_uri, { signal }));
-  const keys = jwks && typeof jwks === "object" && Array.isArray((jwks as { keys?: unknown }).keys)
-    ? (jwks as { keys: Record<string, unknown>[] }).keys
-    : [];
-  const jwk = keys.find((candidate) =>
-    candidate.kid === protectedHeader.kid
-    && candidate.kty === "EC"
-    && candidate.crv === "P-256"
-    && candidate.use === "sig"
-    && candidate.alg === "ES256"
+  const keys =
+    jwks && typeof jwks === "object" && Array.isArray((jwks as { keys?: unknown }).keys)
+      ? (jwks as { keys: Record<string, unknown>[] }).keys
+      : [];
+  const jwk = keys.find(
+    (candidate) =>
+      candidate.kid === protectedHeader.kid &&
+      candidate.kty === "EC" &&
+      candidate.crv === "P-256" &&
+      candidate.use === "sig" &&
+      candidate.alg === "ES256",
   );
   if (!jwk) throw new Error("The token has no matching ES256 signing key.");
 
@@ -207,12 +216,12 @@ export async function verifyIdentityToken(
     audience: clientId,
   });
   if (
-    typeof payload.sub !== "string"
-    || typeof payload.pairwise_sub !== "string"
-    || payload.sub !== payload.pairwise_sub
-    || typeof payload.account_sub !== "string"
-    || typeof payload.provider_sub !== "string"
-    || typeof payload.exp !== "number"
+    typeof payload.sub !== "string" ||
+    typeof payload.pairwise_sub !== "string" ||
+    payload.sub !== payload.pairwise_sub ||
+    typeof payload.account_sub !== "string" ||
+    typeof payload.provider_sub !== "string" ||
+    typeof payload.exp !== "number"
   ) {
     throw new Error("The verified token has invalid identity claims.");
   }

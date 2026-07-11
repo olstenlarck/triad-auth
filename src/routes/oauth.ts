@@ -24,12 +24,7 @@ import {
   validateClient,
 } from "../db";
 import { enabledProviders, finishProvider, MandatoryProfileValueError, startProvider } from "../providers";
-import {
-  clearPreAuthCookie,
-  createPreAuthBinding,
-  preAuthCookieName,
-  setPreAuthCookie,
-} from "../pre-auth";
+import { clearPreAuthCookie, createPreAuthBinding, preAuthCookieName, setPreAuthCookie } from "../pre-auth";
 import { validatePkceChallenge, validatePkceVerifier } from "../protocol";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken } from "../security";
@@ -46,7 +41,7 @@ const redirectUriLimit = 2048;
 const providerNames = new Set<ProviderName>(["google", "github", "twitter"]);
 
 function parseProvider(value?: string): ProviderName | null {
-  return providerNames.has(value as ProviderName) ? value as ProviderName : null;
+  return providerNames.has(value as ProviderName) ? (value as ProviderName) : null;
 }
 
 function parseStoredScopes(value: string): Scope[] {
@@ -77,10 +72,15 @@ interface ConsentRequestRow {
 }
 
 async function consumeConsentRequest(db: D1Database, requestHash: string): Promise<ConsentRequestRow | null> {
-  const row = await db.prepare("SELECT * FROM consent_requests WHERE request_hash = ? AND expires_at > unixepoch()")
-    .bind(requestHash).first<ConsentRequestRow>();
+  const row = await db
+    .prepare("SELECT * FROM consent_requests WHERE request_hash = ? AND expires_at > unixepoch()")
+    .bind(requestHash)
+    .first<ConsentRequestRow>();
   if (!row) return null;
-  const consumed = await db.prepare("DELETE FROM consent_requests WHERE request_hash = ?").bind(requestHash).run();
+  const consumed = await db
+    .prepare("DELETE FROM consent_requests WHERE request_hash = ?")
+    .bind(requestHash)
+    .run();
   return consumed.meta.changes === 1 ? row : null;
 }
 
@@ -108,8 +108,10 @@ export async function parseOAuthForm(request: Request): Promise<URLSearchParams 
   if (contentLength !== null && Number(contentLength) > oauthBodyLimit) {
     return oauthError("invalid_request", "request body too large", 413);
   }
-  if (request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase()
-    !== "application/x-www-form-urlencoded") {
+  if (
+    request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !==
+    "application/x-www-form-urlencoded"
+  ) {
     return oauthError("invalid_request", "form encoding required");
   }
 
@@ -144,21 +146,22 @@ export function rejectDuplicateParameters(form: URLSearchParams, names: readonly
 
 export const oauthRoutes = new Hono<{ Bindings: Env }>();
 
-async function rotateBrowserSession(
-  c: Context<{ Bindings: Env }>,
-  accountId: string,
-): Promise<void> {
+async function rotateBrowserSession(c: Context<{ Bindings: Env }>, accountId: string): Promise<void> {
   await cleanupExpiredState(c.env.DB);
   const session = randomToken();
   const oldSession = getCookie(c, "triad_session");
   const statements = [];
   if (oldSession) {
-    statements.push(c.env.DB.prepare("DELETE FROM browser_sessions WHERE session_hash = ?")
-      .bind(await sha256(oldSession)));
+    statements.push(
+      c.env.DB.prepare("DELETE FROM browser_sessions WHERE session_hash = ?").bind(await sha256(oldSession)),
+    );
   }
-  statements.push(c.env.DB.prepare(`INSERT INTO browser_sessions
-    (session_hash, account_id, expires_at, created_at) VALUES (?, ?, ?, ?)`)
-    .bind(await sha256(session), accountId, now() + 60 * 60 * 24 * 30, now()));
+  statements.push(
+    c.env.DB.prepare(
+      `INSERT INTO browser_sessions
+    (session_hash, account_id, expires_at, created_at) VALUES (?, ?, ?, ?)`,
+    ).bind(await sha256(session), accountId, now() + 60 * 60 * 24 * 30, now()),
+  );
   await c.env.DB.batch(statements);
   setCookie(c, "triad_session", session, {
     httpOnly: true,
@@ -169,15 +172,14 @@ async function rotateBrowserSession(
   });
 }
 
-async function finishAccessDenied(
-  c: Context<{ Bindings: Env }>,
-  tx: TransactionRow,
-): Promise<Response> {
+async function finishAccessDenied(c: Context<{ Bindings: Env }>, tx: TransactionRow): Promise<Response> {
   if (tx.kind === "device") {
     if (!tx.device_code_hash || !(await denyDeviceGrant(c.env.DB, tx.device_code_hash))) {
       return oauthError("invalid_grant", "device request expired");
     }
-    return c.html("<!doctype html><meta charset=utf-8><title>Denied</title><h1>Denied</h1><p>You can return to your device.</p>");
+    return c.html(
+      "<!doctype html><meta charset=utf-8><title>Denied</title><h1>Denied</h1><p>You can return to your device.</p>",
+    );
   }
   if (tx.kind === "authorization_code") {
     if (!tx.redirect_uri || !tx.app_state) return oauthError("server_error", undefined, 500);
@@ -200,45 +202,55 @@ oauthRoutes.use("/token", async (c, next) => {
   await cleanupExpiredState(c.env.DB);
 });
 
-oauthRoutes.get("/.well-known/openid-configuration", (c) => c.json({
-  issuer: c.env.ISSUER,
-  authorization_endpoint: `${c.env.ISSUER}/authorize`,
-  token_endpoint: `${c.env.ISSUER}/token`,
-  device_authorization_endpoint: `${c.env.ISSUER}/device/code`,
-  jwks_uri: `${c.env.ISSUER}/.well-known/jwks.json`,
-  response_types_supported: ["code"],
-  grant_types_supported: ["authorization_code", "urn:ietf:params:oauth:grant-type:device_code"],
-  code_challenge_methods_supported: ["S256"],
-  subject_types_supported: ["pairwise"],
-  scopes_supported: ["openid", "email", "handle", "name", "avatar"],
-  claims_supported: [
-    "sub",
-    "pairwise_sub",
-    "account_sub",
-    "provider_sub",
-    "email",
-    "email_verified",
-    "preferred_username",
-    "name",
-    "picture",
-  ],
-  id_token_signing_alg_values_supported: ["ES256"],
-}));
+oauthRoutes.get("/.well-known/openid-configuration", (c) =>
+  c.json({
+    issuer: c.env.ISSUER,
+    authorization_endpoint: `${c.env.ISSUER}/authorize`,
+    token_endpoint: `${c.env.ISSUER}/token`,
+    device_authorization_endpoint: `${c.env.ISSUER}/device/code`,
+    jwks_uri: `${c.env.ISSUER}/.well-known/jwks.json`,
+    response_types_supported: ["code"],
+    grant_types_supported: ["authorization_code", "urn:ietf:params:oauth:grant-type:device_code"],
+    code_challenge_methods_supported: ["S256"],
+    subject_types_supported: ["pairwise"],
+    scopes_supported: ["openid", "email", "handle", "name", "avatar"],
+    claims_supported: [
+      "sub",
+      "pairwise_sub",
+      "account_sub",
+      "provider_sub",
+      "email",
+      "email_verified",
+      "preferred_username",
+      "name",
+      "picture",
+    ],
+    id_token_signing_alg_values_supported: ["ES256"],
+  }),
+);
 
 oauthRoutes.get("/.well-known/jwks.json", async (c) => c.json({ keys: [await publicJwk(c.env)] }));
 
-oauthRoutes.get("/api/providers", (c) => c.json({
-  providers: enabledProviders(c.env).map((provider) => ({ id: provider, scopes: providerScopes(provider) })),
-}));
+oauthRoutes.get("/api/providers", (c) =>
+  c.json({
+    providers: enabledProviders(c.env).map((provider) => ({
+      id: provider,
+      scopes: providerScopes(provider),
+    })),
+  }),
+);
 
 oauthRoutes.get("/authorize", async (c) => {
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "authorization-start", 20))) {
+  if (
+    !(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "authorization-start", 20))
+  ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
   const q = c.req.query();
   const provider = parseProvider(q.provider);
   if (!provider) return oauthError("invalid_request", "unsupported provider");
-  if (!enabledProviders(c.env).includes(provider)) return oauthError("invalid_request", "provider unavailable");
+  if (!enabledProviders(c.env).includes(provider))
+    return oauthError("invalid_request", "provider unavailable");
   if (!q.client_id || !q.redirect_uri || !q.state || !q.code_challenge) {
     return oauthError("invalid_request", "client_id, redirect_uri, state and code_challenge are required");
   }
@@ -246,7 +258,11 @@ oauthRoutes.get("/authorize", async (c) => {
   if (q.code_challenge_method !== "S256" || !validatePkceChallenge(q.code_challenge)) {
     return oauthError("invalid_request", "valid S256 PKCE is required");
   }
-  if (q.client_id.length > clientIdLimit || q.redirect_uri.length > redirectUriLimit || q.state.length > 512) {
+  if (
+    q.client_id.length > clientIdLimit ||
+    q.redirect_uri.length > redirectUriLimit ||
+    q.state.length > 512
+  ) {
     return oauthError("invalid_request", "authorization parameter is too long");
   }
   let scopes: Scope[];
@@ -266,21 +282,35 @@ oauthRoutes.get("/authorize", async (c) => {
 
   const request = randomToken();
   await cleanupExpiredState(c.env.DB);
-  await c.env.DB.prepare(`INSERT INTO consent_requests
+  await c.env.DB.prepare(
+    `INSERT INTO consent_requests
     (request_hash, client_id, redirect_uri, app_state, provider, code_challenge, scopes, expires_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
-      await sha256(request), q.client_id, q.redirect_uri, q.state, provider, q.code_challenge,
-      JSON.stringify(scopes), now() + 600, now(),
-    ).run();
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      await sha256(request),
+      q.client_id,
+      q.redirect_uri,
+      q.state,
+      provider,
+      q.code_challenge,
+      JSON.stringify(scopes),
+      now() + 600,
+      now(),
+    )
+    .run();
   return c.redirect(`${c.env.ISSUER}/consent/?request=${encodeURIComponent(request)}`, 302);
 });
 
 oauthRoutes.get("/api/consent/:request", async (c) => {
   const requestHash = await sha256(c.req.param("request"));
-  const row = await c.env.DB.prepare(`SELECT r.provider, r.scopes, c.name AS client_name
+  const row = await c.env.DB.prepare(
+    `SELECT r.provider, r.scopes, c.name AS client_name
     FROM consent_requests r JOIN clients c ON c.client_id = r.client_id
-    WHERE r.request_hash = ? AND r.expires_at > unixepoch()`)
-    .bind(requestHash).first<{ provider: string; scopes: string; client_name: string }>();
+    WHERE r.request_hash = ? AND r.expires_at > unixepoch()`,
+  )
+    .bind(requestHash)
+    .first<{ provider: string; scopes: string; client_name: string }>();
   if (!row) return oauthError("invalid_request", "This authorization request is invalid or expired.", 404);
   const csrfToken = await createCsrfToken(c.env.DB, consentPurpose(requestHash));
   return c.json({
@@ -316,14 +346,27 @@ oauthRoutes.post("/api/consent/:request/approve", async (c) => {
   const start = await startProvider(row.provider, c.env, upstreamState, scopes);
   const binding = await createPreAuthBinding();
   await cleanupExpiredState(c.env.DB);
-  await c.env.DB.prepare(`INSERT INTO oauth_transactions
+  await c.env.DB.prepare(
+    `INSERT INTO oauth_transactions
     (state_hash, kind, client_id, redirect_uri, app_state, provider, code_challenge,
       provider_verifier, provider_nonce, scopes, browser_binding_hash, expires_at, created_at)
-    VALUES (?, 'authorization_code', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
-      stateHash, row.client_id, row.redirect_uri, row.app_state, row.provider,
-      row.code_challenge, start.verifier ?? null, start.nonce ?? null, serializedScopes,
-      binding.hash, now() + 600, now(),
-    ).run();
+    VALUES (?, 'authorization_code', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      stateHash,
+      row.client_id,
+      row.redirect_uri,
+      row.app_state,
+      row.provider,
+      row.code_challenge,
+      start.verifier ?? null,
+      start.nonce ?? null,
+      serializedScopes,
+      binding.hash,
+      now() + 600,
+      now(),
+    )
+    .run();
   setPreAuthCookie(c, stateHash, binding.token, row.provider);
   return c.json({ redirect_to: start.url });
 });
@@ -391,15 +434,27 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     return c.redirect(`${c.env.ISSUER}/me/`, 302);
   }
   if (tx.kind === "device") {
-    const claimsCiphertext = tx.device_code_hash && identity.claims
-      ? await sealClaims(c.env.PAIRWISE_SECRET, tx.device_code_hash, identity.claims)
-      : null;
-    if (!tx.device_code_hash
-      || !(await approveDeviceGrant(c.env.DB, tx.device_code_hash, accountId, providerSub, claimsCiphertext, scopes))) {
+    const claimsCiphertext =
+      tx.device_code_hash && identity.claims
+        ? await sealClaims(c.env.PAIRWISE_SECRET, tx.device_code_hash, identity.claims)
+        : null;
+    if (
+      !tx.device_code_hash ||
+      !(await approveDeviceGrant(
+        c.env.DB,
+        tx.device_code_hash,
+        accountId,
+        providerSub,
+        claimsCiphertext,
+        scopes,
+      ))
+    ) {
       return oauthError("invalid_grant", "device request expired");
     }
     await rotateBrowserSession(c, accountId);
-    return c.html("<!doctype html><meta charset=utf-8><title>Authorized</title><h1>Authorized</h1><p>You can return to your device.</p>");
+    return c.html(
+      "<!doctype html><meta charset=utf-8><title>Authorized</title><h1>Authorized</h1><p>You can return to your device.</p>",
+    );
   }
 
   if (!tx.redirect_uri || !tx.code_challenge) return oauthError("server_error", undefined, 500);
@@ -409,13 +464,25 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     ? await sealClaims(c.env.PAIRWISE_SECRET, codeHash, identity.claims)
     : null;
   await cleanupExpiredState(c.env.DB);
-  await c.env.DB.prepare(`INSERT INTO authorization_codes
+  await c.env.DB.prepare(
+    `INSERT INTO authorization_codes
     (code_hash, client_id, redirect_uri, account_id, provider, provider_sub, code_challenge,
       scopes, claims_ciphertext, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
-      codeHash, tx.client_id, tx.redirect_uri, accountId, tx.provider, providerSub, tx.code_challenge,
-      tx.scopes, claimsCiphertext, now() + 120,
-    ).run();
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      codeHash,
+      tx.client_id,
+      tx.redirect_uri,
+      accountId,
+      tx.provider,
+      providerSub,
+      tx.code_challenge,
+      tx.scopes,
+      claimsCiphertext,
+      now() + 120,
+    )
+    .run();
   await rotateBrowserSession(c, accountId);
   const target = new URL(tx.redirect_uri);
   target.searchParams.set("code", authCode);
@@ -451,9 +518,13 @@ oauthRoutes.post("/token", async (c) => {
     const code = form.get("code") ?? "";
     const verifier = form.get("code_verifier") ?? "";
     const redirectUri = form.get("redirect_uri") ?? "";
-    if (!code || code.length > authorizationCodeLimit
-      || !validatePkceVerifier(verifier)
-      || !redirectUri || redirectUri.length > redirectUriLimit) {
+    if (
+      !code ||
+      code.length > authorizationCodeLimit ||
+      !validatePkceVerifier(verifier) ||
+      !redirectUri ||
+      redirectUri.length > redirectUriLimit
+    ) {
       return oauthError("invalid_grant");
     }
     const codeHash = await sha256(code);

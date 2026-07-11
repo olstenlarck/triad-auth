@@ -26,18 +26,26 @@ describe("protocol validation", () => {
   });
 
   it("requires exact redirect URI and GitHub provider allowlist matches", () => {
-    expect(() => validateClient(client(), "https://app.example/callback", "github", "https://auth.example")).not.toThrow();
-    expect(() => validateClient(client(), "https://app.example/callback/", "github", "https://auth.example"))
-      .toThrow("invalid redirect_uri");
-    expect(() => validateClient(client(undefined, "[]"), null, "github", "https://auth.example"))
-      .toThrow("provider not allowed for client");
-    expect(() => validateClient(client(), null, "google" as ProviderName, "https://auth.example"))
-      .toThrow("provider not allowed for client");
+    expect(() =>
+      validateClient(client(), "https://app.example/callback", "github", "https://auth.example"),
+    ).not.toThrow();
+    expect(() =>
+      validateClient(client(), "https://app.example/callback/", "github", "https://auth.example"),
+    ).toThrow("invalid redirect_uri");
+    expect(() => validateClient(client(undefined, "[]"), null, "github", "https://auth.example")).toThrow(
+      "provider not allowed for client",
+    );
+    expect(() => validateClient(client(), null, "google" as ProviderName, "https://auth.example")).toThrow(
+      "provider not allowed for client",
+    );
   });
 
   it("rejects malformed client allowlist arrays", () => {
-    expect(() => validateClient(client("{}"), "https://app.example/callback", "github", "https://auth.example"))
-      .toThrow();
-    expect(() => validateClient(client(undefined, "not json"), null, "github", "https://auth.example")).toThrow();
+    expect(() =>
+      validateClient(client("{}"), "https://app.example/callback", "github", "https://auth.example"),
+    ).toThrow();
+    expect(() =>
+      validateClient(client(undefined, "not json"), null, "github", "https://auth.example"),
+    ).toThrow();
   });
 });

@@ -36,17 +36,19 @@ function base64url(bytes: Uint8Array): string {
     .replace(/=+$/, "");
 }
 
-async function token(overrides: {
-  issuer?: string;
-  audience?: string;
-  expiresAt?: number;
-  kid?: string;
-  pairwiseSub?: unknown;
-  accountSub?: unknown;
-  providerSub?: unknown;
-  subject?: string;
-  profileClaims?: Record<string, unknown>;
-} = {}): Promise<string> {
+async function token(
+  overrides: {
+    issuer?: string;
+    audience?: string;
+    expiresAt?: number;
+    kid?: string;
+    pairwiseSub?: unknown;
+    accountSub?: unknown;
+    providerSub?: unknown;
+    subject?: string;
+    profileClaims?: Record<string, unknown>;
+  } = {},
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({
     pairwise_sub: overrides.pairwiseSub ?? "ps_demo",
@@ -91,10 +93,9 @@ describe("browser PKCE", () => {
   it("creates a 64-byte verifier, S256 challenge, and random state", async () => {
     const first = await createPkce();
     const second = await createPkce();
-    const digest = new Uint8Array(await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(first.verifier),
-    ));
+    const digest = new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(first.verifier)),
+    );
 
     expect(first.verifier).toMatch(/^[A-Za-z0-9_-]{86}$/);
     expect(first.challenge).toBe(base64url(digest));
@@ -133,8 +134,9 @@ describe("browser ID token verification", () => {
 
   it("rejects a token whose signing key does not match", async () => {
     stubMetadata();
-    await expect(verifyIdentityToken(await token({ kid: "unknown" }), clientId, brokerOrigin))
-      .rejects.toThrow("matching ES256 signing key");
+    await expect(
+      verifyIdentityToken(await token({ kid: "unknown" }), clientId, brokerOrigin),
+    ).rejects.toThrow("matching ES256 signing key");
   });
 
   it("rejects a token that does not declare ES256", async () => {
@@ -153,8 +155,9 @@ describe("browser ID token verification", () => {
       .setExpirationTime(now + 600)
       .sign(new TextEncoder().encode("not-a-public-key-secret-value-123"));
 
-    await expect(verifyIdentityToken(unsafe, clientId, brokerOrigin))
-      .rejects.toThrow("matching ES256 signing key");
+    await expect(verifyIdentityToken(unsafe, clientId, brokerOrigin)).rejects.toThrow(
+      "matching ES256 signing key",
+    );
   });
 
   it.each([
@@ -173,22 +176,27 @@ describe("browser ID token verification", () => {
     ["subject", { subject: "different", pairwiseSub: "ps_demo" }],
   ])("rejects an invalid %s identity contract", async (_name, overrides) => {
     stubMetadata();
-    await expect(verifyIdentityToken(await token(overrides), clientId, brokerOrigin))
-      .rejects.toThrow("identity claims");
+    await expect(verifyIdentityToken(await token(overrides), clientId, brokerOrigin)).rejects.toThrow(
+      "identity claims",
+    );
   });
 
   it("returns typed optional standard claims from a verified token", async () => {
     stubMetadata();
 
-    const verified = await verifyIdentityToken(await token({
-      profileClaims: {
-        email: "dev@example.test",
-        email_verified: true,
-        preferred_username: "triad-dev",
-        name: "Triad Developer",
-        picture: "https://images.example/avatar.png",
-      },
-    }), clientId, brokerOrigin);
+    const verified = await verifyIdentityToken(
+      await token({
+        profileClaims: {
+          email: "dev@example.test",
+          email_verified: true,
+          preferred_username: "triad-dev",
+          name: "Triad Developer",
+          picture: "https://images.example/avatar.png",
+        },
+      }),
+      clientId,
+      brokerOrigin,
+    );
 
     expect(verified.profile).toEqual({
       email: "dev@example.test",
@@ -208,19 +216,22 @@ describe("browser ID token verification", () => {
   ])("rejects a malformed optional %s claim", async (_name, profileClaims) => {
     stubMetadata();
 
-    await expect(verifyIdentityToken(await token({ profileClaims }), clientId, brokerOrigin))
-      .rejects.toThrow("profile claims");
+    await expect(verifyIdentityToken(await token({ profileClaims }), clientId, brokerOrigin)).rejects.toThrow(
+      "profile claims",
+    );
   });
 });
 
 describe("provider capabilities", () => {
   it("loads enabled providers and their exact optional scopes", async () => {
-    const fetch = vi.fn(async () => Response.json({
-      providers: [
-        { id: "google", scopes: ["email", "name", "avatar"] },
-        { id: "twitter", scopes: ["handle", "name", "avatar"] },
-      ],
-    }));
+    const fetch = vi.fn(async () =>
+      Response.json({
+        providers: [
+          { id: "google", scopes: ["email", "name", "avatar"] },
+          { id: "twitter", scopes: ["handle", "name", "avatar"] },
+        ],
+      }),
+    );
     vi.stubGlobal("fetch", fetch);
 
     await expect(fetchProviderCapabilities(brokerOrigin)).resolves.toEqual([

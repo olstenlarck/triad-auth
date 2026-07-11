@@ -44,6 +44,7 @@
 ### Task 1: Establish GitHub-Only Protocol Types And Validation
 
 **Files:**
+
 - Modify: `src/types.ts`
 - Create: `src/protocol.ts`
 - Modify: `src/db.ts`
@@ -51,6 +52,7 @@
 - Create: `test/protocol.test.ts`
 
 **Interfaces:**
+
 - Produces: `ProviderName = "github"`.
 - Produces: `validatePkceChallenge(value: string): boolean`, `validatePkceVerifier(value: string): boolean`, and `parseScope(value?: string): "openid"`.
 - Produces: `validateClient(client, redirectUri, provider)` with exact allowlist behavior.
@@ -121,11 +123,13 @@ git commit -m "refactor: narrow broker protocol to GitHub"
 ### Task 2: Correct Token Identity Semantics
 
 **Files:**
+
 - Modify: `src/tokens.ts`
 - Create: `test/tokens.test.ts`
 - Modify: `src/crypto.ts`
 
 **Interfaces:**
+
 - Produces: `issueIdToken(env, clientId, accountId, providerSub): Promise<string>` where `sub === pairwise_sub`.
 - Produces: `publicJwk(env): Promise<Record<string, unknown>>` without private key material.
 
@@ -139,9 +143,19 @@ import { issueIdToken, publicJwk } from "../src/tokens";
 it("issues a pairwise standard subject plus explicit global subjects", async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
-  const env = { ISSUER: "https://issuer.example", PAIRWISE_SECRET: "s".repeat(32), SIGNING_PRIVATE_JWK: JSON.stringify(jwk) } as never;
+  const env = {
+    ISSUER: "https://issuer.example",
+    PAIRWISE_SECRET: "s".repeat(32),
+    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+  } as never;
   const token = await issueIdToken(env, "triad-demo", "acct_123", "github:42");
-  const key = await crypto.subtle.importKey("jwk", await publicJwk(env), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    await publicJwk(env),
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["verify"],
+  );
   const { payload } = await jwtVerify(token, key, { issuer: env.ISSUER, audience: "triad-demo" });
   expect(payload.sub).toBe(payload.pairwise_sub);
   expect(payload.provider_sub).toBe("github:42");
@@ -187,12 +201,14 @@ git commit -m "fix: make OIDC subject pairwise"
 ### Task 3: Add Browser And Response Safety Primitives
 
 **Files:**
+
 - Create: `src/security.ts`
 - Create: `test/security.test.ts`
 - Modify: `src/types.ts`
 - Modify: `migrations/0001_init.sql`
 
 **Interfaces:**
+
 - Produces: `securityHeaders(): MiddlewareHandler`.
 - Produces: `assertSameOrigin(request, issuer): void`.
 - Produces: `createCsrfToken(db, purpose): Promise<string>` and `consumeCsrfToken(db, token, purpose): Promise<boolean>`.
@@ -205,8 +221,24 @@ import { expect, it } from "vitest";
 import { assertSameOrigin } from "../src/security";
 
 it("accepts the canonical origin and rejects cross-origin mutation", () => {
-  expect(() => assertSameOrigin(new Request("https://auth.example/api", { method: "POST", headers: { origin: "https://auth.example" } }), "https://auth.example")).not.toThrow();
-  expect(() => assertSameOrigin(new Request("https://auth.example/api", { method: "POST", headers: { origin: "https://evil.example" } }), "https://auth.example")).toThrow("invalid_origin");
+  expect(() =>
+    assertSameOrigin(
+      new Request("https://auth.example/api", {
+        method: "POST",
+        headers: { origin: "https://auth.example" },
+      }),
+      "https://auth.example",
+    ),
+  ).not.toThrow();
+  expect(() =>
+    assertSameOrigin(
+      new Request("https://auth.example/api", {
+        method: "POST",
+        headers: { origin: "https://evil.example" },
+      }),
+      "https://auth.example",
+    ),
+  ).toThrow("invalid_origin");
 });
 ```
 
@@ -250,6 +282,7 @@ git commit -m "feat: add browser request safety"
 ### Task 4: Implement And Test The GitHub Authorization-Code Flow
 
 **Files:**
+
 - Modify: `src/providers.ts`
 - Create: `src/routes/oauth.ts`
 - Modify: `src/db.ts`
@@ -258,6 +291,7 @@ git commit -m "feat: add browser request safety"
 - Create: `test/oauth.test.ts`
 
 **Interfaces:**
+
 - Consumes: strict PKCE, CSRF, token, and D1 helpers from Tasks 1-3.
 - Produces: `oauthRoutes: Hono<{ Bindings: Env }>` mounted by `src/index.ts`.
 - Produces: `startProvider(env, state): { url: string }` and `finishProvider(env, code): ProviderIdentity`.
@@ -266,9 +300,20 @@ git commit -m "feat: add browser request safety"
 
 ```ts
 it("requests only GitHub identity and returns the immutable numeric id", async () => {
-  vi.stubGlobal("fetch", vi.fn()
-    .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "temporary" }), { status: 200, headers: { "content-type": "application/json" } }))
-    .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, login: "mutable-name" }), { status: 200 })));
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "temporary" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 42, login: "mutable-name" }), { status: 200 }),
+      ),
+  );
   await expect(finishProvider(env, "code")).resolves.toEqual({ provider: "github", id: "42" });
 });
 ```
@@ -301,12 +346,14 @@ git commit -m "feat: complete GitHub authorization flow"
 ### Task 5: Implement And Test The Device Flow
 
 **Files:**
+
 - Create: `src/routes/device.ts`
 - Modify: `src/index.ts`
 - Modify: `src/db.ts`
 - Create: `test/device.test.ts`
 
 **Interfaces:**
+
 - Produces: `deviceRoutes: Hono<{ Bindings: Env }>` mounted by `src/index.ts`.
 - Produces RFC-shaped `device_code`, `user_code`, verification URI, expiry, interval, and polling errors.
 
@@ -349,6 +396,7 @@ git commit -m "feat: complete device authorization flow"
 ### Task 6: Build The Same-Origin Demo And Transactional UI
 
 **Files:**
+
 - Create: `src/pages/demo/index.astro`
 - Create: `src/pages/demo/callback.astro`
 - Modify: `src/pages/consent.astro`
@@ -358,6 +406,7 @@ git commit -m "feat: complete device authorization flow"
 - Modify: `src/components/Shell.astro`
 
 **Interfaces:**
+
 - Consumes: `triad-demo`, `/authorize`, `/token`, `/device/code`, `/device/verify`, discovery, and JWKS.
 - Produces: accessible browser and device demo controls with verified claim rendering.
 
@@ -399,6 +448,7 @@ git commit -m "feat: add interactive broker demos"
 ### Task 7: Finish Session, Account, Logout, And Rate Limits
 
 **Files:**
+
 - Create: `src/routes/account.ts`
 - Create: `src/rate-limit.ts`
 - Modify: `src/index.ts`
@@ -408,6 +458,7 @@ git commit -m "feat: add interactive broker demos"
 - Create: `test/rate-limit.test.ts`
 
 **Interfaces:**
+
 - Produces: `accountRoutes` with `/session/start`, `/api/me`, consent revocation, and POST `/session/logout`.
 - Produces: `enforceRateLimit(db, bucket, key, limit, windowSeconds): Promise<boolean>`.
 
@@ -417,7 +468,10 @@ git commit -m "feat: add interactive broker demos"
 it("logs out only through a same-origin CSRF-protected POST", async () => {
   const get = await app.request("/session/logout");
   expect(get.status).toBe(404);
-  const crossOrigin = await app.request("/session/logout", { method: "POST", headers: { origin: "https://evil.example" } });
+  const crossOrigin = await app.request("/session/logout", {
+    method: "POST",
+    headers: { origin: "https://evil.example" },
+  });
   expect(crossOrigin.status).toBe(403);
 });
 ```
@@ -448,6 +502,7 @@ git commit -m "feat: finish account session safety"
 ### Task 8: Make Configuration And Documentation Deployable
 
 **Files:**
+
 - Modify: `wrangler.toml`
 - Modify: `package.json`
 - Create: `.dev.vars.example`
@@ -458,6 +513,7 @@ git commit -m "feat: finish account session safety"
 - Create: `scripts/check-config.mjs`
 
 **Interfaces:**
+
 - Produces: `pnpm check:config`, `pnpm check`, and documented deploy commands.
 - Requires local `.dev.vars` keys `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SIGNING_PRIVATE_JWK`, and `PAIRWISE_SECRET`.
 
@@ -471,7 +527,8 @@ if (missing.length) {
   process.exit(1);
 }
 JSON.parse(process.env.SIGNING_PRIVATE_JWK);
-if (process.env.PAIRWISE_SECRET.length < 32) throw new Error("PAIRWISE_SECRET must be at least 32 characters");
+if (process.env.PAIRWISE_SECRET.length < 32)
+  throw new Error("PAIRWISE_SECRET must be at least 32 characters");
 ```
 
 - [ ] **Step 2: Confirm missing local configuration is reported clearly**
@@ -501,10 +558,12 @@ git commit -m "docs: make GitHub broker deployable"
 ### Task 9: Visual Validation And Accessibility Corrections
 
 **Files:**
+
 - Modify as findings require: `src/pages/**/*.astro`, `src/styles/global.css`, `src/components/Shell.astro`
 - Create: `docs/validation/visual-check.md`
 
 **Interfaces:**
+
 - Consumes: locally running Worker and the agent-browser skill/tooling.
 - Produces: recorded routes, viewport sizes, keyboard checks, and corrected UI.
 
@@ -536,10 +595,12 @@ git commit -m "fix: validate responsive broker UI"
 ### Task 10: Provision, Deploy, Smoke-Test, And Publish
 
 **Files:**
+
 - Modify: `wrangler.toml` with the provisioned D1 database ID and canonical issuer.
 - Modify: `README.md` only if deployed URLs differ from documented derivation.
 
 **Interfaces:**
+
 - Produces: stable public Worker URL and remote D1 schema.
 - Requires: user-populated GitHub OAuth credentials in ignored `.dev.vars` or the process environment.
 

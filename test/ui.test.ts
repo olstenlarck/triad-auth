@@ -18,9 +18,8 @@ const applicationSources = [
   "src/pages/demo/index.astro",
   "src/pages/demo/callback.astro",
 ];
-const readApplicationSources = async () => (await Promise.all(
-  applicationSources.map((path) => readFile(path, "utf8")),
-)).join("\n");
+const readApplicationSources = async () =>
+  (await Promise.all(applicationSources.map((path) => readFile(path, "utf8")))).join("\n");
 
 it("builds both demo entry points", async () => {
   await expect(readFile("dist/demo/index.html", "utf8")).resolves.toContain("TRY TRIAD");
@@ -37,9 +36,7 @@ it("ships and links a local switchboard favicon", async () => {
 it("seeds the built-in demo without encoding an environment-specific callback", async () => {
   const migration = await readFile("migrations/0001_init.sql", "utf8");
 
-  expect(migration).toContain(
-    "VALUES ('triad-demo', 'Triad demo', '[]', '[\"github\"]', unixepoch());",
-  );
+  expect(migration).toContain("VALUES ('triad-demo', 'Triad demo', '[]', '[\"github\"]', unixepoch());");
   expect(migration).not.toContain("'local-dev'");
   expect(migration).not.toContain("localhost");
   expect(migration).not.toContain('["google","github","x"]');
@@ -59,7 +56,11 @@ it("implements complete PKCE and device demo contracts", async () => {
   expect(demo).toContain("urn:ietf:params:oauth:grant-type:device_code");
   expect(demo).toContain("authorization_pending");
   expect(demo).toContain("slow_down");
-  expect(demo.match(/This device code expired\. Start a new device flow\.[\s\S]{0,180}deviceStart\.textContent = "START NEW DEVICE FLOW";/g) ?? []).toHaveLength(2);
+  expect(
+    demo.match(
+      /This device code expired\. Start a new device flow\.[\s\S]{0,180}deviceStart\.textContent = "START NEW DEVICE FLOW";/g,
+    ) ?? [],
+  ).toHaveLength(2);
   expect(demo).toContain("verifyIdentityToken");
   expect(callback).toContain("state !== expectedState");
   expect(callback.indexOf("state !== expectedState")).toBeLessThan(callback.indexOf("fetch("));
@@ -96,7 +97,9 @@ it("keeps device verification navigation under same-origin JavaScript control", 
   const device = await readFile("src/pages/device/verify.astro", "utf8");
   const submitHandler = device.slice(device.indexOf('form.addEventListener("submit"'));
 
-  expect(submitHandler.indexOf("event.preventDefault();")).toBeLessThan(submitHandler.indexOf("if (!csrf.value)"));
+  expect(submitHandler.indexOf("event.preventDefault();")).toBeLessThan(
+    submitHandler.indexOf("if (!csrf.value)"),
+  );
   expect(submitHandler).toContain('fetch("/device/verify"');
   expect(submitHandler).toContain('"content-type": "application/x-www-form-urlencoded"');
   expect(submitHandler).toContain("redirect_to?: string");
@@ -126,7 +129,9 @@ it("uses accurate consent action labels and a stable recovery route", async () =
   expect(consent).not.toContain("approve.textContent = action ===");
   expect(consent).toContain("Triad shares only the claims you turn on");
   expect(consent).toContain("Claims become non-exchangeable at expiry.");
-  expect(consent).toContain("Physical encrypted-row deletion is bounded, traffic-driven cleanup and can occur later.");
+  expect(consent).toMatch(
+    /Physical encrypted-row deletion is\s+bounded, traffic-driven cleanup and can occur later\./,
+  );
 });
 
 it("presents Triad rather than a GitHub-only broker", async () => {
@@ -234,8 +239,11 @@ it("populates account sign-in actions from enabled providers", async () => {
 
 it("restores demo controls without replacing a browser start error", async () => {
   const demo = await readFile("src/pages/demo/index.astro", "utf8");
-  const recovery = demo.slice(demo.indexOf('message(browserStatus, "The authorization request'));
-  const finish = demo.slice(demo.indexOf("function finishFlow"), demo.indexOf("async function loadProviderControls"));
+  const recovery = demo.slice(demo.indexOf("The authorization request could not be started"));
+  const finish = demo.slice(
+    demo.indexOf("function finishFlow"),
+    demo.indexOf("async function loadProviderControls"),
+  );
 
   expect(demo).toContain("function updateRequestControls(updateStatus = true)");
   expect(recovery).toContain('finishFlow("browser")');
@@ -321,15 +329,17 @@ it("caps long transaction headings at narrow viewports", async () => {
     css.indexOf("@media (prefers-reduced-motion: reduce)"),
   );
 
-  expect(mobile).toContain("#consent-title { font-size: clamp(2.2rem, 11vw, 3.7rem); }");
-  expect(mobile).toContain("#callback-title { font-size: clamp(2.8rem, 14vw, 3.7rem); }");
-  expect(mobile).toContain(".device-app { flex-direction: column; }");
+  expect(mobile).toMatch(/#consent-title\s*\{\s*font-size: clamp\(2\.2rem, 11vw, 3\.7rem\);\s*\}/);
+  expect(mobile).toMatch(/#callback-title\s*\{\s*font-size: clamp\(2\.8rem, 14vw, 3\.7rem\);\s*\}/);
+  expect(mobile).toMatch(/\.device-app\s*\{\s*flex-direction: column;\s*\}/);
 });
 
 it("gives header and standalone links a minimum touch size", async () => {
   const css = await readFile("src/styles/global.css", "utf8");
 
-  expect(css).toMatch(/\.wordmark,\s*\.site-header nav a,\s*\.text-link\s*\{[^}]*min-width: 2\.75rem;[^}]*min-height: 2\.75rem;/s);
+  expect(css).toMatch(
+    /\.wordmark,\s*\.site-header nav a,\s*\.text-link\s*\{[^}]*min-width: 2\.75rem;[^}]*min-height: 2\.75rem;/s,
+  );
 });
 
 it("documents the current multi-provider privacy and token contract", async () => {

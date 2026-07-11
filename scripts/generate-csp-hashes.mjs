@@ -10,7 +10,7 @@ async function collectHtmlFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await collectHtmlFiles(path));
+    if (entry.isDirectory()) files.push(...(await collectHtmlFiles(path)));
     else if (entry.isFile() && extname(entry.name).toLowerCase() === ".html") files.push(path);
   }
   return files;

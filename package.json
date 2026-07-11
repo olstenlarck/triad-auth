@@ -12,7 +12,9 @@
     "keygen": "node scripts/generate-key.mjs",
     "check:config": "node scripts/check-config.mjs",
     "check:deploy": "wrangler deploy --dry-run",
-    "check": "pnpm typecheck && pnpm build && pnpm test && pnpm check:deploy",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm format:check && pnpm typecheck && pnpm build && pnpm test && pnpm check:deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -25,8 +27,16 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260710.1",
+    "prettier": "^3.9.5",
+    "prettier-plugin-astro": "^0.14.1",
     "typescript": "^7.0.2",
     "vitest": "^3.2.4",
     "wrangler": "^4.24.3"
+  },
+  "prettier": {
+    "plugins": [
+      "prettier-plugin-astro"
+    ],
+    "printWidth": 110
   }
 }

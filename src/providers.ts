@@ -44,15 +44,15 @@ const callback = (provider: ProviderName, env: Env) => `${env.ISSUER}/callback/$
 const configured = (clientId?: string, clientSecret?: string) =>
   Boolean(clientId?.trim() && clientSecret?.trim());
 
-const formEncode = (value: string) =>
-  new URLSearchParams({ value }).toString().slice("value=".length);
+const formEncode = (value: string) => new URLSearchParams({ value }).toString().slice("value=".length);
 
 function providerCredentials(provider: ProviderName, env: Env): ProviderCredentials {
-  const [clientId, clientSecret] = provider === "google"
-    ? [env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET]
-    : provider === "twitter"
-      ? [env.TWITTER_CLIENT_ID, env.TWITTER_CLIENT_SECRET]
-      : [env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET];
+  const [clientId, clientSecret] =
+    provider === "google"
+      ? [env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET]
+      : provider === "twitter"
+        ? [env.TWITTER_CLIENT_ID, env.TWITTER_CLIENT_SECRET]
+        : [env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET];
   if (!clientId?.trim() || !clientSecret?.trim()) throw new Error(`${provider} provider is not configured`);
   return { clientId, clientSecret };
 }
@@ -135,13 +135,16 @@ async function finishGoogle(
   scopes: readonly Scope[] = ["openid"],
 ): Promise<ProviderResult> {
   if (!nonce) throw new Error("Google nonce is required");
-  const token = await tokenRequest("https://oauth2.googleapis.com/token", new URLSearchParams({
-    code,
-    client_id: credentials.clientId,
-    client_secret: credentials.clientSecret,
-    redirect_uri: callback("google", env),
-    grant_type: "authorization_code",
-  }));
+  const token = await tokenRequest(
+    "https://oauth2.googleapis.com/token",
+    new URLSearchParams({
+      code,
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
+      redirect_uri: callback("google", env),
+      grant_type: "authorization_code",
+    }),
+  );
   if (typeof token.id_token !== "string") throw new Error("Google response missing ID token");
   const { payload } = await jwtVerify(token.id_token, googleJwks, {
     algorithms: ["RS256"],
@@ -185,12 +188,15 @@ async function finishGitHub(
   code: string,
   scopes: readonly Scope[] = ["openid"],
 ): Promise<ProviderResult> {
-  const token = await tokenRequest("https://github.com/login/oauth/access_token", new URLSearchParams({
-    code,
-    client_id: credentials.clientId,
-    client_secret: credentials.clientSecret,
-    redirect_uri: callback("github", env),
-  }));
+  const token = await tokenRequest(
+    "https://github.com/login/oauth/access_token",
+    new URLSearchParams({
+      code,
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
+      redirect_uri: callback("github", env),
+    }),
+  );
   if (typeof token.access_token !== "string") throw new Error("GitHub response missing access token");
   const response = await fetch("https://api.github.com/user", { headers: githubHeaders(token.access_token) });
   if (!response.ok) throw new Error(`GitHub user lookup failed (${response.status})`);
@@ -215,15 +221,15 @@ async function finishGitHub(
     if (!emailsResponse.ok) throw new Error(`GitHub email lookup failed (${emailsResponse.status})`);
     const emails = await emailsResponse.json<unknown>();
     const primary = Array.isArray(emails)
-      ? emails.find((entry) => typeof entry === "object" && entry !== null
-        && (entry as Record<string, unknown>).primary === true
-        && (entry as Record<string, unknown>).verified === true)
+      ? emails.find(
+          (entry) =>
+            typeof entry === "object" &&
+            entry !== null &&
+            (entry as Record<string, unknown>).primary === true &&
+            (entry as Record<string, unknown>).verified === true,
+        )
       : undefined;
-    claims.email = mandatoryString(
-      "github",
-      "email",
-      primary && (primary as Record<string, unknown>).email,
-    );
+    claims.email = mandatoryString("github", "email", primary && (primary as Record<string, unknown>).email);
     claims.email_verified = true;
   }
   return { id: String(user.id), claims };
@@ -238,12 +244,16 @@ async function finishTwitter(
 ): Promise<ProviderResult> {
   if (!verifier) throw new Error("Twitter PKCE verifier is required");
   const basicCredentials = `${formEncode(credentials.clientId)}:${formEncode(credentials.clientSecret)}`;
-  const token = await tokenRequest("https://api.x.com/2/oauth2/token", new URLSearchParams({
-    code,
-    grant_type: "authorization_code",
-    redirect_uri: callback("twitter", env),
-    code_verifier: verifier,
-  }), { authorization: `Basic ${btoa(basicCredentials)}` });
+  const token = await tokenRequest(
+    "https://api.x.com/2/oauth2/token",
+    new URLSearchParams({
+      code,
+      grant_type: "authorization_code",
+      redirect_uri: callback("twitter", env),
+      code_verifier: verifier,
+    }),
+    { authorization: `Basic ${btoa(basicCredentials)}` },
+  );
   if (typeof token.access_token !== "string") throw new Error("Twitter response missing access token");
 
   const url = new URL("https://api.x.com/2/users/me");
@@ -284,11 +294,12 @@ export async function finishProvider(
 ): Promise<ProviderIdentity> {
   const credentials = providerCredentials(provider, env);
   validateProviderScopes(provider, scopes);
-  const result = provider === "google"
-    ? await finishGoogle(env, credentials, code, nonce, scopes)
-    : provider === "twitter"
-      ? await finishTwitter(env, credentials, code, verifier, scopes)
-      : await finishGitHub(env, credentials, code, scopes);
+  const result =
+    provider === "google"
+      ? await finishGoogle(env, credentials, code, nonce, scopes)
+      : provider === "twitter"
+        ? await finishTwitter(env, credentials, code, verifier, scopes)
+        : await finishGitHub(env, credentials, code, scopes);
   return Object.keys(result.claims).length > 0
     ? { provider, id: result.id, claims: result.claims }
     : { provider, id: result.id };

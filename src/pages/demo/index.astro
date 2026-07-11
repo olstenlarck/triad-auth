@@ -12,14 +12,18 @@ import Shell from "../../components/Shell.astro";
       <p>TRY TRIAD</p>
       <h1 id="demo-title">ONE REQUEST.<br /><span>TWO FLOWS.</span></h1>
       <p class="lede">
-        Configure what the demo client asks for, then use a browser redirect or device code. Both paths return the same verifiable identity contract.
+        Configure what the demo client asks for, then use a browser redirect or device code. Both paths return
+        the same verifiable identity contract.
       </p>
     </div>
 
     <section class="demo-request" aria-labelledby="demo-request-title">
       <div class="demo-request-heading">
         <h2 id="demo-request-title">CONFIGURE THE CLIENT REQUEST</h2>
-        <p>Requested profile claims default off. Triad shows them again at consent, where the user chooses what to share.</p>
+        <p>
+          Requested profile claims default off. Triad shows them again at consent, where the user chooses what
+          to share.
+        </p>
       </div>
       <div class="provider-control">
         <label for="demo-provider">PROVIDER</label>
@@ -28,10 +32,25 @@ import Shell from "../../components/Shell.astro";
       <fieldset id="scope-fieldset" disabled>
         <legend>OPTIONAL CLAIM REQUEST</legend>
         <div class="scope-selector">
-          <label><input type="checkbox" name="demo-scope" value="email" /><span>EMAIL<small>email + email_verified</small></span></label>
-          <label><input type="checkbox" name="demo-scope" value="handle" /><span>HANDLE<small>preferred_username</small></span></label>
-          <label><input type="checkbox" name="demo-scope" value="name" /><span>NAME<small>name</small></span></label>
-          <label><input type="checkbox" name="demo-scope" value="avatar" /><span>AVATAR<small>picture</small></span></label>
+          <label
+            ><input type="checkbox" name="demo-scope" value="email" /><span
+              >EMAIL<small>email + email_verified</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="handle" /><span
+              >HANDLE<small>preferred_username</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="name" /><span>NAME<small>name</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="avatar" /><span
+              >AVATAR<small>picture</small></span
+            ></label
+          >
         </div>
       </fieldset>
       <div class="control-feedback demo-provider-feedback">
@@ -49,14 +68,19 @@ import Shell from "../../components/Shell.astro";
           </div>
           <span class="status-mark" aria-hidden="true"></span>
         </div>
-        <p>Triad creates a 64-byte verifier, sends only its S256 challenge, and checks state before exchanging the returned code.</p>
+        <p>
+          Triad creates a 64-byte verifier, sends only its S256 challenge, and checks state before exchanging
+          the returned code.
+        </p>
         <dl class="protocol-list">
           <div><dt>CLIENT</dt><dd>triad-demo</dd></div>
           <div><dt>PROVIDER</dt><dd id="browser-provider">loading</dd></div>
           <div><dt>VERIFICATION</dt><dd>ES256 + JWKS</dd></div>
         </dl>
         <p id="browser-status" class="demo-status" aria-live="polite">Loading enabled providers.</p>
-        <button id="browser-start" class="button primary demo-action" type="button" disabled>START BROWSER FLOW</button>
+        <button id="browser-start" class="button primary demo-action" type="button" disabled
+          >START BROWSER FLOW</button
+        >
       </section>
 
       <section class="demo-bay" aria-labelledby="device-demo-title">
@@ -67,15 +91,22 @@ import Shell from "../../components/Shell.astro";
           </div>
           <span class="status-mark" aria-hidden="true"></span>
         </div>
-        <p>Start a device grant, approve the displayed code in another browser tab, and leave this page open while it polls.</p>
+        <p>
+          Start a device grant, approve the displayed code in another browser tab, and leave this page open
+          while it polls.
+        </p>
         <div id="device-instructions" class="device-ticket" hidden>
           <span>USER CODE</span>
           <strong id="demo-user-code"></strong>
-          <a id="verification-link" class="text-link" href="/device/verify/" target="_blank" rel="noopener">OPEN VERIFICATION PAGE ↗</a>
+          <a id="verification-link" class="text-link" href="/device/verify/" target="_blank" rel="noopener"
+            >OPEN VERIFICATION PAGE ↗</a
+          >
           <small id="device-expiry"></small>
         </div>
         <p id="device-status" class="demo-status" aria-live="polite">No device request is active.</p>
-        <button id="device-start" class="button primary demo-action" type="button" disabled>START DEVICE FLOW</button>
+        <button id="device-start" class="button primary demo-action" type="button" disabled
+          >START DEVICE FLOW</button
+        >
 
         <section id="device-identity" class="verified-result" aria-labelledby="device-result-title" hidden>
           <div class="verified-head">
@@ -83,9 +114,21 @@ import Shell from "../../components/Shell.astro";
             <div><span>SIGNATURE VALID</span><h3 id="device-result-title">VERIFIED IDENTITY</h3></div>
           </div>
           <dl class="verified-claims">
-            <div><dt>pairwise_sub</dt><dd id="device-pairwise"></dd><small>App-scoped. Different for every client.</small></div>
-            <div><dt>account_sub</dt><dd id="device-account"></dd><small>Broker-global. Correlates this account across Triad clients.</small></div>
-            <div><dt>provider_sub</dt><dd id="device-provider"></dd><small>Provider-global and correlatable across Triad clients that receive it.</small></div>
+            <div>
+              <dt>pairwise_sub</dt><dd id="device-pairwise"></dd><small
+                >App-scoped. Different for every client.</small
+              >
+            </div>
+            <div>
+              <dt>account_sub</dt><dd id="device-account"></dd><small
+                >Broker-global. Correlates this account across Triad clients.</small
+              >
+            </div>
+            <div>
+              <dt>provider_sub</dt><dd id="device-provider"></dd><small
+                >Provider-global and correlatable across Triad clients that receive it.</small
+              >
+            </div>
           </dl>
           <section id="device-profile" class="verified-profile" aria-labelledby="device-profile-title" hidden>
             <h4 id="device-profile-title">SHARED CLAIMS</h4>
@@ -137,7 +180,10 @@ import Shell from "../../components/Shell.astro";
     }
 
     function selectedScopeRequest(provider: ProviderCapability): string {
-      return canonicalScopeRequest(provider, scopeInputs.filter((input) => input.checked).map((input) => input.value));
+      return canonicalScopeRequest(
+        provider,
+        scopeInputs.filter((input) => input.checked).map((input) => input.value),
+      );
     }
 
     function updateRequestControls(updateStatus = true) {
@@ -149,7 +195,8 @@ import Shell from "../../components/Shell.astro";
         if (!supported) input.checked = false;
       }
       const providerName = selectedProvider?.id.toUpperCase() ?? "PROVIDER";
-      document.querySelector<HTMLElement>("#browser-provider")!.textContent = selectedProvider?.id ?? "unavailable";
+      document.querySelector<HTMLElement>("#browser-provider")!.textContent =
+        selectedProvider?.id ?? "unavailable";
       browserStart.textContent = `SIGN IN WITH ${providerName}`;
       providerSelect.disabled = activeFlow !== null;
       scopeFieldset.disabled = activeFlow !== null;
@@ -303,7 +350,7 @@ import Shell from "../../components/Shell.astro";
             device_code: activeDeviceCode,
           }),
         });
-        const body = await response.json() as { id_token?: string; error?: string };
+        const body = (await response.json()) as { id_token?: string; error?: string };
         if (stopped) return;
         if (response.ok && body.id_token) {
           stopPolling();
@@ -337,7 +384,11 @@ import Shell from "../../components/Shell.astro";
         finishFlow("device");
       } catch (reason) {
         if (stopped || (reason instanceof DOMException && reason.name === "AbortError")) return;
-        message(deviceStatus, "The device flow could not be verified. Check your connection and start again.", "error");
+        message(
+          deviceStatus,
+          "The device flow could not be verified. Check your connection and start again.",
+          "error",
+        );
         deviceStart.textContent = "START NEW DEVICE FLOW";
         stopDeviceFlow();
         finishFlow("device");
@@ -369,7 +420,11 @@ import Shell from "../../components/Shell.astro";
         }).toString();
         location.assign(authorization);
       } catch {
-        message(browserStatus, "The authorization request could not be started. Check the broker and try again.", "error");
+        message(
+          browserStatus,
+          "The authorization request could not be started. Check the broker and try again.",
+          "error",
+        );
         finishFlow("browser");
       }
     });
@@ -399,7 +454,7 @@ import Shell from "../../components/Shell.astro";
             scope: requestedScope,
           }),
         });
-        const body = await response.json() as {
+        const body = (await response.json()) as {
           device_code?: string;
           user_code?: string;
           verification_uri_complete?: string;
@@ -408,8 +463,14 @@ import Shell from "../../components/Shell.astro";
           error_description?: string;
         };
         if (stopped) return;
-        if (!response.ok || !body.device_code || !body.user_code || !body.verification_uri_complete
-          || typeof body.expires_in !== "number" || typeof body.interval !== "number") {
+        if (
+          !response.ok ||
+          !body.device_code ||
+          !body.user_code ||
+          !body.verification_uri_complete ||
+          typeof body.expires_in !== "number" ||
+          typeof body.interval !== "number"
+        ) {
           throw new Error(body.error_description ?? "invalid device response");
         }
         activeDeviceCode = body.device_code;
@@ -419,7 +480,8 @@ import Shell from "../../components/Shell.astro";
         document.querySelector<HTMLElement>("#demo-user-code")!.textContent = body.user_code;
         const verificationLink = document.querySelector<HTMLAnchorElement>("#verification-link")!;
         verificationLink.href = body.verification_uri_complete;
-        document.querySelector<HTMLElement>("#device-expiry")!.textContent = `Expires in ${Math.ceil(body.expires_in / 60)} minutes`;
+        document.querySelector<HTMLElement>("#device-expiry")!.textContent =
+          `Expires in ${Math.ceil(body.expires_in / 60)} minutes`;
         deviceInstructions.hidden = false;
         deviceStart.textContent = "FLOW IN PROGRESS";
         message(deviceStatus, "Waiting for browser approval.");
@@ -448,11 +510,16 @@ import Shell from "../../components/Shell.astro";
       deviceStart.textContent = "START DEVICE FLOW";
       updateRequestControls(false);
       message(browserStatus, "This page was restored from browser history. Start a new flow.");
-      message(deviceStatus, "Browser history restored. No previous device request was resumed. Start a new flow.");
+      message(
+        deviceStatus,
+        "Browser history restored. No previous device request was resumed. Start a new flow.",
+      );
     }
 
     providerSelect.addEventListener("change", () => updateRequestControls());
-    providerRetry.addEventListener("click", () => { void loadProviderControls(); });
+    providerRetry.addEventListener("click", () => {
+      void loadProviderControls();
+    });
     window.addEventListener("pagehide", stopDeviceFlow);
     window.addEventListener("pageshow", (event) => {
       if (!event.persisted) return;

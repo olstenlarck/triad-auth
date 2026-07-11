@@ -14,14 +14,14 @@ The visual checks were validated on 2026-07-10 against the local Worker at `http
 
 ## Audit health
 
-| Dimension | Score | Evidence |
-| --- | ---: | --- |
-| Accessibility | 4/4 | Semantic snapshots, complete Tab sequences, visible 3px focus outlines, 44px enabled targets, labeled forms, announced errors. |
-| Performance | 3/4 | Lean static pages, local fonts, no layout-property animation, no observed layout shift; no profiler run. |
-| Responsive design | 4/4 | All routes checked at both required viewports with no page-level horizontal overflow after fixes. |
-| Theming | 4/4 | Existing OKLCH tokens retained; no new authored colors or theme drift. |
-| Anti-patterns | 4/4 | Square ruled switchboard composition retained; no gradients, glass, rounded card grids, or generic redesign. |
-| **Total** | **19/20** | **Excellent** |
+| Dimension         |     Score | Evidence                                                                                                                       |
+| ----------------- | --------: | ------------------------------------------------------------------------------------------------------------------------------ |
+| Accessibility     |       4/4 | Semantic snapshots, complete Tab sequences, visible 3px focus outlines, 44px enabled targets, labeled forms, announced errors. |
+| Performance       |       3/4 | Lean static pages, local fonts, no layout-property animation, no observed layout shift; no profiler run.                       |
+| Responsive design |       4/4 | All routes checked at both required viewports with no page-level horizontal overflow after fixes.                              |
+| Theming           |       4/4 | Existing OKLCH tokens retained; no new authored colors or theme drift.                                                         |
+| Anti-patterns     |       4/4 | Square ruled switchboard composition retained; no gradients, glass, rounded card grids, or generic redesign.                   |
+| **Total**         | **19/20** | **Excellent**                                                                                                                  |
 
 **Anti-pattern verdict:** Pass. The interface remains a distinctive black-box identity switchboard rather than a generic generated dashboard.
 
@@ -29,14 +29,14 @@ The visual checks were validated on 2026-07-10 against the local Worker at `http
 
 All final rows had an empty `agent-browser console` buffer and no `agent-browser errors`. Accessibility snapshots exposed the expected headings, landmarks, labels, controls, disabled states, and recovery links.
 
-| Route | Rendered state | Desktop | Mobile | Final overflow |
-| --- | --- | --- | --- | --- |
-| `/` | Landing page and protocol proof | `after/home-desktop.png` | `after/home-mobile.png` | None; the code sample scrolls inside its labeled region. |
-| `/demo/` | Both broker flow bays ready | `after/demo-desktop.png` | `after/demo-mobile.png` | None |
-| `/demo/callback/` | Missing-state recovery error | `after/callback-desktop.png` | `after/callback-mobile.png` | None; mobile heading `scrollWidth` equals `clientWidth` at 311px. |
-| `/consent/` | Missing-ticket recovery error | `after/consent-desktop.png` | `after/consent-mobile.png` | None |
-| `/device/verify/` | Empty device-code form | `after/device-desktop.png` | `after/device-mobile.png` | None |
-| `/me/` | Signed-out account state | `after/me-desktop.png` | `after/me-mobile.png` | None |
+| Route             | Rendered state                  | Desktop                      | Mobile                      | Final overflow                                                    |
+| ----------------- | ------------------------------- | ---------------------------- | --------------------------- | ----------------------------------------------------------------- |
+| `/`               | Landing page and protocol proof | `after/home-desktop.png`     | `after/home-mobile.png`     | None; the code sample scrolls inside its labeled region.          |
+| `/demo/`          | Both broker flow bays ready     | `after/demo-desktop.png`     | `after/demo-mobile.png`     | None                                                              |
+| `/demo/callback/` | Missing-state recovery error    | `after/callback-desktop.png` | `after/callback-mobile.png` | None; mobile heading `scrollWidth` equals `clientWidth` at 311px. |
+| `/consent/`       | Missing-ticket recovery error   | `after/consent-desktop.png`  | `after/consent-mobile.png`  | None                                                              |
+| `/device/verify/` | Empty device-code form          | `after/device-desktop.png`   | `after/device-mobile.png`   | None                                                              |
+| `/me/`            | Signed-out account state        | `after/me-desktop.png`       | `after/me-mobile.png`       | None                                                              |
 
 Screenshots were captured under `/tmp/opencode/triad-auth-task9-shots/`. The `before/` and `after/` directories contain the 12 required route/viewport captures; additional files record exercised error states.
 

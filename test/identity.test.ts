@@ -65,9 +65,10 @@ describe("identity contract", () => {
                       return typeof value === "function" ? value.bind(boundTarget) : value;
                     }
                     return async <T>(column?: string): Promise<T | null> => {
-                      const row = column === undefined
-                        ? await boundTarget.first<T>()
-                        : await boundTarget.first<T>(column);
+                      const row =
+                        column === undefined
+                          ? await boundTarget.first<T>()
+                          : await boundTarget.first<T>(column);
                       initialReads++;
                       if (initialReads === 2) release();
                       await bothRead;

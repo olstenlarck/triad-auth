@@ -20,7 +20,7 @@ const devicePurpose = (deviceCodeHash: string) => `device:${deviceCodeHash}`;
 const providerNames = new Set<ProviderName>(["google", "github", "twitter"]);
 
 function parseProvider(value: string | null): ProviderName | null {
-  return providerNames.has(value as ProviderName) ? value as ProviderName : null;
+  return providerNames.has(value as ProviderName) ? (value as ProviderName) : null;
 }
 
 function parseStoredScopes(value: string): Scope[] {
@@ -58,11 +58,13 @@ deviceRoutes.post("/device/code", async (c) => {
   const clientId = form.get("client_id") ?? "";
   if (!clientId || clientId.length > clientIdLimit) return oauthError("invalid_client");
   const providerValue = form.get("provider");
-  const provider = providerValue && providerValue.length <= providerLimit ? parseProvider(providerValue) : null;
+  const provider =
+    providerValue && providerValue.length <= providerLimit ? parseProvider(providerValue) : null;
   if (!provider) {
     return oauthError("invalid_request", "unsupported provider");
   }
-  if (!enabledProviders(c.env).includes(provider)) return oauthError("invalid_request", "provider unavailable");
+  if (!enabledProviders(c.env).includes(provider))
+    return oauthError("invalid_request", "provider unavailable");
   let scopes: Scope[];
   try {
     scopes = parseScopes(form.get("scope") ?? undefined);
@@ -86,17 +88,20 @@ deviceRoutes.post("/device/code", async (c) => {
   for (let attempt = 0; attempt < userCodeAttempts; attempt++) {
     userCode = makeUserCode();
     const normalized = normalizeUserCode(userCode);
-    const result = await c.env.DB.prepare(`INSERT OR IGNORE INTO device_grants
+    const result = await c.env.DB.prepare(
+      `INSERT OR IGNORE INTO device_grants
       (device_code_hash, user_code, client_id, provider, scopes, status, expires_at, interval_seconds, created_at)
-      VALUES (?, ?, ?, ?, ?, 'pending', ?, 5, ?)`).bind(
-        deviceCodeHash, normalized, clientId, provider, JSON.stringify(scopes), now() + 600, now(),
-      ).run();
+      VALUES (?, ?, ?, ?, ?, 'pending', ?, 5, ?)`,
+    )
+      .bind(deviceCodeHash, normalized, clientId, provider, JSON.stringify(scopes), now() + 600, now())
+      .run();
     if (result.meta.changes === 1) {
       inserted = true;
       break;
     }
     const collision = await c.env.DB.prepare("SELECT 1 FROM device_grants WHERE user_code = ?")
-      .bind(normalized).first();
+      .bind(normalized)
+      .first();
     if (!collision) return oauthError("server_error", undefined, 500);
   }
   if (!inserted) return oauthError("server_error", undefined, 500);
@@ -118,11 +123,14 @@ deviceRoutes.get("/api/device/:code", async (c) => {
   }
   const code = validUserCode(c.req.param("code"));
   if (!code) return oauthError("invalid_grant", "That device code is invalid or expired.", 404);
-  const row = await c.env.DB.prepare(`SELECT d.device_code_hash, d.client_id, c.name AS client_name,
+  const row = await c.env.DB.prepare(
+    `SELECT d.device_code_hash, d.client_id, c.name AS client_name,
       d.provider, d.scopes, d.expires_at
     FROM device_grants d JOIN clients c ON c.client_id = d.client_id
-    WHERE d.user_code = ? AND d.status = 'pending' AND d.expires_at > unixepoch()`)
-    .bind(code).first<{
+    WHERE d.user_code = ? AND d.status = 'pending' AND d.expires_at > unixepoch()`,
+  )
+    .bind(code)
+    .first<{
       device_code_hash: string;
       client_id: string;
       client_name: string;
@@ -161,17 +169,22 @@ deviceRoutes.post("/device/verify", async (c) => {
   if (!provider) {
     return oauthError("invalid_request", "unsupported provider");
   }
-  const grant = await c.env.DB.prepare(`SELECT device_code_hash, client_id, provider, scopes FROM device_grants
-    WHERE user_code = ? AND status = 'pending' AND expires_at > unixepoch()`)
-    .bind(userCode).first<{
+  const grant = await c.env.DB.prepare(
+    `SELECT device_code_hash, client_id, provider, scopes FROM device_grants
+    WHERE user_code = ? AND status = 'pending' AND expires_at > unixepoch()`,
+  )
+    .bind(userCode)
+    .first<{
       device_code_hash: string;
       client_id: string;
       provider: ProviderName;
       scopes: string;
     }>();
   if (!grant) return oauthError("invalid_grant", "invalid or expired user code");
-  if (grant.provider !== provider) return oauthError("invalid_request", "provider does not match device grant");
-  if (!enabledProviders(c.env).includes(provider)) return oauthError("invalid_request", "provider unavailable");
+  if (grant.provider !== provider)
+    return oauthError("invalid_request", "provider does not match device grant");
+  if (!enabledProviders(c.env).includes(provider))
+    return oauthError("invalid_request", "provider unavailable");
   const client = await getClient(c.env.DB, grant.client_id);
   if (!client) return oauthError("unauthorized_client");
   try {
@@ -179,11 +192,9 @@ deviceRoutes.post("/device/verify", async (c) => {
   } catch (error) {
     return oauthError("unauthorized_client", (error as Error).message);
   }
-  if (!(await consumeCsrfToken(
-    c.env.DB,
-    form.get("csrf_token") ?? "",
-    devicePurpose(grant.device_code_hash),
-  ))) {
+  if (
+    !(await consumeCsrfToken(c.env.DB, form.get("csrf_token") ?? "", devicePurpose(grant.device_code_hash)))
+  ) {
     return oauthError("invalid_request", "invalid CSRF token", 403);
   }
 
@@ -199,13 +210,25 @@ deviceRoutes.post("/device/verify", async (c) => {
   const start = await startProvider(provider, c.env, upstreamState, scopes);
   const binding = await createPreAuthBinding();
   await cleanupExpiredState(c.env.DB);
-  await c.env.DB.prepare(`INSERT INTO oauth_transactions
+  await c.env.DB.prepare(
+    `INSERT INTO oauth_transactions
     (state_hash, kind, client_id, provider, provider_verifier, provider_nonce,
       device_code_hash, scopes, browser_binding_hash, expires_at, created_at)
-    VALUES (?, 'device', ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
-      stateHash, grant.client_id, provider, start.verifier ?? null, start.nonce ?? null,
-      grant.device_code_hash, JSON.stringify(scopes), binding.hash, now() + 600, now(),
-    ).run();
+    VALUES (?, 'device', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      stateHash,
+      grant.client_id,
+      provider,
+      start.verifier ?? null,
+      start.nonce ?? null,
+      grant.device_code_hash,
+      JSON.stringify(scopes),
+      binding.hash,
+      now() + 600,
+      now(),
+    )
+    .run();
   setPreAuthCookie(c, stateHash, binding.token, provider);
   return c.json({ redirect_to: start.url });
 });

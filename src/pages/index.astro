@@ -2,17 +2,20 @@
 import Shell from "../components/Shell.astro";
 ---
 
-<Shell title="Triad | global and pairwise identity" description="A small identity broker with provider-global, account, and per-app identifiers.">
+<Shell
+  title="Triad | global and pairwise identity"
+  description="A small identity broker with provider-global, account, and per-app identifiers."
+>
   <section class="hero shell">
     <p class="hero-signal">ONE LOGIN. THREE EXPLICIT IDS.</p>
     <h1>IDENTITY,<br /><span>THAT WORKS.</span></h1>
     <div class="hero-bottom">
       <p>
-        One sign-in layer for browser, CLI, and device apps. Keep continuity across your products,
-        or give every client its own private user ID.
+        One sign-in layer for browser, CLI, and device apps. Keep continuity across your products, or give
+        every client its own private user ID.
       </p>
       <div class="actions">
-        <a class="button primary" href="/demo/">TRY THE BROKER →</a>
+        <a class="button primary" href="/demo/">TRY TRIAD →</a>
         <a class="button secondary" href="https://github.com/olstenlarck/triad-auth">VIEW SOURCE ↗</a>
       </div>
     </div>
@@ -27,7 +30,10 @@ import Shell from "../components/Shell.astro";
       <div>
         <dt>provider_sub</dt>
         <dd>pid_twitter_5a8f...</dd>
-        <p>Provider-global and correlatable across Triad clients that receive it, without exposing the upstream ID.</p>
+        <p>
+          Provider-global and correlatable across Triad clients that receive it, without exposing the upstream
+          ID.
+        </p>
       </div>
       <div>
         <dt>account_sub</dt>
@@ -36,7 +42,7 @@ import Shell from "../components/Shell.astro";
       </div>
       <div class="signal-row">
         <dt>pairwise_sub</dt>
-        <dd>ps_9cqUe7...</dd>
+        <dd>ps_9c0e7b2a...</dd>
         <p>Stable inside one app. Different client, different identifier.</p>
       </div>
     </dl>
@@ -44,7 +50,9 @@ import Shell from "../components/Shell.astro";
 
   <section class="provider-band" aria-label="Supported identity providers">
     <div class="shell provider-list">
-      <span>GOOGLE</span><span>GITHUB</span><span>TWITTER</span><span>CODE + PKCE</span><span>DEVICE FLOW</span>
+      <span>GOOGLE</span><span>GITHUB</span><span>TWITTER</span><span>CODE + PKCE</span><span
+        >DEVICE FLOW</span
+      >
     </div>
   </section>
 
@@ -62,9 +70,21 @@ import Shell from "../components/Shell.astro";
 &amp;code_challenge_method=S256</code></pre>
     </div>
     <ol class="flow-list">
-      <li><strong>Choose a provider.</strong><span>Triad maps its stable identity, then discards the provider access token.</span></li>
-      <li><strong>Exchange once.</strong><span>Your app exchanges the short-lived code with its PKCE verifier.</span></li>
-      <li><strong>Verify locally.</strong><span>Check ES256, issuer, audience, and expiry against the published JWKS.</span></li>
+      <li>
+        <strong>Choose a provider.</strong><span
+          >Triad maps its stable identity, then discards the provider access token.</span
+        >
+      </li>
+      <li>
+        <strong>Exchange once.</strong><span
+          >Your app exchanges the short-lived code with its PKCE verifier.</span
+        >
+      </li>
+      <li>
+        <strong>Verify locally.</strong><span
+          >Check ES256, issuer, audience, and expiry against the published JWKS.</span
+        >
+      </li>
     </ol>
   </section>
 
@@ -72,7 +92,10 @@ import Shell from "../components/Shell.astro";
     <p class="device-code" aria-hidden="true">F7KQ-2M9X</p>
     <div>
       <h2 id="device-title">AUTHORIZE<br /><span>ANOTHER DEVICE.</span></h2>
-      <p>Show a short code on the device. The user opens Triad in a browser, reviews the connection, and approves it.</p>
+      <p>
+        Show a short code on the device. The user opens Triad in a browser, reviews the connection, and
+        approves it.
+      </p>
       <a class="text-link" href="/device/verify/">OPEN DEVICE VERIFICATION →</a>
     </div>
   </section>

@@ -13,8 +13,12 @@ import Shell from "../components/Shell.astro";
     <div id="signed-out" class="signed-out" hidden>
       <p>Choose an enabled provider to inspect your broker account and authorized applications.</p>
       <div class="control-feedback">
-        <div id="account-provider-actions" class="actions" aria-live="polite">Loading enabled providers...</div>
-        <button id="account-provider-retry" class="button secondary" type="button" hidden>RETRY PROVIDERS</button>
+        <div id="account-provider-actions" class="actions" aria-live="polite">
+          Loading enabled providers...
+        </div>
+        <button id="account-provider-retry" class="button secondary" type="button" hidden
+          >RETRY PROVIDERS</button
+        >
       </div>
     </div>
 
@@ -57,7 +61,9 @@ import Shell from "../components/Shell.astro";
 
     function setMutationControls(disabled: boolean) {
       logout.disabled = disabled;
-      list.querySelectorAll<HTMLButtonElement>("button").forEach((button) => { button.disabled = disabled; });
+      list.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+        button.disabled = disabled;
+      });
     }
 
     function showError(reason: unknown, fallback: string) {
@@ -67,7 +73,7 @@ import Shell from "../components/Shell.astro";
 
     async function responseError(response: Response, fallback: string): Promise<Error> {
       try {
-        const body = await response.json() as { error_description?: string; error?: string };
+        const body = (await response.json()) as { error_description?: string; error?: string };
         return new Error(body.error_description ?? body.error ?? fallback);
       } catch {
         return new Error(fallback);
@@ -104,12 +110,14 @@ import Shell from "../components/Shell.astro";
           body: new URLSearchParams({ csrf_token: token }),
         });
         if (!revoked.ok) throw await responseError(revoked, "Could not revoke this authorization.");
-        const next = await revoked.json() as { csrf_token?: string };
-        if (!next.csrf_token) throw new Error("Authorization changed, but security state could not be refreshed.");
+        const next = (await revoked.json()) as { csrf_token?: string };
+        if (!next.csrf_token)
+          throw new Error("Authorization changed, but security state could not be refreshed.");
         csrfToken = next.csrf_token;
         row.remove();
         appCount.textContent = String(--remainingClients);
-        if (!remainingClients) list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;
+        if (!remainingClients)
+          list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;
       } catch (reason) {
         await recoverAccount(reason, "Could not revoke this authorization.");
       } finally {
@@ -177,14 +185,15 @@ import Shell from "../components/Shell.astro";
         const response = await fetch("/api/me", { signal: controller.signal });
         if (generation !== loadGeneration) return;
         if (response.status === 401) {
-          document.querySelector("#account-summary")!.textContent = "No active broker session on this browser.";
+          document.querySelector("#account-summary")!.textContent =
+            "No active broker session on this browser.";
           content.hidden = true;
           signedOut.hidden = false;
           list.replaceChildren();
           await renderProviderActions();
           return;
         }
-        const body = await response.json() as {
+        const body = (await response.json()) as {
           account_sub?: string;
           identities?: string[];
           clients?: Array<{ client_id: string; name: string; updated_at: number }>;
@@ -194,7 +203,8 @@ import Shell from "../components/Shell.astro";
         if (generation !== loadGeneration) return;
         if (!response.ok) throw new Error(body.error ?? "Could not load your session.");
         if (!body.csrf_token) throw new Error("Account security state is unavailable.");
-        document.querySelector("#account-summary")!.textContent = "This is the identity map Triad holds for you.";
+        document.querySelector("#account-summary")!.textContent =
+          "This is the identity map Triad holds for you.";
         document.querySelector("#account-sub")!.textContent = body.account_sub ?? "NONE";
         document.querySelector("#identity-list")!.textContent = body.identities?.join(" · ") || "NONE";
         const clients = body.clients ?? [];
@@ -202,7 +212,8 @@ import Shell from "../components/Shell.astro";
         remainingClients = clients.length;
         appCount.textContent = String(remainingClients);
         list.replaceChildren();
-        if (!clients.length) list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;
+        if (!clients.length)
+          list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;
         for (const client of clients) {
           const row = document.createElement("article");
           row.className = "authorized-app";
@@ -213,7 +224,9 @@ import Shell from "../components/Shell.astro";
           const button = document.createElement("button");
           button.className = "button danger";
           button.textContent = "REVOKE";
-          button.addEventListener("click", () => { void revokeClient(client.client_id, row); });
+          button.addEventListener("click", () => {
+            void revokeClient(client.client_id, row);
+          });
           row.append(title, id, button);
           list.append(row);
         }
@@ -228,8 +241,12 @@ import Shell from "../components/Shell.astro";
       }
     }
 
-    logout.addEventListener("click", () => { void logoutAccount(); });
-    providerRetry.addEventListener("click", () => { void renderProviderActions(); });
+    logout.addEventListener("click", () => {
+      void logoutAccount();
+    });
+    providerRetry.addEventListener("click", () => {
+      void renderProviderActions();
+    });
     window.addEventListener("pagehide", () => {
       loadGeneration++;
       loadController?.abort();

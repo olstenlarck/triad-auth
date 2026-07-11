@@ -7,12 +7,22 @@ import Shell from "../../components/Shell.astro";
     <div class="transaction-head">
       <p>DEVICE FLOW</p>
       <h1 id="device-title">AUTHORIZE<br /><span>THIS DEVICE.</span></h1>
-      <p class="lede">Enter the code shown on your device, review the connection, and choose what to share.</p>
+      <p class="lede">
+        Enter the code shown on your device, review the connection, and choose what to share.
+      </p>
     </div>
 
     <form id="device-form" class="device-form" method="post" action="/device/verify" aria-busy="false">
       <label for="user-code">DEVICE CODE</label>
-      <input id="user-code" name="user_code" inputmode="text" autocomplete="one-time-code" maxlength="9" placeholder="ABCD-2345" required />
+      <input
+        id="user-code"
+        name="user_code"
+        inputmode="text"
+        autocomplete="one-time-code"
+        maxlength="9"
+        placeholder="ABCD-2345"
+        required
+      />
       <input id="device-provider" type="hidden" name="provider" value="" />
       <input id="device-csrf" type="hidden" name="csrf_token" value="" />
       <div id="device-app" class="device-app" aria-live="polite" hidden>
@@ -23,7 +33,9 @@ import Shell from "../../components/Shell.astro";
         <strong>IDENTITY + REQUESTED PROFILE CLAIMS</strong>
         <div id="device-disclosures" class="disclosure-list"></div>
       </div>
-      <p id="device-status" class="demo-status" aria-live="polite">Enter all eight characters to inspect the request.</p>
+      <p id="device-status" class="demo-status" aria-live="polite">
+        Enter all eight characters to inspect the request.
+      </p>
       <button id="device-submit" class="button primary" type="submit" disabled>APPROVE DEVICE REQUEST</button>
     </form>
     <p id="device-error" class="error-message" role="alert" hidden></p>
@@ -56,7 +68,10 @@ import Shell from "../../components/Shell.astro";
     }
 
     function format(value: string) {
-      const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+      const clean = value
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 8);
       return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
     }
 
@@ -76,7 +91,7 @@ import Shell from "../../components/Shell.astro";
       status.textContent = "Checking this device code.";
       try {
         const response = await fetch(`/api/device/${encodeURIComponent(input.value)}`);
-        const body = await response.json() as {
+        const body = (await response.json()) as {
           client_name?: string;
           provider?: string;
           scopes?: string[];
@@ -86,12 +101,12 @@ import Shell from "../../components/Shell.astro";
         if (current !== inspection) return;
         form.setAttribute("aria-busy", "false");
         if (
-          !response.ok
-          || !body.csrf_token
-          || !body.provider
-          || !["google", "github", "twitter"].includes(body.provider)
-          || !Array.isArray(body.scopes)
-          || !body.scopes.includes("openid")
+          !response.ok ||
+          !body.csrf_token ||
+          !body.provider ||
+          !["google", "github", "twitter"].includes(body.provider) ||
+          !Array.isArray(body.scopes) ||
+          !body.scopes.includes("openid")
         ) {
           resetInspectedRequest();
           error.textContent = body.error_description ?? "That device code is invalid or expired.";
@@ -150,7 +165,7 @@ import Shell from "../../components/Shell.astro";
             scope: selectedDisclosureScope(disclosures),
           }),
         });
-        const body = await response.json() as { redirect_to?: string; error_description?: string };
+        const body = (await response.json()) as { redirect_to?: string; error_description?: string };
         if (!response.ok || !body.redirect_to) {
           throw new Error(body.error_description ?? "The device request could not be started.");
         }
@@ -161,7 +176,8 @@ import Shell from "../../components/Shell.astro";
         form.setAttribute("aria-busy", "false");
         status.textContent = "The request must be inspected again before continuing.";
         status.dataset.tone = "error";
-        error.textContent = reason instanceof Error ? reason.message : "The device request could not be started.";
+        error.textContent =
+          reason instanceof Error ? reason.message : "The device request could not be started.";
         error.hidden = false;
       }
     });

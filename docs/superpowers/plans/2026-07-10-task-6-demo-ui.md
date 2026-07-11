@@ -29,12 +29,14 @@
 ### Task 1: Lock The Static UI And Client Contract With Failing Tests
 
 **Files:**
+
 - Create: `test/ui.test.ts`
 - Modify: `test/oauth.test.ts`
 - Modify: `test/device.test.ts`
 - Modify: `migrations/0001_init.sql`
 
 **Interfaces:**
+
 - Consumes: Astro output under `dist/` and migration-backed `clients` rows.
 - Produces: assertions for `/demo/`, `/demo/callback/`, GitHub-only rendered copy, CSRF form fields, and the exact `triad-demo` registration.
 
@@ -80,10 +82,12 @@ Expected: UI entry-point assertions remain red; OAuth and device tests pass with
 ### Task 2: Build And Test Browser Protocol Helpers
 
 **Files:**
+
 - Create: `src/scripts/demo-protocol.ts`
 - Create: `test/demo-protocol.test.ts`
 
 **Interfaces:**
+
 - Consumes: `globalThis.crypto`, same-origin OIDC discovery, JWKS JSON, and JOSE `decodeProtectedHeader`, `importJWK`, and `jwtVerify`.
 - Produces: `createPkce(): Promise<{ verifier: string; challenge: string; state: string }>` and `verifyIdentityToken(token: string, clientId: string, brokerOrigin?: string): Promise<VerifiedIdentity>`.
 
@@ -130,12 +134,14 @@ Expected: PASS.
 ### Task 3: Build The Authorization-Code And Device Demo Surfaces
 
 **Files:**
+
 - Create: `src/pages/demo/index.astro`
 - Create: `src/pages/demo/callback.astro`
 - Modify: `src/styles/global.css`
 - Test: `test/ui.test.ts`
 
 **Interfaces:**
+
 - Consumes: `createPkce`, `verifyIdentityToken`, discovery `authorization_endpoint`, discovery `token_endpoint`, discovery `device_authorization_endpoint`, `sessionStorage`, and the exact callback URI derived as `${location.origin}/demo/callback/`.
 - Produces: an authorization-code launch control, callback verification result, device grant launcher, verification link, expiry-aware poller, and verified three-row identity rendering.
 
@@ -174,11 +180,13 @@ Expected: PASS and CSP hashes regenerate from all built pages.
 ### Task 4: Make Consent And Device Verification CSRF-Aware And GitHub-Only
 
 **Files:**
+
 - Modify: `src/pages/consent.astro`
 - Modify: `src/pages/device/verify.astro`
 - Modify: `test/ui.test.ts`
 
 **Interfaces:**
+
 - Consumes: `csrf_token` from `GET /api/consent/:request` and `GET /api/device/:code`.
 - Produces: form-encoded same-origin mutation requests containing the fetched token, and GitHub-only transactional controls/copy.
 
@@ -205,12 +213,14 @@ Expected: PASS.
 ### Task 5: Align Global GitHub-Only Navigation And Copy
 
 **Files:**
+
 - Modify: `src/components/Shell.astro`
 - Modify: `src/pages/index.astro`
 - Modify: `src/styles/global.css`
 - Modify: `test/ui.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing global shell and landing-page sections.
 - Produces: discoverable `/demo/` navigation and GitHub-only marketing/protocol copy with no em dashes.
 
@@ -237,10 +247,12 @@ Expected: PASS.
 ### Task 6: Full Verification, Self-Review, Report, And Commit
 
 **Files:**
+
 - Modify: `src/generated/csp-script-hashes.ts` through `pnpm build`
 - Create: `.superpowers/sdd/task-6-report.md`
 
 **Interfaces:**
+
 - Consumes: all Task 6 implementation and test output.
 - Produces: verified build artifacts, regenerated CSP allowlist, review notes, final report, and one feature commit.
 

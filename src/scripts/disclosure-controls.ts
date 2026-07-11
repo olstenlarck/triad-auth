@@ -98,8 +98,9 @@ export function renderDisclosureControls(container: HTMLElement, scopes: readonl
 }
 
 export function selectedDisclosureScope(container: HTMLElement): string {
-  const selected = [...container.querySelectorAll<HTMLInputElement>('input[name="granted-scope"]:checked')]
-    .map((input) => input.value);
+  const selected = [
+    ...container.querySelectorAll<HTMLInputElement>('input[name="granted-scope"]:checked'),
+  ].map((input) => input.value);
 
   return ["openid", ...selected].join(" ");
 }

@@ -21,10 +21,10 @@ Consent records retain approved scope names, not profile values. D1 stores reque
 Provider capabilities are:
 
 | Provider | `email` | `handle` | `name` | `avatar` |
-| --- | --- | --- | --- | --- |
-| Google | Yes | No | Yes | Yes |
-| GitHub | Yes | Yes | Yes | Yes |
-| Twitter | No | Yes | Yes | Yes |
+| -------- | ------- | -------- | ------ | -------- |
+| Google   | Yes     | No       | Yes    | Yes      |
+| GitHub   | Yes     | Yes      | Yes    | Yes      |
+| Twitter  | No      | Yes      | Yes    | Yes      |
 
 Triad rejects unsupported provider/scope combinations before creating state or grants. If an account does not supply a selected profile value, the transaction ends without a code or token.
 

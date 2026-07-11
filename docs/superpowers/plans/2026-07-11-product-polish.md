@@ -22,6 +22,7 @@
 ### Task 1: Compact opaque subjects
 
 **Files:**
+
 - Modify: `src/crypto.ts`
 - Modify: `src/tokens.ts`
 - Test: `test/identity.test.ts`
@@ -29,6 +30,7 @@
 - Test: fixture strings in `test/**/*.test.ts`
 
 **Interfaces:**
+
 - Produces: `pairwiseSubject(secret, accountId, clientId): Promise<string>` returning `ps_<hex>`.
 - Produces: `providerSubject(secret, provider, providerUserId): Promise<string>` returning `pid_<provider>_<hex>`.
 
@@ -88,6 +90,7 @@ Expected: all focused tests pass.
 ### Task 2: User-selected scope grants
 
 **Files:**
+
 - Modify: `src/claims.ts`
 - Modify: `src/routes/oauth.ts`
 - Modify: `src/routes/device.ts`
@@ -97,6 +100,7 @@ Expected: all focused tests pass.
 - Test: `test/device.test.ts`
 
 **Interfaces:**
+
 - Produces: `selectGrantedScopes(requested: readonly Scope[], value: string | null): Scope[]`.
 - Changes: `approveDeviceGrant(..., scopes: readonly Scope[]): Promise<boolean>` persists selected scopes.
 
@@ -142,6 +146,7 @@ Expected: all focused tests pass, including rejected scope escalation.
 ### Task 3: Consent, device, and demo controls
 
 **Files:**
+
 - Create: `src/scripts/disclosure-controls.ts`
 - Modify: `src/pages/consent.astro`
 - Modify: `src/pages/device/verify.astro`
@@ -151,6 +156,7 @@ Expected: all focused tests pass, including rejected scope escalation.
 - Test: `test/ui.test.ts`
 
 **Interfaces:**
+
 - Produces: `renderDisclosureControls(container, scopes): void` and `selectedDisclosureScope(container): string`.
 - Consumes: browser/device approval endpoints accepting a canonical `scope` form field.
 
@@ -168,8 +174,9 @@ Expected: failures against the current static consent list and radio-style provi
 
 ```ts
 export function selectedDisclosureScope(container: HTMLElement): string {
-  const selected = [...container.querySelectorAll<HTMLInputElement>('input[name="granted-scope"]:checked')]
-    .map((input) => input.value);
+  const selected = [
+    ...container.querySelectorAll<HTMLInputElement>('input[name="granted-scope"]:checked'),
+  ].map((input) => input.value);
   return ["openid", ...selected].join(" ");
 }
 ```
@@ -197,6 +204,7 @@ Expected: all tests pass.
 ### Task 4: Product copy and coral visual pass
 
 **Files:**
+
 - Modify: `src/components/Shell.astro`
 - Modify: `src/pages/index.astro`
 - Modify: `src/pages/consent.astro`
@@ -210,6 +218,7 @@ Expected: all tests pass.
 - Test: `test/config.test.ts`
 
 **Interfaces:**
+
 - Keeps all route URLs unchanged.
 - Documents `avatar` request scope mapping to the standard `picture` claim.
 
@@ -244,6 +253,7 @@ Expected: all tests pass.
 ### Task 5: Repository formatting, verification, and release
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `pnpm-lock.yaml`
 - Create: `.prettierignore`
@@ -251,6 +261,7 @@ Expected: all tests pass.
 - Add: `AGENTS.md`
 
 **Interfaces:**
+
 - Produces: `pnpm format` and `pnpm format:check`.
 - Changes: `pnpm check` includes `format:check`.
 

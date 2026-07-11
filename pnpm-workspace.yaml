@@ -3,4 +3,4 @@ allowBuilds:
   sharp: true
   workerd: true
 minimumReleaseAgeExclude:
-  - '@cloudflare/workers-types@5.20260710.1'
+  - "@cloudflare/workers-types@5.20260710.1"

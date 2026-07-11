@@ -2,7 +2,13 @@ import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import app from "../src/index";
 import { cspScriptHashes } from "../src/generated/csp-script-hashes";
-import { assertSameOrigin, consumeCsrfToken, createCsrfToken, noStore, securityHeaders } from "../src/security";
+import {
+  assertSameOrigin,
+  consumeCsrfToken,
+  createCsrfToken,
+  noStore,
+  securityHeaders,
+} from "../src/security";
 import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
 
@@ -52,7 +58,9 @@ describe("browser and response safety", () => {
 
     expect(() => assertSameOrigin(canonical, "https://auth.example/issuer")).not.toThrow();
     expect(() => assertSameOrigin(crossOrigin, "https://auth.example")).toThrow("invalid_origin");
-    expect(() => assertSameOrigin(new Request("https://auth.example/api"), "https://auth.example")).toThrow("invalid_origin");
+    expect(() => assertSameOrigin(new Request("https://auth.example/api"), "https://auth.example")).toThrow(
+      "invalid_origin",
+    );
   });
 
   it("allows only self and generated script hashes without nonces or unsafe-inline", async () => {
@@ -108,8 +116,10 @@ describe("browser and response safety", () => {
     const { db, close } = await createTestDb();
     try {
       const token = await createCsrfToken(db, "consent");
-      const stored = await db.prepare("SELECT token_hash FROM csrf_tokens WHERE purpose = ?")
-        .bind("consent").first<{ token_hash: string }>();
+      const stored = await db
+        .prepare("SELECT token_hash FROM csrf_tokens WHERE purpose = ?")
+        .bind("consent")
+        .first<{ token_hash: string }>();
 
       expect(stored?.token_hash).not.toBe(token);
       await expect(consumeCsrfToken(db, token, "other-purpose")).resolves.toBe(false);
@@ -132,11 +142,12 @@ describe("browser and response safety", () => {
     });
     try {
       const first = await createCsrfToken(db, "consent");
-      await db.prepare("INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, 0, 0)")
-        .bind("expired-hash", "expired-purpose").run();
+      await db
+        .prepare("INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES (?, ?, 0, 0)")
+        .bind("expired-hash", "expired-purpose")
+        .run();
       const second = await createCsrfToken(db, "consent");
-      const count = await db.prepare("SELECT COUNT(*) AS count FROM csrf_tokens")
-        .first<{ count: number }>();
+      const count = await db.prepare("SELECT COUNT(*) AS count FROM csrf_tokens").first<{ count: number }>();
 
       expect(second).not.toBe(first);
       expect(count?.count).toBe(1);

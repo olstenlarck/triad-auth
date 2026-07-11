@@ -52,7 +52,8 @@ describe("D1 rate limiter", () => {
     }
     await expect(enforceRateLimit(db, "authorization", "203.0.113.4", 3, 60)).resolves.toBe(false);
 
-    const row = await db.prepare("SELECT key_hash, count FROM rate_limits WHERE bucket = 'authorization'")
+    const row = await db
+      .prepare("SELECT key_hash, count FROM rate_limits WHERE bucket = 'authorization'")
       .first<{ key_hash: string; count: number }>();
     expect(row).toEqual({ key_hash: await sha256("203.0.113.4"), count: 3 });
     expect(JSON.stringify(row)).not.toContain("203.0.113.4");
@@ -61,13 +62,14 @@ describe("D1 rate limiter", () => {
   it("uses a capped atomic upsert under local contention", async () => {
     const db = await testDb();
 
-    const accepted = await Promise.all(Array.from(
-      { length: 8 },
-      () => enforceRateLimit(db, "callback", "198.51.100.9", 3, 60),
-    ));
+    const accepted = await Promise.all(
+      Array.from({ length: 8 }, () => enforceRateLimit(db, "callback", "198.51.100.9", 3, 60)),
+    );
 
     expect(accepted.filter(Boolean)).toHaveLength(3);
-    expect(await db.prepare("SELECT count FROM rate_limits WHERE bucket = 'callback'").first("count")).toBe(3);
+    expect(await db.prepare("SELECT count FROM rate_limits WHERE bucket = 'callback'").first("count")).toBe(
+      3,
+    );
   });
 
   it("accepts again in the next window without requiring cleanup", async () => {
@@ -78,8 +80,12 @@ describe("D1 rate limiter", () => {
     vi.advanceTimersByTime(60_000);
 
     await expect(enforceRateLimit(db, "device-issue", "192.0.2.7", 1, 60)).resolves.toBe(true);
-    const rows = await db.prepare(`SELECT window_start, count FROM rate_limits
-      WHERE bucket = 'device-issue'`).all<{ window_start: number; count: number }>();
+    const rows = await db
+      .prepare(
+        `SELECT window_start, count FROM rate_limits
+      WHERE bucket = 'device-issue'`,
+      )
+      .all<{ window_start: number; count: number }>();
     expect(rows.results.at(-1)).toEqual({
       window_start: Math.floor(Date.now() / 60_000) * 60,
       count: 1,
@@ -118,14 +124,23 @@ describe("D1 rate limiter", () => {
       await db.prepare("ALTER TABLE rate_limits ADD COLUMN expires_at INTEGER").run();
     }
     const now = Math.floor(Date.now() / 1000);
-    await db.prepare(`WITH RECURSIVE sequence(value) AS (
+    await db
+      .prepare(
+        `WITH RECURSIVE sequence(value) AS (
       VALUES (1) UNION ALL SELECT value + 1 FROM sequence WHERE value < 150
     )
     INSERT INTO rate_limits (bucket, key_hash, window_start, count, expires_at)
-    SELECT 'stale-' || value, 'key-' || value, ?, 1, ? FROM sequence`)
-      .bind(now - 120, now - 1).run();
-    await db.prepare(`INSERT INTO rate_limits (bucket, key_hash, window_start, count, expires_at)
-      VALUES ('active', 'active-key', ?, 1, ?)`).bind(now, now + 60).run();
+    SELECT 'stale-' || value, 'key-' || value, ?, 1, ? FROM sequence`,
+      )
+      .bind(now - 120, now - 1)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO rate_limits (bucket, key_hash, window_start, count, expires_at)
+      VALUES ('active', 'active-key', ?, 1, ?)`,
+      )
+      .bind(now, now + 60)
+      .run();
     vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation((array) => {
       (array as Uint8Array).fill(7);
       return array;
@@ -133,10 +148,15 @@ describe("D1 rate limiter", () => {
 
     await enforceRateLimit(db, "cleanup-trigger", "203.0.113.4", 3, 60);
 
-    expect(await db.prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE expires_at <= ?")
-      .bind(now).first("count")).toBe(50);
-    expect(await db.prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE bucket = 'active'")
-      .first("count")).toBe(1);
+    expect(
+      await db
+        .prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE expires_at <= ?")
+        .bind(now)
+        .first("count"),
+    ).toBe(50);
+    expect(
+      await db.prepare("SELECT COUNT(*) AS count FROM rate_limits WHERE bucket = 'active'").first("count"),
+    ).toBe(1);
   });
 });
 
@@ -159,8 +179,9 @@ describe("public route rate limits", () => {
     await app.request("/authorize?provider=github", undefined, env);
     await app.request("/authorize?provider=github", undefined, env);
 
-    const rows = await env.DB.prepare("SELECT count FROM rate_limits WHERE bucket = 'authorization-start'")
-      .all<{ count: number }>();
+    const rows = await env.DB.prepare(
+      "SELECT count FROM rate_limits WHERE bucket = 'authorization-start'",
+    ).all<{ count: number }>();
     expect(rows.results).toEqual([{ count: 2 }]);
   });
 
@@ -170,9 +191,17 @@ describe("public route rate limits", () => {
       expect((await app.request("/session/start/github", { headers: ipHeaders }, env)).status).toBe(302);
     }
     await expectLimited(await app.request("/session/start/github", { headers: ipHeaders }, env));
-    expect((await app.request("/session/start/github", {
-      headers: { "cf-connecting-ip": "203.0.113.11" },
-    }, env)).status).toBe(302);
+    expect(
+      (
+        await app.request(
+          "/session/start/github",
+          {
+            headers: { "cf-connecting-ip": "203.0.113.11" },
+          },
+          env,
+        )
+      ).status,
+    ).toBe(302);
   });
 
   it("limits downstream authorization starts to 20 per minute per IP", async () => {
@@ -186,7 +215,9 @@ describe("public route rate limits", () => {
   it("limits device issuance to 10 per minute per IP", async () => {
     const env = await testEnv();
     for (let attempt = 0; attempt < 10; attempt++) {
-      expect((await app.request("/device/code", { method: "POST", headers: ipHeaders }, env)).status).toBe(400);
+      expect((await app.request("/device/code", { method: "POST", headers: ipHeaders }, env)).status).toBe(
+        400,
+      );
     }
     await expectLimited(await app.request("/device/code", { method: "POST", headers: ipHeaders }, env));
   });
@@ -244,28 +275,36 @@ describe("public route rate limits", () => {
       return array;
     });
 
-    const authorizationCode = await app.request("/token", {
-      method: "POST",
-      headers: { ...ipHeaders, "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: "triad-demo",
-        redirect_uri: "https://auth.example/demo/callback/",
-        code: "invalid",
-        code_verifier: "A".repeat(43),
-      }),
-    }, env);
+    const authorizationCode = await app.request(
+      "/token",
+      {
+        method: "POST",
+        headers: { ...ipHeaders, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          client_id: "triad-demo",
+          redirect_uri: "https://auth.example/demo/callback/",
+          code: "invalid",
+          code_verifier: "A".repeat(43),
+        }),
+      },
+      env,
+    );
     await expectLimited(authorizationCode);
 
-    const device = await app.request("/token", {
-      method: "POST",
-      headers: { ...ipHeaders, "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        client_id: "triad-demo",
-        device_code: "d".repeat(43),
-      }),
-    }, env);
+    const device = await app.request(
+      "/token",
+      {
+        method: "POST",
+        headers: { ...ipHeaders, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          client_id: "triad-demo",
+          device_code: "d".repeat(43),
+        }),
+      },
+      env,
+    );
     expect(device.status).toBe(400);
     await expect(device.json()).resolves.toMatchObject({ error: "slow_down" });
     expect(protectedLookups).toBe(0);

@@ -29,6 +29,7 @@
 ### Task 1: Opaque Provider Subjects And Five-Minute Tokens
 
 **Files:**
+
 - Modify: `src/types.ts`
 - Modify: `src/crypto.ts`
 - Modify: `src/tokens.ts`
@@ -38,6 +39,7 @@
 - Modify: `test/oauth.test.ts`
 
 **Interfaces:**
+
 - Produces: `ProviderName = "google" | "github" | "twitter"`.
 - Produces: `providerSubject(secret: string, provider: ProviderName, providerUserId: string): Promise<string>`.
 - Preserves: `issueIdToken(env, clientId, accountId, providerSub)` with five-minute expiry.
@@ -97,6 +99,7 @@ git commit -m "feat: obscure global provider identities"
 ### Task 2: Google, GitHub, And Twitter Provider Adapters
 
 **Files:**
+
 - Modify: `src/types.ts`
 - Replace: `src/providers.ts`
 - Modify: `src/routes/oauth.ts`
@@ -105,6 +108,7 @@ git commit -m "feat: obscure global provider identities"
 - Modify: `test/providers.test.ts`
 
 **Interfaces:**
+
 - Produces: `enabledProviders(env: Env): ProviderName[]`.
 - Produces: `startProvider(provider, env, state): Promise<{ url: string; verifier?: string; nonce?: string }>`.
 - Produces: `finishProvider(provider, env, code, verifier?, nonce?): Promise<ProviderIdentity>`.
@@ -158,6 +162,7 @@ git commit -m "feat: add Google and Twitter adapters"
 ### Task 3: Privacy Scopes, Provider Claims, And Encrypted Transit
 
 **Files:**
+
 - Create: `src/claims.ts`
 - Modify: `src/crypto.ts`
 - Modify: `src/providers.ts`
@@ -168,6 +173,7 @@ git commit -m "feat: add Google and Twitter adapters"
 - Modify: `test/tokens.test.ts`
 
 **Interfaces:**
+
 - Produces: `ProfileScope = "email" | "handle" | "name" | "avatar"` and canonical `Scope` lists.
 - Produces: `parseScopes(value?: string): Scope[]`, `serializeScopes(scopes): string`, `providerScopes(provider): ProfileScope[]`, and `validateProviderScopes(provider, scopes): void`.
 - Produces: `sealClaims(secret, context, claims): Promise<string>` and `openClaims(secret, context, ciphertext): Promise<ProfileClaims>`.
@@ -187,13 +193,21 @@ it("defaults to identity only and canonicalizes requested scopes", () => {
 it("enforces provider capabilities", () => {
   expect(() => validateProviderScopes("google", parseScopes("openid handle"))).toThrow("invalid_scope");
   expect(() => validateProviderScopes("twitter", parseScopes("openid email"))).toThrow("invalid_scope");
-  expect(() => validateProviderScopes("github", parseScopes("openid email handle name avatar"))).not.toThrow();
+  expect(() =>
+    validateProviderScopes("github", parseScopes("openid email handle name avatar")),
+  ).not.toThrow();
 });
 
 it("encrypts claims with grant-bound authenticated data", async () => {
-  const sealed = await sealClaims("s".repeat(32), "code:abc", { email: "user@example.com", email_verified: true });
+  const sealed = await sealClaims("s".repeat(32), "code:abc", {
+    email: "user@example.com",
+    email_verified: true,
+  });
   expect(sealed).not.toContain("user@example.com");
-  await expect(openClaims("s".repeat(32), "code:abc", sealed)).resolves.toEqual({ email: "user@example.com", email_verified: true });
+  await expect(openClaims("s".repeat(32), "code:abc", sealed)).resolves.toEqual({
+    email: "user@example.com",
+    email_verified: true,
+  });
   await expect(openClaims("s".repeat(32), "code:other", sealed)).rejects.toThrow();
 });
 ```
@@ -238,6 +252,7 @@ git commit -m "feat: add privacy-scoped claims"
 ### Task 4: Persist Provider Choice And Mandatory Scopes Through Flows
 
 **Files:**
+
 - Modify: `src/db.ts`
 - Modify: `src/pre-auth.ts`
 - Modify: `src/providers.ts`
@@ -253,6 +268,7 @@ git commit -m "feat: add privacy-scoped claims"
 - Modify: `test/d1.ts`
 
 **Interfaces:**
+
 - Produces: GET `/api/providers` returning `{ providers: Array<{ id: ProviderName; scopes: ProfileScope[] }> }`.
 - Persists: provider verifier/nonce in `oauth_transactions` and provider in `device_grants`.
 - Requires: device verification provider must equal stored grant provider.
@@ -333,6 +349,7 @@ git commit -m "feat: route scoped Triad identities"
 ### Task 5: Provider-Neutral Triad UI And Mandatory Consent
 
 **Files:**
+
 - Modify: `src/components/Shell.astro`
 - Modify: `src/pages/index.astro`
 - Modify: `src/pages/demo/index.astro`
@@ -346,6 +363,7 @@ git commit -m "feat: route scoped Triad identities"
 - Modify: `test/ui.test.ts`
 
 **Interfaces:**
+
 - Consumes: `/api/providers` and persisted provider from consent/device inspection.
 - Produces: accessible provider/scope request controls in the demo and fixed all-or-nothing disclosure in consent/device verification.
 
@@ -393,6 +411,7 @@ git commit -m "feat: present privacy-first Triad consent"
 ### Task 6: Configuration, Provider Setup Links, Deployment, And Verification
 
 **Files:**
+
 - Modify: `.dev.vars.example`
 - Modify: `scripts/check-config.mjs`
 - Modify: `wrangler.toml`
@@ -401,6 +420,7 @@ git commit -m "feat: present privacy-first Triad consent"
 - Modify: `docs/validation/visual-check.md`
 
 **Interfaces:**
+
 - Produces: config validation for signing secrets and complete optional provider credential pairs without exposing values.
 - Documents: exact Google, GitHub, and Twitter app creation links and callbacks.
 

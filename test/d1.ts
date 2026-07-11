@@ -32,13 +32,14 @@ class SqliteD1Statement {
   }
 
   async first<T = Record<string, unknown>>(column?: string): Promise<T | null> {
-    const row = this.database.prepare(this.query).get(...this.values as never[]) as Record<string, unknown> | undefined;
+    const row = this.database.prepare(this.query).get(...(this.values as never[])) as
+      Record<string, unknown> | undefined;
     if (!row) return null;
     return (column === undefined ? row : row[column]) as T;
   }
 
   async run<T = Record<string, unknown>>(): Promise<D1Result<T>> {
-    const result = this.database.prepare(this.query).run(...this.values as never[]);
+    const result = this.database.prepare(this.query).run(...(this.values as never[]));
     return {
       success: true,
       results: [],
@@ -50,7 +51,7 @@ class SqliteD1Statement {
   }
 
   async all<T = Record<string, unknown>>(): Promise<D1Result<T>> {
-    const results = this.database.prepare(this.query).all(...this.values as never[]) as T[];
+    const results = this.database.prepare(this.query).all(...(this.values as never[])) as T[];
     return { success: true, results, meta: { changes: 0 } } as unknown as D1Result<T>;
   }
 }
