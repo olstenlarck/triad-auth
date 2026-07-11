@@ -205,6 +205,12 @@ h3 {
 .device-callout h2 span {
   color: var(--signal);
 }
+#callback-title {
+  max-width: none;
+}
+#callback-title span {
+  white-space: nowrap;
+}
 
 .hero-bottom {
   display: flex;
@@ -897,19 +903,22 @@ h3 {
 .verified-claims {
   margin: 0;
 }
-.verified-claims > div {
+.verified-claims > div,
+.verified-profile dl > div {
   display: grid;
   grid-template-columns: 9rem minmax(0, 1fr);
   gap: 0.25rem 1rem;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--rule-soft);
 }
-.verified-claims dt {
+.verified-claims dt,
+.verified-profile dt {
   color: var(--signal);
   font-size: 0.72rem;
   font-weight: 800;
 }
-.verified-claims dd {
+.verified-claims dd,
+.verified-profile dd {
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
@@ -930,9 +939,6 @@ h3 {
   overflow-wrap: anywhere;
   color: var(--ink);
 }
-.verified-result > .button {
-  margin: 0 1.25rem 1.25rem;
-}
 .verified-profile {
   border-top: 1px solid var(--signal);
 }
@@ -947,22 +953,19 @@ h3 {
 .verified-profile dl {
   margin: 0;
 }
-.verified-profile dl > div {
-  display: grid;
-  grid-template-columns: 9rem minmax(0, 1fr);
-  gap: 1rem;
-  padding: 0.8rem 1.25rem;
-  border-top: 1px solid var(--rule-soft);
+.callback-followup {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
 }
-.verified-profile dt {
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 800;
+.callback-followup .verified-meta {
+  padding: 0 0 1.25rem;
 }
-.verified-profile dd {
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
+.callback-actions {
+  align-items: center;
+}
+.callback-logout-status {
+  margin-bottom: 0;
 }
 .verification-progress {
   display: flex;

@@ -67,7 +67,10 @@ it("implements complete PKCE and device demo contracts", async () => {
   ).toHaveLength(2);
   expect(demo).toContain("verifyIdentityToken");
   expect(callback).toContain("state !== expectedState");
-  expect(callback.indexOf("state !== expectedState")).toBeLessThan(callback.indexOf("fetch("));
+  const callbackFlow = callback.slice(callback.indexOf("if (!expectedState"));
+  expect(callbackFlow.indexOf("state !== expectedState")).toBeLessThan(
+    callbackFlow.indexOf("fetch("),
+  );
   expect(callback).toContain("verifyIdentityToken");
   expect(`${demo}\n${callback}`).toContain("pairwise_sub");
   expect(`${demo}\n${callback}`).toContain("account_sub");
@@ -326,6 +329,27 @@ it("renders shared claims without moving focus to successful results", async () 
   expect(callback).not.toContain(
     'document.querySelector<HTMLElement>("#callback-result-title")!.focus()',
   );
+});
+
+it("separates callback claims from metadata and supports broker sign out", async () => {
+  const [callback, css] = await Promise.all([
+    readFile("src/pages/demo/callback.astro", "utf8"),
+    readFile("src/styles/global.css", "utf8"),
+  ]);
+
+  expect(callback).toContain("CHECKING<br /><span>SIGNED RESULT.</span>");
+  expect(callback).toContain('id="callback-followup"');
+  expect(callback).toContain('id="callback-logout"');
+  expect(callback).toContain('fetch("/api/me")');
+  expect(callback).toContain('fetch("/session/logout"');
+  expect(callback).toContain("body: new URLSearchParams({ csrf_token: account.csrf_token })");
+  expect(callback.indexOf('id="callback-identity"')).toBeLessThan(
+    callback.indexOf('id="callback-followup"'),
+  );
+  expect(css).toMatch(
+    /\.verified-claims dt,\s*\.verified-profile dt\s*\{[^}]*color: var\(--signal\)/s,
+  );
+  expect(css).toMatch(/#callback-title span\s*\{[^}]*white-space: nowrap;/s);
 });
 
 it("keeps navigation and copy provider-neutral outside provider context", async () => {

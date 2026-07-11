@@ -10,7 +10,7 @@ import Shell from "../../components/Shell.astro";
   <section class="transaction shell narrow callback" aria-labelledby="callback-title">
     <div class="transaction-head">
       <p>VERIFYING IDENTITY</p>
-      <h1 id="callback-title">CHECKING THE<br /><span>SIGNED RESULT.</span></h1>
+      <h1 id="callback-title">CHECKING<br /><span>SIGNED RESULT.</span></h1>
       <p id="callback-status" class="lede" aria-live="polite">
         Checking state before contacting the token endpoint.
       </p>
@@ -50,11 +50,18 @@ import Shell from "../../components/Shell.astro";
         <h3 id="callback-profile-title">SHARED CLAIMS</h3>
         <dl id="callback-profile-claims"></dl>
       </section>
+    </section>
+
+    <section id="callback-followup" class="callback-followup" aria-label="Token details and actions" hidden>
       <div class="verified-meta">
         <span>ISSUER</span><code id="callback-issuer"></code><span>EXPIRES</span><time id="callback-expiry"
         ></time>
       </div>
-      <a class="button primary" href="/demo/">RUN ANOTHER FLOW</a>
+      <div class="actions callback-actions">
+        <a class="button primary" href="/demo/">RUN ANOTHER FLOW</a>
+        <button id="callback-logout" class="button danger" type="button">SIGN OUT</button>
+      </div>
+      <p id="callback-logout-status" class="error-message callback-logout-status" role="alert" hidden></p>
     </section>
   </section>
 
@@ -71,6 +78,9 @@ import Shell from "../../components/Shell.astro";
     const error = document.querySelector<HTMLElement>("#callback-error")!;
     const retry = document.querySelector<HTMLAnchorElement>("#callback-retry")!;
     const identity = document.querySelector<HTMLElement>("#callback-identity")!;
+    const followup = document.querySelector<HTMLElement>("#callback-followup")!;
+    const logout = document.querySelector<HTMLButtonElement>("#callback-logout")!;
+    const logoutStatus = document.querySelector<HTMLElement>("#callback-logout-status")!;
 
     function clearRequest() {
       sessionStorage.removeItem("triad_demo_state");
@@ -107,6 +117,36 @@ import Shell from "../../components/Shell.astro";
         container.append(row);
       }
       document.querySelector<HTMLElement>("#callback-profile")!.hidden = !container.childElementCount;
+    }
+
+    async function logoutAccount() {
+      logout.disabled = true;
+      logout.textContent = "SIGNING OUT";
+      logoutStatus.hidden = true;
+
+      try {
+        const accountResponse = await fetch("/api/me");
+        const account = (await accountResponse.json()) as { csrf_token?: string };
+        if (!accountResponse.ok || !account.csrf_token) {
+          throw new Error("Broker session unavailable.");
+        }
+
+        const response = await fetch("/session/logout", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ csrf_token: account.csrf_token }),
+        });
+        if (!response.ok) {
+          throw new Error("Sign out failed.");
+        }
+
+        location.assign("/demo/");
+      } catch {
+        logout.disabled = false;
+        logout.textContent = "RETRY SIGN OUT";
+        logoutStatus.textContent = "The broker session could not be signed out. Try again.";
+        logoutStatus.hidden = false;
+      }
     }
 
     if (!expectedState || !verifier || !state || state !== expectedState) {
@@ -153,6 +193,7 @@ import Shell from "../../components/Shell.astro";
             expiry.textContent = new Date(verified.expiresAt * 1_000).toLocaleString();
             loading.hidden = true;
             identity.hidden = false;
+            followup.hidden = false;
             status.textContent = "The ID token is verified. These values came from its signed payload.";
           } catch {
             fail(
@@ -162,5 +203,8 @@ import Shell from "../../components/Shell.astro";
         })();
       }
     }
+    logout.addEventListener("click", () => {
+      void logoutAccount();
+    });
   </script>
 </Shell>
