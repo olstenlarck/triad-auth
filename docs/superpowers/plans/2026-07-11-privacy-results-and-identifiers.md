@@ -25,6 +25,7 @@
 ### Task 1: Stable full-hex subjects and prototype reset
 
 **Files:**
+
 - Modify: `test/identity.test.ts`
 - Modify: `test/tokens.test.ts`
 - Modify: `test/oauth.test.ts`
@@ -35,6 +36,7 @@
 - Modify: `README.md`
 
 **Interfaces:**
+
 - Produces: `accountSubject(secret: string, provider: ProviderName, providerUserId: string): Promise<string>`.
 - Changes: `resolveIdentity(db: D1Database, identity: ProviderIdentity, secret: string): Promise<string>`.
 - Preserves: `providerSubject` and `pairwiseSubject` signatures while changing output formats.
@@ -121,6 +123,7 @@ git push origin main
 ### Task 2: Factual authorization disclosure ledgers
 
 **Files:**
+
 - Modify: `test/ui.test.ts`
 - Modify: `src/scripts/disclosure-controls.ts`
 - Modify: `src/pages/consent.astro`
@@ -128,6 +131,7 @@ git push origin main
 - Modify: `src/styles/global.css`
 
 **Interfaces:**
+
 - Renames: `renderDisclosureControls(container, scopes)` to `renderDisclosures(container, scopes)`.
 - Produces: static disclosure rows containing label, claim, and description only.
 
@@ -186,11 +190,13 @@ git push origin main
 ### Task 3: Landing privacy and scope contract
 
 **Files:**
+
 - Modify: `test/ui.test.ts`
 - Modify: `src/pages/index.astro`
 - Modify: `src/styles/global.css`
 
 **Interfaces:**
+
 - Produces: a static `privacy-scopes` landing section using existing section-heading and ledger conventions.
 
 - [ ] **Step 1: Write the failing landing contract test**
@@ -201,7 +207,9 @@ Assert the page contains:
 expect(landing).toContain("ASK FOR LESS.");
 expect(landing).toContain("REVEAL LESS.");
 expect(landing).toContain("IDENTITY ONLY");
-expect(landing).toContain("No raw provider ID, email, handle, name, avatar, or provider access token.");
+expect(landing).toContain(
+  "No raw provider ID, email, handle, name, avatar, or provider access token.",
+);
 expect(landing).toContain("email");
 expect(landing).toContain("handle");
 expect(landing).toContain("avatar");
@@ -236,11 +244,13 @@ git push origin main
 ### Task 4: Callback result hierarchy and sign-out
 
 **Files:**
+
 - Modify: `test/ui.test.ts`
 - Modify: `src/pages/demo/callback.astro`
 - Modify: `src/styles/global.css`
 
 **Interfaces:**
+
 - Consumes: `GET /api/me` returning `csrf_token` and `POST /session/logout` accepting it.
 - Produces: `logoutAccount(): Promise<void>` in the callback browser script.
 
@@ -254,7 +264,9 @@ expect(callback).toContain('id="callback-followup"');
 expect(callback).toContain('id="callback-logout"');
 expect(callback).toContain('fetch("/api/me")');
 expect(callback).toContain('fetch("/session/logout"');
-expect(callback.indexOf('class="verified-result"')).toBeLessThan(callback.indexOf('id="callback-followup"'));
+expect(callback.indexOf('class="verified-result"')).toBeLessThan(
+  callback.indexOf('id="callback-followup"'),
+);
 ```
 
 Assert CSS gives `.verified-profile dt` the same signal color and font size as `.verified-claims dt`.
@@ -322,9 +334,11 @@ git push origin main
 ### Task 5: Full verification and production release
 
 **Files:**
+
 - Modify only files required to fix failures found by full verification.
 
 **Interfaces:**
+
 - Produces: remote migration `0003_reset_subject_formats.sql` applied before code deployment.
 - Produces: a new Cloudflare Worker version serving the complete change set.
 
