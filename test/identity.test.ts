@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { accountSubject, normalizeUserCode, pairwiseSubject, providerSubject } from "../src/crypto";
-import { resolveIdentity } from "../src/db";
+import { deleteAccount, resolveIdentity } from "../src/db";
 import { createTestDb } from "./d1";
 
 const cleanups: Array<() => void> = [];
@@ -37,6 +37,28 @@ describe("identity contract", () => {
     expect(await pairwiseSubject("a sufficiently long test secret", "acc_a", "client_b")).not.toBe(
       first,
     );
+  });
+
+  it("resurrects deterministic account and derived identifiers after deletion", async () => {
+    const { db, close } = await createTestDb();
+    cleanups.push(close);
+    const secret = "a sufficiently long account subject secret";
+    const identity = { provider: "github", id: "42" } as const;
+
+    const accountBefore = await resolveIdentity(db, identity, secret);
+    const providerBefore = await providerSubject(secret, identity.provider, identity.id);
+    const pairwiseBefore = await pairwiseSubject(secret, accountBefore, "https://client.example");
+
+    await expect(deleteAccount(db, accountBefore)).resolves.toBe(true);
+    expect(await db.prepare("SELECT COUNT(*) AS count FROM accounts").first("count")).toBe(0);
+
+    const accountAfter = await resolveIdentity(db, identity, secret);
+    const providerAfter = await providerSubject(secret, identity.provider, identity.id);
+    const pairwiseAfter = await pairwiseSubject(secret, accountAfter, "https://client.example");
+
+    expect(accountAfter).toBe(accountBefore);
+    expect(providerAfter).toBe(providerBefore);
+    expect(pairwiseAfter).toBe(pairwiseBefore);
   });
 
   it("normalizes device codes", () => {

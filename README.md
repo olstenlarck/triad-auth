@@ -201,12 +201,16 @@ The `/me/` surface can delete a downstream client's consent record. That prevent
 
 Logout deletes the hashed Triad browser session and cookie. It does not revoke previously issued downstream tokens or the user's authorization at an upstream provider. Provider authorization must be revoked through that provider when required.
 
+Deleting an account transactionally removes linked identities, consent records, every browser session, account-purpose CSRF tokens, unredeemed authorization codes, approved device grants, and the account row. Global client registrations and rate-limit counters remain in place because they are not account data. Previously issued ID tokens remain valid until their five-minute expiry. Account deletion does not revoke the user's authorization at an upstream provider.
+
+Signing in again with the same upstream identity deterministically recreates the same `account_sub`, `provider_sub`, and per-client `pairwise_sub` values. Deletion removes stored account state; it does not rotate the broker's deterministic identity secret.
+
 Authorization codes, device codes, CSRF tokens, and upstream state are one-time and expiry-bound. Upstream access tokens are discarded immediately after resolving the provider identity and requested profile values.
 
 ## MVP limitations
 
 - Google, GitHub, and Twitter adapters are supported, but each provider appears only when its complete credential pair is configured.
-- There is no cross-provider identity linking, domain-ownership verification, account deletion, signing-key rotation, or operator audit UI.
+- There is no cross-provider identity linking, domain-ownership verification, signing-key rotation, or operator audit UI.
 - Browser callbacks must be HTTPS except on localhost. Device client origins are self-asserted because device authorization has no callback from which to derive them.
 - Rate limits are single-region D1 counters, not a complete abuse-prevention system.
 - Deployment requires a stable hostname, persistent D1, and secret injection. An ephemeral preview is not a valid issuer.

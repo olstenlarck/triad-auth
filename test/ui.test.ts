@@ -391,6 +391,45 @@ it("uses the coral signal and separates account sign out", async () => {
   expect(account).toContain('class="actions account-actions"');
 });
 
+it("requires explicit confirmation and recovery for destructive account deletion", async () => {
+  const account = await readFile("src/pages/me.astro", "utf8");
+  const normalizedAccount = account.replace(/\s+/g, " ");
+  const controls = account.slice(
+    account.indexOf("function setMutationControls"),
+    account.indexOf("function showError"),
+  );
+  const deletion = account.slice(
+    account.indexOf("async function deleteCurrentAccount"),
+    account.indexOf("async function renderProviderActions"),
+  );
+
+  expect(account).toContain('id="delete-account"');
+  expect(account).toContain('id="delete-account-confirm"');
+  expect(account).toContain('id="delete-account-cancel"');
+  expect(normalizedAccount).toMatch(
+    /id="delete-account-confirmation"[^>]*hidden.*Deletes every Triad browser session, linked identity, app consent, unredeemed authorization code, and approved device grant\./,
+  );
+  expect(account).toContain("Previously issued ID tokens remain valid for up to five minutes.");
+  expect(account).toContain("Signing in again recreates the same deterministic identifiers.");
+  expect(account).toContain("Triad does not revoke authorization at your upstream provider.");
+  expect(account.indexOf('id="logout"')).toBeLessThan(account.indexOf('id="delete-account"'));
+  expect(controls).toContain("deleteAccount.disabled = disabled");
+  expect(controls).toContain("deleteConfirm.disabled = disabled");
+  expect(controls).toContain("deleteCancel.disabled = disabled");
+  expect(deletion).toContain("const token = await takeCsrfToken()");
+  expect(deletion).toMatch(/fetch\("\/api\/me", \{[\s\S]*?method: "DELETE"/);
+  expect(deletion).toContain("body: new URLSearchParams({ csrf_token: token })");
+  expect(deletion).toContain('deletionStatus.textContent = "DELETING ACCOUNT..."');
+  expect(deletion).toContain(
+    'deletionStatus.textContent = "ACCOUNT DELETED. RETURNING TO SIGN IN."',
+  );
+  expect(deletion).toContain("await recoverAccount");
+  expect(deletion).toContain(
+    'deletionStatus.textContent = "ACCOUNT NOT DELETED. REVIEW THE ERROR AND TRY AGAIN."',
+  );
+  expect(deletion).toContain("location.reload()");
+});
+
 it("caps long transaction headings at narrow viewports", async () => {
   const css = await readFile("src/styles/global.css", "utf8");
   const mobile = css.slice(
