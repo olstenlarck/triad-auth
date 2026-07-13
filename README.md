@@ -93,15 +93,19 @@ Create the ignored local configuration file:
 cp .dev.vars.example .dev.vars
 vp run keygen
 openssl rand -base64 32
+openssl rand -base64 32
+openssl rand -base64 32
 ```
 
-Fill the two broker secrets and at least one complete provider credential pair in `.dev.vars`:
+Fill the four broker secrets and at least one complete provider credential pair in `.dev.vars`:
 
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: the Google web client pair.
 - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`: the GitHub OAuth App pair.
 - `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET`: the Twitter OAuth 2.0 pair.
 - `SIGNING_PRIVATE_JWK`: the one-line JSON from `vp run keygen`, wrapped in single quotes.
-- `PAIRWISE_SECRET`: at least 32 high-entropy characters, wrapped in quotes when needed.
+- `IDENTIFIER_SECRET`: at least 32 high-entropy characters. Preserve the current value when rotating other secrets.
+- `CLAIMS_ENCRYPTION_KEYRING`: one-line JSON containing an identifier-safe `active` key ID, one or two named keys of at least 32 characters, and an optional `legacy` key of at least 32 characters. Wrap the JSON in single quotes.
+- `RATE_LIMIT_SECRET`: an independent value of at least 32 high-entropy characters.
 
 Provider pairs are optional individually, but half-configured pairs are invalid and at least one complete pair is required. `/api/providers` and all provider controls expose only providers whose complete pair is configured. Locally, leave unused provider assignments empty. In production, a provider remains unavailable until both credentials have been uploaded.
 
@@ -111,7 +115,7 @@ Validate the file without sourcing it in a shell:
 vp run check:config
 ```
 
-The validator parses only `.dev.vars` into an isolated in-memory map, ignores ambient environment values, trims each parsed value for validation, requires valid signing/pairwise secrets plus at least one complete provider pair, rejects every half-pair, and never prints configured values.
+The validator parses only `.dev.vars` into an isolated in-memory map, ignores ambient environment values, trims each parsed value for validation, requires a valid signing key, identifier secret, claims keyring, rate-limit secret, and at least one complete provider pair, rejects every half-pair, and never prints configured values.
 
 Initialize local D1 and start the Worker:
 
@@ -165,10 +169,21 @@ vp exec wrangler secret put GITHUB_CLIENT_SECRET
 vp exec wrangler secret put TWITTER_CLIENT_ID
 vp exec wrangler secret put TWITTER_CLIENT_SECRET
 vp exec wrangler secret put SIGNING_PRIVATE_JWK
-vp exec wrangler secret put PAIRWISE_SECRET
+vp exec wrangler secret put IDENTIFIER_SECRET
+vp exec wrangler secret put CLAIMS_ENCRYPTION_KEYRING
+vp exec wrangler secret put RATE_LIMIT_SECRET
 ```
 
-`SIGNING_PRIVATE_JWK` and `PAIRWISE_SECRET` are always required. Upload both values in a provider pair before expecting that provider to appear in `/api/providers` or any provider control.
+`SIGNING_PRIVATE_JWK`, `IDENTIFIER_SECRET`, `CLAIMS_ENCRYPTION_KEYRING`, and `RATE_LIMIT_SECRET` are always required. Upload both values in a provider pair before expecting that provider to appear in `/api/providers` or any provider control.
+
+For the first secret-separation deployment, preserve identity while splitting the other responsibilities:
+
+1. Set `IDENTIFIER_SECRET` to the exact current `PAIRWISE_SECRET` value.
+2. Generate independent new values for `RATE_LIMIT_SECRET` and the active claims key.
+3. Create `CLAIMS_ENCRYPTION_KEYRING` with the new key under `active`. For the first deployment, set `legacy` inside `CLAIMS_ENCRYPTION_KEYRING` to that same current `PAIRWISE_SECRET` value.
+4. Upload all three new bindings before deploying this code. Keep the existing `SIGNING_PRIVATE_JWK`; signing-key rotation is a separate operation.
+
+After the new deployment is serving successfully and all pre-deployment `v1` claims have expired, remove `legacy` from the claims keyring. The old `PAIRWISE_SECRET` binding is no longer read by this version.
 
 After changing secrets, verify locally, apply pending remote migrations, and only then deploy the canonical configuration:
 

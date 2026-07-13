@@ -11,5 +11,11 @@ TWITTER_CLIENT_SECRET=
 # Paste the one-line JSON emitted by `vp run keygen`; quote it in .dev.vars.
 SIGNING_PRIVATE_JWK=
 
-# Use at least 32 high-entropy characters, for example output from `openssl rand -base64 32`.
-PAIRWISE_SECRET=
+# Preserve the existing account identifiers by using the current PAIRWISE_SECRET value during rollout.
+IDENTIFIER_SECRET=
+
+# One-line JSON: {"active":"current","keys":{"current":"at least 32 characters"},"legacy":"old pairwise secret during rollout"}
+CLAIMS_ENCRYPTION_KEYRING=
+
+# Use an independent value of at least 32 high-entropy characters.
+RATE_LIMIT_SECRET=

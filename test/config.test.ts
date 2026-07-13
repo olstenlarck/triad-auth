@@ -38,11 +38,16 @@ const providerPairs = {
   TWITTER: ["TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET"],
 } as const;
 const compareStrings = (left: string, right: string) => left.localeCompare(right);
-const secretNames = [
-  ...Object.values(providerPairs).flat(),
+const runtimeSecretNames = [
   "SIGNING_PRIVATE_JWK",
-  "PAIRWISE_SECRET",
-].sort(compareStrings);
+  "IDENTIFIER_SECRET",
+  "CLAIMS_ENCRYPTION_KEYRING",
+  "RATE_LIMIT_SECRET",
+] as const;
+const secretNames = [...Object.values(providerPairs).flat(), ...runtimeSecretNames].sort(
+  compareStrings,
+);
+const secretNameSet = new Set<string>(secretNames);
 
 function runCheck(cwd: string, env: Record<string, string> = {}) {
   return spawnSync(process.execPath, [checker], { cwd, encoding: "utf8", env });
@@ -57,19 +62,28 @@ async function generatePrivateJwk(): Promise<string> {
   return JSON.stringify(await exportJWK(privateKey));
 }
 
+function claimsKeyring(secret = "c".repeat(32), legacy?: string): string {
+  return JSON.stringify({
+    active: "current",
+    keys: { current: secret },
+    ...(legacy === undefined ? {} : { legacy }),
+  });
+}
+
 function validAmbientConfig(privateJwk: string): Record<string, string> {
   return {
     GITHUB_CLIENT_ID: "ambient-id",
     GITHUB_CLIENT_SECRET: "ambient-secret",
-    SIGNING_PRIVATE_JWK: privateJwk,
-    PAIRWISE_SECRET: "a".repeat(32),
+    ...requiredValues(privateJwk),
   };
 }
 
-function signingValues(privateJwk: string): Record<string, string> {
+function requiredValues(privateJwk: string): Record<string, string> {
   return {
     SIGNING_PRIVATE_JWK: privateJwk,
-    PAIRWISE_SECRET: "p".repeat(32),
+    IDENTIFIER_SECRET: "i".repeat(32),
+    CLAIMS_ENCRYPTION_KEYRING: claimsKeyring(),
+    RATE_LIMIT_SECRET: "r".repeat(32),
   };
 }
 
@@ -153,7 +167,7 @@ describe("deployment configuration", () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr.trim()).toBe(
-        "Missing required configuration: SIGNING_PRIVATE_JWK, PAIRWISE_SECRET\nAt least one complete provider credential pair is required",
+        "Missing required configuration: SIGNING_PRIVATE_JWK, IDENTIFIER_SECRET, CLAIMS_ENCRYPTION_KEYRING, RATE_LIMIT_SECRET\nAt least one complete provider credential pair is required",
       );
       expect(result.stdout).toBe("");
     } finally {
@@ -167,7 +181,7 @@ describe("deployment configuration", () => {
       const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
       try {
         writeDevVars(directory, {
-          ...signingValues(privateJwk),
+          ...requiredValues(privateJwk),
           [pair[0]]: `${pair[0]}-value`,
           [pair[1]]: `${pair[1]}-value`,
         });
@@ -188,12 +202,9 @@ describe("deployment configuration", () => {
   it("rejects signing configuration without a complete provider pair", async () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     const privateJwk = await generatePrivateJwk();
-    const pairwiseSecret = "providerless-secret".repeat(2);
+    const required = requiredValues(privateJwk);
     try {
-      writeDevVars(directory, {
-        SIGNING_PRIVATE_JWK: privateJwk,
-        PAIRWISE_SECRET: pairwiseSecret,
-      });
+      writeDevVars(directory, required);
 
       const result = runCheck(directory);
       const output = `${result.stdout}${result.stderr}`;
@@ -203,8 +214,9 @@ describe("deployment configuration", () => {
         "At least one complete provider credential pair is required",
       );
       expect(result.stdout).toBe("");
-      expect(output).not.toContain(privateJwk);
-      expect(output).not.toContain(pairwiseSecret);
+      for (const value of Object.values(required)) {
+        expect(output).not.toContain(value);
+      }
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -250,7 +262,7 @@ describe("deployment configuration", () => {
       const configuredValue = `${testCase.configured}-sensitive-value`;
       try {
         writeDevVars(directory, {
-          ...signingValues(privateJwk),
+          ...requiredValues(privateJwk),
           [testCase.fallback[0]]: "fallback-id",
           [testCase.fallback[1]]: "fallback-secret",
           [testCase.configured]: configuredValue,
@@ -271,17 +283,17 @@ describe("deployment configuration", () => {
     }
   });
 
-  it("keeps the exact eight secret names aligned across Env, checker, example, and Wrangler", () => {
+  it("keeps the exact ten secret names aligned across Env, checker, example, and Wrangler", () => {
     const types = readFileSync("src/types.ts", "utf8");
     const checkerSource = readFileSync("scripts/check-config.mjs", "utf8");
     const example = readFileSync(".dev.vars.example", "utf8");
     const wrangler = readFileSync("wrangler.toml", "utf8");
     const envFields = [...types.matchAll(/^  ([A-Z][A-Z0-9_]*)(\?)?: string;$/gm)]
-      .filter((match) => /(?:_CLIENT_(?:ID|SECRET)|_PRIVATE_JWK|PAIRWISE_SECRET)$/.test(match[1]))
+      .filter((match) => secretNameSet.has(match[1]))
       .map((match) => ({ name: match[1], optional: match[2] === "?" }));
     const checkerNames = [...checkerSource.matchAll(/"([A-Z][A-Z0-9_]+)"/g)]
       .map((match) => match[1])
-      .filter((name) => /(?:_CLIENT_(?:ID|SECRET)|_PRIVATE_JWK|PAIRWISE_SECRET)$/.test(name));
+      .filter((name) => secretNameSet.has(name));
     const exampleNames = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]);
     const wranglerNames = [
       ...wrangler
@@ -383,6 +395,20 @@ describe("deployment configuration", () => {
     );
   });
 
+  it("documents the first secret-separation deployment without rotating identity", () => {
+    const readme = readFileSync("README.md", "utf8");
+
+    expect(readme).toContain(
+      "Set `IDENTIFIER_SECRET` to the exact current `PAIRWISE_SECRET` value.",
+    );
+    expect(readme).toContain(
+      "For the first deployment, set `legacy` inside `CLAIMS_ENCRYPTION_KEYRING` to that same current `PAIRWISE_SECRET` value.",
+    );
+    expect(readme).toContain(
+      "Generate independent new values for `RATE_LIMIT_SECRET` and the active claims key.",
+    );
+  });
+
   it("loads .dev.vars as data without evaluating shell syntax", async () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     const marker = join(directory, "shell-command-ran");
@@ -394,7 +420,9 @@ describe("deployment configuration", () => {
           envLine("GITHUB_CLIENT_ID", '"github-client"'),
           envLine("GITHUB_CLIENT_SECRET", `'$(touch ${marker})'`),
           envLine("SIGNING_PRIVATE_JWK", `'${privateJwk}'`),
-          envLine("PAIRWISE_SECRET", `'${"p".repeat(32)}'`),
+          envLine("IDENTIFIER_SECRET", `'${"i".repeat(32)}'`),
+          envLine("CLAIMS_ENCRYPTION_KEYRING", `'${claimsKeyring()}'`),
+          envLine("RATE_LIMIT_SECRET", `'${"r".repeat(32)}'`),
           "",
         ].join("\n"),
       );
@@ -412,7 +440,7 @@ describe("deployment configuration", () => {
     }
   });
 
-  it("rejects invalid signing keys and short pairwise secrets without revealing them", () => {
+  it("rejects invalid signing keys and short independent secrets without revealing them", () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     try {
       writeFileSync(
@@ -421,7 +449,9 @@ describe("deployment configuration", () => {
           envLine("GITHUB_CLIENT_ID", "github-client"),
           envLine("GITHUB_CLIENT_SECRET", "github-secret"),
           envLine("SIGNING_PRIVATE_JWK", "'{}'"),
-          envLine("PAIRWISE_SECRET", "too-short"),
+          envLine("IDENTIFIER_SECRET", "identifier-too-short"),
+          envLine("CLAIMS_ENCRYPTION_KEYRING", `'${claimsKeyring()}'`),
+          envLine("RATE_LIMIT_SECRET", "rate-limit-too-short"),
           "",
         ].join("\n"),
       );
@@ -431,9 +461,55 @@ describe("deployment configuration", () => {
 
       expect(result.status).toBe(1);
       expect(output).toContain("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
-      expect(output).toContain("PAIRWISE_SECRET must be at least 32 characters");
+      expect(output).toContain("IDENTIFIER_SECRET must be at least 32 characters");
+      expect(output).toContain("RATE_LIMIT_SECRET must be at least 32 characters");
       expect(output).not.toContain("github-secret");
-      expect(output).not.toContain("too-short");
+      expect(output).not.toContain("identifier-too-short");
+      expect(output).not.toContain("rate-limit-too-short");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ["non-JSON", "not-json"],
+    [
+      "unsafe active key ID",
+      JSON.stringify({ active: "invalid.key", keys: { "invalid.key": "c".repeat(32) } }),
+    ],
+    [
+      "missing active key",
+      JSON.stringify({ active: "current", keys: { previous: "p".repeat(32) } }),
+    ],
+    [
+      "more than two named keys",
+      JSON.stringify({
+        active: "current",
+        keys: {
+          current: "c".repeat(32),
+          previous: "p".repeat(32),
+          next: "n".repeat(32),
+        },
+      }),
+    ],
+    ["short named key", claimsKeyring("short")],
+    ["short legacy key", claimsKeyring("c".repeat(32), "short")],
+  ])("rejects a claims keyring with %s", async (_description, invalidKeyring) => {
+    const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
+    try {
+      writeDevVars(directory, {
+        ...requiredValues(await generatePrivateJwk()),
+        CLAIMS_ENCRYPTION_KEYRING: invalidKeyring,
+        GITHUB_CLIENT_ID: "github-client",
+        GITHUB_CLIENT_SECRET: "github-secret",
+      });
+
+      const result = runCheck(directory);
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status).toBe(1);
+      expect(output).toContain("CLAIMS_ENCRYPTION_KEYRING must be a valid claims keyring");
+      expect(output).not.toContain(invalidKeyring);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -450,7 +526,7 @@ describe("deployment configuration", () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr.trim()).toBe(
-        "Missing required configuration: SIGNING_PRIVATE_JWK, PAIRWISE_SECRET\nAt least one complete provider credential pair is required",
+        "Missing required configuration: SIGNING_PRIVATE_JWK, IDENTIFIER_SECRET, CLAIMS_ENCRYPTION_KEYRING, RATE_LIMIT_SECRET\nAt least one complete provider credential pair is required",
       );
       expect(output).not.toContain("ambient-id");
       expect(output).not.toContain("ambient-secret");
@@ -469,7 +545,9 @@ describe("deployment configuration", () => {
           envLine("GITHUB_CLIENT_ID", "file-id"),
           envLine("GITHUB_CLIENT_SECRET", "file-secret"),
           envLine("SIGNING_PRIVATE_JWK", "'{}'"),
-          envLine("PAIRWISE_SECRET", "short"),
+          envLine("IDENTIFIER_SECRET", "identifier-short"),
+          envLine("CLAIMS_ENCRYPTION_KEYRING", "invalid-keyring"),
+          envLine("RATE_LIMIT_SECRET", "rate-short"),
           "",
         ].join("\n"),
       );
@@ -479,16 +557,20 @@ describe("deployment configuration", () => {
 
       expect(result.status).toBe(1);
       expect(output).toContain("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
-      expect(output).toContain("PAIRWISE_SECRET must be at least 32 characters");
+      expect(output).toContain("IDENTIFIER_SECRET must be at least 32 characters");
+      expect(output).toContain("CLAIMS_ENCRYPTION_KEYRING must be a valid claims keyring");
+      expect(output).toContain("RATE_LIMIT_SECRET must be at least 32 characters");
       expect(output).not.toContain("ambient-secret");
       expect(output).not.toContain("file-secret");
-      expect(output).not.toContain("short");
+      expect(output).not.toContain("identifier-short");
+      expect(output).not.toContain("invalid-keyring");
+      expect(output).not.toContain("rate-short");
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
   });
 
-  it("does not count whitespace padding toward pairwise-secret length", async () => {
+  it("does not count whitespace padding toward independent-secret lengths", async () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     const privateJwk = await generatePrivateJwk();
     try {
@@ -498,7 +580,9 @@ describe("deployment configuration", () => {
           envLine("GITHUB_CLIENT_ID", "file-id"),
           envLine("GITHUB_CLIENT_SECRET", "file-secret"),
           envLine("SIGNING_PRIVATE_JWK", `'  ${privateJwk}  '`),
-          envLine("PAIRWISE_SECRET", `'  ${"p".repeat(28)}  '`),
+          envLine("IDENTIFIER_SECRET", `'  ${"i".repeat(28)}  '`),
+          envLine("CLAIMS_ENCRYPTION_KEYRING", `'  ${claimsKeyring()}  '`),
+          envLine("RATE_LIMIT_SECRET", `'  ${"r".repeat(28)}  '`),
           "",
         ].join("\n"),
       );
@@ -507,10 +591,13 @@ describe("deployment configuration", () => {
       const output = `${result.stdout}${result.stderr}`;
 
       expect(result.status).toBe(1);
-      expect(output).toContain("PAIRWISE_SECRET must be at least 32 characters");
+      expect(output).toContain("IDENTIFIER_SECRET must be at least 32 characters");
+      expect(output).toContain("RATE_LIMIT_SECRET must be at least 32 characters");
       expect(output).not.toContain("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+      expect(output).not.toContain("CLAIMS_ENCRYPTION_KEYRING must be a valid claims keyring");
       expect(output).not.toContain("file-secret");
-      expect(output).not.toContain("p".repeat(28));
+      expect(output).not.toContain("i".repeat(28));
+      expect(output).not.toContain("r".repeat(28));
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
