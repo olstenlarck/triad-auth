@@ -68,7 +68,7 @@ accountRoutes.get("/session/start/:provider", async (c) => {
     !(await enforceRequestRateLimit(
       c.env.DB,
       c.req.raw,
-      c.env.PAIRWISE_SECRET,
+      c.env.RATE_LIMIT_SECRET,
       "session-start",
       10,
     ))
@@ -135,7 +135,7 @@ accountRoutes.get("/api/me", async (c) => {
 
   const providerSubs = await Promise.all(
     identities.results.map((row) =>
-      providerSubject(c.env.PAIRWISE_SECRET, row.provider as ProviderName, row.provider_user_id),
+      providerSubject(c.env.IDENTIFIER_SECRET, row.provider as ProviderName, row.provider_user_id),
     ),
   );
 

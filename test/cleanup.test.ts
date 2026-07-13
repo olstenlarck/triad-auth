@@ -141,7 +141,12 @@ describe("ephemeral D1 cleanup", () => {
       ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
       ISSUER: "https://auth.example",
       SIGNING_PRIVATE_JWK: "unused",
-      PAIRWISE_SECRET: "p".repeat(32),
+      IDENTIFIER_SECRET: "i".repeat(32),
+      CLAIMS_ENCRYPTION_KEYRING: JSON.stringify({
+        active: "current",
+        keys: { current: "c".repeat(32) },
+      }),
+      RATE_LIMIT_SECRET: "r".repeat(32),
       GITHUB_CLIENT_ID: "github-client",
       GITHUB_CLIENT_SECRET: "github-secret",
     };

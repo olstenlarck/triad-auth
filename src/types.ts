@@ -16,7 +16,9 @@ export interface Env {
   ISSUER: string;
   PROVIDER_CALLBACK_ORIGIN?: string;
   SIGNING_PRIVATE_JWK: string;
-  PAIRWISE_SECRET: string;
+  IDENTIFIER_SECRET: string;
+  CLAIMS_ENCRYPTION_KEYRING: string;
+  RATE_LIMIT_SECRET: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;

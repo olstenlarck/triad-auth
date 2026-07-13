@@ -51,7 +51,13 @@ export const deviceRoutes = new Hono<{ Bindings: Env }>();
 
 deviceRoutes.post("/device/code", async (c) => {
   if (
-    !(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "device-issue", 10))
+    !(await enforceRequestRateLimit(
+      c.env.DB,
+      c.req.raw,
+      c.env.RATE_LIMIT_SECRET,
+      "device-issue",
+      10,
+    ))
   ) {
     return oauthError("temporarily_unavailable", undefined, 429);
   }
@@ -174,7 +180,7 @@ deviceRoutes.get("/api/device/:code", async (c) => {
     !(await enforceRequestRateLimit(
       c.env.DB,
       c.req.raw,
-      c.env.PAIRWISE_SECRET,
+      c.env.RATE_LIMIT_SECRET,
       "device-inspect",
       30,
     ))

@@ -293,7 +293,7 @@ oauthRoutes.get("/authorize", async (c) => {
     !(await enforceRequestRateLimit(
       c.env.DB,
       c.req.raw,
-      c.env.PAIRWISE_SECRET,
+      c.env.RATE_LIMIT_SECRET,
       "authorization-start",
       20,
     ))
@@ -482,7 +482,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     !(await enforceRequestRateLimit(
       c.env.DB,
       c.req.raw,
-      c.env.PAIRWISE_SECRET,
+      c.env.RATE_LIMIT_SECRET,
       "provider-callback",
       30,
     ))
@@ -529,8 +529,12 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     }
     throw error;
   }
-  const accountId = await resolveIdentity(c.env.DB, identity, c.env.PAIRWISE_SECRET);
-  const providerSub = await providerSubject(c.env.PAIRWISE_SECRET, identity.provider, identity.id);
+  const accountId = await resolveIdentity(c.env.DB, identity, c.env.IDENTIFIER_SECRET);
+  const providerSub = await providerSubject(
+    c.env.IDENTIFIER_SECRET,
+    identity.provider,
+    identity.id,
+  );
 
   if (tx.kind === "session") {
     await rotateBrowserSession(c, accountId);
@@ -540,7 +544,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
   if (tx.kind === "device") {
     const claimsCiphertext =
       tx.device_code_hash && identity.claims
-        ? await sealClaims(c.env.PAIRWISE_SECRET, tx.device_code_hash, identity.claims)
+        ? await sealClaims(c.env.CLAIMS_ENCRYPTION_KEYRING, tx.device_code_hash, identity.claims)
         : null;
     if (
       !tx.device_code_hash ||
@@ -567,7 +571,7 @@ oauthRoutes.get("/callback/:provider", async (c) => {
   const authCode = randomToken();
   const codeHash = await sha256(authCode);
   const claimsCiphertext = identity.claims
-    ? await sealClaims(c.env.PAIRWISE_SECRET, codeHash, identity.claims)
+    ? await sealClaims(c.env.CLAIMS_ENCRYPTION_KEYRING, codeHash, identity.claims)
     : null;
   await cleanupExpiredState(c.env.DB);
   await c.env.DB.prepare(
@@ -605,7 +609,7 @@ oauthRoutes.post("/token", async (c) => {
     return form;
   }
   const grantType = form.get("grant_type") ?? "";
-  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.PAIRWISE_SECRET, "token", 60))) {
+  if (!(await enforceRequestRateLimit(c.env.DB, c.req.raw, c.env.RATE_LIMIT_SECRET, "token", 60))) {
     return grantType === "urn:ietf:params:oauth:grant-type:device_code"
       ? oauthError("slow_down")
       : oauthError("temporarily_unavailable", undefined, 429);
@@ -681,7 +685,7 @@ oauthRoutes.post("/token", async (c) => {
     }
     const scopes = parseStoredScopes(row.scopes);
     const claims = row.claims_ciphertext
-      ? await openClaims(c.env.PAIRWISE_SECRET, codeHash, row.claims_ciphertext)
+      ? await openClaims(c.env.CLAIMS_ENCRYPTION_KEYRING, codeHash, row.claims_ciphertext)
       : {};
     await rememberConsent(c.env.DB, row.account_id, clientId, scopes);
 
@@ -719,7 +723,7 @@ oauthRoutes.post("/token", async (c) => {
       if (approved) {
         const scopes = parseStoredScopes(approved.scopes);
         const claims = approved.claims_ciphertext
-          ? await openClaims(c.env.PAIRWISE_SECRET, hash, approved.claims_ciphertext)
+          ? await openClaims(c.env.CLAIMS_ENCRYPTION_KEYRING, hash, approved.claims_ciphertext)
           : {};
         await rememberConsent(c.env.DB, approved.account_id, clientId, scopes);
 
