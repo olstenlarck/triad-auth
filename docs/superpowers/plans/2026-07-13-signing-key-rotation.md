@@ -21,6 +21,7 @@
 ### Task 1: Atomic Signing Keyring
 
 **Files:**
+
 - Modify: `src/types.ts`
 - Modify: `src/tokens.ts`
 - Modify: `src/routes/oauth.ts`
@@ -28,6 +29,7 @@
 - Test: `test/oauth.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SIGNING_KEYRING` JSON shaped as `{ "active_kid": string, "keys": JsonWebKey[] }`.
 - Produces: `issueIdToken(...)` signing only with `active_kid`; `publicJwks(env): Promise<Record<string, unknown>[]>` returning one or two public JWKs.
 
@@ -58,6 +60,7 @@ Expected: all focused tests pass and the existing verifier can select either `ki
 ### Task 2: Rotation Operations
 
 **Files:**
+
 - Modify: `scripts/check-config.mjs`
 - Modify: `scripts/generate-key.mjs`
 - Modify: `.dev.vars.example`
@@ -66,6 +69,7 @@ Expected: all focused tests pass and the existing verifier can select either `ki
 - Test: `test/config.test.ts`
 
 **Interfaces:**
+
 - Produces: configuration validation and the documented current/next, previous/current rotation sequence.
 
 - [ ] **Step 1: Add failing config tests**

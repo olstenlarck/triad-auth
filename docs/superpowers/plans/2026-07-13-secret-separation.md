@@ -21,10 +21,12 @@
 ### Task 1: Versioned Claims Keyring
 
 **Files:**
+
 - Modify: `src/crypto.ts`
 - Test: `test/claims.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CLAIMS_ENCRYPTION_KEYRING` JSON with `{ "active": string, "keys": Record<string, string>, "legacy"?: string }`.
 - Produces: unchanged `sealClaims(keyringJson, context, claims)` and `openClaims(keyringJson, context, sealed)` signatures; new envelopes use `v2.<key-id>.<payload>`.
 
@@ -51,6 +53,7 @@ Expected: all claims tests pass.
 ### Task 2: Independent Runtime Bindings
 
 **Files:**
+
 - Modify: `src/types.ts`
 - Modify: `src/tokens.ts`
 - Modify: `src/routes/oauth.ts`
@@ -63,6 +66,7 @@ Expected: all claims tests pass.
 - Test: `test/rate-limit.test.ts`
 
 **Interfaces:**
+
 - Produces: required `IDENTIFIER_SECRET`, `CLAIMS_ENCRYPTION_KEYRING`, and `RATE_LIMIT_SECRET` fields on `Env`.
 
 - [ ] **Step 1: Rename test fixtures by responsibility**
@@ -88,6 +92,7 @@ Expected: all focused tests pass.
 ### Task 3: Configuration Contract
 
 **Files:**
+
 - Modify: `scripts/check-config.mjs`
 - Modify: `.dev.vars.example`
 - Modify: `wrangler.toml`
@@ -95,6 +100,7 @@ Expected: all focused tests pass.
 - Test: `test/config.test.ts`
 
 **Interfaces:**
+
 - Produces: validation and operator instructions for all required secret bindings.
 
 - [ ] **Step 1: Update config tests**

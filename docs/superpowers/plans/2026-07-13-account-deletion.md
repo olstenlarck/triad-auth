@@ -22,11 +22,13 @@
 ### Task 1: Transactional Account Erasure
 
 **Files:**
+
 - Modify: `src/db.ts`
 - Test: `test/account.test.ts`
 - Test: `test/identity.test.ts`
 
 **Interfaces:**
+
 - Produces: `deleteAccount(db: D1Database, accountId: string): Promise<boolean>`.
 
 - [ ] **Step 1: Write failing deletion tests**
@@ -52,10 +54,12 @@ Expected: deletion and resurrection tests pass.
 ### Task 2: Protected Deletion Endpoint
 
 **Files:**
+
 - Modify: `src/routes/account.ts`
 - Test: `test/account.test.ts`
 
 **Interfaces:**
+
 - Produces: `DELETE /api/me` accepting form-encoded `csrf_token` and returning `204` after clearing `triad_session`.
 
 - [ ] **Step 1: Add failing route tests**
@@ -81,12 +85,14 @@ Expected: all account and resurrection tests pass.
 ### Task 3: Destructive Account UI and Contract
 
 **Files:**
+
 - Modify: `src/pages/me.astro`
 - Modify: `README.md`
 - Test: `test/ui.test.ts`
 - Test: `test/config.test.ts`
 
 **Interfaces:**
+
 - Produces: explicit `DELETE ACCOUNT`, confirmation, cancel, working, failure recovery, and success states.
 
 - [ ] **Step 1: Add failing UI tests**

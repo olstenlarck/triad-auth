@@ -22,11 +22,13 @@
 ### Task 1: Verification Cache
 
 **Files:**
+
 - Create: `migrations/0004_device_client_verifications.sql`
 - Modify: `test/d1.ts`
 - Test: `test/oauth.test.ts`
 
 **Interfaces:**
+
 - Produces: `device_client_verifications(client_id, name, verified_at, expires_at)` keyed by canonical origin.
 
 - [ ] **Step 1: Add a failing sequential migration test**
@@ -52,10 +54,12 @@ Expected: migration tests pass.
 ### Task 2: Strict Domain Verifier
 
 **Files:**
+
 - Create: `src/device-client.ts`
 - Test: `test/device-client.test.ts`
 
 **Interfaces:**
+
 - Produces: `verifyDeviceClient(db: D1Database, clientId: string, issuer: string, fetcher?: typeof fetch): Promise<{ name: string }>`.
 
 - [ ] **Step 1: Write failing verifier tests**
@@ -81,11 +85,13 @@ Expected: all verifier tests pass.
 ### Task 3: Device Issuance and First-Party Proof
 
 **Files:**
+
 - Modify: `src/routes/device.ts`
 - Modify: `src/routes/oauth.ts`
 - Test: `test/device.test.ts`
 
 **Interfaces:**
+
 - Consumes: `verifyDeviceClient` before client creation and grant insertion.
 - Produces: `GET /.well-known/triad-client.json` for Triad's issuer origin.
 
@@ -112,6 +118,7 @@ Expected: all focused tests pass.
 ### Task 4: Verified-Origin Product Contract
 
 **Files:**
+
 - Modify: `src/pages/device/verify.astro`
 - Modify: `src/pages/consent.astro`
 - Modify: `README.md`
@@ -119,6 +126,7 @@ Expected: all focused tests pass.
 - Test: `test/config.test.ts`
 
 **Interfaces:**
+
 - Produces: device UI stating verified origin; browser consent UI stating callback-bound origin.
 
 - [ ] **Step 1: Update UI contract tests**
