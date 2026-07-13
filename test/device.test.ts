@@ -298,7 +298,7 @@ describe("device authorization", () => {
     expect(response.status).toBe(200);
     expect(fetcher).toHaveBeenCalledWith(
       `${freshClientId}/.well-known/triad-client.json`,
-      expect.objectContaining({ redirect: "error" }),
+      expect.objectContaining({ redirect: "manual" }),
     );
     await expect(
       env.DB.prepare("SELECT client_id FROM clients WHERE client_id = ?")

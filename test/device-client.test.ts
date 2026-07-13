@@ -56,7 +56,7 @@ describe("verifyDeviceClient", () => {
     });
     expect(fetcher).toHaveBeenCalledWith(
       "https://device.example/.well-known/triad-client.json",
-      expect.objectContaining({ redirect: "error", signal: expect.any(AbortSignal) }),
+      expect.objectContaining({ redirect: "manual", signal: expect.any(AbortSignal) }),
     );
     await expect(
       db
@@ -355,7 +355,7 @@ describe("verifyDeviceClient", () => {
     });
     expect(fetcher).toHaveBeenCalledWith(
       `${localClientId}/.well-known/triad-client.json`,
-      expect.objectContaining({ redirect: "error" }),
+      expect.objectContaining({ redirect: "manual" }),
     );
   });
 });

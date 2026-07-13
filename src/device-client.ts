@@ -130,7 +130,7 @@ export async function verifyDeviceClient(
     let response: Response;
     try {
       response = await fetcher(`${canonicalId}${proofPath}`, {
-        redirect: "error",
+        redirect: "manual",
         signal: controller.signal,
       });
     } catch {
