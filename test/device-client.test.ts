@@ -198,6 +198,42 @@ describe("verifyDeviceClient", () => {
     await rejection;
   });
 
+  it("aborts stalled body consumption after response headers arrive", async () => {
+    vi.useFakeTimers();
+    const db = await testDb();
+    let requestSignal: AbortSignal | undefined;
+    let rejectBody: ((reason?: unknown) => void) | undefined;
+    const response = new Response(null, { headers: { "content-type": "application/json" } });
+    response.arrayBuffer = vi.fn(
+      () =>
+        new Promise<ArrayBuffer>((_resolve, reject) => {
+          rejectBody = reject;
+          requestSignal?.addEventListener("abort", () => reject(new Error("aborted")), {
+            once: true,
+          });
+        }),
+    );
+    const fetcher = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Response> => {
+      requestSignal = args[1]?.signal ?? undefined;
+      return response;
+    }) as unknown as typeof fetch;
+
+    const verification = verifyDeviceClient(db, clientId, issuer, fetcher);
+    const outcome = verification.then(
+      () => "resolved",
+      () => "rejected",
+    );
+    await vi.advanceTimersByTimeAsync(5000);
+
+    try {
+      expect(requestSignal?.aborted).toBe(true);
+      await expect(outcome).resolves.toBe("rejected");
+    } finally {
+      rejectBody?.(new Error("test cleanup"));
+      await outcome;
+    }
+  });
+
   it("rejects network failures", async () => {
     const db = await testDb();
     const fetcher = vi.fn(async () => {
@@ -262,6 +298,9 @@ describe("verifyDeviceClient", () => {
     "https://printer.local",
     "https://service.internal",
     "https://service.internal.",
+    "https://home.arpa",
+    "https://device.home.arpa",
+    "https://device.home.arpa.",
     "https://intranet",
   ])("rejects the local or internal client ID %s", async (invalidClientId) => {
     const db = await testDb();

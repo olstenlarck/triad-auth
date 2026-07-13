@@ -4,7 +4,7 @@ const proofPath = "/.well-known/triad-client.json";
 const proofTimeoutMs = 5_000;
 const proofByteLimit = 4_096;
 const verificationLifetimeSeconds = 3_600;
-const internalHostnameSuffixes = [".localhost", ".local", ".internal"];
+const internalHostnameNamespaces = ["localhost", "local", "internal", "home.arpa"];
 
 interface VerificationRow {
   name: string;
@@ -22,7 +22,10 @@ function canonicalDeviceClientId(clientId: string): string {
     /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) ||
     (hostname.startsWith("[") && hostname.endsWith("]"));
   const internalHostname =
-    !hostname.includes(".") || internalHostnameSuffixes.some((suffix) => hostname.endsWith(suffix));
+    !hostname.includes(".") ||
+    internalHostnameNamespaces.some(
+      (namespace) => hostname === namespace || hostname.endsWith(`.${namespace}`),
+    );
   if (ipLiteral || internalHostname) {
     throw new Error("device client must use a public HTTPS origin");
   }
@@ -99,20 +102,24 @@ export async function verifyDeviceClient(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), proofTimeoutMs);
-  let response: Response;
+  let body: ArrayBuffer;
   try {
-    response = await fetcher(`${canonicalId}${proofPath}`, {
-      redirect: "error",
-      signal: controller.signal,
-    });
-  } catch {
-    throw new Error("device client proof unavailable");
+    let response: Response;
+    try {
+      response = await fetcher(`${canonicalId}${proofPath}`, {
+        redirect: "error",
+        signal: controller.signal,
+      });
+    } catch {
+      throw new Error("device client proof unavailable");
+    }
+
+    validateContentHeaders(response);
+    body = await response.arrayBuffer();
   } finally {
     clearTimeout(timeout);
   }
 
-  validateContentHeaders(response);
-  const body = await response.arrayBuffer();
   if (body.byteLength > proofByteLimit) {
     throw new Error("device client proof is too large");
   }
