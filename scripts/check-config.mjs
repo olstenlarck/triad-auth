@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { importJWK } from "jose";
 
-const required = ["SIGNING_PRIVATE_JWK", "PAIRWISE_SECRET"];
+const required = ["SIGNING_KEYRING", "PAIRWISE_SECRET"];
 const providerPairs = [
   ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
   ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
@@ -49,20 +49,51 @@ if (configurationErrors.length > 0) {
 
 const errors = [];
 try {
-  const jwk = JSON.parse(config.SIGNING_PRIVATE_JWK);
+  const keyring = JSON.parse(config.SIGNING_KEYRING);
   if (
-    !jwk ||
-    jwk.kty !== "EC" ||
-    jwk.crv !== "P-256" ||
-    typeof jwk.x !== "string" ||
-    typeof jwk.y !== "string" ||
-    typeof jwk.d !== "string"
+    !keyring ||
+    typeof keyring !== "object" ||
+    typeof keyring.active_kid !== "string" ||
+    keyring.active_kid.length === 0 ||
+    !Array.isArray(keyring.keys) ||
+    keyring.keys.length < 1 ||
+    keyring.keys.length > 2
   ) {
-    throw new Error("invalid key shape");
+    throw new Error("invalid keyring shape");
   }
-  await importJWK(jwk, "ES256");
+
+  const kids = new Set();
+  for (const jwk of keyring.keys) {
+    if (
+      !jwk ||
+      typeof jwk !== "object" ||
+      typeof jwk.kid !== "string" ||
+      jwk.kid.length === 0 ||
+      kids.has(jwk.kid)
+    ) {
+      throw new Error("invalid key id");
+    }
+    kids.add(jwk.kid);
+
+    if (
+      jwk.kty !== "EC" ||
+      jwk.crv !== "P-256" ||
+      typeof jwk.x !== "string" ||
+      typeof jwk.y !== "string" ||
+      typeof jwk.d !== "string" ||
+      (jwk.use !== undefined && jwk.use !== "sig") ||
+      (jwk.alg !== undefined && jwk.alg !== "ES256")
+    ) {
+      throw new Error("invalid key shape");
+    }
+    await importJWK(jwk, "ES256");
+  }
+
+  if (!kids.has(keyring.active_kid)) {
+    throw new Error("inactive active key");
+  }
 } catch {
-  errors.push("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+  errors.push("Invalid SIGNING_KEYRING");
 }
 
 if (config.PAIRWISE_SECRET.length < 32) {

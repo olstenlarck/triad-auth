@@ -8,8 +8,8 @@ GITHUB_CLIENT_SECRET=
 TWITTER_CLIENT_ID=
 TWITTER_CLIENT_SECRET=
 
-# Paste the one-line JSON emitted by `vp run keygen`; quote it in .dev.vars.
-SIGNING_PRIVATE_JWK=
+# Insert one or two JWKs from `vp run keygen`; quote the complete one-line keyring in .dev.vars.
+SIGNING_KEYRING=
 
 # Use at least 32 high-entropy characters, for example output from `openssl rand -base64 32`.
 PAIRWISE_SECRET=

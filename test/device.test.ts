@@ -10,12 +10,15 @@ import { createTestDb } from "./d1";
 const issuer = "https://auth.example";
 const deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code";
 const deviceClientId = "https://device.example";
-let signingPrivateJwk: string;
+let signingKeyring: string;
 const cleanups: Array<() => void> = [];
 
 beforeAll(async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  signingPrivateJwk = JSON.stringify({ ...(await exportJWK(privateKey)), kid: "test" });
+  signingKeyring = JSON.stringify({
+    active_kid: "test",
+    keys: [{ ...(await exportJWK(privateKey)), kid: "test" }],
+  });
 });
 
 afterEach(() => {
@@ -40,7 +43,7 @@ async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
     DB: db,
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
     ISSUER: issuer,
-    SIGNING_PRIVATE_JWK: signingPrivateJwk,
+    SIGNING_KEYRING: signingKeyring,
     PAIRWISE_SECRET: "p".repeat(32),
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",

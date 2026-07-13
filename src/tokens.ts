@@ -3,6 +3,82 @@ import { validateProfileClaims } from "./claims";
 import { pairwiseSubject } from "./crypto";
 import type { Env, ProfileClaims } from "./types";
 
+interface PrivateSigningJwk extends JsonWebKey {
+  kid: string;
+}
+
+interface SigningKey {
+  jwk: PrivateSigningJwk;
+  key: Awaited<ReturnType<typeof importJWK>>;
+}
+
+async function parseSigningKeyring(env: Env): Promise<{
+  active: SigningKey;
+  keys: SigningKey[];
+}> {
+  let value: unknown;
+  try {
+    value = JSON.parse(env.SIGNING_KEYRING);
+  } catch {
+    throw new Error("Invalid SIGNING_KEYRING");
+  }
+
+  if (!value || typeof value !== "object") {
+    throw new Error("Invalid SIGNING_KEYRING");
+  }
+  const keyring = value as { active_kid?: unknown; keys?: unknown };
+  if (
+    typeof keyring.active_kid !== "string" ||
+    keyring.active_kid.length === 0 ||
+    !Array.isArray(keyring.keys) ||
+    keyring.keys.length < 1 ||
+    keyring.keys.length > 2
+  ) {
+    throw new Error("Invalid SIGNING_KEYRING");
+  }
+
+  const seenKids = new Set<string>();
+  const keys: SigningKey[] = [];
+  for (const value of keyring.keys) {
+    if (!value || typeof value !== "object") {
+      throw new Error("SIGNING_KEYRING contains an invalid private key");
+    }
+    const jwk = value as Record<string, unknown>;
+    if (typeof jwk.kid !== "string" || jwk.kid.length === 0 || seenKids.has(jwk.kid)) {
+      throw new Error("Invalid SIGNING_KEYRING");
+    }
+    seenKids.add(jwk.kid);
+
+    if (
+      jwk.kty !== "EC" ||
+      jwk.crv !== "P-256" ||
+      typeof jwk.x !== "string" ||
+      typeof jwk.y !== "string" ||
+      typeof jwk.d !== "string" ||
+      (jwk.use !== undefined && jwk.use !== "sig") ||
+      (jwk.alg !== undefined && jwk.alg !== "ES256")
+    ) {
+      throw new Error("SIGNING_KEYRING contains an invalid private key");
+    }
+
+    try {
+      keys.push({
+        jwk: value as PrivateSigningJwk,
+        key: await importJWK(value as JsonWebKey, "ES256"),
+      });
+    } catch {
+      throw new Error("SIGNING_KEYRING contains an invalid private key");
+    }
+  }
+
+  const active = keys.find(({ jwk }) => jwk.kid === keyring.active_kid);
+  if (!active) {
+    throw new Error("Invalid SIGNING_KEYRING");
+  }
+
+  return { active, keys };
+}
+
 export async function issueIdToken(
   env: Env,
   clientId: string,
@@ -17,10 +93,7 @@ export async function issueIdToken(
     throw new Error("PAIRWISE_SECRET must be at least 32 characters");
   }
 
-  const privateJwk = JSON.parse(env.SIGNING_PRIVATE_JWK) as JsonWebKey & {
-    kid?: string;
-  };
-  const key = await importJWK(privateJwk, "ES256");
+  const keyring = await parseSigningKeyring(env);
   const pairwiseSub = await pairwiseSubject(env.PAIRWISE_SECRET, accountId, clientId);
 
   const profileClaims = validateProfileClaims(claims);
@@ -34,7 +107,7 @@ export async function issueIdToken(
     .setProtectedHeader({
       alg: "ES256",
       typ: "JWT",
-      kid: privateJwk.kid ?? "main",
+      kid: keyring.active.jwk.kid,
     })
     .setIssuer(env.ISSUER)
     .setAudience(clientId)
@@ -42,35 +115,19 @@ export async function issueIdToken(
     .setIssuedAt()
     .setExpirationTime("5m")
     .setJti(crypto.randomUUID())
-    .sign(key);
+    .sign(keyring.active.key);
 }
 
-export async function publicJwk(env: Env): Promise<Record<string, unknown>> {
-  const jwk = JSON.parse(env.SIGNING_PRIVATE_JWK) as Record<string, unknown>;
+export async function publicJwks(env: Env): Promise<Record<string, unknown>[]> {
+  const keyring = await parseSigningKeyring(env);
 
-  if (
-    jwk.kty !== "EC" ||
-    jwk.crv !== "P-256" ||
-    typeof jwk.x !== "string" ||
-    typeof jwk.y !== "string" ||
-    typeof jwk.d !== "string"
-  ) {
-    throw new Error("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
-  }
-
-  try {
-    await importJWK(jwk as JsonWebKey, "ES256");
-  } catch {
-    throw new Error("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
-  }
-
-  return {
+  return keyring.keys.map(({ jwk }) => ({
     kty: jwk.kty,
     crv: jwk.crv,
     x: jwk.x,
     y: jwk.y,
     use: "sig",
     alg: "ES256",
-    kid: typeof jwk.kid === "string" ? jwk.kid : "main",
-  };
+    kid: jwk.kid,
+  }));
 }

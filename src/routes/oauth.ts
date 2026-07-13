@@ -41,7 +41,7 @@ import {
 import { validatePkceChallenge, validatePkceVerifier } from "../protocol";
 import { enforceRequestRateLimit } from "../rate-limit";
 import { assertSameOrigin, consumeCsrfToken, createCsrfToken } from "../security";
-import { issueIdToken, publicJwk } from "../tokens";
+import { issueIdToken, publicJwks } from "../tokens";
 import type { Env, ProviderName, Scope, TransactionRow } from "../types";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -277,7 +277,7 @@ oauthRoutes.get("/.well-known/openid-configuration", (c) =>
   }),
 );
 
-oauthRoutes.get("/.well-known/jwks.json", async (c) => c.json({ keys: [await publicJwk(c.env)] }));
+oauthRoutes.get("/.well-known/jwks.json", async (c) => c.json({ keys: await publicJwks(c.env) }));
 
 oauthRoutes.get("/api/providers", (c) =>
   c.json({

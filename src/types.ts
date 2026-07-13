@@ -15,7 +15,7 @@ export interface Env {
   ASSETS: Fetcher;
   ISSUER: string;
   PROVIDER_CALLBACK_ORIGIN?: string;
-  SIGNING_PRIVATE_JWK: string;
+  SIGNING_KEYRING: string;
   PAIRWISE_SECRET: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;

@@ -31,6 +31,7 @@ const { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } =
 const { tmpdir } = process.getBuiltinModule("node:os");
 const { join, resolve } = process.getBuiltinModule("node:path");
 const checker = resolve(process.cwd(), "scripts/check-config.mjs");
+const keyGenerator = resolve(process.cwd(), "scripts/generate-key.mjs");
 
 const providerPairs = {
   GOOGLE: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
@@ -40,7 +41,7 @@ const providerPairs = {
 const compareStrings = (left: string, right: string) => left.localeCompare(right);
 const secretNames = [
   ...Object.values(providerPairs).flat(),
-  "SIGNING_PRIVATE_JWK",
+  "SIGNING_KEYRING",
   "PAIRWISE_SECRET",
 ].sort(compareStrings);
 
@@ -52,23 +53,33 @@ function envLine(name: string, value: string): string {
   return `${name}=${value}`;
 }
 
-async function generatePrivateJwk(): Promise<string> {
+type SigningJwk = JsonWebKey & { kid: string };
+
+async function generatePrivateJwk(kid = "test"): Promise<SigningJwk> {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  return JSON.stringify(await exportJWK(privateKey));
+  return { ...(await exportJWK(privateKey)), kid };
 }
 
-function validAmbientConfig(privateJwk: string): Record<string, string> {
+function signingKeyring(activeKid: string, keys: object[]): string {
+  return JSON.stringify({ active_kid: activeKid, keys });
+}
+
+async function generateSigningKeyring(): Promise<string> {
+  return signingKeyring("test", [await generatePrivateJwk()]);
+}
+
+function validAmbientConfig(keyring: string): Record<string, string> {
   return {
     GITHUB_CLIENT_ID: "ambient-id",
     GITHUB_CLIENT_SECRET: "ambient-secret",
-    SIGNING_PRIVATE_JWK: privateJwk,
+    SIGNING_KEYRING: keyring,
     PAIRWISE_SECRET: "a".repeat(32),
   };
 }
 
-function signingValues(privateJwk: string): Record<string, string> {
+function signingValues(keyring: string): Record<string, string> {
   return {
-    SIGNING_PRIVATE_JWK: privateJwk,
+    SIGNING_KEYRING: keyring,
     PAIRWISE_SECRET: "p".repeat(32),
   };
 }
@@ -153,7 +164,7 @@ describe("deployment configuration", () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr.trim()).toBe(
-        "Missing required configuration: SIGNING_PRIVATE_JWK, PAIRWISE_SECRET\nAt least one complete provider credential pair is required",
+        "Missing required configuration: SIGNING_KEYRING, PAIRWISE_SECRET\nAt least one complete provider credential pair is required",
       );
       expect(result.stdout).toBe("");
     } finally {
@@ -162,12 +173,12 @@ describe("deployment configuration", () => {
   });
 
   it("accepts any one complete provider credential pair", async () => {
-    const privateJwk = await generatePrivateJwk();
+    const keyring = await generateSigningKeyring();
     for (const pair of Object.values(providerPairs)) {
       const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
       try {
         writeDevVars(directory, {
-          ...signingValues(privateJwk),
+          ...signingValues(keyring),
           [pair[0]]: `${pair[0]}-value`,
           [pair[1]]: `${pair[1]}-value`,
         });
@@ -187,11 +198,11 @@ describe("deployment configuration", () => {
 
   it("rejects signing configuration without a complete provider pair", async () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
-    const privateJwk = await generatePrivateJwk();
+    const keyring = await generateSigningKeyring();
     const pairwiseSecret = "providerless-secret".repeat(2);
     try {
       writeDevVars(directory, {
-        SIGNING_PRIVATE_JWK: privateJwk,
+        SIGNING_KEYRING: keyring,
         PAIRWISE_SECRET: pairwiseSecret,
       });
 
@@ -203,7 +214,7 @@ describe("deployment configuration", () => {
         "At least one complete provider credential pair is required",
       );
       expect(result.stdout).toBe("");
-      expect(output).not.toContain(privateJwk);
+      expect(output).not.toContain(keyring);
       expect(output).not.toContain(pairwiseSecret);
     } finally {
       rmSync(directory, { recursive: true, force: true });
@@ -211,7 +222,7 @@ describe("deployment configuration", () => {
   });
 
   it("rejects every half-configured provider pair without exposing values", async () => {
-    const privateJwk = await generatePrivateJwk();
+    const keyring = await generateSigningKeyring();
     const cases = [
       {
         configured: "GOOGLE_CLIENT_ID",
@@ -250,7 +261,7 @@ describe("deployment configuration", () => {
       const configuredValue = `${testCase.configured}-sensitive-value`;
       try {
         writeDevVars(directory, {
-          ...signingValues(privateJwk),
+          ...signingValues(keyring),
           [testCase.fallback[0]]: "fallback-id",
           [testCase.fallback[1]]: "fallback-secret",
           [testCase.configured]: configuredValue,
@@ -277,11 +288,11 @@ describe("deployment configuration", () => {
     const example = readFileSync(".dev.vars.example", "utf8");
     const wrangler = readFileSync("wrangler.toml", "utf8");
     const envFields = [...types.matchAll(/^  ([A-Z][A-Z0-9_]*)(\?)?: string;$/gm)]
-      .filter((match) => /(?:_CLIENT_(?:ID|SECRET)|_PRIVATE_JWK|PAIRWISE_SECRET)$/.test(match[1]))
+      .filter((match) => /(?:_CLIENT_(?:ID|SECRET)|_KEYRING|PAIRWISE_SECRET)$/.test(match[1]))
       .map((match) => ({ name: match[1], optional: match[2] === "?" }));
     const checkerNames = [...checkerSource.matchAll(/"([A-Z][A-Z0-9_]+)"/g)]
       .map((match) => match[1])
-      .filter((name) => /(?:_CLIENT_(?:ID|SECRET)|_PRIVATE_JWK|PAIRWISE_SECRET)$/.test(name));
+      .filter((name) => /(?:_CLIENT_(?:ID|SECRET)|_KEYRING|PAIRWISE_SECRET)$/.test(name));
     const exampleNames = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]);
     const wranglerNames = [
       ...wrangler
@@ -383,17 +394,36 @@ describe("deployment configuration", () => {
     );
   });
 
+  it("documents the ordered current-next and previous-current signing rotation", () => {
+    const readme = readFileSync("README.md", "utf8");
+    const phases = [
+      "Publish current + next",
+      "Wait for the updated JWKS to propagate",
+      "Promote next by changing only `active_kid`",
+      "Retain previous + current",
+      "five-minute token lifetime plus clock-skew and JWKS-cache allowance",
+      "Remove previous and generate a new next",
+    ];
+
+    let position = -1;
+    for (const phase of phases) {
+      const nextPosition = readme.indexOf(phase);
+      expect(nextPosition, phase).toBeGreaterThan(position);
+      position = nextPosition;
+    }
+  });
+
   it("loads .dev.vars as data without evaluating shell syntax", async () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     const marker = join(directory, "shell-command-ran");
-    const privateJwk = await generatePrivateJwk();
+    const keyring = await generateSigningKeyring();
     try {
       writeFileSync(
         join(directory, ".dev.vars"),
         [
           envLine("GITHUB_CLIENT_ID", '"github-client"'),
           envLine("GITHUB_CLIENT_SECRET", `'$(touch ${marker})'`),
-          envLine("SIGNING_PRIVATE_JWK", `'${privateJwk}'`),
+          envLine("SIGNING_KEYRING", `'${keyring}'`),
           envLine("PAIRWISE_SECRET", `'${"p".repeat(32)}'`),
           "",
         ].join("\n"),
@@ -412,7 +442,7 @@ describe("deployment configuration", () => {
     }
   });
 
-  it("rejects invalid signing keys and short pairwise secrets without revealing them", () => {
+  it("rejects malformed keyrings and short pairwise secrets without revealing them", () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     try {
       writeFileSync(
@@ -420,7 +450,7 @@ describe("deployment configuration", () => {
         [
           envLine("GITHUB_CLIENT_ID", "github-client"),
           envLine("GITHUB_CLIENT_SECRET", "github-secret"),
-          envLine("SIGNING_PRIVATE_JWK", "'{}'"),
+          envLine("SIGNING_KEYRING", "'{}'"),
           envLine("PAIRWISE_SECRET", "too-short"),
           "",
         ].join("\n"),
@@ -430,7 +460,7 @@ describe("deployment configuration", () => {
       const output = `${result.stdout}${result.stderr}`;
 
       expect(result.status).toBe(1);
-      expect(output).toContain("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+      expect(output).toContain("Invalid SIGNING_KEYRING");
       expect(output).toContain("PAIRWISE_SECRET must be at least 32 characters");
       expect(output).not.toContain("github-secret");
       expect(output).not.toContain("too-short");
@@ -441,7 +471,7 @@ describe("deployment configuration", () => {
 
   it("does not use ambient values for variables missing from .dev.vars", async () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
-    const ambient = validAmbientConfig(await generatePrivateJwk());
+    const ambient = validAmbientConfig(await generateSigningKeyring());
     try {
       writeFileSync(join(directory, ".dev.vars"), "# intentionally empty\n");
 
@@ -450,7 +480,7 @@ describe("deployment configuration", () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr.trim()).toBe(
-        "Missing required configuration: SIGNING_PRIVATE_JWK, PAIRWISE_SECRET\nAt least one complete provider credential pair is required",
+        "Missing required configuration: SIGNING_KEYRING, PAIRWISE_SECRET\nAt least one complete provider credential pair is required",
       );
       expect(output).not.toContain("ambient-id");
       expect(output).not.toContain("ambient-secret");
@@ -461,14 +491,14 @@ describe("deployment configuration", () => {
 
   it("does not let ambient values replace invalid .dev.vars values", async () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
-    const ambient = validAmbientConfig(await generatePrivateJwk());
+    const ambient = validAmbientConfig(await generateSigningKeyring());
     try {
       writeFileSync(
         join(directory, ".dev.vars"),
         [
           envLine("GITHUB_CLIENT_ID", "file-id"),
           envLine("GITHUB_CLIENT_SECRET", "file-secret"),
-          envLine("SIGNING_PRIVATE_JWK", "'{}'"),
+          envLine("SIGNING_KEYRING", "'{}'"),
           envLine("PAIRWISE_SECRET", "short"),
           "",
         ].join("\n"),
@@ -478,7 +508,7 @@ describe("deployment configuration", () => {
       const output = `${result.stdout}${result.stderr}`;
 
       expect(result.status).toBe(1);
-      expect(output).toContain("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+      expect(output).toContain("Invalid SIGNING_KEYRING");
       expect(output).toContain("PAIRWISE_SECRET must be at least 32 characters");
       expect(output).not.toContain("ambient-secret");
       expect(output).not.toContain("file-secret");
@@ -490,14 +520,14 @@ describe("deployment configuration", () => {
 
   it("does not count whitespace padding toward pairwise-secret length", async () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
-    const privateJwk = await generatePrivateJwk();
+    const keyring = await generateSigningKeyring();
     try {
       writeFileSync(
         join(directory, ".dev.vars"),
         [
           envLine("GITHUB_CLIENT_ID", "file-id"),
           envLine("GITHUB_CLIENT_SECRET", "file-secret"),
-          envLine("SIGNING_PRIVATE_JWK", `'  ${privateJwk}  '`),
+          envLine("SIGNING_KEYRING", `'  ${keyring}  '`),
           envLine("PAIRWISE_SECRET", `'  ${"p".repeat(28)}  '`),
           "",
         ].join("\n"),
@@ -508,11 +538,110 @@ describe("deployment configuration", () => {
 
       expect(result.status).toBe(1);
       expect(output).toContain("PAIRWISE_SECRET must be at least 32 characters");
-      expect(output).not.toContain("SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key");
+      expect(output).not.toContain("Invalid SIGNING_KEYRING");
       expect(output).not.toContain("file-secret");
       expect(output).not.toContain("p".repeat(28));
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  it("accepts one or two retained signing keys", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
+    const first = await generatePrivateJwk("first");
+    const second = await generatePrivateJwk("second");
+    try {
+      for (const keyring of [
+        signingKeyring("first", [first]),
+        signingKeyring("second", [first, second]),
+      ]) {
+        writeDevVars(directory, {
+          GITHUB_CLIENT_ID: "github-client",
+          GITHUB_CLIENT_SECRET: "github-secret",
+          ...signingValues(keyring),
+        });
+
+        const result = runCheck(directory);
+
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe("Configuration valid");
+        expect(result.stderr).toBe("");
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ["malformed JSON", async (): Promise<string> => "{"],
+    [
+      "a duplicate kid",
+      async (): Promise<string> =>
+        signingKeyring("same", [
+          await generatePrivateJwk("same"),
+          await generatePrivateJwk("same"),
+        ]),
+    ],
+    [
+      "a missing active id",
+      async (): Promise<string> => JSON.stringify({ keys: [await generatePrivateJwk("first")] }),
+    ],
+    [
+      "an inactive active id",
+      async (): Promise<string> => signingKeyring("missing", [await generatePrivateJwk("first")]),
+    ],
+    [
+      "an invalid private key shape",
+      async (): Promise<string> =>
+        signingKeyring("first", [{ ...(await generatePrivateJwk("first")), d: undefined }]),
+    ],
+    [
+      "a third key",
+      async (): Promise<string> =>
+        signingKeyring("first", [
+          await generatePrivateJwk("first"),
+          await generatePrivateJwk("second"),
+          await generatePrivateJwk("third"),
+        ]),
+    ],
+  ] as const)("rejects a signing keyring with %s", async (_description, generateKeyring) => {
+    const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
+    const keyring = await generateKeyring();
+    try {
+      writeDevVars(directory, {
+        GITHUB_CLIENT_ID: "github-client",
+        GITHUB_CLIENT_SECRET: "github-secret",
+        ...signingValues(keyring),
+      });
+
+      const result = runCheck(directory);
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("Invalid SIGNING_KEYRING");
+      expect(result.stdout).toBe("");
+      expect(output).not.toContain(keyring);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("generates one private JWK for insertion into a signing keyring", () => {
+    const result = spawnSync(process.execPath, [keyGenerator], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {},
+    });
+    const jwk = JSON.parse(result.stdout) as Record<string, unknown>;
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(jwk).toMatchObject({ kty: "EC", crv: "P-256", use: "sig", alg: "ES256" });
+    expect(jwk.x).toEqual(expect.any(String));
+    expect(jwk.y).toEqual(expect.any(String));
+    expect(jwk.d).toEqual(expect.any(String));
+    expect(jwk.kid).toEqual(expect.any(String));
+    expect(jwk).not.toHaveProperty("active_kid");
+    expect(jwk).not.toHaveProperty("keys");
   });
 });
