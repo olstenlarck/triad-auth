@@ -36,6 +36,13 @@ async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
     )
     .bind(deviceClientId, deviceClientId)
     .run();
+  await db
+    .prepare(
+      `INSERT INTO device_client_verifications (client_id, name, verified_at, expires_at)
+      VALUES (?, 'Verified test device', unixepoch(), unixepoch() + 3600)`,
+    )
+    .bind(deviceClientId)
+    .run();
   return {
     DB: db,
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
@@ -254,6 +261,108 @@ function transitionAfterDeviceStateRead(
 }
 
 describe("device authorization", () => {
+  it("issues a grant only after fetching an exact client proof", async () => {
+    const env = await testEnv();
+    const freshClientId = "https://fresh-device.example";
+    const fetcher = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          issuer,
+          client_id: freshClientId,
+          device_authorization: true,
+          name: "Fresh device",
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetcher);
+
+    const response = await app.request(
+      "/device/code",
+      formRequest({ client_id: freshClientId, provider: "github" }),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetcher).toHaveBeenCalledWith(
+      `${freshClientId}/.well-known/triad-client.json`,
+      expect.objectContaining({ redirect: "error" }),
+    );
+    await expect(
+      env.DB.prepare("SELECT client_id FROM clients WHERE client_id = ?")
+        .bind(freshClientId)
+        .first("client_id"),
+    ).resolves.toBe(freshClientId);
+  });
+
+  it("returns invalid_client without storing a client or grant when proof fails", async () => {
+    const env = await testEnv();
+    const unprovedClientId = "https://unproved-device.example";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            issuer,
+            client_id: "https://attacker.example",
+            device_authorization: true,
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+
+    const response = await app.request(
+      "/device/code",
+      formRequest({ client_id: unprovedClientId, provider: "github" }),
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_client" });
+    await expect(
+      env.DB.prepare("SELECT COUNT(*) AS count FROM clients WHERE client_id = ?")
+        .bind(unprovedClientId)
+        .first("count"),
+    ).resolves.toBe(0);
+    await expect(
+      env.DB.prepare("SELECT COUNT(*) AS count FROM device_grants WHERE client_id = ?")
+        .bind(unprovedClientId)
+        .first("count"),
+    ).resolves.toBe(0);
+  });
+
+  it("uses a cached client proof without another fetch", async () => {
+    const env = await testEnv();
+    const fetcher = vi.fn(async () => {
+      throw new Error("unexpected fetch");
+    });
+    vi.stubGlobal("fetch", fetcher);
+
+    const response = await app.request(
+      "/device/code",
+      formRequest({ client_id: deviceClientId, provider: "github" }),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("serves Triad's device proof for its exact issuer origin", async () => {
+    const env = await testEnv();
+
+    const response = await app.request("/.well-known/triad-client.json", undefined, env);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      issuer,
+      client_id: issuer,
+      device_authorization: true,
+      name: "Triad",
+    });
+  });
+
   it("issues RFC-shaped random codes and stores only the device-code hash", async () => {
     const env = await testEnv();
     const response = await app.request(
