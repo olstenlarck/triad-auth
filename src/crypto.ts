@@ -5,6 +5,13 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const claimsSalt = encoder.encode("triad-auth-claims-v1");
 const claimsInfo = encoder.encode("claims-encryption");
+const claimsKeyIdPattern = /^[A-Za-z0-9_-]+$/;
+
+interface ClaimsKeyring {
+  active: string;
+  keys: Record<string, string>;
+  legacy?: string;
+}
 
 export function base64url(bytes: Uint8Array): string {
   let binary = "";
@@ -32,11 +39,62 @@ function decodeBase64url(value: string): Uint8Array {
   return bytes;
 }
 
-async function claimsKey(secret: string): Promise<CryptoKey> {
-  if (secret.length < 32) {
-    throw new Error("PAIRWISE_SECRET must be at least 32 characters");
+function invalidClaimsKeyring(): Error {
+  return new Error("invalid claims encryption keyring");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseClaimsKeyring(value: string): ClaimsKeyring {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw invalidClaimsKeyring();
   }
 
+  if (!isRecord(parsed) || typeof parsed.active !== "string" || !isRecord(parsed.keys)) {
+    throw invalidClaimsKeyring();
+  }
+  if (!claimsKeyIdPattern.test(parsed.active)) {
+    throw invalidClaimsKeyring();
+  }
+
+  const entries = Object.entries(parsed.keys);
+  if (entries.length === 0 || entries.length > 2) {
+    throw invalidClaimsKeyring();
+  }
+  if (
+    entries.some(
+      ([keyId, secret]) =>
+        !claimsKeyIdPattern.test(keyId) || typeof secret !== "string" || secret.length < 32,
+    )
+  ) {
+    throw invalidClaimsKeyring();
+  }
+
+  const keys = Object.fromEntries(entries) as Record<string, string>;
+  if (!Object.hasOwn(keys, parsed.active)) {
+    throw invalidClaimsKeyring();
+  }
+  if (
+    parsed.legacy !== undefined &&
+    (typeof parsed.legacy !== "string" || parsed.legacy.length < 32)
+  ) {
+    throw invalidClaimsKeyring();
+  }
+
+  return {
+    active: parsed.active,
+    keys,
+    ...(parsed.legacy === undefined ? {} : { legacy: parsed.legacy }),
+  };
+}
+
+async function claimsKey(secret: string): Promise<CryptoKey> {
   const material = await crypto.subtle.importKey("raw", encoder.encode(secret), "HKDF", false, [
     "deriveKey",
   ]);
@@ -50,12 +108,43 @@ async function claimsKey(secret: string): Promise<CryptoKey> {
   );
 }
 
-export async function sealClaims(
+function versionedClaimsAdditionalData(prefix: string, context: string): Uint8Array<ArrayBuffer> {
+  return encoder.encode(`${prefix}\0${context}`);
+}
+
+async function decryptClaims(
   secret: string,
+  additionalData: Uint8Array<ArrayBuffer>,
+  encodedPayload: string,
+): Promise<ProfileClaims> {
+  const payload = decodeBase64url(encodedPayload);
+  if (payload.length < 29) {
+    throw new Error("invalid encrypted claims");
+  }
+
+  const key = await claimsKey(secret);
+  const plaintext = await crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: payload.slice(0, 12),
+      additionalData,
+      tagLength: 128,
+    },
+    key,
+    payload.slice(12),
+  );
+
+  return validateProfileClaims(JSON.parse(decoder.decode(plaintext)));
+}
+
+export async function sealClaims(
+  keyringJson: string,
   context: string,
   claims: ProfileClaims,
 ): Promise<string> {
-  const key = await claimsKey(secret);
+  const keyring = parseClaimsKeyring(keyringJson);
+  const prefix = `v2.${keyring.active}`;
+  const key = await claimsKey(keyring.keys[keyring.active]);
   const validated = validateProfileClaims(claims);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = new Uint8Array(
@@ -63,7 +152,7 @@ export async function sealClaims(
       {
         name: "AES-GCM",
         iv,
-        additionalData: encoder.encode(context),
+        additionalData: versionedClaimsAdditionalData(prefix, context),
         tagLength: 128,
       },
       key,
@@ -75,37 +164,37 @@ export async function sealClaims(
   payload.set(iv);
   payload.set(ciphertext, iv.length);
 
-  return `v1.${base64url(payload)}`;
+  return `${prefix}.${base64url(payload)}`;
 }
 
 export async function openClaims(
-  secret: string,
+  keyringJson: string,
   context: string,
   sealed: string,
 ): Promise<ProfileClaims> {
-  const key = await claimsKey(secret);
+  const keyring = parseClaimsKeyring(keyringJson);
 
-  if (!sealed.startsWith("v1.")) {
+  if (sealed.startsWith("v1.")) {
+    if (!keyring.legacy) {
+      throw new Error("invalid encrypted claims");
+    }
+
+    return decryptClaims(keyring.legacy, encoder.encode(context), sealed.slice(3));
+  }
+
+  const match = /^v2\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(sealed);
+  if (!match) {
     throw new Error("invalid encrypted claims");
   }
 
-  const payload = decodeBase64url(sealed.slice(3));
-  if (payload.length < 29) {
+  const [, keyId, encodedPayload] = match;
+  const secret = keyring.keys[keyId];
+  if (!secret) {
     throw new Error("invalid encrypted claims");
   }
+  const prefix = `v2.${keyId}`;
 
-  const plaintext = await crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv: payload.slice(0, 12),
-      additionalData: encoder.encode(context),
-      tagLength: 128,
-    },
-    key,
-    payload.slice(12),
-  );
-
-  return validateProfileClaims(JSON.parse(decoder.decode(plaintext)));
+  return decryptClaims(secret, versionedClaimsAdditionalData(prefix, context), encodedPayload);
 }
 
 export function randomToken(bytes = 32): string {
