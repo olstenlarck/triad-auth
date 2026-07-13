@@ -4,6 +4,14 @@ import { issueIdToken, publicJwk } from "../src/tokens";
 
 const validAccountSub = `acc_${"a".repeat(64)}`;
 const validProviderSub = `pid_github_${"b".repeat(64)}`;
+const secretBindings = {
+  IDENTIFIER_SECRET: "i".repeat(32),
+  CLAIMS_ENCRYPTION_KEYRING: JSON.stringify({
+    active: "current",
+    keys: { current: "c".repeat(32) },
+  }),
+  RATE_LIMIT_SECRET: "r".repeat(32),
+};
 
 it("exports only allowlisted public signing JWK fields", async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
@@ -55,7 +63,7 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
   const env = {
     ISSUER: "https://issuer.example",
-    PAIRWISE_SECRET: "s".repeat(32),
+    ...secretBindings,
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
   const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub);
@@ -88,7 +96,7 @@ it.each([true, false])(
     const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
     const env = {
       ISSUER: "https://issuer.example",
-      PAIRWISE_SECRET: "s".repeat(32),
+      ...secretBindings,
       SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
     } as never;
     const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub, {
@@ -122,7 +130,7 @@ it("rejects non-standard or malformed profile claims", async () => {
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
   const env = {
     ISSUER: "https://issuer.example",
-    PAIRWISE_SECRET: "s".repeat(32),
+    ...secretBindings,
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
 
@@ -139,7 +147,7 @@ it("issues a five minute ID token", async () => {
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
   const env = {
     ISSUER: "https://issuer.example",
-    PAIRWISE_SECRET: "s".repeat(32),
+    ...secretBindings,
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
   const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub);
@@ -159,17 +167,18 @@ it("issues a five minute ID token", async () => {
   expect(payload.exp! - payload.iat!).toBe(300);
 });
 
-it("rejects a pairwise secret shorter than 32 characters", async () => {
+it("rejects an identifier secret shorter than 32 characters", async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
   const env = {
     ISSUER: "https://issuer.example",
-    PAIRWISE_SECRET: "s".repeat(31),
+    ...secretBindings,
+    IDENTIFIER_SECRET: "i".repeat(31),
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
 
   await expect(issueIdToken(env, "triad-demo", validAccountSub, validProviderSub)).rejects.toThrow(
-    "PAIRWISE_SECRET must be at least 32 characters",
+    "IDENTIFIER_SECRET must be at least 32 characters",
   );
 });
 
@@ -185,7 +194,7 @@ it.each([
   const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
   const env = {
     ISSUER: "https://issuer.example",
-    PAIRWISE_SECRET: "s".repeat(32),
+    ...secretBindings,
     SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
   } as never;
 

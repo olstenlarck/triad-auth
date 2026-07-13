@@ -6,6 +6,14 @@ import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
 
 const cleanups: Array<() => void> = [];
+const secretBindings = {
+  IDENTIFIER_SECRET: "i".repeat(32),
+  CLAIMS_ENCRYPTION_KEYRING: JSON.stringify({
+    active: "current",
+    keys: { current: "c".repeat(32) },
+  }),
+  RATE_LIMIT_SECRET: "r".repeat(32),
+};
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -32,7 +40,7 @@ async function testEnv(): Promise<Env> {
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
     ISSUER: "https://auth.example",
     SIGNING_PRIVATE_JWK: "unused",
-    PAIRWISE_SECRET: "p".repeat(32),
+    ...secretBindings,
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",
   };
@@ -170,7 +178,7 @@ describe("public route rate limits", () => {
   it("stores secret-bound IP keys that differ across broker secrets", async () => {
     const first = await testEnv();
     const second = await testEnv();
-    second.PAIRWISE_SECRET = "q".repeat(32);
+    second.RATE_LIMIT_SECRET = "q".repeat(32);
     await app.request("/authorize?provider=github", { headers: ipHeaders }, first);
     await app.request("/authorize?provider=github", { headers: ipHeaders }, second);
     const firstHash = await first.DB.prepare("SELECT key_hash FROM rate_limits").first<string>(

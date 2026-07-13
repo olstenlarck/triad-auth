@@ -11,6 +11,14 @@ const issuer = "https://auth.example";
 const redirectUri = `${issuer}/demo/callback/`;
 let signingPrivateJwk: string;
 const cleanups: Array<() => void> = [];
+const secretBindings = {
+  IDENTIFIER_SECRET: "i".repeat(32),
+  CLAIMS_ENCRYPTION_KEYRING: JSON.stringify({
+    active: "current",
+    keys: { current: "c".repeat(32) },
+  }),
+  RATE_LIMIT_SECRET: "r".repeat(32),
+};
 
 beforeAll(async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
@@ -33,7 +41,7 @@ async function testEnv(canonicalIssuer = issuer, overrides: Partial<Env> = {}): 
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
     ISSUER: canonicalIssuer,
     SIGNING_PRIVATE_JWK: signingPrivateJwk,
-    PAIRWISE_SECRET: "p".repeat(32),
+    ...secretBindings,
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",
     ...overrides,
@@ -557,17 +565,21 @@ describe("authorization-code routes", () => {
 
     expect(stored?.provider).toBe("github");
     expect(stored?.scopes).toBe('["openid","email","name"]');
-    expect(stored?.claims_ciphertext).toMatch(/^v1\./);
+    expect(stored?.claims_ciphertext).toMatch(/^v2\.current\./);
     expect(stored?.claims_ciphertext).not.toContain("user@example.com");
     await expect(
-      openClaims(env.PAIRWISE_SECRET, codeHash, stored!.claims_ciphertext),
+      openClaims(env.CLAIMS_ENCRYPTION_KEYRING, codeHash, stored!.claims_ciphertext),
     ).resolves.toEqual({
       email: "user@example.com",
       email_verified: true,
       name: "User",
     });
     await expect(
-      openClaims(env.PAIRWISE_SECRET, await sha256("other-code"), stored!.claims_ciphertext),
+      openClaims(
+        env.CLAIMS_ENCRYPTION_KEYRING,
+        await sha256("other-code"),
+        stored!.claims_ciphertext,
+      ),
     ).rejects.toThrow();
 
     const exchanged = await app.request("/token", tokenRequest(code, verifier), env);

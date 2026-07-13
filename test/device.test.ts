@@ -12,6 +12,14 @@ const deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code";
 const deviceClientId = "https://device.example";
 let signingPrivateJwk: string;
 const cleanups: Array<() => void> = [];
+const secretBindings = {
+  IDENTIFIER_SECRET: "i".repeat(32),
+  CLAIMS_ENCRYPTION_KEYRING: JSON.stringify({
+    active: "current",
+    keys: { current: "c".repeat(32) },
+  }),
+  RATE_LIMIT_SECRET: "r".repeat(32),
+};
 
 beforeAll(async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
@@ -41,7 +49,7 @@ async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
     ISSUER: issuer,
     SIGNING_PRIVATE_JWK: signingPrivateJwk,
-    PAIRWISE_SECRET: "p".repeat(32),
+    ...secretBindings,
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",
     ...overrides,
@@ -576,7 +584,7 @@ describe("device authorization", () => {
     expect(stored?.scopes).toBe('["openid","handle","name"]');
     expect(stored?.claims_ciphertext).not.toContain("mutable-name");
     await expect(
-      openClaims(env.PAIRWISE_SECRET, deviceHash, stored!.claims_ciphertext),
+      openClaims(env.CLAIMS_ENCRYPTION_KEYRING, deviceHash, stored!.claims_ciphertext),
     ).resolves.toEqual({
       preferred_username: "mutable-name",
       name: "Device User",
@@ -833,7 +841,7 @@ describe("device authorization", () => {
     expect(grant).toEqual({
       status: "approved",
       account_id: "acct_device",
-      provider_sub: await providerSubject("p".repeat(32), "github", "42"),
+      provider_sub: await providerSubject(env.IDENTIFIER_SECRET, "github", "42"),
     });
   });
 

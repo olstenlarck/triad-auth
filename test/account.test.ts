@@ -11,6 +11,14 @@ declare const process: {
 
 const issuer = "https://auth.example";
 const cleanups: Array<() => void> = [];
+const secretBindings = {
+  IDENTIFIER_SECRET: "i".repeat(32),
+  CLAIMS_ENCRYPTION_KEYRING: JSON.stringify({
+    active: "current",
+    keys: { current: "c".repeat(32) },
+  }),
+  RATE_LIMIT_SECRET: "r".repeat(32),
+};
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -27,7 +35,7 @@ async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
     ISSUER: issuer,
     SIGNING_PRIVATE_JWK: "unused",
-    PAIRWISE_SECRET: "p".repeat(32),
+    ...secretBindings,
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",
     ...overrides,
@@ -215,7 +223,9 @@ describe("account sessions", () => {
     );
     const body = await response.json<{ identities: string[] }>();
 
-    expect(body.identities).toEqual([await providerSubject(env.PAIRWISE_SECRET, "github", "42")]);
+    expect(body.identities).toEqual([
+      await providerSubject(env.IDENTIFIER_SECRET, "github", "42"),
+    ]);
     expect(JSON.stringify(body)).not.toContain("github:42");
   });
 

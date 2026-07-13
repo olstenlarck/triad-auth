@@ -13,15 +13,15 @@ export async function issueIdToken(
   if (!/^pid_(google|github|twitter)_[0-9a-f]{64}$/.test(providerSub)) {
     throw new Error("provider_sub must be an opaque Triad provider subject");
   }
-  if (env.PAIRWISE_SECRET.length < 32) {
-    throw new Error("PAIRWISE_SECRET must be at least 32 characters");
+  if (env.IDENTIFIER_SECRET.length < 32) {
+    throw new Error("IDENTIFIER_SECRET must be at least 32 characters");
   }
 
   const privateJwk = JSON.parse(env.SIGNING_PRIVATE_JWK) as JsonWebKey & {
     kid?: string;
   };
   const key = await importJWK(privateJwk, "ES256");
-  const pairwiseSub = await pairwiseSubject(env.PAIRWISE_SECRET, accountId, clientId);
+  const pairwiseSub = await pairwiseSubject(env.IDENTIFIER_SECRET, accountId, clientId);
 
   const profileClaims = validateProfileClaims(claims);
 
