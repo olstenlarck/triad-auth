@@ -28,7 +28,7 @@ export const prerender = true;
       <input id="device-provider" type="hidden" name="provider" value="" />
       <input id="device-csrf" type="hidden" name="csrf_token" value="" />
       <div id="device-app" class="device-app" aria-live="polite" hidden>
-        <div><span>SELF-ASSERTED CLIENT ORIGIN</span><strong id="device-client">PENDING</strong></div>
+        <div><span>VERIFIED CLIENT ORIGIN</span><strong id="device-client">PENDING</strong></div>
         <div><span>PROVIDER</span><strong id="device-provider-name">PENDING</strong></div>
       </div>
       <div id="device-disclosure" class="device-disclosure" hidden>
@@ -127,7 +127,7 @@ export const prerender = true;
         box.hidden = false;
         submit.disabled = false;
         status.textContent =
-          "Request found. Triad has not verified control of this client origin. Match the code before approving.";
+          "Request found. Triad verified control of this client origin. Match the code before approving.";
         status.dataset.tone = "success";
       } catch {
         if (current !== inspection) {return;}

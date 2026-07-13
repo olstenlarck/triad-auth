@@ -3,6 +3,7 @@ import { parseScopes, validateProviderScopes } from "../claims";
 import { makeUserCode, normalizeUserCode, randomToken, sha256 } from "../crypto";
 import { cleanupExpiredState } from "../cleanup";
 import { getClient, getOrCreateOriginClient, normalizeOriginClientId, validateClient } from "../db";
+import { verifyDeviceClient } from "../device-client";
 import { enabledProviders, startProvider } from "../providers";
 import { createPreAuthBinding, setPreAuthCookie } from "../pre-auth";
 import { enforceRequestRateLimit } from "../rate-limit";
@@ -100,6 +101,12 @@ deviceRoutes.post("/device/code", async (c) => {
     validateProviderScopes(provider, scopes);
   } catch {
     return oauthError("invalid_scope");
+  }
+
+  try {
+    await verifyDeviceClient(c.env.DB, clientId, c.env.ISSUER);
+  } catch {
+    return oauthError("invalid_client");
   }
 
   let client = await getClient(c.env.DB, clientId);

@@ -277,6 +277,15 @@ oauthRoutes.get("/.well-known/openid-configuration", (c) =>
   }),
 );
 
+oauthRoutes.get("/.well-known/triad-client.json", (c) =>
+  c.json({
+    issuer: c.env.ISSUER,
+    client_id: c.env.ISSUER,
+    device_authorization: true,
+    name: "Triad",
+  }),
+);
+
 oauthRoutes.get("/.well-known/jwks.json", async (c) => c.json({ keys: await publicJwks(c.env) }));
 
 oauthRoutes.get("/api/providers", (c) =>

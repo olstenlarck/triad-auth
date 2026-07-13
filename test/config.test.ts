@@ -371,6 +371,25 @@ describe("deployment configuration", () => {
     expect(readme).toContain("X branding");
   });
 
+  it("documents the verified device origin contract and its revocation boundary", () => {
+    const readme = readFileSync("README.md", "utf8");
+
+    expect(readme).toContain("`/.well-known/triad-client.json`");
+    expect(readme).toContain('"issuer": "https://triad.wgw.lol"');
+    expect(readme).toContain('"client_id": "https://device.example"');
+    expect(readme).toContain('"device_authorization": true');
+    expect(readme).toContain("Successful proofs are cached for one hour.");
+    expect(readme).toContain(
+      "Exact `http://localhost[:port]` origins are the only development exception.",
+    );
+    expect(readme).toContain(
+      "Removing the file blocks new device grants after the cached proof expires.",
+    );
+    expect(readme).toContain("It does not revoke already-issued device grants or tokens.");
+    expect(readme).not.toContain("Device client origins are self-asserted");
+    expect(readme).not.toContain("domain-ownership verification");
+  });
+
   it("documents logical claim expiry separately from traffic-driven physical cleanup", () => {
     const documents = [
       readFileSync("README.md", "utf8"),
