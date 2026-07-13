@@ -67,7 +67,12 @@ export class SqliteD1 {
   private readonly database = new DatabaseSync(":memory:");
 
   static async create(
-    migrations = ["0001_init.sql", "0002_multi_provider.sql", "0003_reset_subject_formats.sql"],
+    migrations = [
+      "0001_init.sql",
+      "0002_multi_provider.sql",
+      "0003_reset_subject_formats.sql",
+      "0004_device_client_verifications.sql",
+    ],
   ): Promise<SqliteD1> {
     const d1 = new SqliteD1();
     for (const name of migrations) {

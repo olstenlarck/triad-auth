@@ -237,6 +237,41 @@ async function seedAuthorizationCode(
 }
 
 describe("authorization-code routes", () => {
+  it("applies device client verification migration with cache constraints", async () => {
+    const sqlite = await SqliteD1.create([
+      "0001_init.sql",
+      "0002_multi_provider.sql",
+      "0003_reset_subject_formats.sql",
+      "0004_device_client_verifications.sql",
+    ]);
+    const db = sqlite as unknown as D1Database;
+    try {
+      const columns = await db.prepare("PRAGMA table_info(device_client_verifications)").all<{
+        name: string;
+        pk: number;
+      }>();
+      const indexes = await db.prepare("PRAGMA index_list(device_client_verifications)").all<{
+        name: string;
+      }>();
+
+      expect(columns.results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "client_id", pk: 1 }),
+          expect.objectContaining({ name: "name" }),
+          expect.objectContaining({ name: "verified_at" }),
+          expect.objectContaining({ name: "expires_at" }),
+        ]),
+      );
+      expect(indexes.results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "device_client_verifications_expiry_idx" }),
+        ]),
+      );
+    } finally {
+      sqlite.close();
+    }
+  });
+
   it("returns only providers with complete configured credential pairs", async () => {
     const env = await testEnv(issuer, {
       GOOGLE_CLIENT_ID: "google-client",
