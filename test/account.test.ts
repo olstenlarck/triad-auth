@@ -34,7 +34,7 @@ async function testEnv(overrides: Partial<Env> = {}): Promise<Env> {
     DB: db,
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
     ISSUER: issuer,
-    SIGNING_PRIVATE_JWK: "unused",
+    SIGNING_KEYRING: "unused",
     ...secretBindings,
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",

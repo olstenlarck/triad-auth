@@ -1,6 +1,6 @@
 import { exportJWK, generateKeyPair, jwtVerify } from "jose";
 import { expect, it } from "vite-plus/test";
-import { issueIdToken, publicJwk } from "../src/tokens";
+import { issueIdToken, publicJwks } from "../src/tokens";
 
 const validAccountSub = `acc_${"a".repeat(64)}`;
 const validProviderSub = `pid_github_${"b".repeat(64)}`;
@@ -13,11 +13,22 @@ const secretBindings = {
   RATE_LIMIT_SECRET: "r".repeat(32),
 };
 
-it("exports only allowlisted public signing JWK fields", async () => {
+type SigningJwk = JsonWebKey & { kid: string };
+
+async function generatePrivateJwk(kid: string): Promise<SigningJwk> {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+  return { ...(await exportJWK(privateKey)), kid };
+}
+
+function signingKeyring(activeKid: string, keys: object[]): string {
+  return JSON.stringify({ active_kid: activeKid, keys });
+}
+
+it("exports only allowlisted fields from every retained public signing JWK", async () => {
+  const first = await generatePrivateJwk("first");
+  const second = await generatePrivateJwk("second");
   const jwk = {
-    ...(await exportJWK(privateKey)),
-    kid: "test",
+    ...first,
     k: "symmetric-secret",
     p: "rsa-p",
     q: "rsa-q",
@@ -27,19 +38,30 @@ it("exports only allowlisted public signing JWK fields", async () => {
     oth: [{ r: "rsa-r", d: "rsa-d", t: "rsa-t" }],
     custom: "not-public-metadata",
   };
-  const env = { SIGNING_PRIVATE_JWK: JSON.stringify(jwk) } as never;
+  const env = { SIGNING_KEYRING: signingKeyring("second", [jwk, second]) } as never;
 
-  const publicKey = await publicJwk(env);
+  const publicKeys = await publicJwks(env);
 
-  expect(publicKey).toStrictEqual({
-    kty: "EC",
-    crv: "P-256",
-    x: jwk.x,
-    y: jwk.y,
-    use: "sig",
-    alg: "ES256",
-    kid: "test",
-  });
+  expect(publicKeys).toStrictEqual([
+    {
+      kty: "EC",
+      crv: "P-256",
+      x: jwk.x,
+      y: jwk.y,
+      use: "sig",
+      alg: "ES256",
+      kid: "first",
+    },
+    {
+      kty: "EC",
+      crv: "P-256",
+      x: second.x,
+      y: second.y,
+      use: "sig",
+      alg: "ES256",
+      kid: "second",
+    },
+  ]);
 });
 
 it.each([
@@ -49,27 +71,76 @@ it.each([
   ["non-string y coordinate", "y", 42],
   ["missing private scalar", "d", undefined],
 ] as const)("rejects an invalid signing JWK with %s", async (_description, field, value) => {
-  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  const jwk = { ...(await exportJWK(privateKey)), [field]: value };
-  const env = { SIGNING_PRIVATE_JWK: JSON.stringify(jwk) } as never;
+  const jwk = { ...(await generatePrivateJwk("test")), [field]: value };
+  const env = { SIGNING_KEYRING: signingKeyring("test", [jwk]) } as never;
 
-  await expect(publicJwk(env)).rejects.toThrow(
-    "SIGNING_PRIVATE_JWK must be an ES256 EC P-256 private key",
-  );
+  await expect(publicJwks(env)).rejects.toThrow("SIGNING_KEYRING contains an invalid private key");
 });
 
-it("issues a pairwise standard subject plus explicit global subjects", async () => {
-  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+it.each([
+  ["missing kid", async () => [{ ...(await generatePrivateJwk("first")), kid: undefined }]],
+  [
+    "duplicate kid",
+    async () => [await generatePrivateJwk("same"), await generatePrivateJwk("same")],
+  ],
+  [
+    "more than two keys",
+    async () => [
+      await generatePrivateJwk("first"),
+      await generatePrivateJwk("second"),
+      await generatePrivateJwk("third"),
+    ],
+  ],
+] as const)("rejects a keyring with %s", async (_description, generateKeys) => {
+  const keys = await generateKeys();
+  const env = { SIGNING_KEYRING: signingKeyring("first", keys) } as never;
+
+  await expect(publicJwks(env)).rejects.toThrow("Invalid SIGNING_KEYRING");
+});
+
+it("rejects a keyring whose active key is not retained", async () => {
+  const env = {
+    SIGNING_KEYRING: signingKeyring("missing", [await generatePrivateJwk("retained")]),
+  } as never;
+
+  await expect(publicJwks(env)).rejects.toThrow("Invalid SIGNING_KEYRING");
+});
+
+it("signs only with the selected second retained key", async () => {
+  const first = await generatePrivateJwk("first");
+  const second = await generatePrivateJwk("second");
   const env = {
     ISSUER: "https://issuer.example",
     ...secretBindings,
-    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+    SIGNING_KEYRING: signingKeyring("second", [first, second]),
+  } as never;
+
+  const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub);
+  const publicKeys = await publicJwks(env);
+  const secondKey = await crypto.subtle.importKey(
+    "jwk",
+    publicKeys[1],
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["verify"],
+  );
+
+  await expect(jwtVerify(token, secondKey)).resolves.toMatchObject({
+    protectedHeader: { kid: "second" },
+  });
+});
+
+it("issues a pairwise standard subject plus explicit global subjects", async () => {
+  const jwk = await generatePrivateJwk("test");
+  const env = {
+    ISSUER: "https://issuer.example",
+    ...secretBindings,
+    SIGNING_KEYRING: signingKeyring("test", [jwk]),
   } as never;
   const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub);
   const key = await crypto.subtle.importKey(
     "jwk",
-    await publicJwk(env),
+    (await publicJwks(env))[0],
     { name: "ECDSA", namedCurve: "P-256" },
     false,
     ["verify"],
@@ -92,12 +163,11 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
 it.each([true, false])(
   "issues exactly the supplied standard profile claims with email_verified=%s",
   async (emailVerified) => {
-    const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-    const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+    const jwk = await generatePrivateJwk("test");
     const env = {
       ISSUER: "https://issuer.example",
       ...secretBindings,
-      SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+      SIGNING_KEYRING: signingKeyring("test", [jwk]),
     } as never;
     const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub, {
       email: "user@example.com",
@@ -107,7 +177,7 @@ it.each([true, false])(
     });
     const key = await crypto.subtle.importKey(
       "jwk",
-      await publicJwk(env),
+      (await publicJwks(env))[0],
       { name: "ECDSA", namedCurve: "P-256" },
       false,
       ["verify"],
@@ -126,12 +196,11 @@ it.each([true, false])(
 );
 
 it("rejects non-standard or malformed profile claims", async () => {
-  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  const jwk = await generatePrivateJwk("test");
   const env = {
     ISSUER: "https://issuer.example",
     ...secretBindings,
-    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+    SIGNING_KEYRING: signingKeyring("test", [jwk]),
   } as never;
 
   await expect(
@@ -143,17 +212,16 @@ it("rejects non-standard or malformed profile claims", async () => {
 });
 
 it("issues a five minute ID token", async () => {
-  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  const jwk = await generatePrivateJwk("test");
   const env = {
     ISSUER: "https://issuer.example",
     ...secretBindings,
-    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+    SIGNING_KEYRING: signingKeyring("test", [jwk]),
   } as never;
   const token = await issueIdToken(env, "triad-demo", validAccountSub, validProviderSub);
   const key = await crypto.subtle.importKey(
     "jwk",
-    await publicJwk(env),
+    (await publicJwks(env))[0],
     { name: "ECDSA", namedCurve: "P-256" },
     false,
     ["verify"],
@@ -168,13 +236,12 @@ it("issues a five minute ID token", async () => {
 });
 
 it("rejects an identifier secret shorter than 32 characters", async () => {
-  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  const jwk = await generatePrivateJwk("test");
   const env = {
     ISSUER: "https://issuer.example",
     ...secretBindings,
     IDENTIFIER_SECRET: "i".repeat(31),
-    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+    SIGNING_KEYRING: signingKeyring("test", [jwk]),
   } as never;
 
   await expect(issueIdToken(env, "triad-demo", validAccountSub, validProviderSub)).rejects.toThrow(
@@ -190,12 +257,11 @@ it.each([
   ["long opaque value", `pid_github_${"b".repeat(65)}`],
   ["invalid opaque character", `pid_github_${"b".repeat(63)}!`],
 ] as const)("rejects a %s", async (_description, providerSub) => {
-  const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  const jwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  const jwk = await generatePrivateJwk("test");
   const env = {
     ISSUER: "https://issuer.example",
     ...secretBindings,
-    SIGNING_PRIVATE_JWK: JSON.stringify(jwk),
+    SIGNING_KEYRING: signingKeyring("test", [jwk]),
   } as never;
 
   await expect(issueIdToken(env, "triad-demo", validAccountSub, providerSub)).rejects.toThrow(

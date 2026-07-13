@@ -8,8 +8,8 @@ GITHUB_CLIENT_SECRET=
 TWITTER_CLIENT_ID=
 TWITTER_CLIENT_SECRET=
 
-# Paste the one-line JSON emitted by `vp run keygen`; quote it in .dev.vars.
-SIGNING_PRIVATE_JWK=
+# Insert one or two JWKs from `vp run keygen`; quote the complete one-line keyring in .dev.vars.
+SIGNING_KEYRING=
 
 # Preserve the existing account identifiers by using the current PAIRWISE_SECRET value during rollout.
 IDENTIFIER_SECRET=

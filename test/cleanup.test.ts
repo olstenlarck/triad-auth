@@ -140,7 +140,7 @@ describe("ephemeral D1 cleanup", () => {
       DB: db,
       ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
       ISSUER: "https://auth.example",
-      SIGNING_PRIVATE_JWK: "unused",
+      SIGNING_KEYRING: "unused",
       IDENTIFIER_SECRET: "i".repeat(32),
       CLAIMS_ENCRYPTION_KEYRING: JSON.stringify({
         active: "current",

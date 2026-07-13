@@ -15,7 +15,7 @@ export interface Env {
   ASSETS: Fetcher;
   ISSUER: string;
   PROVIDER_CALLBACK_ORIGIN?: string;
-  SIGNING_PRIVATE_JWK: string;
+  SIGNING_KEYRING: string;
   IDENTIFIER_SECRET: string;
   CLAIMS_ENCRYPTION_KEYRING: string;
   RATE_LIMIT_SECRET: string;

@@ -102,12 +102,32 @@ Fill the four broker secrets and at least one complete provider credential pair 
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: the Google web client pair.
 - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`: the GitHub OAuth App pair.
 - `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET`: the Twitter OAuth 2.0 pair.
-- `SIGNING_PRIVATE_JWK`: the one-line JSON from `vp run keygen`, wrapped in single quotes.
+- `SIGNING_KEYRING`: one atomic JSON object with `active_kid` and a `keys` array containing one or two private JWKs. `vp run keygen` emits one JWK for insertion into this object. Wrap the complete one-line keyring in single quotes.
 - `IDENTIFIER_SECRET`: at least 32 high-entropy characters. Preserve the current value when rotating other secrets.
 - `CLAIMS_ENCRYPTION_KEYRING`: one-line JSON containing an identifier-safe `active` key ID, one or two named keys of at least 32 characters, and an optional `legacy` key of at least 32 characters. Wrap the JSON in single quotes.
 - `RATE_LIMIT_SECRET`: an independent value of at least 32 high-entropy characters.
 
 Provider pairs are optional individually, but half-configured pairs are invalid and at least one complete pair is required. `/api/providers` and all provider controls expose only providers whose complete pair is configured. Locally, leave unused provider assignments empty. In production, a provider remains unavailable until both credentials have been uploaded.
+
+For the initial keyring, run `vp run keygen` once, use its `kid` as `active_kid`, and insert the complete emitted object as the only `keys` entry. The value has this shape:
+
+```json
+{
+  "active_kid": "<generated kid>",
+  "keys": [
+    {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "...",
+      "y": "...",
+      "d": "...",
+      "use": "sig",
+      "alg": "ES256",
+      "kid": "<generated kid>"
+    }
+  ]
+}
+```
 
 Validate the file without sourcing it in a shell:
 
@@ -168,22 +188,35 @@ vp exec wrangler secret put GITHUB_CLIENT_ID
 vp exec wrangler secret put GITHUB_CLIENT_SECRET
 vp exec wrangler secret put TWITTER_CLIENT_ID
 vp exec wrangler secret put TWITTER_CLIENT_SECRET
-vp exec wrangler secret put SIGNING_PRIVATE_JWK
+vp exec wrangler secret put SIGNING_KEYRING
 vp exec wrangler secret put IDENTIFIER_SECRET
 vp exec wrangler secret put CLAIMS_ENCRYPTION_KEYRING
 vp exec wrangler secret put RATE_LIMIT_SECRET
 ```
 
-`SIGNING_PRIVATE_JWK`, `IDENTIFIER_SECRET`, `CLAIMS_ENCRYPTION_KEYRING`, and `RATE_LIMIT_SECRET` are always required. Upload both values in a provider pair before expecting that provider to appear in `/api/providers` or any provider control.
+`SIGNING_KEYRING`, `IDENTIFIER_SECRET`, `CLAIMS_ENCRYPTION_KEYRING`, and `RATE_LIMIT_SECRET` are always required. Upload both values in a provider pair before expecting that provider to appear in `/api/providers` or any provider control.
 
-For the first secret-separation deployment, preserve identity while splitting the other responsibilities:
+For the first deployment from the former single-secret and single-signing-key configuration, preserve identity and signing continuity while splitting responsibilities:
 
 1. Set `IDENTIFIER_SECRET` to the exact current `PAIRWISE_SECRET` value.
 2. Generate independent new values for `RATE_LIMIT_SECRET` and the active claims key.
 3. Create `CLAIMS_ENCRYPTION_KEYRING` with the new key under `active`. For the first deployment, set `legacy` inside `CLAIMS_ENCRYPTION_KEYRING` to that same current `PAIRWISE_SECRET` value.
-4. Upload all three new bindings before deploying this code. Keep the existing `SIGNING_PRIVATE_JWK`; signing-key rotation is a separate operation.
+4. Create `SIGNING_KEYRING` with the current signing JWK as its only key and set that key's `kid` as `active_kid`.
+5. Upload all four required bindings before deploying this code.
 
-After the new deployment is serving successfully and all pre-deployment `v1` claims have expired, remove `legacy` from the claims keyring. The old `PAIRWISE_SECRET` binding is no longer read by this version.
+After the new deployment is serving successfully and all pre-deployment `v1` claims have expired, remove `legacy` from the claims keyring. The old `PAIRWISE_SECRET` and `SIGNING_PRIVATE_JWK` bindings are no longer read by this version.
+
+### Signing-key rotation
+
+`SIGNING_KEYRING` is updated atomically. Every retained key must be an ES256 EC P-256 private JWK with a unique nonempty `kid`; `active_kid` selects the only key used for new tokens. Keep no more than two keys in the keyring. `vp run keygen` always emits one new private JWK, not a complete keyring.
+
+Rotate keys in this order:
+
+1. Publish current + next by adding the newly generated JWK while leaving `active_kid` on the current key. Upload the complete object with `vp exec wrangler secret put SIGNING_KEYRING` and confirm both public keys appear at `/.well-known/jwks.json`.
+2. Wait for the updated JWKS to propagate through the deployment and downstream verifier caches.
+3. Promote next by changing only `active_kid`; keep both JWKs in the atomic secret. The old current key is now previous, and next is now current.
+4. Retain previous + current for the five-minute token lifetime plus clock-skew and JWKS-cache allowance. This lets every token signed before promotion remain verifiable.
+5. Remove previous and generate a new next. Publish current plus that new next before the following promotion.
 
 After changing secrets, verify locally, apply pending remote migrations, and only then deploy the canonical configuration:
 
@@ -221,7 +254,7 @@ Authorization codes, device codes, CSRF tokens, and upstream state are one-time 
 ## MVP limitations
 
 - Google, GitHub, and Twitter adapters are supported, but each provider appears only when its complete credential pair is configured.
-- There is no cross-provider identity linking, domain-ownership verification, account deletion, signing-key rotation, or operator audit UI.
+- There is no cross-provider identity linking, domain-ownership verification, account deletion, or operator audit UI.
 - Browser callbacks must be HTTPS except on localhost. Device client origins are self-asserted because device authorization has no callback from which to derive them.
 - Rate limits are single-region D1 counters, not a complete abuse-prevention system.
 - Deployment requires a stable hostname, persistent D1, and secret injection. An ephemeral preview is not a valid issuer.

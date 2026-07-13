@@ -9,7 +9,8 @@ import { createTestDb, SqliteD1 } from "./d1";
 
 const issuer = "https://auth.example";
 const redirectUri = `${issuer}/demo/callback/`;
-let signingPrivateJwk: string;
+let signingJwk: JsonWebKey & { kid: string };
+let signingKeyring: string;
 const cleanups: Array<() => void> = [];
 const secretBindings = {
   IDENTIFIER_SECRET: "i".repeat(32),
@@ -22,7 +23,8 @@ const secretBindings = {
 
 beforeAll(async () => {
   const { privateKey } = await generateKeyPair("ES256", { extractable: true });
-  signingPrivateJwk = JSON.stringify({ ...(await exportJWK(privateKey)), kid: "test" });
+  signingJwk = { ...(await exportJWK(privateKey)), kid: "test" };
+  signingKeyring = JSON.stringify({ active_kid: "test", keys: [signingJwk] });
 });
 
 afterEach(() => {
@@ -40,7 +42,7 @@ async function testEnv(canonicalIssuer = issuer, overrides: Partial<Env> = {}): 
     DB: db,
     ASSETS: { fetch: async () => new Response("asset") } as unknown as Fetcher,
     ISSUER: canonicalIssuer,
-    SIGNING_PRIVATE_JWK: signingPrivateJwk,
+    SIGNING_KEYRING: signingKeyring,
     ...secretBindings,
     GITHUB_CLIENT_ID: "github-client",
     GITHUB_CLIENT_SECRET: "github-secret",
@@ -720,6 +722,24 @@ describe("authorization-code routes", () => {
         "name",
         "picture",
       ],
+    });
+  });
+
+  it("publishes every retained signing key", async () => {
+    const { privateKey } = await generateKeyPair("ES256", { extractable: true });
+    const next = { ...(await exportJWK(privateKey)), kid: "next" };
+    const env = await testEnv(issuer, {
+      SIGNING_KEYRING: JSON.stringify({
+        active_kid: "test",
+        keys: [signingJwk, next],
+      }),
+    });
+
+    const response = await app.request("/.well-known/jwks.json", undefined, env);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      keys: [{ kid: "test" }, { kid: "next" }],
     });
   });
 
