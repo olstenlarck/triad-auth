@@ -171,6 +171,12 @@ describe("deployment configuration", () => {
     expect(compatibilityDate! <= latestSupportedDate[workerdVersion!]).toBe(true);
   });
 
+  it("allows device verification to fetch publicly routed Worker origins", () => {
+    const config = readFileSync("wrangler.toml", "utf8");
+
+    expect(config).toContain('compatibility_flags = ["global_fetch_strictly_public"]');
+  });
+
   it("reports every missing variable without printing values", () => {
     const directory = mkdtempSync(join(tmpdir(), "triad-config-"));
     try {

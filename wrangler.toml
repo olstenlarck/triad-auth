@@ -1,6 +1,7 @@
 name = "triad-auth-broker"
 main = "src/index.ts"
 compatibility_date = "2026-07-09"
+compatibility_flags = ["global_fetch_strictly_public"]
 
 [[d1_databases]]
 binding = "DB"
