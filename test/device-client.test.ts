@@ -169,6 +169,40 @@ describe("verifyDeviceClient", () => {
     await expect(verifyDeviceClient(db, clientId, issuer, fetcher)).rejects.toThrow();
   });
 
+  it("cancels a streamed response as soon as its body exceeds 4096 bytes", async () => {
+    const db = await testDb();
+    const chunks = [new Uint8Array(2048), new Uint8Array(2048), new Uint8Array(1)];
+    let pulls = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          pulls += 1;
+          const chunk = chunks.shift();
+          if (chunk) {
+            controller.enqueue(chunk);
+            return;
+          }
+
+          controller.close();
+        },
+        cancel() {
+          cancelled = true;
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const fetcher = responseFetcher(
+      new Response(body, { headers: { "content-type": "application/json" } }),
+    );
+
+    await expect(verifyDeviceClient(db, clientId, issuer, fetcher)).rejects.toThrow(
+      "device client proof is too large",
+    );
+    expect(pulls).toBe(3);
+    expect(cancelled).toBe(true);
+  });
+
   it("rejects a redirect response", async () => {
     const db = await testDb();
     const fetcher = responseFetcher(
@@ -202,20 +236,24 @@ describe("verifyDeviceClient", () => {
     vi.useFakeTimers();
     const db = await testDb();
     let requestSignal: AbortSignal | undefined;
-    let rejectBody: ((reason?: unknown) => void) | undefined;
-    const response = new Response(null, { headers: { "content-type": "application/json" } });
-    response.arrayBuffer = vi.fn(
-      () =>
-        new Promise<ArrayBuffer>((_resolve, reject) => {
-          rejectBody = reject;
-          requestSignal?.addEventListener("abort", () => reject(new Error("aborted")), {
-            once: true,
-          });
-        }),
-    );
     const fetcher = vi.fn(async (...args: Parameters<typeof fetch>): Promise<Response> => {
       requestSignal = args[1]?.signal ?? undefined;
-      return response;
+      const body = new ReadableStream({
+        pull() {
+          return new Promise<void>((_resolve, reject) => {
+            if (requestSignal?.aborted) {
+              reject(new Error("aborted"));
+              return;
+            }
+
+            requestSignal?.addEventListener("abort", () => reject(new Error("aborted")), {
+              once: true,
+            });
+          });
+        },
+      });
+
+      return new Response(body, { headers: { "content-type": "application/json" } });
     }) as unknown as typeof fetch;
 
     const verification = verifyDeviceClient(db, clientId, issuer, fetcher);
@@ -225,13 +263,8 @@ describe("verifyDeviceClient", () => {
     );
     await vi.advanceTimersByTimeAsync(5000);
 
-    try {
-      expect(requestSignal?.aborted).toBe(true);
-      await expect(outcome).resolves.toBe("rejected");
-    } finally {
-      rejectBody?.(new Error("test cleanup"));
-      await outcome;
-    }
+    expect(requestSignal?.aborted).toBe(true);
+    await expect(outcome).resolves.toBe("rejected");
   });
 
   it("rejects network failures", async () => {

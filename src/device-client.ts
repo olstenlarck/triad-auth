@@ -52,6 +52,29 @@ function validateContentHeaders(response: Response): void {
   }
 }
 
+async function readProofBody(response: Response): Promise<Uint8Array> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return new Uint8Array();
+  }
+
+  const body = new Uint8Array(proofByteLimit);
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      return body.subarray(0, length);
+    }
+    if (length + value.byteLength > proofByteLimit) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error("device client proof is too large");
+    }
+
+    body.set(value, length);
+    length += value.byteLength;
+  }
+}
+
 function validateProof(value: unknown, canonicalId: string, issuer: string): { name: string } {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("invalid device client proof");
@@ -102,7 +125,7 @@ export async function verifyDeviceClient(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), proofTimeoutMs);
-  let body: ArrayBuffer;
+  let body: Uint8Array;
   try {
     let response: Response;
     try {
@@ -115,13 +138,9 @@ export async function verifyDeviceClient(
     }
 
     validateContentHeaders(response);
-    body = await response.arrayBuffer();
+    body = await readProofBody(response);
   } finally {
     clearTimeout(timeout);
-  }
-
-  if (body.byteLength > proofByteLimit) {
-    throw new Error("device client proof is too large");
   }
 
   let value: unknown;
