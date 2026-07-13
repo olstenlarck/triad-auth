@@ -223,9 +223,7 @@ describe("account sessions", () => {
     );
     const body = await response.json<{ identities: string[] }>();
 
-    expect(body.identities).toEqual([
-      await providerSubject(env.IDENTIFIER_SECRET, "github", "42"),
-    ]);
+    expect(body.identities).toEqual([await providerSubject(env.IDENTIFIER_SECRET, "github", "42")]);
     expect(JSON.stringify(body)).not.toContain("github:42");
   });
 

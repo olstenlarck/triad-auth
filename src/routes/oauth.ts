@@ -530,7 +530,11 @@ oauthRoutes.get("/callback/:provider", async (c) => {
     throw error;
   }
   const accountId = await resolveIdentity(c.env.DB, identity, c.env.IDENTIFIER_SECRET);
-  const providerSub = await providerSubject(c.env.IDENTIFIER_SECRET, identity.provider, identity.id);
+  const providerSub = await providerSubject(
+    c.env.IDENTIFIER_SECRET,
+    identity.provider,
+    identity.id,
+  );
 
   if (tx.kind === "session") {
     await rotateBrowserSession(c, accountId);
