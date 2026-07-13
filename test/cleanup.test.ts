@@ -157,6 +157,12 @@ describe("ephemeral D1 cleanup", () => {
         '["openid"]', 0, 0)`,
       )
       .run();
+    await db
+      .prepare(
+        `INSERT INTO device_client_verifications (client_id, name, verified_at, expires_at)
+        VALUES ('https://cleanup.example', 'Cleanup test', unixepoch(), unixepoch() + 3600)`,
+      )
+      .run();
 
     const creation = await app.request(
       "/device/code",

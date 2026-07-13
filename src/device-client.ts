@@ -17,12 +17,12 @@ function canonicalDeviceClientId(clientId: string): string {
     return canonicalId;
   }
 
+  const hostname = url.hostname.endsWith(".") ? url.hostname.slice(0, -1) : url.hostname;
   const ipLiteral =
-    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(url.hostname) ||
-    (url.hostname.startsWith("[") && url.hostname.endsWith("]"));
+    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) ||
+    (hostname.startsWith("[") && hostname.endsWith("]"));
   const internalHostname =
-    !url.hostname.includes(".") ||
-    internalHostnameSuffixes.some((suffix) => url.hostname.endsWith(suffix));
+    !hostname.includes(".") || internalHostnameSuffixes.some((suffix) => hostname.endsWith(suffix));
   if (ipLiteral || internalHostname) {
     throw new Error("device client must use a public HTTPS origin");
   }
@@ -49,11 +49,7 @@ function validateContentHeaders(response: Response): void {
   }
 }
 
-function validateProof(
-  value: unknown,
-  canonicalId: string,
-  issuer: string,
-): { name: string } {
+function validateProof(value: unknown, canonicalId: string, issuer: string): { name: string } {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("invalid device client proof");
   }
@@ -68,8 +64,15 @@ function validateProof(
   }
 
   const name = proof.name;
-  if (name !== undefined && (typeof name !== "string" || name.length < 1 || name.length > 80)) {
-    throw new Error("invalid device client name");
+  if (name !== undefined) {
+    if (typeof name !== "string") {
+      throw new Error("invalid device client name");
+    }
+
+    const nameLength = Array.from(name).length;
+    if (nameLength < 1 || nameLength > 80) {
+      throw new Error("invalid device client name");
+    }
   }
 
   return { name: name ?? canonicalId };

@@ -264,16 +264,17 @@ describe("device authorization", () => {
   it("issues a grant only after fetching an exact client proof", async () => {
     const env = await testEnv();
     const freshClientId = "https://fresh-device.example";
-    const fetcher = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          issuer,
-          client_id: freshClientId,
-          device_authorization: true,
-          name: "Fresh device",
-        }),
-        { headers: { "content-type": "application/json" } },
-      ),
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            issuer,
+            client_id: freshClientId,
+            device_authorization: true,
+            name: "Fresh device",
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
     );
     vi.stubGlobal("fetch", fetcher);
 
@@ -300,15 +301,16 @@ describe("device authorization", () => {
     const unprovedClientId = "https://unproved-device.example";
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            issuer,
-            client_id: "https://attacker.example",
-            device_authorization: true,
-          }),
-          { headers: { "content-type": "application/json" } },
-        ),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              issuer,
+              client_id: "https://attacker.example",
+              device_authorization: true,
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
       ),
     );
 

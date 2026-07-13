@@ -31,9 +31,14 @@ function validProof(overrides: Record<string, unknown> = {}): Record<string, unk
 }
 
 function jsonResponse(value: unknown, init: ResponseInit = {}): Response {
+  const headers = new Headers(init.headers);
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
   return new Response(JSON.stringify(value), {
     ...init,
-    headers: { "content-type": "application/json", ...init.headers },
+    headers,
   });
 }
 
@@ -145,12 +150,18 @@ describe("verifyDeviceClient", () => {
   });
 
   it.each([
-    ["declared", new Response("{}", {
-      headers: { "content-length": "4097", "content-type": "application/json" },
-    })],
-    ["actual", new Response(`{"padding":"${"x".repeat(4096)}"}`, {
-      headers: { "content-type": "application/json" },
-    })],
+    [
+      "declared",
+      new Response("{}", {
+        headers: { "content-length": "4097", "content-type": "application/json" },
+      }),
+    ],
+    [
+      "actual",
+      new Response(`{"padding":"${"x".repeat(4096)}"}`, {
+        headers: { "content-type": "application/json" },
+      }),
+    ],
   ])("rejects an oversized %s response", async (_kind, response) => {
     const db = await testDb();
     const fetcher = responseFetcher(response);
@@ -207,6 +218,14 @@ describe("verifyDeviceClient", () => {
     });
   });
 
+  it("accepts an optional name containing 80 Unicode characters", async () => {
+    const db = await testDb();
+    const name = "\u{1F6E1}".repeat(80);
+    const fetcher = responseFetcher(jsonResponse(validProof({ name })));
+
+    await expect(verifyDeviceClient(db, clientId, issuer, fetcher)).resolves.toEqual({ name });
+  });
+
   it.each(["", "x".repeat(81), 42, null])("rejects the invalid optional name %j", async (name) => {
     const db = await testDb();
     const fetcher = responseFetcher(jsonResponse(validProof({ name })));
@@ -242,6 +261,7 @@ describe("verifyDeviceClient", () => {
     "https://api.localhost",
     "https://printer.local",
     "https://service.internal",
+    "https://service.internal.",
     "https://intranet",
   ])("rejects the local or internal client ID %s", async (invalidClientId) => {
     const db = await testDb();

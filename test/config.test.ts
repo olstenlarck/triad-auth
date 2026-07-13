@@ -356,7 +356,9 @@ describe("deployment configuration", () => {
     expect(readme).toContain('"client_id": "https://device.example"');
     expect(readme).toContain('"device_authorization": true');
     expect(readme).toContain("Successful proofs are cached for one hour.");
-    expect(readme).toContain("Exact `http://localhost[:port]` origins are the only development exception.");
+    expect(readme).toContain(
+      "Exact `http://localhost[:port]` origins are the only development exception.",
+    );
     expect(readme).toContain(
       "Removing the file blocks new device grants after the cached proof expires.",
     );
