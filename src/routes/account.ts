@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { deleteCookie, getCookie } from "hono/cookie";
 import { providerSubject, randomToken, sha256 } from "../crypto";
 import { cleanupExpiredState } from "../cleanup";
+import { deleteAccount } from "../db";
 import { createPreAuthBinding, setPreAuthCookie } from "../pre-auth";
 import { enabledProviders, startProvider } from "../providers";
 import { enforceRequestRateLimit } from "../rate-limit";
@@ -145,6 +146,35 @@ accountRoutes.get("/api/me", async (c) => {
     clients: clients.results,
     csrf_token: await createCsrfToken(c.env.DB, accountPurpose(session.sessionHash)),
   });
+});
+
+accountRoutes.delete("/api/me", async (c) => {
+  const originError = requireSameOrigin(c.req.raw, c.env.ISSUER);
+  if (originError) {
+    return originError;
+  }
+
+  const session = await requireSession(c.env.DB, getCookie(c, "triad_session"));
+  if (!session) {
+    return oauthError("login_required", undefined, 401);
+  }
+
+  const authorizationError = await authorizeMutation(c.env.DB, session, c.req.raw);
+  if (authorizationError) {
+    return authorizationError;
+  }
+
+  if (!(await deleteAccount(c.env.DB, session.accountId))) {
+    return oauthError("login_required", undefined, 401);
+  }
+
+  deleteCookie(c, "triad_session", {
+    path: "/",
+    secure: true,
+    sameSite: "Lax",
+  });
+
+  return c.body(null, 204);
 });
 
 accountRoutes.delete("/api/me/clients/:clientId", async (c) => {

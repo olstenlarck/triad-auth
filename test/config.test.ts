@@ -411,6 +411,31 @@ describe("deployment configuration", () => {
     }
   });
 
+  it("documents account deletion retention and deterministic resurrection", () => {
+    const readme = readFileSync("README.md", "utf8");
+
+    expect(readme).toContain("Deleting an account transactionally removes");
+    expect(readme).toContain(
+      "Signing in again with the same upstream identity deterministically recreates the same `account_sub`, `provider_sub`, and per-client `pairwise_sub` values.",
+    );
+    expect(readme).toContain(
+      "That continuity depends on preserving `IDENTIFIER_SECRET`; signing-key and claims-encryption-key rotation do not change these identifiers.",
+    );
+    expect(readme).toContain(
+      "Global client registrations and rate-limit counters remain in place because they are not account data.",
+    );
+    expect(readme).toContain(
+      "Device-client domain-verification cache entries also remain because they describe client control, not a user account.",
+    );
+    expect(readme).toContain(
+      "Previously issued ID tokens remain valid until their five-minute expiry.",
+    );
+    expect(readme).toContain(
+      "Account deletion does not revoke the user's authorization at an upstream provider.",
+    );
+    expect(readme).not.toContain("account deletion, signing-key rotation");
+  });
+
   it("documents migration before deployment and exact post-deploy smoke checks", () => {
     const readme = readFileSync("README.md", "utf8");
 

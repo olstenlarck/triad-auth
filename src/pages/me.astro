@@ -40,9 +40,72 @@ export const prerender = true;
       <div class="actions account-actions">
         <button id="logout" class="button danger" type="button">SIGN OUT</button>
       </div>
+      <section class="account-panel destructive-account" aria-labelledby="delete-account-title">
+        <h2 id="delete-account-title">DELETE ACCOUNT</h2>
+        <div class="destructive-content">
+          <p>Erase the account state Triad stores for this identity.</p>
+          <button id="delete-account" class="button danger" type="button">DELETE ACCOUNT</button>
+          <div id="delete-account-confirmation" class="deletion-confirmation" hidden>
+            <p>
+              Deletes every Triad browser session, linked identity, app consent, unredeemed
+              authorization code, and approved device grant.
+            </p>
+            <p>Previously issued ID tokens remain valid for up to five minutes.</p>
+            <p>Signing in again recreates the same deterministic identifiers.</p>
+            <p>Triad does not revoke authorization at your upstream provider.</p>
+            <div class="actions">
+              <button id="delete-account-confirm" class="button danger" type="button"
+                >CONFIRM DELETE ACCOUNT</button
+              >
+              <button id="delete-account-cancel" class="button secondary" type="button"
+                >CANCEL</button
+              >
+            </div>
+            <p id="deletion-status" class="deletion-status" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </section>
     </div>
     <p id="me-error" class="error-message" role="alert" hidden></p>
   </section>
+
+  <style>
+    .destructive-account {
+      margin-top: 3rem;
+      border-color: var(--danger);
+    }
+    .destructive-account > h2 {
+      color: var(--danger);
+    }
+    .destructive-content,
+    .deletion-confirmation {
+      display: grid;
+      gap: 1rem;
+    }
+    .destructive-content {
+      padding: 1.25rem;
+    }
+    .destructive-content > p,
+    .deletion-confirmation > p {
+      max-width: 72ch;
+      margin: 0;
+      color: var(--muted);
+    }
+    .destructive-content > .button {
+      justify-self: start;
+    }
+    .deletion-confirmation {
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--rule);
+    }
+    .deletion-confirmation[hidden] {
+      display: none;
+    }
+    .deletion-confirmation > .deletion-status {
+      min-height: 1.25rem;
+      color: var(--ink);
+    }
+  </style>
 
   <script>
     import { fetchProviderCapabilities } from "../scripts/demo-protocol";
@@ -51,6 +114,11 @@ export const prerender = true;
     const signedOut = document.querySelector<HTMLElement>("#signed-out")!;
     const error = document.querySelector<HTMLElement>("#me-error")!;
     const logout = document.querySelector<HTMLButtonElement>("#logout")!;
+    const deleteAccount = document.querySelector<HTMLButtonElement>("#delete-account")!;
+    const deleteConfirmation = document.querySelector<HTMLElement>("#delete-account-confirmation")!;
+    const deleteConfirm = document.querySelector<HTMLButtonElement>("#delete-account-confirm")!;
+    const deleteCancel = document.querySelector<HTMLButtonElement>("#delete-account-cancel")!;
+    const deletionStatus = document.querySelector<HTMLElement>("#deletion-status")!;
     const appCount = document.querySelector<HTMLElement>("#app-count")!;
     const list = document.querySelector<HTMLElement>("#authorized-apps")!;
     const providerActions = document.querySelector<HTMLElement>("#account-provider-actions")!;
@@ -63,6 +131,9 @@ export const prerender = true;
 
     function setMutationControls(disabled: boolean) {
       logout.disabled = disabled;
+      deleteAccount.disabled = disabled;
+      deleteConfirm.disabled = disabled;
+      deleteCancel.disabled = disabled;
       list.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
         button.disabled = disabled;
       });
@@ -141,6 +212,32 @@ export const prerender = true;
         location.reload();
       } catch (reason) {
         await recoverAccount(reason, "Could not sign out.");
+      } finally {
+        setMutationControls(false);
+      }
+    }
+
+    async function deleteCurrentAccount() {
+      setMutationControls(true);
+      deletionStatus.textContent = "DELETING ACCOUNT...";
+      try {
+        const token = await takeCsrfToken();
+        setMutationControls(true);
+        const response = await fetch("/api/me", {
+          method: "DELETE",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ csrf_token: token }),
+        });
+        if (!response.ok) {throw await responseError(response, "Could not delete this account.");}
+        deletionStatus.textContent = "ACCOUNT DELETED. RETURNING TO SIGN IN.";
+        location.reload();
+      } catch (reason) {
+        await recoverAccount(reason, "Could not delete this account.");
+        if (!content.hidden) {
+          deleteAccount.hidden = true;
+          deleteConfirmation.hidden = false;
+          deletionStatus.textContent = "ACCOUNT NOT DELETED. REVIEW THE ERROR AND TRY AGAIN.";
+        }
       } finally {
         setMutationControls(false);
       }
@@ -245,6 +342,21 @@ export const prerender = true;
 
     logout.addEventListener("click", () => {
       void logoutAccount();
+    });
+    deleteAccount.addEventListener("click", () => {
+      deleteAccount.hidden = true;
+      deleteConfirmation.hidden = false;
+      deletionStatus.textContent = "AWAITING CONFIRMATION.";
+      deleteConfirm.focus();
+    });
+    deleteCancel.addEventListener("click", () => {
+      deleteAccount.hidden = false;
+      deleteConfirmation.hidden = true;
+      deletionStatus.textContent = "";
+      deleteAccount.focus();
+    });
+    deleteConfirm.addEventListener("click", () => {
+      void deleteCurrentAccount();
     });
     providerRetry.addEventListener("click", () => {
       void renderProviderActions();

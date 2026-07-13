@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import app from "../src/index";
 import { providerSubject, sha256 } from "../src/crypto";
+import { deleteAccount } from "../src/db";
 import { preAuthCookieName } from "../src/pre-auth";
 import type { Env } from "../src/types";
 import { createTestDb } from "./d1";
@@ -114,6 +115,91 @@ function responseCookie(response: Response, name: string): { pair: string; heade
 }
 
 describe("account sessions", () => {
+  it("deletes only account-bound state while preserving global records", async () => {
+    const env = await testEnv();
+    const targetSessions = ["target-session-a", "target-session-b"];
+
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_target', unixepoch())"),
+      env.DB.prepare("INSERT INTO accounts (id, created_at) VALUES ('acct_other', unixepoch())"),
+      env.DB.prepare(
+        `INSERT INTO identities (provider, provider_user_id, account_id, created_at) VALUES
+        ('github', 'target-github', 'acct_target', unixepoch()),
+        ('google', 'target-google', 'acct_target', unixepoch()),
+        ('github', 'other-github', 'acct_other', unixepoch())`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO browser_sessions (session_hash, account_id, expires_at, created_at) VALUES
+        (?, 'acct_target', unixepoch() + 300, unixepoch()),
+        (?, 'acct_target', unixepoch() + 300, unixepoch()),
+        ('other-session', 'acct_other', unixepoch() + 300, unixepoch())`,
+      ).bind(...targetSessions),
+      env.DB.prepare(
+        `INSERT INTO csrf_tokens (token_hash, purpose, expires_at, created_at) VALUES
+        ('target-csrf-a', ?, unixepoch() + 300, unixepoch()),
+        ('target-csrf-b', ?, unixepoch() + 300, unixepoch()),
+        ('other-csrf', 'account:other-session', unixepoch() + 300, unixepoch())`,
+      ).bind(...targetSessions.map((session) => `account:${session}`)),
+      env.DB.prepare(
+        `INSERT INTO authorization_codes
+        (code_hash, client_id, redirect_uri, account_id, provider_sub, code_challenge, expires_at)
+        VALUES
+        ('target-code', 'triad-demo', 'https://client.example/callback', 'acct_target', 'pid_target', 'challenge', unixepoch() + 300),
+        ('other-code', 'triad-demo', 'https://client.example/callback', 'acct_other', 'pid_other', 'challenge', unixepoch() + 300)`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO device_grants
+        (device_code_hash, user_code, client_id, status, account_id, provider_sub, expires_at, interval_seconds, created_at)
+        VALUES
+        ('target-device', 'TARGET01', 'triad-demo', 'approved', 'acct_target', 'pid_target', unixepoch() + 300, 5, unixepoch()),
+        ('other-device', 'OTHER001', 'triad-demo', 'approved', 'acct_other', 'pid_other', unixepoch() + 300, 5, unixepoch())`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO consents (account_id, client_id, scopes, updated_at) VALUES
+        ('acct_target', 'triad-demo', '["openid"]', unixepoch()),
+        ('acct_other', 'triad-demo', '["openid"]', unixepoch())`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO rate_limits (bucket, key_hash, window_start, expires_at, count)
+        VALUES ('account', 'global-key', unixepoch(), unixepoch() + 300, 1)`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO device_client_verifications
+        (client_id, name, verified_at, expires_at)
+        VALUES ('https://device.example', 'Verified device', unixepoch(), unixepoch() + 3600)`,
+      ),
+    ]);
+
+    await expect(deleteAccount(env.DB, "acct_target")).resolves.toBe(true);
+
+    for (const table of [
+      "accounts",
+      "identities",
+      "browser_sessions",
+      "authorization_codes",
+      "device_grants",
+      "consents",
+    ]) {
+      expect(
+        await env.DB.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first("count"),
+        table,
+      ).toBe(1);
+    }
+    expect(await env.DB.prepare("SELECT purpose FROM csrf_tokens").first("purpose")).toBe(
+      "account:other-session",
+    );
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM clients").first("count")).toBe(2);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM device_client_verifications").first(
+        "count",
+      ),
+    ).toBe(1);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM rate_limits").first("count")).toBe(
+      1,
+    );
+    await expect(deleteAccount(env.DB, "acct_missing")).resolves.toBe(false);
+  });
+
   it("starts configured Google, GitHub, and Twitter sessions with provider state", async () => {
     const env = await testEnv({
       GOOGLE_CLIENT_ID: "google-client",
@@ -491,6 +577,85 @@ describe("account sessions", () => {
     expect(
       await env.DB.prepare("SELECT COUNT(*) AS count FROM browser_sessions").first("count"),
     ).toBe(0);
+  });
+
+  it("rejects cross-origin and unauthenticated account deletion", async () => {
+    const env = await testEnv();
+    const token = await seedSession(env);
+    const { csrf_token: csrf } = await inspectAccount(env, token);
+
+    const crossOrigin = await app.request(
+      "/api/me",
+      accountMutation("/api/me", token, csrf, "https://evil.example"),
+      env,
+    );
+    expect(crossOrigin.status).toBe(403);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM accounts").first("count")).toBe(1);
+
+    const missingSession = await app.request(
+      "/api/me",
+      accountMutation("/api/me", "missing-session", csrf),
+      env,
+    );
+    expect(missingSession.status).toBe(401);
+    await expect(missingSession.json()).resolves.toMatchObject({ error: "login_required" });
+  });
+
+  it("rejects invalid and replayed CSRF tokens for account deletion", async () => {
+    const env = await testEnv();
+    const token = await seedSession(env);
+
+    const invalid = await app.request(
+      "/api/me",
+      accountMutation("/api/me", token, "wrong-token"),
+      env,
+    );
+    expect(invalid.status).toBe(403);
+
+    await env.DB.prepare(
+      `INSERT INTO consents
+      (account_id, client_id, scopes, updated_at)
+      VALUES ('acct_account', 'triad-demo', '["openid"]', unixepoch())`,
+    ).run();
+    const { csrf_token: csrf } = await inspectAccount(env, token);
+    const consumed = await app.request(
+      "/api/me/clients/triad-demo",
+      accountMutation("/api/me/clients/triad-demo", token, csrf),
+      env,
+    );
+    expect(consumed.status).toBe(200);
+
+    const replay = await app.request("/api/me", accountMutation("/api/me", token, csrf), env);
+    expect(replay.status).toBe(403);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM accounts").first("count")).toBe(1);
+  });
+
+  it("deletes the account, invalidates every session, and clears the cookie once", async () => {
+    const env = await testEnv();
+    const token = await seedSession(env);
+    await env.DB.prepare(
+      `INSERT INTO browser_sessions
+      (session_hash, account_id, expires_at, created_at)
+      VALUES (?, 'acct_account', unixepoch() + 2592000, unixepoch())`,
+    )
+      .bind(await sha256("second-session"))
+      .run();
+    const { csrf_token: csrf } = await inspectAccount(env, token);
+
+    const deleted = await app.request("/api/me", accountMutation("/api/me", token, csrf), env);
+
+    expect(deleted.status).toBe(204);
+    expect(deleted.headers.get("set-cookie")).toMatch(
+      /triad_session=;.*Max-Age=0;.*Path=\/;.*Secure;.*SameSite=Lax/i,
+    );
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM browser_sessions").first("count"),
+    ).toBe(0);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM accounts").first("count")).toBe(0);
+
+    const second = await app.request("/api/me", accountMutation("/api/me", token, csrf), env);
+    expect(second.status).toBe(401);
+    await expect(second.json()).resolves.toMatchObject({ error: "login_required" });
   });
 
   it("rotates an existing session after a successful GitHub callback", async () => {

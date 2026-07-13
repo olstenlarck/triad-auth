@@ -286,6 +286,26 @@ export async function rememberConsent(
     .run();
 }
 
+export async function deleteAccount(db: D1Database, accountId: string): Promise<boolean> {
+  const results = await db.batch([
+    db
+      .prepare(
+        `DELETE FROM csrf_tokens WHERE purpose IN (
+        SELECT 'account:' || session_hash FROM browser_sessions WHERE account_id = ?
+      )`,
+      )
+      .bind(accountId),
+    db.prepare("DELETE FROM authorization_codes WHERE account_id = ?").bind(accountId),
+    db.prepare("DELETE FROM device_grants WHERE account_id = ?").bind(accountId),
+    db.prepare("DELETE FROM consents WHERE account_id = ?").bind(accountId),
+    db.prepare("DELETE FROM browser_sessions WHERE account_id = ?").bind(accountId),
+    db.prepare("DELETE FROM identities WHERE account_id = ?").bind(accountId),
+    db.prepare("DELETE FROM accounts WHERE id = ?").bind(accountId),
+  ]);
+
+  return results.at(-1)?.meta.changes === 1;
+}
+
 export async function resolveIdentity(
   db: D1Database,
   identity: ProviderIdentity,
