@@ -36,8 +36,26 @@ Triad rejects unsupported provider/scope combinations before creating state or g
 - OAuth Device Authorization Grant-style flow
 - OIDC discovery at `/.well-known/openid-configuration`
 - ES256 public keys at `/.well-known/jwks.json`
+- Device client proof at `/.well-known/triad-client.json`
 
-Browser clients need no registration. Triad derives `client_id` from the redirect origin and binds each authorization code to the exact redirect URI and PKCE verifier. Device clients submit that stable origin explicitly; it is a self-asserted identifier, not proof that the device controls the domain.
+Browser clients need no registration. Triad derives `client_id` from the redirect origin and binds each authorization code to the exact redirect URI and PKCE verifier. Device clients submit a stable origin and prove control of it before Triad creates the client or a grant.
+
+### Device client domain verification
+
+Every device client origin must serve the exact path `/.well-known/triad-client.json` as an `application/json` response without redirects. For a client using `https://device.example` with the production broker, the document is:
+
+```json
+{
+  "issuer": "https://triad.wgw.lol",
+  "client_id": "https://device.example",
+  "device_authorization": true,
+  "name": "Example device"
+}
+```
+
+`issuer` must exactly match the Triad issuer, `client_id` must exactly match the canonical client origin, and `device_authorization` must be `true`. `name` is optional and, when present, must contain 1-80 characters. Production origins require HTTPS and a public hostname. IP literals and local or internal hostname forms are rejected. Exact `http://localhost[:port]` origins are the only development exception.
+
+Successful proofs are cached for one hour. Removing the file blocks new device grants after the cached proof expires. It does not revoke already-issued device grants or tokens.
 
 ## Requirements
 
@@ -206,8 +224,8 @@ Authorization codes, device codes, CSRF tokens, and upstream state are one-time 
 ## MVP limitations
 
 - Google, GitHub, and Twitter adapters are supported, but each provider appears only when its complete credential pair is configured.
-- There is no cross-provider identity linking, domain-ownership verification, account deletion, signing-key rotation, or operator audit UI.
-- Browser callbacks must be HTTPS except on localhost. Device client origins are self-asserted because device authorization has no callback from which to derive them.
+- There is no cross-provider identity linking, account deletion, signing-key rotation, or operator audit UI.
+- Browser callbacks must be HTTPS except on localhost.
 - Rate limits are single-region D1 counters, not a complete abuse-prevention system.
 - Deployment requires a stable hostname, persistent D1, and secret injection. An ephemeral preview is not a valid issuer.
 - A protocol and security review is required before accepting real users.

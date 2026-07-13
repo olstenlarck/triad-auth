@@ -114,7 +114,7 @@ export const prerender = true;
           const originClient = body.client_id?.startsWith("https://") || body.client_id?.startsWith("http://localhost");
           const clientDisplay = originClient ? body.client_id : body.client_name;
           document.querySelector("#client-kind")!.textContent = originClient
-            ? "SELF-ASSERTED CLIENT ORIGIN"
+            ? "CALLBACK-BOUND CLIENT ORIGIN"
             : "APPLICATION";
           document.querySelector("#client-name")!.textContent = clientDisplay ?? "UNKNOWN APP";
           document.querySelector("#provider-name")!.textContent = body.provider.toUpperCase();

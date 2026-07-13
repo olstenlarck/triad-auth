@@ -112,6 +112,19 @@ it("keeps device verification navigation under same-origin JavaScript control", 
   expect(submitHandler).toContain("location.assign(body.redirect_to)");
 });
 
+it("distinguishes verified device origins from callback-bound browser origins", async () => {
+  const [consent, device] = await Promise.all([
+    readFile("src/pages/consent.astro", "utf8"),
+    readFile("src/pages/device/verify.astro", "utf8"),
+  ]);
+
+  expect(device).toContain("VERIFIED CLIENT ORIGIN");
+  expect(device).not.toContain("SELF-ASSERTED CLIENT ORIGIN");
+  expect(device).not.toContain("Triad has not verified control of this client origin");
+  expect(consent).toContain("CALLBACK-BOUND CLIENT ORIGIN");
+  expect(consent).not.toContain("SELF-ASSERTED CLIENT ORIGIN");
+});
+
 it("aborts device requests and prevents rescheduling after pagehide", async () => {
   const demo = await readFile("src/pages/demo/index.astro", "utf8");
 
