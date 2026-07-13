@@ -130,6 +130,19 @@ describe("transient profile claims", () => {
     ).rejects.toThrow();
   });
 
+  it.each(["toString", "constructor", "__proto__"])(
+    "rejects inherited key ID %s as unknown",
+    async (keyId) => {
+      const keyring = claimsKeyring("current", { current: currentClaimsKey });
+      const sealed = await sealClaims(keyring, "code:abc", { name: "User" });
+      const encodedPayload = sealed.split(".").at(-1)!;
+
+      await expect(
+        openClaims(keyring, "code:abc", `v2.${keyId}.${encodedPayload}`),
+      ).rejects.toThrow("invalid encrypted claims");
+    },
+  );
+
   it("decrypts v1 claims only with a configured legacy key", async () => {
     const claims = { name: "Legacy User" };
     const sealed = await sealLegacyClaims(legacyClaimsKey, "code:abc", claims);

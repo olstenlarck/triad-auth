@@ -188,10 +188,10 @@ export async function openClaims(
   }
 
   const [, keyId, encodedPayload] = match;
-  const secret = keyring.keys[keyId];
-  if (!secret) {
+  if (!Object.hasOwn(keyring.keys, keyId)) {
     throw new Error("invalid encrypted claims");
   }
+  const secret = keyring.keys[keyId];
   const prefix = `v2.${keyId}`;
 
   return decryptClaims(secret, versionedClaimsAdditionalData(prefix, context), encodedPayload);
