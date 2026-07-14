@@ -14,7 +14,7 @@ Backward compatibility is not required.
 
 ## Identity Contract
 
-Every upstream provider account is a separate Triad account. Matching emails never link Google, GitHub, or Twitter identities.
+Every upstream provider account is a separate Triad account. Upstream provider accounts are separate Better-Auth users. Matching emails never link Google, GitHub, or Twitter identities.
 
 Triad retains three deterministic identity levels:
 
@@ -116,7 +116,7 @@ An HTTP `Origin` header is not a client identity and is not used to derive DCR c
 
 ## MCP And Resource Flow
 
-For an MCP integration such as RPC Wallets:
+For an MCP integration such as RPC Wallets (an example Triad app/client):
 
 ```text
 ChatGPT          OAuth client
