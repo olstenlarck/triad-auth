@@ -1,11 +1,23 @@
 // @ts-expect-error Node types are intentionally absent from the Worker project.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
+
+import { authSchemaDatabase } from "../../scripts/auth-schema-database";
 
 function readSource(path: string): string {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 }
 
+const schemaIntrospectionQuery =
+  'select "name", "type", "sql" from "sqlite_master" where "type" in (?, ?) and "name" not like ? and "name" not like ? and "name" != ? and "name" != ?';
+const schemaIntrospectionParameters = [
+  "table",
+  "view",
+  "sqlite_%",
+  "_cf_%",
+  "kysely_migration",
+  "kysely_migration_lock",
+];
 const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
@@ -68,5 +80,66 @@ describe("Better Auth schema tooling", () => {
       `export const auth = createTriadAuth(schemaEnv, ${configurationCall?.[1]});`,
     );
     expect(schemaSource).not.toMatch(/\bbetterAuth\s*\(/);
+  });
+
+  it("returns an empty schema for Better Auth's exact D1 introspection query", async () => {
+    const result = await authSchemaDatabase
+      .prepare(schemaIntrospectionQuery)
+      .bind(...schemaIntrospectionParameters)
+      .all();
+
+    expect(result).toMatchObject({
+      success: true,
+      results: [],
+      meta: {
+        changes: 0,
+        last_row_id: 0,
+        rows_read: 0,
+        rows_written: 0,
+      },
+    });
+  });
+
+  it("rejects arbitrary application SQL", () => {
+    expect(() => authSchemaDatabase.prepare('select * from "user"')).toThrow(
+      "schema introspection",
+    );
+  });
+
+  it("rejects introspection execution with unexpected bindings", async () => {
+    const statement = authSchemaDatabase.prepare(schemaIntrospectionQuery).bind("table");
+
+    await expect(statement.all()).rejects.toThrow("schema introspection");
+  });
+
+  it("throws from every unsupported query method", () => {
+    const statement = authSchemaDatabase
+      .prepare(schemaIntrospectionQuery)
+      .bind(...schemaIntrospectionParameters);
+
+    expect(() => authSchemaDatabase.batch([])).toThrow("SQL generation only");
+    expect(() => authSchemaDatabase.exec("select 1")).toThrow("SQL generation only");
+    expect(() => statement.first()).toThrow("SQL generation only");
+    expect(() => statement.raw()).toThrow("SQL generation only");
+    expect(() => statement.run()).toThrow("SQL generation only");
+  });
+
+  it("keeps the schema-only database out of every runtime module", () => {
+    const runtimeModules = [
+      "src/index.ts",
+      "src/better-auth/auth.ts",
+      "src/better-auth/configuration.ts",
+    ];
+    const applicationTypeScriptPaths = (readdirSync("src", { recursive: true }) as string[])
+      .filter((path) => path.endsWith(".ts"))
+      .map((path) => `src/${path}`);
+    const schemaDatabaseConsumers = applicationTypeScriptPaths.filter((path) =>
+      readSource(path).includes("auth-schema-database"),
+    );
+
+    for (const path of runtimeModules) {
+      expect(readSource(path)).not.toContain("auth-schema-database");
+    }
+    expect(schemaDatabaseConsumers).toEqual(["src/better-auth/schema.ts"]);
   });
 });
