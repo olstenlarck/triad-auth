@@ -1,3 +1,75 @@
+diff --git a/node_modules/@better-auth/oauth-provider/.bun-tag-fc82aec7d8f4f084 b/.bun-tag-fc82aec7d8f4f084
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/introspect-DvHp2a64.mjs b/dist/introspect-DvHp2a64.mjs
+index c901856de2f587793e31d77c8825e77f7adfaae0..5454eb655630c7fa9201985ffc719c729ffebcb8 100644
+--- a/dist/introspect-DvHp2a64.mjs
++++ b/dist/introspect-DvHp2a64.mjs
+@@ -1175,11 +1175,12 @@ async function userInfoEndpoint(ctx, opts) {
+ 		error_description: "Missing required scope",
+ 		error: "invalid_scope"
+ 	});
+-	if (!jwt.sub) throw new APIError("BAD_REQUEST", {
++	const accountSub = typeof jwt.account_sub === "string" ? jwt.account_sub : jwt.sub;
++	if (!accountSub) throw new APIError("BAD_REQUEST", {
+ 		error_description: "user not found",
+ 		error: "invalid_request"
+ 	});
+-	const user = await ctx.context.internalAdapter.findUserById(jwt.sub);
++	const user = await ctx.context.internalAdapter.findUserById(accountSub);
+ 	if (!user) throw new APIError("BAD_REQUEST", {
+ 		error_description: "user not found",
+ 		error: "invalid_request"
+@@ -1207,7 +1208,8 @@ async function userInfoEndpoint(ctx, opts) {
+ 		...baseUserClaims,
+ 		...pickClaims(extensionUserClaims, baseUserClaims),
+ 		...pickClaims(additionalInfoUserClaims),
+-		sub: baseUserClaims.sub
++		sub: baseUserClaims.sub,
++		pairwise_sub: baseUserClaims.sub
+ 	};
+ }
+ //#endregion
+@@ -1305,7 +1307,7 @@ async function createJwtAccessToken(ctx, opts, user, client, audienceClaim, scop
+ 	const iat = overrides?.iat ?? Math.floor(Date.now() / 1e3);
+ 	const exp = overrides?.exp ?? iat + (opts.accessTokenExpiresIn ?? 3600);
+ 	const jwtPluginOptions = getJwtPlugin(ctx.context).options;
+-	const subject = user?.id ?? client.clientId;
++	const subject = user ? await resolveSubjectIdentifier(user.id, client, opts) : client.clientId;
+ 	return signJWT(ctx, {
+ 		options: jwtPluginOptions,
+ 		header: { typ: JWT_ACCESS_TOKEN_TYPE },
+@@ -1314,6 +1316,7 @@ async function createJwtAccessToken(ctx, opts, user, client, audienceClaim, scop
+ 		payload: {
+ 			...overrides?.accessTokenClaims ?? {},
+ 			sub: subject,
++			...user ? { pairwise_sub: subject } : {},
+ 			aud: toAudienceClaim(audienceClaim),
+ 			client_id: client.clientId,
+ 			azp: client.clientId,
+@@ -1367,6 +1370,7 @@ async function createIdToken(ctx, opts, user, client, scopes, nonce, sessionId,
+ 		at_hash: atHash,
+ 		iss: jwtPluginOptions?.jwt?.issuer ?? ctx.context.baseURL,
+ 		sub: resolvedSub,
++		pairwise_sub: resolvedSub,
+ 		aud: client.clientId,
+ 		nonce,
+ 		iat,
+@@ -2449,10 +2453,12 @@ async function resolveIntrospectionSub(ctx, opts, payload, introspectingClient)
+ 	if (!issuerClientId) return payload;
+ 	const issuingClient = issuerClientId === introspectingClient.clientId ? introspectingClient : await getClient(ctx, opts, issuerClientId);
+ 	if (!issuingClient) return payload;
+-	const resolvedSub = await resolveSubjectIdentifier(payload.sub, issuingClient, opts);
++	const accountSub = typeof payload.account_sub === "string" ? payload.account_sub : payload.sub;
++	const resolvedSub = await resolveSubjectIdentifier(accountSub, issuingClient, opts);
+ 	return {
+ 		...payload,
+-		sub: resolvedSub
++		sub: resolvedSub,
++		pairwise_sub: resolvedSub
+ 	};
+ }
+ async function introspectEndpoint(ctx, opts) {
 diff --git a/dist/oauth-ScTJEcFV.d.mts b/dist/oauth-ScTJEcFV.d.mts
 index e0891c523c2e1b9ca7425b49f8086b0a0fe054e9..ed5ded8ae14669667f30ece874095bb004cee583 100644
 --- a/dist/oauth-ScTJEcFV.d.mts

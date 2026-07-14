@@ -27,6 +27,11 @@ function providerProfile(env: Env, provider: TriadProvider) {
   return async (profile: UnknownProfile) => {
     const principal = await derivePrincipal(env.TRIAD_ROOT_SECRET, provider, upstreamId(profile));
 
+    const data =
+      profile.data && typeof profile.data === "object"
+        ? (profile.data as Record<string, unknown>)
+        : undefined;
+
     return {
       // Better Auth uses this value as account.accountId and for account lookup.
       id: principal.providerSub,
@@ -39,10 +44,11 @@ function providerProfile(env: Env, provider: TriadProvider) {
         text(profile.login) ??
         text((profile.data as Record<string, unknown> | undefined)?.username) ??
         principal.accountSub,
-      // Better Auth currently requires an email. Never use an upstream email for
-      // identity lookup: equal emails across providers must remain separate users.
+      // Better Auth's core email remains internal so equal provider emails never
+      // merge identities. The actual provider email is stored separately and only
+      // emitted to downstream clients that request the email scope.
       email: `${principal.accountSub}@users.triad.invalid`,
-      emailVerified: false,
+      providerEmail: text(profile.email) ?? text(data?.email),
       image: text(profile.picture) ?? text(profile.avatar_url),
     };
   };
@@ -87,6 +93,16 @@ function triadIdentityClaims(user: Record<string, unknown>) {
   };
 }
 
+function emailClaims(user: Record<string, unknown>, scopes: string[]) {
+  const providerEmail = text(user.providerEmail);
+  if (!scopes.includes("email") || !providerEmail) return {};
+
+  return {
+    email: providerEmail,
+    email_verified: user.providerEmailVerified === true,
+  };
+}
+
 export function createAuth(env: Env) {
   return betterAuth({
     appName: "Triad Auth",
@@ -102,6 +118,13 @@ export function createAuth(env: Env) {
         accountSub: { type: "string", required: true, input: true, returned: false },
         provider: { type: "string", required: true, input: true, returned: false },
         providerSub: { type: "string", required: true, input: true, returned: false },
+        providerEmail: { type: "string", required: false, input: true, returned: false },
+        providerEmailVerified: {
+          type: "boolean",
+          required: true,
+          input: false,
+          returned: false,
+        },
       },
     },
     account: {
@@ -125,23 +148,13 @@ export function createAuth(env: Env) {
                 ...user,
                 // Triad's global account identifier is Better Auth's user key.
                 id: accountSub,
+                // emailVerified belongs to the hidden provider email; the internal
+                // synthetic core email is deliberately never treated as verified.
+                providerEmailVerified: Boolean(user.providerEmail && user.emailVerified),
+                emailVerified: false,
               },
             };
           },
-        },
-      },
-      account: {
-        create: {
-          before: async (account) => ({
-            data: {
-              ...account,
-              // accountId is already provider_sub because mapProfileToUser.id was
-              // replaced before Better Auth performed its account lookup.
-              accessToken: undefined,
-              refreshToken: undefined,
-              idToken: undefined,
-            },
-          }),
         },
       },
     },
@@ -151,34 +164,32 @@ export function createAuth(env: Env) {
         consentPage: "/consent",
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
-        scopes: ["openid"],
+        scopes: ["openid", "email"],
         // Keeps pairwise client handling enabled throughout Better Auth. The
         // resolver below takes precedence over Better Auth's built-in formula.
         pairwiseSecret: env.TRIAD_ROOT_SECRET,
         resolveSubjectIdentifier: ({ userId, clientId }) =>
           pairwiseSubject(env.TRIAD_ROOT_SECRET, userId, clientId),
-        customIdTokenClaims: async ({ user }) =>
-          triadIdentityClaims(user as unknown as Record<string, unknown>),
-        customAccessTokenClaims: async ({ user }) =>
-          user ? triadIdentityClaims(user as unknown as Record<string, unknown>) : {},
-        customUserInfoClaims: async ({ user, jwt }) => {
-          const clientId =
-            typeof jwt.client_id === "string"
-              ? jwt.client_id
-              : typeof jwt.azp === "string"
-                ? jwt.azp
-                : undefined;
+        customIdTokenClaims: async ({ user, scopes }) => {
+          const triadUser = user as unknown as Record<string, unknown>;
           return {
-            ...triadIdentityClaims(user as unknown as Record<string, unknown>),
-            ...(clientId
-              ? {
-                  pairwise_sub: await pairwiseSubject(
-                    env.TRIAD_ROOT_SECRET,
-                    String(user.id),
-                    clientId,
-                  ),
-                }
-              : {}),
+            ...triadIdentityClaims(triadUser),
+            ...emailClaims(triadUser, scopes),
+          };
+        },
+        customAccessTokenClaims: async ({ user, scopes }) => {
+          if (!user) return {};
+          const triadUser = user as unknown as Record<string, unknown>;
+          return {
+            ...triadIdentityClaims(triadUser),
+            ...emailClaims(triadUser, scopes),
+          };
+        },
+        customUserInfoClaims: async ({ user, scopes }) => {
+          const triadUser = user as unknown as Record<string, unknown>;
+          return {
+            ...triadIdentityClaims(triadUser),
+            ...emailClaims(triadUser, scopes),
           };
         },
       }),
