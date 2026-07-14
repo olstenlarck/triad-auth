@@ -1,7 +1,7 @@
 // @ts-expect-error Node types are intentionally absent from the Worker project.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 // @ts-expect-error Node types are intentionally absent from the Worker project.
-import { dirname, extname, resolve } from "node:path";
+import { dirname, extname, relative, resolve } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 
 import { authSchemaDatabase } from "../../scripts/auth-schema-database";
@@ -16,6 +16,7 @@ type DirectoryEntry = {
 };
 
 const runtimeExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".astro"]);
+const repositoryRoot = resolve(".");
 
 function collectRuntimeSourcePaths(directory: string): string[] {
   const entries = readdirSync(directory, { withFileTypes: true }) as DirectoryEntry[];
@@ -45,19 +46,23 @@ function modulePath(path: string): string {
   return runtimeExtensions.has(extension) ? path.slice(0, -extension.length) : path;
 }
 
+function normalizeModuleId(path: string): string {
+  return modulePath(path.replaceAll("\\", "/")).replace(/^\.?\//, "");
+}
+
+function repositoryModuleId(path: string): string {
+  return normalizeModuleId(relative(repositoryRoot, resolve(path)));
+}
+
 function resolvesToModule(importerPath: string, specifier: string, targetPath: string): boolean {
+  const targetId = repositoryModuleId(targetPath);
   if (specifier.startsWith(".")) {
-    return (
-      modulePath(resolve(dirname(importerPath), specifier)) === modulePath(resolve(targetPath))
-    );
+    return repositoryModuleId(resolve(dirname(importerPath), specifier)) === targetId;
   }
 
-  const normalizedSpecifier = modulePath(specifier.replaceAll("\\", "/")).replace(/^\/?/, "");
-  const normalizedTarget = modulePath(targetPath).replaceAll("\\", "/");
+  const specifierId = normalizeModuleId(specifier);
 
-  return (
-    normalizedSpecifier === normalizedTarget || normalizedSpecifier.endsWith(`/${normalizedTarget}`)
-  );
+  return specifierId === targetId || specifierId.endsWith(`/${targetId}`);
 }
 
 const schemaIntrospectionQuery =
@@ -174,6 +179,28 @@ describe("Better Auth schema tooling", () => {
     expect(() => statement.first()).toThrow("SQL generation only");
     expect(() => statement.raw()).toThrow("SQL generation only");
     expect(() => statement.run()).toThrow("SQL generation only");
+  });
+
+  it.each([
+    ["relative schema", "../better-auth/schema", "src/better-auth/schema.ts"],
+    ["relative database", "../../scripts/auth-schema-database", "scripts/auth-schema-database.ts"],
+    ["absolute schema", "/src/better-auth/schema.ts", "src/better-auth/schema.ts"],
+    ["alias schema", "@triad/src/better-auth/schema", "src/better-auth/schema.ts"],
+    ["alias database", "@triad/scripts/auth-schema-database.ts", "scripts/auth-schema-database.ts"],
+  ])("recognizes a %s import of a protected module", (_name, specifier, targetPath) => {
+    expect(resolvesToModule(resolve("src/pages/index.astro"), specifier, resolve(targetPath))).toBe(
+      true,
+    );
+  });
+
+  it("does not treat a partial module name as an alias suffix", () => {
+    expect(
+      resolvesToModule(
+        resolve("src/pages/index.astro"),
+        "schema",
+        resolve("src/better-auth/schema.ts"),
+      ),
+    ).toBe(false);
   });
 
   it("keeps the schema-only database out of every runtime module", () => {
