@@ -18,3 +18,5 @@ peerDependencyRules:
   allowedVersions:
     vite: "*"
     vitest: "*"
+patchedDependencies:
+  "@better-auth/oauth-provider@1.7.0-rc.1": patches/@better-auth__oauth-provider@1.7.0-rc.1.patch
