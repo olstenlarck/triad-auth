@@ -10,4 +10,6 @@ SyntaxError: The requested module 'kysely' does not provide an export named 'DEF
 
 The workspace override pins Kysely to `0.28.17`, where the required root export remains available. `pnpm why kysely` verifies that the Better Auth dependency graph resolves exactly one Kysely version, `0.28.17`, and the direct-D1 runtime contract verifies successful lazy initialization.
 
+Because the override applies workspace-wide, reconsider it whenever another Kysely consumer is introduced or upgraded. Rerun `pnpm why kysely` whenever the dependency graph changes to confirm every consumer remains compatible with the pinned version.
+
 Retest the direct-D1 runtime contract whenever Better Auth is upgraded. Remove the override once the upgraded Better Auth D1 dialect no longer depends on the removed Kysely root export; do not retain the pin without rechecking that compatibility boundary.
