@@ -18,18 +18,20 @@ index 0cc545af96af7940ef5c076003426f7e88836648..9d9556044b3f6ff46796ba30ee7f2a6a
 -	} catch (error) {
 +	} catch (error) {
 diff --git a/dist/introspect-DvHp2a64.mjs b/dist/introspect-DvHp2a64.mjs
-index c901856de2f587793e31d77c8825e77f7adfaae0..ae48fa5013f6dd844db10b13d0c0c9e0e1774bfc 100644
+index c901856de2f587793e31d77c8825e77f7adfaae0..35b33676200a55f3c779b593e93cd7192ca772dc 100644
 --- a/dist/introspect-DvHp2a64.mjs
 +++ b/dist/introspect-DvHp2a64.mjs
-@@ -1187,7 +1187,7 @@ async function userInfoEndpoint(ctx, opts) {
+@@ -1186,8 +1186,8 @@ async function userInfoEndpoint(ctx, opts) {
+-	});
++	});
 -	const baseUserClaims = userNormalClaims(user, scopes ?? [], requestedClaims);
 +	const baseUserClaims = userNormalClaims(user, scopes ?? [], requestedClaims);
 -	const clientId = jwt.client_id ?? jwt.azp;
 +	const clientId = jwt.client_id ?? jwt.azp;
 -	const client = clientId && (opts.pairwiseSecret || hasUserInfoClaimExtension(opts)) ? await getClient(ctx, opts, clientId) : void 0;
-+	const client = clientId && (opts.pairwiseSecret || hasUserInfoClaimExtension(opts)) ? await getClient(ctx, opts, clientId) : void 0;
 -	if (opts.pairwiseSecret && client) baseUserClaims.sub = await resolveSubjectIdentifier(user.id, client, opts);
-+	if (opts.pairwiseSecret && client) baseUserClaims.sub = await resolveSubjectIdentifier(user.id, client, opts, "userinfo");
++	const client = clientId && (opts.pairwiseSecret || opts.resolveSubjectIdentifier || hasUserInfoClaimExtension(opts)) ? await getClient(ctx, opts, clientId) : void 0;
++	if ((opts.pairwiseSecret || opts.resolveSubjectIdentifier) && client) baseUserClaims.sub = await resolveSubjectIdentifier(user.id, client, opts, "userinfo");
 -	const extensionUserClaims = scopes?.length ? await collectExtensionUserInfoClaims(opts, {
 +	const extensionUserClaims = scopes?.length ? await collectExtensionUserInfoClaims(opts, {
 -		ctx,
@@ -72,7 +74,7 @@ index c901856de2f587793e31d77c8825e77f7adfaae0..ae48fa5013f6dd844db10b13d0c0c9e0
 -	let { token, token_type_hint } = ctx.body;
 +	let { token, token_type_hint } = ctx.body;
 diff --git a/dist/oauth-ScTJEcFV.d.mts b/dist/oauth-ScTJEcFV.d.mts
-index e0891c523c2e1b9ca7425b49f8086b0a0fe054e9..ad0d372ce0ed1951dc600096a7ce75333b673f38 100644
+index e0891c523c2e1b9ca7425b49f8086b0a0fe054e9..65eae228f605291524751766e39d695e586423d6 100644
 --- a/dist/oauth-ScTJEcFV.d.mts
 +++ b/dist/oauth-ScTJEcFV.d.mts
 @@ -1841,6 +1841,18 @@ interface OAuthOptions<Scopes extends readonly Scope[] = InternallySupportedScop

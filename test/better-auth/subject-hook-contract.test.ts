@@ -9,7 +9,6 @@ const resolver: NonNullable<OAuthOptions["resolveSubjectIdentifier"]> = (input) 
 const plugin = oauthProvider({
   consentPage: "/consent/",
   loginPage: "/sign-in/",
-  pairwiseSecret: "subject-hook-contract-secret-32-bytes",
   resolveSubjectIdentifier: resolver,
 });
 
@@ -27,6 +26,15 @@ describe("OAuth Provider exact-client subject hook", () => {
     expect(entrySource).toContain('resolveSubjectIdentifier(userId, client, opts, "logout_token")');
     expect(tokenSource).toContain('resolveSubjectIdentifier(user.id, client, opts, "userinfo")');
     expect(tokenSource).toContain('resolveSubjectIdentifier(user.id, client, opts, "id_token")');
+  });
+
+  it("enables UserInfo subject resolution without a pairwise secret", () => {
+    expect(tokenSource).toContain(
+      "const client = clientId && (opts.pairwiseSecret || opts.resolveSubjectIdentifier || hasUserInfoClaimExtension(opts))",
+    );
+    expect(tokenSource).toContain(
+      "if ((opts.pairwiseSecret || opts.resolveSubjectIdentifier) && client) baseUserClaims.sub",
+    );
   });
 
   it("passes the exact client ID and built-in default subject to the hook", () => {
