@@ -114,6 +114,22 @@ Confidential clients use CIMD with `private_key_jwt`. Protected DCR may be consi
 
 An HTTP `Origin` header is not a client identity and is not used to derive DCR client IDs. Server, native, CLI, and MCP clients may have no trustworthy web origin, and Triad must retain exact redirect metadata for later requests.
 
+### Device Authorization
+
+Triad supports RFC 8628 through a self-contained internal companion plugin built on Better Auth OAuth Provider's public extension APIs. Better Auth's stock `deviceAuthorization()` plugin is not mounted because it returns Better Auth session tokens rather than OAuth Provider access, refresh, and ID tokens.
+
+```text
+1. Client requests device and user codes from Triad's device authorization endpoint.
+2. Triad resolves the CIMD or DCR client and binds scopes and resource audiences.
+3. The user opens the verification page and authenticates through Better Auth.
+4. Consent identifies the client, resources, scopes, and user code.
+5. The client polls the OAuth token endpoint with the device-code grant.
+6. On approval, the companion grant calls OAuth Provider token issuance.
+7. Triad returns the same JWT access, refresh, and optional ID tokens as other grants.
+```
+
+The module stores only hashed device codes, normalized user codes, polling state, client, scopes, resources, expiry, approval identity, and authentication time. It authenticates confidential clients through their registered method, supports public clients, advertises the device endpoint and grant in authorization-server metadata, and implements the standard pending, slow-down, denial, expiry, and one-winner redemption behavior.
+
 ## MCP And Resource Flow
 
 For an MCP integration such as RPC Wallets (an example Triad app/client):
@@ -159,6 +175,7 @@ The initial patch surface should remain narrow:
 - Require and validate CIMD `client_name` for the MCP profile.
 - Verify Worker-compatible no-redirect fetching and strengthen CIMD DNS/SSRF controls.
 - Constrain open DCR to public clients and reject anonymous client-secret issuance.
+- Add an isolated RFC 8628 companion plugin that delegates final token issuance to OAuth Provider.
 
 These changes should be covered by Triad integration tests and proposed upstream rather than developed into a custom protocol layer.
 
@@ -170,4 +187,3 @@ These changes should be covered by Triad integration tests and proposed upstream
 - A client-management dashboard or app directory.
 - Migrating existing database rows, sessions, clients, or consents into the Better Auth schema.
 - Treating upstream provider tokens as Triad access tokens.
-- OAuth device authorization in the initial Better Auth refactor; Better Auth's OAuth Provider does not yet implement the device-code grant.
