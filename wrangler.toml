@@ -1,27 +1,11 @@
-name = "triad-auth-broker"
+name = "triad-better-auth"
 main = "src/index.ts"
 compatibility_date = "2026-07-09"
-compatibility_flags = ["global_fetch_strictly_public"]
-
-[[d1_databases]]
-binding = "DB"
-database_name = "triad-auth"
-database_id = "96cf3b9f-ab29-4e04-ac26-9e71a2fd3f2f"
-migrations_dir = "migrations"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+workers_dev = true
 
 [vars]
-ISSUER = "https://triad.wgw.lol"
-PROVIDER_CALLBACK_ORIGIN = "https://triad-auth-broker.equator-owl-studio.workers.dev"
-
-[env.local.vars]
-ISSUER = "http://localhost:4321"
-PROVIDER_CALLBACK_ORIGIN = "http://localhost:4321"
-
-[[env.local.d1_databases]]
-binding = "DB"
-database_name = "triad-auth"
-database_id = "96cf3b9f-ab29-4e04-ac26-9e71a2fd3f2f"
-migrations_dir = "migrations"
+AUTH_ORIGIN = "https://triad-better-auth.equator-owl-studio.workers.dev"
 
 [assets]
 directory = "./dist"
@@ -29,10 +13,3 @@ binding = "ASSETS"
 html_handling = "auto-trailing-slash"
 not_found_handling = "404-page"
 run_worker_first = true
-
-# Add required secrets with `wrangler secret put NAME`:
-# SIGNING_KEYRING, IDENTIFIER_SECRET, CLAIMS_ENCRYPTION_KEYRING, RATE_LIMIT_SECRET
-# Add at least one complete provider credential pair:
-# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-# GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
-# TWITTER_CLIENT_ID, TWITTER_CLIENT_SECRET

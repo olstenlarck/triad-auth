@@ -28,11 +28,11 @@ pairwise_sub = HMAC(identifier_secret, "pairwise-sub\0" + account_sub + "\0" + e
 
 Their meanings are:
 
-| Identifier | Boundary |
-| --- | --- |
+| Identifier     | Boundary                                                   |
+| -------------- | ---------------------------------------------------------- |
 | `provider_sub` | One immutable upstream provider account across all clients |
-| `account_sub` | One global Triad account across all clients |
-| `pairwise_sub` | One Triad account inside one exact OAuth `client_id` |
+| `account_sub`  | One global Triad account across all clients                |
+| `pairwise_sub` | One Triad account inside one exact OAuth `client_id`       |
 
 Deletion followed by the same upstream login recreates the same three identifiers.
 

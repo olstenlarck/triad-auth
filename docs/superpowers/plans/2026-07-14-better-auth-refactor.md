@@ -56,6 +56,7 @@ Each feature worktree branches from the exact `triad-better-auth` commit produce
 **Execution:** Sequential subagent worktree. Merge this task before creating Tasks 2-7 worktrees.
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `pnpm-lock.yaml`
 - Modify: `pnpm-workspace.yaml`
@@ -71,6 +72,7 @@ Each feature worktree branches from the exact `triad-better-auth` commit produce
 - Create: `test/better-auth/patches.test.ts`
 
 **Interfaces:**
+
 - Produces `BetterAuthEnv`, `AUTH_BASE_PATH`, `DEVICE_GRANT_TYPE`, `createDatabase()`, patched subject-resolution types, patched CIMD fetch/metadata hooks, and the installed package baseline consumed by every parallel task.
 
 - [ ] **Step 1: Add failing bootstrap contract tests**
@@ -246,6 +248,7 @@ Commit: `feat: bootstrap better auth authorization server`
 **Execution:** Parallel worktree `triad-ba-identity` from the Task 1 merge commit.
 
 **Files:**
+
 - Create: `src/better-auth/identity/subjects.ts`
 - Create: `src/better-auth/identity/providers.ts`
 - Create: `src/better-auth/identity/options.ts`
@@ -253,6 +256,7 @@ Commit: `feat: bootstrap better auth authorization server`
 - Create: `test/better-auth/identity-providers.test.ts`
 
 **Interfaces:**
+
 - Produces `deriveIdentity()`, `pairwiseSubject()`, and `createIdentityOptions(env)` for Task 8.
 
 - [ ] **Step 1: Write failing deterministic identity tests**
@@ -264,8 +268,9 @@ const identity = await deriveIdentity(secret, { provider: "google", upstreamId: 
 expect(identity.providerSub).toMatch(/^pid_google_[0-9a-f]{64}$/);
 expect(identity.accountSub).toMatch(/^acc_[0-9a-f]{64}$/);
 expect(identity.syntheticEmail).toBe(`${identity.accountSub}@identity.invalid`);
-expect(await pairwiseSubject(secret, identity.accountSub, "https://client.example/meta.json"))
-  .toMatch(/^pws_[0-9a-f]{64}$/);
+expect(
+  await pairwiseSubject(secret, identity.accountSub, "https://client.example/meta.json"),
+).toMatch(/^pws_[0-9a-f]{64}$/);
 ```
 
 Also prove provider separation, exact-client separation, and deterministic recreation.
@@ -321,7 +326,9 @@ Expected: FAIL before policy options exist.
 Export:
 
 ```ts
-export function createIdentityOptions(env: BetterAuthEnv): Pick<
+export function createIdentityOptions(
+  env: BetterAuthEnv,
+): Pick<
   BetterAuthOptions,
   "account" | "databaseHooks" | "emailAndPassword" | "socialProviders" | "user"
 >;
@@ -348,10 +355,12 @@ Commit: `feat: add deterministic better auth identities`
 **Execution:** Parallel worktree `triad-ba-claims` from the Task 1 merge commit.
 
 **Files:**
+
 - Create: `src/better-auth/oauth/claims.ts`
 - Create: `test/better-auth/oauth-claims.test.ts`
 
 **Interfaces:**
+
 - Produces `createTriadSubjectResolver()` and `createTriadClaimsExtension()` for Task 8.
 
 - [ ] **Step 1: Write failing claim-contract tests**
@@ -383,9 +392,7 @@ export function createTriadSubjectResolver(
   identifierSecret: string,
 ): NonNullable<OAuthOptions["resolveSubjectIdentifier"]>;
 
-export function createTriadClaimsExtension(
-  identifierSecret: string,
-): OAuthProviderExtension;
+export function createTriadClaimsExtension(identifierSecret: string): OAuthProviderExtension;
 ```
 
 The resolver returns raw `subject` only for introspection and exact-client `pairwiseSubject()` for OIDC uses. The extension contributes `account_sub`, `provider_sub`, and `pairwise_sub` to ID token, UserInfo, and user access-token claims. Client-credentials issuance contributes no user claims.
@@ -409,6 +416,7 @@ Commit: `feat: add triple oauth identity claims`
 **Execution:** Parallel worktree `triad-ba-clients` from the Task 1 merge commit.
 
 **Files:**
+
 - Create: `src/better-auth/clients/public-fetch.ts`
 - Create: `src/better-auth/clients/cimd.ts`
 - Create: `src/better-auth/clients/dcr.ts`
@@ -417,6 +425,7 @@ Commit: `feat: add triple oauth identity claims`
 - Create: `test/better-auth/dcr.test.ts`
 
 **Interfaces:**
+
 - Produces `createTriadCimd(env)` and `createPublicDcrHook()` for Task 8.
 
 - [ ] **Step 1: Write failing public-fetch and CIMD tests**
@@ -488,12 +497,14 @@ Commit: `feat: add automatic oauth client admission`
 **Execution:** Parallel worktree `triad-ba-mcp` from the Task 1 merge commit.
 
 **Files:**
+
 - Create: `src/better-auth/mcp/resources.ts`
 - Create: `src/better-auth/mcp/resource-server.ts`
 - Create: `test/better-auth/resources.test.ts`
 - Create: `test/better-auth/resource-server.test.ts`
 
 **Interfaces:**
+
 - Produces parsed OAuth resource options and RFC 9728/resource-token helpers for Task 8.
 
 - [ ] **Step 1: Write failing resource policy tests**
@@ -517,10 +528,16 @@ export interface TriadResourceConfig {
 
 export function parseResources(value?: string): TriadResourceConfig[];
 
-export function createResourceOptions(resources: TriadResourceConfig[]): Pick<
+export function createResourceOptions(
+  resources: TriadResourceConfig[],
+): Pick<
   OAuthOptions,
-  "accessTokenExpiresIn" | "enforcePerClientResources" | "idTokenExpiresIn" |
-  "refreshTokenExpiresIn" | "refreshTokenReuseInterval" | "resources"
+  | "accessTokenExpiresIn"
+  | "enforcePerClientResources"
+  | "idTokenExpiresIn"
+  | "refreshTokenExpiresIn"
+  | "refreshTokenReuseInterval"
+  | "resources"
 >;
 ```
 
@@ -569,6 +586,7 @@ Commit: `feat: add mcp resource authorization`
 **Execution:** Parallel worktree `triad-ba-device` from the Task 1 merge commit.
 
 **Files:**
+
 - Create: `src/better-auth/device/codes.ts`
 - Create: `src/better-auth/device/schema.ts`
 - Create: `src/better-auth/device/plugin.ts`
@@ -576,6 +594,7 @@ Commit: `feat: add mcp resource authorization`
 - Create: `test/better-auth/device-grant.test.ts`
 
 **Interfaces:**
+
 - Produces `oauthDeviceGrant(options)` Better Auth plugin for Task 8; its schema is included by final Better Auth schema generation.
 
 - [ ] **Step 1: Write failing code and schema tests**
@@ -633,6 +652,7 @@ Commit: `feat: add oauth provider device grant`
 **Execution:** Parallel worktree `triad-ba-ui` from the Task 1 merge commit.
 
 **Files:**
+
 - Modify: `src/pages/index.astro`
 - Create: `src/pages/sign-in.astro`
 - Modify: `src/pages/consent.astro`
@@ -643,6 +663,7 @@ Commit: `feat: add oauth provider device grant`
 - Modify: `src/styles/global.css`
 
 **Interfaces:**
+
 - Consumes endpoint contracts fixed in this plan; produces prerendered product pages for Task 8's Worker asset fallback.
 
 - [ ] **Step 1: Write failing UI contract tests**
@@ -697,6 +718,7 @@ Commit: `feat: add better auth product flows`
 **Execution:** Only after Tasks 2-7 have passed independent review and merged into `triad-better-auth`. No parallel worktree.
 
 **Files:**
+
 - Create: `src/better-auth/auth.ts`
 - Create: `src/better-auth/schema-config.ts`
 - Create: `src/better-auth/schema.ts`
@@ -711,6 +733,7 @@ Commit: `feat: add better auth product flows`
 - Modify: `package.json`
 
 **Interfaces:**
+
 - Consumes every module exported by Tasks 2-7; produces the only complete auth factory, Worker entry, generated schema, deployment config, and production rollout.
 
 - [ ] **Step 1: Write failing integration tests**
