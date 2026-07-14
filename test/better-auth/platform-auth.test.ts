@@ -46,22 +46,51 @@ function assertPluginEndpointInference() {
 }
 
 function assertFixedOptionsCannotBeConfigured() {
-  const forbiddenConfiguration = {
-    database: {} as D1Database,
-    baseURL: "https://attacker.example.com",
-    basePath: "/attacker",
-    secret: "attacker-secret-that-is-at-least-32-characters",
-    secrets: [{ version: 1, value: "alternate-secret" }],
-    trustedOrigins: ["https://attacker.example.com"],
-    emailAndPassword: { enabled: true },
-    advanced: {
-      disableCSRFCheck: true,
-      disableOriginCheck: true,
-    },
-  };
+  const env = createEnv();
 
-  // @ts-expect-error Fixed platform options cannot be supplied through a predeclared object.
-  createTriadAuthOptions(createEnv(), forbiddenConfiguration);
+  const databaseConfiguration = { database: {} as D1Database };
+  // @ts-expect-error The Worker D1 binding cannot be replaced.
+  createTriadAuthOptions(env, databaseConfiguration);
+
+  const baseURLConfiguration = { baseURL: "https://attacker.example.com" };
+  // @ts-expect-error The canonical origin cannot be replaced.
+  createTriadAuthOptions(env, baseURLConfiguration);
+
+  const basePathConfiguration = { basePath: "/attacker" };
+  // @ts-expect-error The fixed auth base path cannot be replaced.
+  createTriadAuthOptions(env, basePathConfiguration);
+
+  const secretConfiguration = {
+    secret: "attacker-secret-that-is-at-least-32-characters",
+  };
+  // @ts-expect-error The binding-backed secret cannot be replaced.
+  createTriadAuthOptions(env, secretConfiguration);
+
+  const secretsConfiguration = {
+    secrets: [{ version: 1, value: "alternate-secret" }],
+  };
+  // @ts-expect-error Alternate secret arrays cannot be configured.
+  createTriadAuthOptions(env, secretsConfiguration);
+
+  const trustedOriginsConfiguration = {
+    trustedOrigins: ["https://attacker.example.com"],
+  };
+  // @ts-expect-error Trusted origins cannot be extended or replaced.
+  createTriadAuthOptions(env, trustedOriginsConfiguration);
+
+  const emailAndPasswordConfiguration = {
+    emailAndPassword: { enabled: true },
+  };
+  // @ts-expect-error Email and password authentication remains disabled.
+  createTriadAuthOptions(env, emailAndPasswordConfiguration);
+
+  const csrfConfiguration = { advanced: { disableCSRFCheck: true } };
+  // @ts-expect-error CSRF checks cannot be disabled.
+  createTriadAuthOptions(env, csrfConfiguration);
+
+  const originCheckConfiguration = { advanced: { disableOriginCheck: true } };
+  // @ts-expect-error Origin checks cannot be disabled.
+  createTriadAuthOptions(env, originCheckConfiguration);
 }
 
 void assertPluginEndpointInference;
@@ -79,15 +108,16 @@ describe("Triad Better Auth platform options", () => {
     expect(options.database).toBe(database);
   });
 
-  it("normalizes the canonical origin and fixes the auth base path", () => {
-    const options = createTriadAuthOptions(
-      createEnv({ AUTH_ORIGIN: "https://AUTH.EXAMPLE.com:443/" }),
-    );
+  it.each(["https://AUTH.EXAMPLE.com:443", "https://AUTH.EXAMPLE.com:443/"])(
+    "normalizes bare canonical origin %s and fixes the auth base path",
+    (origin) => {
+      const options = createTriadAuthOptions(createEnv({ AUTH_ORIGIN: origin }));
 
-    expect(options.baseURL).toBe("https://auth.example.com");
-    expect(options.basePath).toBe(AUTH_BASE_PATH);
-    expect(AUTH_BASE_PATH).toBe("/api/auth");
-  });
+      expect(options.baseURL).toBe("https://auth.example.com");
+      expect(options.basePath).toBe(AUTH_BASE_PATH);
+      expect(AUTH_BASE_PATH).toBe("/api/auth");
+    },
+  );
 
   it("disables password auth and trusts only the canonical origin", () => {
     const options = createTriadAuthOptions(createEnv());
@@ -171,6 +201,9 @@ describe("Triad Better Auth platform options", () => {
     "ftp://auth.example.com",
     "https://user:password@auth.example.com",
     "https://auth.example.com/path",
+    "https://auth.example.com/.",
+    "https://auth.example.com/a/..",
+    "https://auth.example.com/%2e",
     "https://auth.example.com?query=value",
     "https://auth.example.com#fragment",
     "http://auth.example.com",
