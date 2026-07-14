@@ -4,7 +4,7 @@ This branch rebuilds Triad as a Better Auth OAuth/OIDC authorization server. The
 
 The visual application is retained as the product baseline: the landing page, demo, consent, account, and device surfaces keep Triad's typography, layout, and interaction language while their backend integration is replaced.
 
-The authorization-server design is documented in `docs/superpowers/specs/2026-07-14-better-auth-authorization-server-design.md`. Implementation planning starts from `docs/superpowers/plans/2026-07-14-better-auth-refactor.md` and must be decomposed into one focused plan per worktree before feature implementation begins.
+The authorization-server design is documented in `docs/superpowers/specs/2026-07-14-better-auth-authorization-server-design.md`. Numbered implementation plans under `docs/superpowers/plans/` define one focused worktree each.
 
 ## Local commands
 
