@@ -12,6 +12,16 @@ The refactor targets Better Auth `1.7.x`, initially the release candidate with `
 
 Backward compatibility is not required.
 
+## Clean Branch Boundary
+
+`main` preserves the deployed custom authorization server. The `triad-better-auth` branch is a replacement implementation, not a side-by-side extension of that server.
+
+The Better Auth branch retains the complete visual application: Astro pages, the landing page, demo surfaces, Shell, fonts, styles, browser assets, and public assets. Those files define the product's visual and interaction language. Their protocol integration may change, but the redesign must not discard or replace the established presentation.
+
+The branch does not retain the custom authorization-server modules, routes, migrations, backend-only scripts, or tests. New implementation work starts from the clean base commit and adds only Better Auth behavior and tests. Canonical files such as `src/index.ts`, `wrangler.toml`, `.dev.vars.example`, `migrations/`, and package scripts belong solely to the replacement Worker on this branch.
+
+The replacement uses Better Auth's built-in Cloudflare D1 support directly with the `D1Database` binding. It does not add Drizzle ORM, Drizzle Kit, or Miniflare. Better Auth generates the fresh schema, and Wrangler applies it to local and remote D1 databases.
+
 ## Identity Contract
 
 Every upstream provider account is a separate Triad account. Upstream provider accounts are separate Better-Auth users. Matching emails never link Google, GitHub, or Twitter identities.
@@ -49,6 +59,8 @@ user.providerSub  = provider_sub
 The synthetic email satisfies Better Auth's required unique email field. It is never exposed as a profile claim or used for email delivery. A real upstream email remains optional profile data and never participates in account lookup.
 
 Better Auth account linking is disabled, implicit linking is disabled, and trusted providers are empty. Provider profile mapping converts the raw upstream ID before persistence. Account create and update hooks remove upstream access tokens, refresh tokens, ID tokens, token expiry data, and account-cookie token material.
+
+Triad reuses the existing Google, GitHub, and Twitter client IDs and client secrets unchanged. The values remain uncommitted and are uploaded as secrets to the new Worker under their existing binding names. Upstream callback URLs are not changed during implementation. After the new Worker has stable callback endpoints, the deployment handoff reports the exact URLs and waits for the operator to update the existing provider registrations before live provider verification.
 
 ## Token Contract
 
@@ -178,6 +190,38 @@ The initial patch surface should remain narrow:
 - Add an isolated RFC 8628 companion plugin that delegates final token issuance to OAuth Provider.
 
 These changes should be covered by Triad integration tests and proposed upstream rather than developed into a custom protocol layer.
+
+## Implementation Workstreams
+
+Every workstream has one focused plan document, one feature branch, one worktree, one implementer, and one review gate. Feature worktrees branch from the latest reviewed prerequisite commit and merge only into `triad-better-auth`.
+
+The serial foundation is:
+
+1. Package baseline: install the exact Better Auth packages and record the real `1.7.0-rc.1` public exports without adding application behavior.
+2. Compatibility hooks: add only verified upstream-shaped patches required for exact-client subjects, public DCR policy, and Worker-safe CIMD behavior.
+3. Platform foundation: add the direct D1 binding, environment contract, minimal Better Auth factory, Worker routing, and schema-generation commands.
+
+After the platform foundation merges, these disjoint modules may run in parallel:
+
+1. Deterministic identity and upstream-provider policy.
+2. OIDC subjects, triple claims, JWT access tokens, and JWKS.
+3. CIMD client admission.
+4. Public DCR admission.
+5. MCP resources and audience policy.
+6. RFC 8628 companion device grant.
+7. Better Auth integration for the preserved product and demo surfaces.
+
+Serial integration then composes the reviewed modules, generates the fresh migration, verifies the complete local protocol, creates only the new D1 database and bindings, and deploys only the `triad-better-auth` Worker.
+
+No inherited test is restored. Each workstream adds focused tests for its own new behavior. Pure policy tests run directly; database and full protocol verification use Better Auth's D1 integration and Wrangler's local D1 environment rather than a separate database abstraction or emulator dependency. Every workstream runs `vp run check` and `vp run build` before review.
+
+## Deployment Isolation
+
+The replacement Worker and D1 database are both named `triad-better-auth`. Its migrations are fresh and contain no migration path from the existing `triad-auth` database. The initial issuer is the new Workers hostname.
+
+The branch must never deploy to `triad-auth-broker`, bind the existing `triad-auth` database, apply the old migrations, or alter the current Worker's secrets. Provider credentials are the only values intentionally reused, and they are uploaded separately to the new Worker.
+
+The provider callback switch is a deployment gate, not an implementation prerequisite. The new Worker is deployed and its callback paths are confirmed first. The operator then updates Google, GitHub, and Twitter registrations to those paths. Live provider tests begin only after that handoff.
 
 ## Explicit Non-Goals
 
