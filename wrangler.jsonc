@@ -9,10 +9,10 @@
       "binding": "DB",
       "database_name": "triad-better-auth",
       "database_id": "REPLACE_WITH_D1_DATABASE_ID",
-      "migrations_dir": "migrations"
-    }
+      "migrations_dir": "migrations",
+    },
   ],
   "vars": {
-    "BETTER_AUTH_URL": "http://localhost:5173"
-  }
+    "BETTER_AUTH_URL": "http://localhost:5173",
+  },
 }

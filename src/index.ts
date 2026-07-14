@@ -14,29 +14,26 @@ app.use("*", async (c, next) => {
   }
 });
 
-app.get("/", c =>
+app.get("/", (c) =>
   c.json({
     service: "Triad Auth",
     implementation: "better-auth",
     issuer: c.env.BETTER_AUTH_URL,
     discovery: [
       new URL("/api/auth/.well-known/openid-configuration", c.env.BETTER_AUTH_URL).toString(),
-      new URL(
-        "/api/auth/.well-known/oauth-authorization-server",
-        c.env.BETTER_AUTH_URL,
-      ).toString(),
+      new URL("/api/auth/.well-known/oauth-authorization-server", c.env.BETTER_AUTH_URL).toString(),
     ],
   }),
 );
 
-app.get("/health", c => c.json({ ok: true }));
+app.get("/health", (c) => c.json({ ok: true }));
 
-app.get("/login", c => {
+app.get("/login", (c) => {
   const returnTo = c.req.query("returnTo") ?? "/";
   const providers = ["google", "github", "twitter"]
-    .filter(provider => Boolean(c.env[`${provider.toUpperCase()}_CLIENT_ID` as keyof Env]))
+    .filter((provider) => Boolean(c.env[`${provider.toUpperCase()}_CLIENT_ID` as keyof Env]))
     .map(
-      provider =>
+      (provider) =>
         `<li><a href="/api/auth/sign-in/social?provider=${provider}&callbackURL=${encodeURIComponent(returnTo)}">${provider}</a></li>`,
     )
     .join("");
@@ -46,7 +43,7 @@ app.get("/login", c => {
   );
 });
 
-app.on(["GET", "POST"], "/api/auth/*", c => createAuth(c.env).handler(c.req.raw));
+app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw));
 
 app.onError((error, c) => {
   console.error("request failed", error);

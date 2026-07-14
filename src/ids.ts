@@ -3,7 +3,7 @@ export type TriadProvider = "google" | "github" | "twitter";
 const encoder = new TextEncoder();
 
 function hexadecimal(bytes: Uint8Array): string {
-  return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 async function hmac(secret: string, value: string): Promise<Uint8Array> {
@@ -40,16 +40,10 @@ export async function pairwiseSubject(
   accountSub: string,
   clientId: string,
 ): Promise<string> {
-  return `pws_${hexadecimal(
-    await hmac(secret, `pairwise-sub\0${accountSub}\0${clientId}`),
-  )}`;
+  return `pws_${hexadecimal(await hmac(secret, `pairwise-sub\0${accountSub}\0${clientId}`))}`;
 }
 
-export async function derivePrincipal(
-  secret: string,
-  provider: TriadProvider,
-  upstreamId: string,
-) {
+export async function derivePrincipal(secret: string, provider: TriadProvider, upstreamId: string) {
   const [accountSub, providerSub] = await Promise.all([
     accountSubject(secret, provider, upstreamId),
     providerSubject(secret, provider, upstreamId),

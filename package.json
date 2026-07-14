@@ -16,7 +16,8 @@
     "@better-auth/cimd": "1.7.0-rc.1",
     "@better-auth/oauth-provider": "1.7.0-rc.1",
     "better-auth": "1.7.0-rc.1",
-    "hono": "^4.10.8"
+    "hono": "^4.10.8",
+    "kysely": "0.28.17"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.44.0",
@@ -31,5 +32,8 @@
       "version": "1.3.14",
       "onFail": "download"
     }
+  },
+  "patchedDependencies": {
+    "@better-auth/oauth-provider@1.7.0-rc.1": "patches/@better-auth%2Foauth-provider@1.7.0-rc.1.patch"
   }
 }

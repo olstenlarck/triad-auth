@@ -1,0 +1,34 @@
+diff --git a/dist/oauth-ScTJEcFV.d.mts b/dist/oauth-ScTJEcFV.d.mts
+index e0891c523c2e1b9ca7425b49f8086b0a0fe054e9..ed5ded8ae14669667f30ece874095bb004cee583 100644
+--- a/dist/oauth-ScTJEcFV.d.mts
++++ b/dist/oauth-ScTJEcFV.d.mts
+@@ -1833,6 +1833,14 @@ interface OAuthOptions<Scopes extends readonly Scope[] = InternallySupportedScop
+       max: number;
+     } | false;
+   };
++  /**
++   * Override subject identifier resolution for every user/client pair.
++   * This takes precedence over the built-in public and pairwise strategies.
++   */
++  resolveSubjectIdentifier?: (input: {
++    userId: string;
++    clientId: string;
++  }) => Awaitable<string>;
+   /**
+    * Secret used to compute pairwise subject identifiers (HMAC-SHA256).
+    * When set, clients with `subject_type: "pairwise"` receive unique,
+diff --git a/dist/utils-DO8lmoDw.mjs b/dist/utils-DO8lmoDw.mjs
+index 33e84521dbbe85a6c0f4a245adc356dde1f2c9ff..64b9174eb39a1ca2d09ad9d9653f855f2b209e65 100644
+--- a/dist/utils-DO8lmoDw.mjs
++++ b/dist/utils-DO8lmoDw.mjs
+@@ -698,6 +698,10 @@ async function computePairwiseSub(userId, client, secret) {
+ * @internal
+ */
+ async function resolveSubjectIdentifier(userId, client, opts) {
++	if (opts.resolveSubjectIdentifier) return opts.resolveSubjectIdentifier({
++		userId,
++		clientId: client.clientId
++	});
+ 	if (client.subjectType === "pairwise" && opts.pairwiseSecret) return computePairwiseSub(userId, client, opts.pairwiseSecret);
+ 	return userId;
+ }
