@@ -27,7 +27,9 @@ Triad deliberately does not link identities across providers. It uses a determin
 
 ## Exact subject override
 
-Better Auth 1.7 RC does not expose a custom subject resolver. The repository contains a narrow Bun dependency patch that adds `resolveSubjectIdentifier({ userId, clientId })` to `@better-auth/oauth-provider`. It runs before the built-in public/pairwise strategies and therefore covers ID tokens, UserInfo, introspection, logout tokens, refreshes, authorization-code flows, and device flows through the provider's central resolver. The patch also emits `pairwise_sub` beside the resolved `sub` in access tokens, ID tokens, UserInfo, and introspection responses. Access tokens retain `account_sub` for Triad's internal UserInfo lookup while exposing the pairwise subject to clients.
+Better Auth 1.7 RC does not expose a custom subject resolver. Its built-in pairwise formula uses the redirect-URI sector and only applies when a client declares `subject_type=pairwise`, while Triad's existing identity contract derives the subject from `account_sub` and `client_id` for every client.
+
+The repository therefore contains a general Bun dependency patch that adds `resolveSubjectIdentifier({ userId, clientId })` and exposes the resolved subject and client ID to the existing custom-claim callbacks. The patch contains no Triad claim names or account lookup behavior. Triad itself emits `account_sub`, `provider_sub`, and the explicit `pairwise_sub` alias through those callbacks.
 
 The patch can be removed when Better Auth exposes an equivalent hook upstream.
 
@@ -42,7 +44,9 @@ The Better Auth OAuth Provider verifies `private_key_jwt` natively. CIMD clients
 
 ## Claims
 
-The supported scopes are `openid` and `email`. OIDC `sub` is `pairwise_sub`; Triad also emits that exact value as the explicit `pairwise_sub` claim alongside `account_sub` and `provider_sub`. When `email` is granted, ID tokens, access tokens, and UserInfo receive the actual `providerEmail` plus `providerEmailVerified` as `email_verified`; otherwise those claims are omitted.
+The supported scopes preserve Triad's existing contract: `openid`, `email`, `handle`, `name`, and `avatar`. They release `email`/`email_verified`, `preferred_username`, `name`, and `picture` respectively. The consent screen shows every requested scope and permits partial approval.
+
+OIDC ID-token and UserInfo `sub` is Triad's `pairwise_sub`; Triad also emits that exact value as the explicit `pairwise_sub` claim alongside `account_sub` and `provider_sub`. Access tokens retain Better Auth's internal subject behavior but carry the explicit Triad identity claims. Profile values come only from the hidden provider fields and are omitted unless their scope was granted.
 
 ## Runtime
 

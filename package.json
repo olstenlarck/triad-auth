@@ -10,7 +10,7 @@
     "deploy": "vp exec wrangler deploy",
     "db:local": "vp exec wrangler d1 migrations apply triad-better-auth --local",
     "db:remote": "vp exec wrangler d1 migrations apply triad-better-auth --remote",
-    "auth:schema": "vp dlx @better-auth/cli@1.7.0-rc.1 generate --config src/auth-cli.ts --output migrations/better-auth.sql"
+    "auth:schema": "vp exec tsx scripts/generate-schema.ts"
   },
   "dependencies": {
     "@better-auth/cimd": "1.7.0-rc.1",
@@ -22,6 +22,9 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.44.0",
     "@cloudflare/workers-types": "^5.20260713.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.11.1",
+    "tsx": "^4.23.1",
     "typescript": "~6.0.2",
     "vite-plus": "0.2.4",
     "wrangler": "^4.110.0"

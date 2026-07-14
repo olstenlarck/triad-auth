@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { createAuth } from "./auth";
+import { consentPage } from "./consent";
 import type { Env } from "./env";
+import type { TriadProvider } from "./ids";
+import { loginPage } from "./login";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -29,19 +32,13 @@ app.get("/", (c) =>
 app.get("/health", (c) => c.json({ ok: true }));
 
 app.get("/login", (c) => {
-  const returnTo = c.req.query("returnTo") ?? "/";
-  const providers = ["google", "github", "twitter"]
-    .filter((provider) => Boolean(c.env[`${provider.toUpperCase()}_CLIENT_ID` as keyof Env]))
-    .map(
-      (provider) =>
-        `<li><a href="/api/auth/sign-in/social?provider=${provider}&callbackURL=${encodeURIComponent(returnTo)}">${provider}</a></li>`,
-    )
-    .join("");
-
-  return c.html(
-    `<!doctype html><meta charset="utf-8"><title>Triad Auth</title><main><h1>Sign in</h1><ul>${providers}</ul></main>`,
+  const providers = (["google", "github", "twitter"] as TriadProvider[]).filter((provider) =>
+    Boolean(c.env[`${provider.toUpperCase()}_CLIENT_ID` as keyof Env]),
   );
+  return c.html(loginPage(providers));
 });
+
+app.get("/consent", (c) => c.html(consentPage(c.req.query())));
 
 app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw));
 

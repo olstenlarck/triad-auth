@@ -11,6 +11,7 @@ It keeps Triad's deterministic, opaque identity model while delegating protocol 
 - dynamic client registration
 - official CIMD client discovery
 - native `private_key_jwt` client authentication
+- granular `email`, `handle`, `name`, and `avatar` consent
 - direct Cloudflare D1 storage
 - no cross-provider account linking
 - no public storage or emission of upstream provider user IDs

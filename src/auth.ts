@@ -1,7 +1,8 @@
 import { cimd } from "@better-auth/cimd";
 import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
-import { deviceAuthorization } from "better-auth/plugins";
+import { deviceAuthorization, jwt } from "better-auth/plugins";
+import { identityClaims, profileClaims, TRIAD_CLAIMS, TRIAD_SCOPES } from "./claims";
 import type { Env } from "./env";
 import { derivePrincipal, pairwiseSubject, type TriadProvider } from "./ids";
 
@@ -32,6 +33,11 @@ function providerProfile(env: Env, provider: TriadProvider) {
         ? (profile.data as Record<string, unknown>)
         : undefined;
 
+    const providerName = text(profile.name) ?? text(data?.name);
+    const providerHandle = text(profile.login) ?? text(data?.username);
+    const providerAvatar =
+      text(profile.picture) ?? text(profile.avatar_url) ?? text(data?.profile_image_url);
+
     return {
       // Better Auth uses this value as account.accountId and for account lookup.
       id: principal.providerSub,
@@ -39,17 +45,16 @@ function providerProfile(env: Env, provider: TriadProvider) {
       accountSub: principal.accountSub,
       provider,
       providerSub: principal.providerSub,
-      name:
-        text(profile.name) ??
-        text(profile.login) ??
-        text((profile.data as Record<string, unknown> | undefined)?.username) ??
-        principal.accountSub,
+      providerName,
+      providerHandle,
+      providerAvatar,
+      name: providerName ?? providerHandle ?? principal.accountSub,
       // Better Auth's core email remains internal so equal provider emails never
       // merge identities. The actual provider email is stored separately and only
       // emitted to downstream clients that request the email scope.
       email: `${principal.accountSub}@users.triad.invalid`,
       providerEmail: text(profile.email) ?? text(data?.email),
-      image: text(profile.picture) ?? text(profile.avatar_url),
+      image: providerAvatar,
     };
   };
 }
@@ -86,23 +91,6 @@ function socialProviders(env: Env) {
   };
 }
 
-function triadIdentityClaims(user: Record<string, unknown>) {
-  return {
-    account_sub: String(user.id),
-    provider_sub: text(user.providerSub),
-  };
-}
-
-function emailClaims(user: Record<string, unknown>, scopes: string[]) {
-  const providerEmail = text(user.providerEmail);
-  if (!scopes.includes("email") || !providerEmail) return {};
-
-  return {
-    email: providerEmail,
-    email_verified: user.providerEmailVerified === true,
-  };
-}
-
 export function createAuth(env: Env) {
   return betterAuth({
     appName: "Triad Auth",
@@ -119,6 +107,9 @@ export function createAuth(env: Env) {
         provider: { type: "string", required: true, input: true, returned: false },
         providerSub: { type: "string", required: true, input: true, returned: false },
         providerEmail: { type: "string", required: false, input: true, returned: false },
+        providerName: { type: "string", required: false, input: true, returned: false },
+        providerHandle: { type: "string", required: false, input: true, returned: false },
+        providerAvatar: { type: "string", required: false, input: true, returned: false },
         providerEmailVerified: {
           type: "boolean",
           required: true,
@@ -159,37 +150,42 @@ export function createAuth(env: Env) {
       },
     },
     plugins: [
+      jwt(),
       oauthProvider({
         loginPage: "/login",
         consentPage: "/consent",
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
-        scopes: ["openid", "email"],
+        scopes: [...TRIAD_SCOPES],
+        advertisedMetadata: {
+          scopes_supported: [...TRIAD_SCOPES],
+          claims_supported: [...TRIAD_CLAIMS],
+        },
         // Keeps pairwise client handling enabled throughout Better Auth. The
         // resolver below takes precedence over Better Auth's built-in formula.
         pairwiseSecret: env.TRIAD_ROOT_SECRET,
         resolveSubjectIdentifier: ({ userId, clientId }) =>
           pairwiseSubject(env.TRIAD_ROOT_SECRET, userId, clientId),
-        customIdTokenClaims: async ({ user, scopes }) => {
+        customIdTokenClaims: async ({ user, scopes, subject }) => {
           const triadUser = user as unknown as Record<string, unknown>;
           return {
-            ...triadIdentityClaims(triadUser),
-            ...emailClaims(triadUser, scopes),
+            ...identityClaims(triadUser, subject),
+            ...profileClaims(triadUser, scopes),
           };
         },
-        customAccessTokenClaims: async ({ user, scopes }) => {
-          if (!user) return {};
+        customAccessTokenClaims: async ({ user, scopes, subject }) => {
+          if (!user || !subject) return {};
           const triadUser = user as unknown as Record<string, unknown>;
           return {
-            ...triadIdentityClaims(triadUser),
-            ...emailClaims(triadUser, scopes),
+            ...identityClaims(triadUser, subject),
+            ...profileClaims(triadUser, scopes),
           };
         },
-        customUserInfoClaims: async ({ user, scopes }) => {
+        customUserInfoClaims: async ({ user, scopes, subject, requestedClaims }) => {
           const triadUser = user as unknown as Record<string, unknown>;
           return {
-            ...triadIdentityClaims(triadUser),
-            ...emailClaims(triadUser, scopes),
+            ...identityClaims(triadUser, subject),
+            ...profileClaims(triadUser, scopes, requestedClaims, true),
           };
         },
       }),
