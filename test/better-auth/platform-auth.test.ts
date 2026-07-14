@@ -212,6 +212,14 @@ describe("Triad Better Auth platform options", () => {
   });
 
   it.each([
+    "https://auth.example.com\\.",
+    "https://auth.example.com\\a\\..",
+    "https://auth.example.com\\%2e",
+  ])("rejects a backslash path auth origin: %s", (origin) => {
+    expect(() => createTriadAuthOptions(createEnv({ AUTH_ORIGIN: origin }))).toThrow("AUTH_ORIGIN");
+  });
+
+  it.each([
     ["http://localhost", "http://localhost"],
     ["http://localhost:8787/", "http://localhost:8787"],
     ["http://127.0.0.1:8787", "http://127.0.0.1:8787"],

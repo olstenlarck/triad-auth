@@ -47,7 +47,7 @@ function normalizeAuthOrigin(origin: string): string {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("AUTH_ORIGIN must be a valid HTTP(S) origin");
   }
-  const hasOnlyOptionalRootSlash = /^https?:\/\/[^/?#]+\/?$/i.test(origin);
+  const hasOnlyOptionalRootSlash = /^https?:\/\/[^\\/?#]+\/?$/i.test(origin);
   if (
     !hasOnlyOptionalRootSlash ||
     url.username !== "" ||
