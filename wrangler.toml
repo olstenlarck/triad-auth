@@ -13,3 +13,10 @@ binding = "ASSETS"
 html_handling = "auto-trailing-slash"
 not_found_handling = "404-page"
 run_worker_first = true
+
+# Deployment replaces this placeholder with the isolated D1 database UUID.
+[[d1_databases]]
+binding = "DB"
+database_name = "triad-better-auth"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "auth:schema": "vp exec auth generate --config src/better-auth/schema.ts --output migrations/0001_better-auth.sql --yes",
     "build": "vp exec astro build && node scripts/generate-csp-hashes.mjs",
     "check:deploy": "wrangler deploy --dry-run",
+    "db:migrate:local": "vp exec wrangler d1 migrations apply triad-better-auth --local",
     "deploy": "vp run build && vp exec wrangler deploy",
     "dev": "vp exec astro dev",
     "preview": "vp run build && vp exec astro preview"
