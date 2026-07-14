@@ -1,11 +1,63 @@
 // @ts-expect-error Node types are intentionally absent from the Worker project.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+// @ts-expect-error Node types are intentionally absent from the Worker project.
+import { dirname, extname, resolve } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 
 import { authSchemaDatabase } from "../../scripts/auth-schema-database";
 
 function readSource(path: string): string {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
+}
+
+type DirectoryEntry = {
+  name: string;
+  isDirectory: () => boolean;
+};
+
+const runtimeExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".astro"]);
+
+function collectRuntimeSourcePaths(directory: string): string[] {
+  const entries = readdirSync(directory, { withFileTypes: true }) as DirectoryEntry[];
+
+  return entries
+    .flatMap((entry) => {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) {
+        return collectRuntimeSourcePaths(path);
+      }
+
+      return runtimeExtensions.has(extname(path)) ? [path] : [];
+    })
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function importSpecifiers(source: string): string[] {
+  const importPattern =
+    /\b(?:import|export)\s+(?:[^"'()]*?\s+from\s+)?["']([^"']+)["']|\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g;
+
+  return Array.from(source.matchAll(importPattern), (match) => match[1] ?? match[2]);
+}
+
+function modulePath(path: string): string {
+  const extension = extname(path);
+
+  return runtimeExtensions.has(extension) ? path.slice(0, -extension.length) : path;
+}
+
+function resolvesToModule(importerPath: string, specifier: string, targetPath: string): boolean {
+  if (specifier.startsWith(".")) {
+    return (
+      modulePath(resolve(dirname(importerPath), specifier)) === modulePath(resolve(targetPath))
+    );
+  }
+
+  const normalizedSpecifier = modulePath(specifier.replaceAll("\\", "/")).replace(/^\/?/, "");
+  const normalizedTarget = modulePath(targetPath).replaceAll("\\", "/");
+
+  return (
+    normalizedSpecifier === normalizedTarget || normalizedSpecifier.endsWith(`/${normalizedTarget}`)
+  );
 }
 
 const schemaIntrospectionQuery =
@@ -125,21 +177,22 @@ describe("Better Auth schema tooling", () => {
   });
 
   it("keeps the schema-only database out of every runtime module", () => {
-    const runtimeModules = [
-      "src/index.ts",
-      "src/better-auth/auth.ts",
-      "src/better-auth/configuration.ts",
-    ];
-    const applicationTypeScriptPaths = (readdirSync("src", { recursive: true }) as string[])
-      .filter((path) => path.endsWith(".ts"))
-      .map((path) => `src/${path}`);
-    const schemaDatabaseConsumers = applicationTypeScriptPaths.filter((path) =>
-      readSource(path).includes("auth-schema-database"),
-    );
+    const schemaEntryPath = resolve("src/better-auth/schema.ts");
+    const schemaDatabasePath = resolve("scripts/auth-schema-database.ts");
+    const violations = collectRuntimeSourcePaths("src").flatMap((path) => {
+      if (path === schemaEntryPath) {
+        return [];
+      }
 
-    for (const path of runtimeModules) {
-      expect(readSource(path)).not.toContain("auth-schema-database");
-    }
-    expect(schemaDatabaseConsumers).toEqual(["src/better-auth/schema.ts"]);
+      return importSpecifiers(readSource(path))
+        .filter(
+          (specifier) =>
+            resolvesToModule(path, specifier, schemaEntryPath) ||
+            resolvesToModule(path, specifier, schemaDatabasePath),
+        )
+        .map((specifier) => `${path}: ${specifier}`);
+    });
+
+    expect(violations).toEqual([]);
   });
 });
