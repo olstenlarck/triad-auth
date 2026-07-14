@@ -28,12 +28,14 @@
 ### Task 1: Pin And Verify Better Auth RC.1 Packages
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `pnpm-lock.yaml`
 - Create: `test/better-auth/package-baseline.test.ts`
 - Create: `docs/superpowers/research/2026-07-14-better-auth-rc1-package-baseline.md`
 
 **Interfaces:**
+
 - Consumes: Cloudflare's global `D1Database` type from `@cloudflare/workers-types`.
 - Produces: installed public imports `betterAuth`, `jwt`, `oauthProvider`, and `cimd`; CLI binary `auth`; evidence that `D1Database` is accepted by `BetterAuthOptions["database"]`.
 
@@ -116,17 +118,17 @@ Expected: PASS with 3 tests. If TypeScript rejects `D1Database` for `BetterAuthO
 
 Create `docs/superpowers/research/2026-07-14-better-auth-rc1-package-baseline.md`:
 
-```markdown
+````markdown
 # Better Auth 1.7.0-rc.1 Package Baseline
 
 ## Installed Packages
 
-| Package | Version | Role |
-| --- | --- | --- |
-| `better-auth` | `1.7.0-rc.1` | Core auth factory, built-in database support, JWT plugin |
-| `@better-auth/oauth-provider` | `1.7.0-rc.1` | OAuth/OIDC authorization server |
-| `@better-auth/cimd` | `1.7.0-rc.1` | Client ID Metadata Documents |
-| `auth` | `1.7.0-rc.1` | `auth` and `better-auth` schema CLI binaries |
+| Package                       | Version      | Role                                                     |
+| ----------------------------- | ------------ | -------------------------------------------------------- |
+| `better-auth`                 | `1.7.0-rc.1` | Core auth factory, built-in database support, JWT plugin |
+| `@better-auth/oauth-provider` | `1.7.0-rc.1` | OAuth/OIDC authorization server                          |
+| `@better-auth/cimd`           | `1.7.0-rc.1` | Client ID Metadata Documents                             |
+| `auth`                        | `1.7.0-rc.1` | `auth` and `better-auth` schema CLI binaries             |
 
 ## Verified Public Imports
 
@@ -146,7 +148,7 @@ The RC.1 CLI package is `auth@1.7.0-rc.1`. It exposes both `auth` and `better-au
 ## Scope Boundary
 
 This baseline verifies package availability and public entry points only. It does not assert OAuth Provider option names, CIMD option names, extension APIs, schema contents, or runtime protocol behavior. Those contracts belong to the compatibility-hooks workstream.
-```
+````
 
 - [ ] **Step 6: Run complete verification**
 
