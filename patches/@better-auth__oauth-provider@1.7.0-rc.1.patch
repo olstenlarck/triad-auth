@@ -1,5 +1,5 @@
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 0cc545af96af7940ef5c076003426f7e88836648..9d9556044b3f6ff46796ba30ee7f2a6a5c52fd63 100644
+index 0cc545af96af7940ef5c076003426f7e88836648..42af5151f63e5dff4ed6ddab54d8bd815b813371 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -280,7 +280,7 @@ async function revokeAndPlanBackchannelLogout(ctx, opts, input) {
@@ -17,6 +17,23 @@ index 0cc545af96af7940ef5c076003426f7e88836648..9d9556044b3f6ff46796ba30ee7f2a6a
 +		};
 -	} catch (error) {
 +	} catch (error) {
+@@ -859,6 +859,10 @@ async function registerEndpoint(ctx, opts) {
+-		...NO_STORE_HEADERS
++		...NO_STORE_HEADERS
+-	});
++	});
+-	if (!session && !isTokenAuthorized) {
++	if (!session && !isTokenAuthorized) {
++		if (body.token_endpoint_auth_method !== "none") throw new APIError("BAD_REQUEST", {
++			error: "invalid_client_metadata",
++			error_description: 'unauthenticated registration requires token_endpoint_auth_method "none"'
++		});
+-		if (body.grant_types?.includes("client_credentials")) throw new APIError("BAD_REQUEST", {
++		if (body.grant_types?.includes("client_credentials")) throw new APIError("BAD_REQUEST", {
+-			error: "invalid_client_metadata",
++			error: "invalid_client_metadata",
+-			error_description: "client_credentials grant requires authenticated registration"
++			error_description: "client_credentials grant requires authenticated registration"
 diff --git a/dist/introspect-DvHp2a64.mjs b/dist/introspect-DvHp2a64.mjs
 index c901856de2f587793e31d77c8825e77f7adfaae0..35b33676200a55f3c779b593e93cd7192ca772dc 100644
 --- a/dist/introspect-DvHp2a64.mjs
