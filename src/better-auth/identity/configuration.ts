@@ -97,37 +97,51 @@ function stripProviderTokens(account: Partial<Account> & Record<string, unknown>
 }
 
 export function createIdentityConfiguration(env: TriadEnv) {
+  const socialProviders: NonNullable<BetterAuthOptions["socialProviders"]> = {};
+  const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
+  const googleClientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
+  const githubClientId = env.GITHUB_CLIENT_ID?.trim();
+  const githubClientSecret = env.GITHUB_CLIENT_SECRET?.trim();
+  const twitterClientId = env.TWITTER_CLIENT_ID?.trim();
+  const twitterClientSecret = env.TWITTER_CLIENT_SECRET?.trim();
+
+  if (googleClientId && googleClientSecret) {
+    socialProviders.google = {
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
+      disableDefaultScope: true,
+      disableIdTokenSignIn: true,
+      includeGrantedScopes: false,
+      scope: ["openid"],
+      mapProfileToUser: (profile: unknown) =>
+        mapIdentity(env.IDENTIFIER_SECRET, "google", googleUpstreamId(profile)),
+    };
+  }
+  if (githubClientId && githubClientSecret) {
+    socialProviders.github = {
+      clientId: githubClientId,
+      clientSecret: githubClientSecret,
+      disableDefaultScope: true,
+      disableIdTokenSignIn: true,
+      scope: [],
+      mapProfileToUser: (profile: unknown) =>
+        mapIdentity(env.IDENTIFIER_SECRET, "github", githubUpstreamId(profile)),
+    };
+  }
+  if (twitterClientId && twitterClientSecret) {
+    socialProviders.twitter = {
+      clientId: twitterClientId,
+      clientSecret: twitterClientSecret,
+      disableDefaultScope: true,
+      disableIdTokenSignIn: true,
+      scope: ["tweet.read", "users.read"],
+      mapProfileToUser: (profile: unknown) =>
+        mapIdentity(env.IDENTIFIER_SECRET, "twitter", twitterUpstreamId(profile)),
+    };
+  }
+
   return {
-    socialProviders: {
-      google: {
-        clientId: env.GOOGLE_CLIENT_ID,
-        clientSecret: env.GOOGLE_CLIENT_SECRET,
-        disableDefaultScope: true,
-        disableIdTokenSignIn: true,
-        includeGrantedScopes: false,
-        scope: ["openid"],
-        mapProfileToUser: (profile: unknown) =>
-          mapIdentity(env.IDENTIFIER_SECRET, "google", googleUpstreamId(profile)),
-      },
-      github: {
-        clientId: env.GITHUB_CLIENT_ID,
-        clientSecret: env.GITHUB_CLIENT_SECRET,
-        disableDefaultScope: true,
-        disableIdTokenSignIn: true,
-        scope: [],
-        mapProfileToUser: (profile: unknown) =>
-          mapIdentity(env.IDENTIFIER_SECRET, "github", githubUpstreamId(profile)),
-      },
-      twitter: {
-        clientId: env.TWITTER_CLIENT_ID,
-        clientSecret: env.TWITTER_CLIENT_SECRET,
-        disableDefaultScope: true,
-        disableIdTokenSignIn: true,
-        scope: ["tweet.read", "users.read"],
-        mapProfileToUser: (profile: unknown) =>
-          mapIdentity(env.IDENTIFIER_SECRET, "twitter", twitterUpstreamId(profile)),
-      },
-    },
+    socialProviders,
     user: {
       additionalFields: {
         provider: {
