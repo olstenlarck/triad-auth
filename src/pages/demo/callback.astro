@@ -48,6 +48,10 @@ export const prerender = true;
           >
         </div>
       </dl>
+      <section id="callback-profile" class="verified-profile" aria-labelledby="callback-profile-title" hidden>
+        <h3 id="callback-profile-title">SHARED CLAIMS</h3>
+        <dl id="callback-profile-claims"></dl>
+      </section>
     </section>
 
     <section id="callback-followup" class="callback-followup" aria-label="Token details and actions" hidden>
@@ -68,6 +72,7 @@ export const prerender = true;
       fetchDiscovery,
       tokenExchangeRequest,
       verifyIdentityToken,
+      type VerifiedProfile,
     } from "../../scripts/demo-protocol";
 
     const query = new URLSearchParams(location.search);
@@ -99,6 +104,34 @@ export const prerender = true;
       retry.hidden = false;
       status.textContent = "The identity result was not accepted.";
       error.focus();
+    }
+
+    function renderProfileClaims(profile: VerifiedProfile) {
+      const container = document.querySelector<HTMLElement>("#callback-profile-claims")!;
+      const claims: Array<[string, string | boolean | undefined]> = [
+        ["email", profile.email],
+        ["email_verified", profile.emailVerified],
+        ["preferred_username", profile.handle],
+        ["name", profile.name],
+        ["picture", profile.avatar],
+      ];
+
+      container.replaceChildren();
+      for (const [claim, value] of claims) {
+        if (value === undefined) {
+          continue;
+        }
+
+        const row = document.createElement("div");
+        const term = document.createElement("dt");
+        const description = document.createElement("dd");
+        term.textContent = claim;
+        description.textContent = String(value);
+        row.append(term, description);
+        container.append(row);
+      }
+      document.querySelector<HTMLElement>("#callback-profile")!.hidden =
+        !container.childElementCount;
     }
 
     async function logoutAccount() {
@@ -169,6 +202,7 @@ export const prerender = true;
             document.querySelector<HTMLElement>("#callback-pairwise")!.textContent = verified.pairwiseSub;
             document.querySelector<HTMLElement>("#callback-account")!.textContent = verified.accountSub;
             document.querySelector<HTMLElement>("#callback-provider")!.textContent = verified.providerSub;
+            renderProfileClaims(verified.profile);
             document.querySelector<HTMLElement>("#callback-issuer")!.textContent = verified.issuer;
             const expiry = document.querySelector<HTMLTimeElement>("#callback-expiry")!;
             expiry.dateTime = new Date(verified.expiresAt * 1_000).toISOString();

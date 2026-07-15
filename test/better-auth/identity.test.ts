@@ -42,6 +42,24 @@ function createUserRecord(email: string, provider: IdentityProvider, providerSub
   };
 }
 
+function profileMapper(
+  configuration: ReturnType<typeof createIdentityConfiguration>,
+  provider: IdentityProvider,
+) {
+  const configuredProvider = configuration.socialProviders[provider];
+  if (!configuredProvider || typeof configuredProvider === "function") {
+    throw new Error(`Expected ${provider} to be configured`);
+  }
+  const mapProfile = configuredProvider.mapProfileToUser as
+    | ((profile: unknown) => Record<string, unknown> | Promise<Record<string, unknown>>)
+    | undefined;
+  if (!mapProfile) {
+    throw new Error(`Expected ${provider} to map profiles`);
+  }
+
+  return mapProfile;
+}
+
 describe("Triad deterministic identity", () => {
   it("derives exact domain-separated HMAC-SHA-256 subjects", async () => {
     await expect(providerSubject(IDENTIFIER_SECRET, "github", "123456")).resolves.toBe(
@@ -73,7 +91,7 @@ describe("Triad deterministic identity", () => {
 });
 
 describe("Triad provider identity configuration", () => {
-  it("uses fixed minimal scopes and disables client-supplied ID token sign-in", () => {
+  it("uses fixed capability scopes and disables client-supplied ID token sign-in", () => {
     const { socialProviders } = createIdentityConfiguration(createEnv());
 
     expect(socialProviders.google).toMatchObject({
@@ -82,14 +100,14 @@ describe("Triad provider identity configuration", () => {
       disableDefaultScope: true,
       disableIdTokenSignIn: true,
       includeGrantedScopes: false,
-      scope: ["openid"],
+      scope: ["openid", "email", "profile"],
     });
     expect(socialProviders.github).toMatchObject({
       clientId: "github-client-id",
       clientSecret: "github-client-secret",
       disableDefaultScope: true,
       disableIdTokenSignIn: true,
-      scope: [],
+      scope: ["user:email"],
     });
     expect(socialProviders.twitter).toMatchObject({
       clientId: "twitter-client-id",
@@ -106,7 +124,7 @@ describe("Triad provider identity configuration", () => {
     ["twitter", { data: { id: "987654", name: "Twitter User", username: "twitter-user" } }],
   ] as const)("maps %s profiles to opaque IDs and synthetic email", async (provider, profile) => {
     const configuration = createIdentityConfiguration(createEnv());
-    const mapped = await configuration.socialProviders[provider].mapProfileToUser(profile);
+    const mapped = await profileMapper(configuration, provider)(profile);
 
     expect(mapped).toMatchObject({
       emailVerified: false,
@@ -116,6 +134,101 @@ describe("Triad provider identity configuration", () => {
     expect(mapped?.providerSub).toBe(mapped?.id);
     expect(mapped?.email).toMatch(/^acc_[0-9a-f]{64}@identity\.invalid$/);
     expect(mapped?.email).not.toContain("same@example.com");
+    expect(mapped?.name).toBe(String(mapped?.email).replace("@identity.invalid", ""));
+    expect(mapped?.image).toBeUndefined();
+  });
+
+  it.each([
+    [
+      "google",
+      {
+        sub: "google-subject",
+        email: "google@example.com",
+        email_verified: true,
+        name: "Google User",
+        picture: "https://images.example.com/google.png",
+      },
+      {
+        profileEmail: "google@example.com",
+        profileEmailVerified: true,
+        profileDisplayName: "Google User",
+        profileAvatar: "https://images.example.com/google.png",
+      },
+    ],
+    [
+      "github",
+      {
+        id: 123456,
+        email: "github@example.com",
+        login: "github-user",
+        name: "GitHub User",
+        avatar_url: "https://images.example.com/github.png",
+      },
+      {
+        profileEmail: "github@example.com",
+        profileEmailVerified: false,
+        profileHandle: "github-user",
+        profileDisplayName: "GitHub User",
+        profileAvatar: "https://images.example.com/github.png",
+      },
+    ],
+    [
+      "twitter",
+      {
+        data: {
+          id: "987654",
+          username: "twitter-user",
+          name: "Twitter User",
+          profile_image_url: "https://images.example.com/twitter.png",
+        },
+      },
+      {
+        profileHandle: "twitter-user",
+        profileDisplayName: "Twitter User",
+        profileAvatar: "https://images.example.com/twitter.png",
+      },
+    ],
+  ] as const)(
+    "captures supported %s profile fields separately",
+    async (provider, profile, expected) => {
+      const configuration = createIdentityConfiguration(createEnv());
+      const mapped = await profileMapper(configuration, provider)(profile);
+
+      expect(mapped).toMatchObject(expected);
+    },
+  );
+
+  it("omits malformed and unsupported profile values", async () => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const mapped = await profileMapper(
+      configuration,
+      "google",
+    )({
+      sub: "google-subject",
+      email: "",
+      email_verified: "true",
+      login: "not-a-google-capability",
+      name: 42,
+      picture: "javascript:alert(1)",
+    });
+
+    expect(mapped).not.toHaveProperty("profileEmail");
+    expect(mapped).not.toHaveProperty("profileEmailVerified");
+    expect(mapped).not.toHaveProperty("profileHandle");
+    expect(mapped).not.toHaveProperty("profileDisplayName");
+    expect(mapped).not.toHaveProperty("profileAvatar");
+  });
+
+  it("declares captured profile data as optional user fields", () => {
+    const configuration = createIdentityConfiguration(createEnv());
+
+    expect(configuration.user.additionalFields).toMatchObject({
+      profileEmail: { type: "string", required: false },
+      profileEmailVerified: { type: "boolean", required: false },
+      profileHandle: { type: "string", required: false },
+      profileDisplayName: { type: "string", required: false },
+      profileAvatar: { type: "string", required: false },
+    });
   });
 
   it.each([
@@ -130,7 +243,7 @@ describe("Triad provider identity configuration", () => {
     ["twitter", { data: { id: 123456 } }],
   ] as const)("rejects a malformed %s immutable upstream ID", (provider, profile) => {
     const configuration = createIdentityConfiguration(createEnv());
-    const mapProfile = configuration.socialProviders[provider].mapProfileToUser;
+    const mapProfile = profileMapper(configuration, provider);
 
     expect(() => mapProfile(profile)).toThrow("immutable upstream ID");
   });
@@ -172,6 +285,20 @@ describe("Triad provider identity configuration", () => {
         null,
       ),
     ).rejects.toThrow("provider identity");
+  });
+
+  it.each([
+    { name: "Changed Name" },
+    { image: "https://images.example.com/changed.png" },
+    { profileEmail: "changed@example.com" },
+    { profileEmailVerified: true },
+    { profileHandle: "changed" },
+    { profileDisplayName: "Changed Name" },
+    { profileAvatar: "https://images.example.com/changed.png" },
+  ])("rejects updates to durable identity and captured profile fields", async (update) => {
+    const configuration = createIdentityConfiguration(createEnv());
+
+    await expect(configuration.databaseHooks.user.update.before(update, null)).resolves.toBe(false);
   });
 
   it.each(["create", "update"] as const)("strips tokens before account %s", async (operation) => {

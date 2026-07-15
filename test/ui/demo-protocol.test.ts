@@ -2,6 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   authorizationRequest,
+  canonicalScopeRequest,
+  demoProviderCapabilities,
   demoResourceFromIssuer,
   inspectOAuthQuery,
   isIdentitySigningKey,
@@ -9,18 +11,19 @@ import {
 } from "../../src/scripts/demo-protocol";
 
 describe("Better Auth demo protocol", () => {
-  it("builds the identity-only authorization request with the projected client and resource", () => {
+  it("builds the authorization request with the projected client, resource, and canonical scopes", () => {
     const request = authorizationRequest({
       authorizationEndpoint: "https://auth.example/api/auth/oauth2/authorize",
       callbackUrl: "https://auth.example/demo/callback/",
       challenge: "challenge",
       clientId: "server-client-id",
       resource: "https://auth.example/demo/",
+      scope: "openid email avatar",
       state: "state",
     });
 
     expect(request.href).toBe(
-      "https://auth.example/api/auth/oauth2/authorize?response_type=code&client_id=server-client-id&redirect_uri=https%3A%2F%2Fauth.example%2Fdemo%2Fcallback%2F&scope=openid&resource=https%3A%2F%2Fauth.example%2Fdemo%2F&state=state&code_challenge=challenge&code_challenge_method=S256",
+      "https://auth.example/api/auth/oauth2/authorize?response_type=code&client_id=server-client-id&redirect_uri=https%3A%2F%2Fauth.example%2Fdemo%2Fcallback%2F&scope=openid+email+avatar&resource=https%3A%2F%2Fauth.example%2Fdemo%2F&state=state&code_challenge=challenge&code_challenge_method=S256&prompt=login",
     );
   });
 
@@ -32,19 +35,20 @@ describe("Better Auth demo protocol", () => {
 
   it("preserves the exact signed query while inspecting canonical values", () => {
     const rawQuery =
-      "?client_id=server-client&scope=openid&resource=https%3A%2F%2Fresource.example%2F&resource=https%3A%2F%2Fsecond.example%2F&exp=1&sig=signed";
+      "?client_id=server-client&scope=openid%20email%20avatar&resource=https%3A%2F%2Fresource.example%2F&resource=https%3A%2F%2Fsecond.example%2F&exp=1&sig=signed";
 
     expect(inspectOAuthQuery(rawQuery)).toEqual({
       clientId: "server-client",
       oauthQuery: rawQuery.slice(1),
       resources: ["https://resource.example/", "https://second.example/"],
-      scopes: ["openid"],
+      scopes: ["openid", "email", "avatar"],
     });
   });
 
   it.each([
     "?scope=openid&sig=signed",
-    "?client_id=client&scope=openid%20email&sig=signed",
+    "?client_id=client&scope=email&resource=https%3A%2F%2Fresource.example%2F&sig=signed",
+    "?client_id=client&scope=openid%20profile&resource=https%3A%2F%2Fresource.example%2F&sig=signed",
     "?client_id=client&scope=openid&scope=openid&sig=signed",
     "?client_id=client&scope=openid&resource=relative&sig=signed",
   ])("rejects an invalid consent query: %s", (query) => {
@@ -81,5 +85,30 @@ describe("Better Auth demo protocol", () => {
     { alg: "ES256", crv: "P-256", kid: "active", kty: "RSA" },
   ])("rejects an ineligible identity signing key: $key", (key) => {
     expect(isIdentitySigningKey(key, "active")).toBe(false);
+  });
+});
+
+describe("demo disclosure scopes", () => {
+  it("defines each provider's exact optional claim capabilities", () => {
+    expect(demoProviderCapabilities).toEqual([
+      { id: "google", scopes: ["email", "name", "avatar"] },
+      { id: "github", scopes: ["email", "handle", "name", "avatar"] },
+      { id: "twitter", scopes: ["handle", "name", "avatar"] },
+    ]);
+  });
+
+  it("defaults to openid and serializes supported selections in canonical order", () => {
+    const github = demoProviderCapabilities[1]!;
+
+    expect(canonicalScopeRequest(github, [])).toBe("openid");
+    expect(canonicalScopeRequest(github, ["avatar", "email", "email"])).toBe("openid email avatar");
+  });
+
+  it("rejects scopes that the selected provider cannot disclose", () => {
+    const google = demoProviderCapabilities[0]!;
+    const twitter = demoProviderCapabilities[2]!;
+
+    expect(() => canonicalScopeRequest(google, ["handle"])).toThrow("selected provider");
+    expect(() => canonicalScopeRequest(twitter, ["email"])).toThrow("selected provider");
   });
 });

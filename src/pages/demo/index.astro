@@ -14,23 +14,54 @@ export const prerender = true;
       <p>TRY TRIAD</p>
       <h1 id="demo-title">ONE REQUEST.<br /><span>THREE EXPLICIT IDS.</span></h1>
       <p class="lede">
-        Run a public browser client through Better Auth. The request asks only for identity, binds one resource,
-        and returns a locally verified result.
+        Configure what the public browser client asks for, then run Better Auth authorization code + PKCE and
+        inspect the locally verified result.
       </p>
     </div>
 
     <section class="demo-request" aria-labelledby="demo-request-title">
       <div class="demo-request-heading">
-        <h2 id="demo-request-title">SERVER-PROJECTED REQUEST</h2>
+        <h2 id="demo-request-title">CONFIGURE THE CLIENT REQUEST</h2>
         <p>
-          Triad registers the browser as a public client. The authorization server supplies the exact client ID,
-          issuer, endpoints, and resource used by the flow.
+          Requested profile claims default off here. Any selected claim is required for the transaction and
+          shown again at consent.
         </p>
       </div>
+      <div class="provider-control">
+        <label for="demo-provider">PROVIDER</label>
+        <select id="demo-provider" disabled aria-describedby="provider-status"></select>
+      </div>
+      <fieldset id="scope-fieldset" disabled>
+        <legend>OPTIONAL CLAIM REQUEST</legend>
+        <div class="scope-selector">
+          <label
+            ><input type="checkbox" name="demo-scope" value="email" /><span
+              >EMAIL<small>email + email_verified</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="handle" /><span
+              >HANDLE<small>preferred_username</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="name" /><span>NAME<small>name</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="avatar" /><span
+              >AVATAR<small>picture</small></span
+            ></label
+          >
+        </div>
+      </fieldset>
+      <p id="provider-status" class="control-status" aria-live="polite">
+        Choose a provider. Unsupported claims remain unavailable.
+      </p>
       <dl class="protocol-list demo-request-ledger">
         <div><dt>CLIENT ID</dt><dd id="demo-client-id">ISSUED ON START</dd></div>
         <div><dt>RESOURCE</dt><dd id="demo-resource">LOADING</dd></div>
-        <div><dt>SCOPE</dt><dd>openid</dd></div>
+        <div><dt>SCOPE</dt><dd id="demo-scope-request">openid</dd></div>
       </dl>
     </section>
 
@@ -79,15 +110,22 @@ export const prerender = true;
   <script>
     import {
       authorizationRequest,
+      canonicalScopeRequest,
       createPkce,
+      demoProviderCapabilities,
       demoResourceFromIssuer,
       fetchDiscovery,
+      inspectOAuthQuery,
+      type ProviderCapability,
     } from "../../scripts/demo-protocol";
 
     const callbackUrl = new URL("/demo/callback/", location.origin).href;
     const expectedRegistrationPath = "/api/auth/oauth2/register";
     const start = document.querySelector<HTMLButtonElement>("#browser-start")!;
     const status = document.querySelector<HTMLElement>("#browser-status")!;
+    const providerSelect = document.querySelector<HTMLSelectElement>("#demo-provider")!;
+    const scopeFieldset = document.querySelector<HTMLFieldSetElement>("#scope-fieldset")!;
+    const scopeInputs = [...document.querySelectorAll<HTMLInputElement>('input[name="demo-scope"]')];
     let discovery: Awaited<ReturnType<typeof fetchDiscovery>> | null = null;
     let resource = "";
     let working = false;
@@ -95,6 +133,37 @@ export const prerender = true;
     function message(text: string, tone: "working" | "error" | "success" = "working") {
       status.textContent = text;
       status.dataset.tone = tone;
+    }
+
+    function selectedCapability(): ProviderCapability | undefined {
+      return demoProviderCapabilities.find((provider) => provider.id === providerSelect.value);
+    }
+
+    function selectedScopeRequest(provider: ProviderCapability): string {
+      return canonicalScopeRequest(
+        provider,
+        scopeInputs.filter((input) => input.checked).map((input) => input.value),
+      );
+    }
+
+    function updateRequestControls() {
+      const provider = selectedCapability();
+      for (const input of scopeInputs) {
+        const supported = provider?.scopes.some((scope) => scope === input.value) ?? false;
+        input.disabled = working || !supported;
+        if (!supported) {
+          input.checked = false;
+        }
+      }
+
+      providerSelect.disabled = working;
+      scopeFieldset.disabled = working;
+      const providerName = provider?.id.toUpperCase() ?? "PROVIDER";
+      start.textContent = discovery ? `SIGN IN WITH ${providerName}` : "LOADING AUTH SERVER";
+      start.disabled = working || !discovery || !provider;
+      document.querySelector<HTMLElement>("#demo-scope-request")!.textContent = provider
+        ? selectedScopeRequest(provider)
+        : "openid";
     }
 
     function clearPendingRequest() {
@@ -117,8 +186,7 @@ export const prerender = true;
         resource = demoResourceFromIssuer(discovery.issuer);
         document.querySelector<HTMLElement>("#demo-issuer")!.textContent = discovery.issuer;
         document.querySelector<HTMLElement>("#demo-resource")!.textContent = resource;
-        start.disabled = false;
-        start.textContent = "START BROWSER FLOW";
+        updateRequestControls();
         message("Ready to register a one-time public client and create its PKCE request.", "success");
       } catch {
         discovery = null;
@@ -129,7 +197,10 @@ export const prerender = true;
       }
     }
 
-    async function registerClient(metadata: NonNullable<typeof discovery>): Promise<string> {
+    async function registerClient(
+      metadata: NonNullable<typeof discovery>,
+      requestedScope: string,
+    ): Promise<string> {
       const response = await fetch(metadata.registration_endpoint, {
         method: "POST",
         headers: {
@@ -142,7 +213,7 @@ export const prerender = true;
           grant_types: ["authorization_code"],
           response_types: ["code"],
           token_endpoint_auth_method: "none",
-          scope: "openid",
+          scope: requestedScope,
           type: "user-agent-based",
         }),
       });
@@ -154,6 +225,50 @@ export const prerender = true;
       return body.client_id;
     }
 
+    async function startProvider(provider: ProviderCapability, authorization: URL): Promise<void> {
+      const authorizationResponse = await fetch(authorization, {
+        headers: { accept: "application/json" },
+      });
+      const authorizationBody = (await authorizationResponse.json()) as {
+        error_description?: string;
+        url?: string;
+      };
+      if (!authorizationResponse.ok || !authorizationBody.url) {
+        throw new Error(authorizationBody.error_description ?? "Authorization could not start.");
+      }
+
+      const signedAuthorization = new URL(authorizationBody.url, location.origin);
+      const inspected = inspectOAuthQuery(signedAuthorization.search);
+      if (
+        signedAuthorization.origin !== location.origin ||
+        inspected.clientId !== authorization.searchParams.get("client_id")
+      ) {
+        throw new Error("The authorization server returned an invalid login request.");
+      }
+
+      const response = await fetch("/api/auth/sign-in/social", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          provider: provider.id,
+          oauth_query: signedAuthorization.search.slice(1),
+        }),
+      });
+      const body = (await response.json()) as {
+        error_description?: string;
+        message?: string;
+        url?: string;
+      };
+      if (!response.ok || !body.url) {
+        throw new Error(body.error_description ?? body.message ?? "Provider sign-in could not start.");
+      }
+
+      location.assign(body.url);
+    }
+
     async function startBrowserFlow() {
       if (working) {
         return;
@@ -163,14 +278,23 @@ export const prerender = true;
         return;
       }
 
+      const selectedProvider = selectedCapability();
+      if (!selectedProvider) {
+        return;
+      }
+      const requestedScope = selectedScopeRequest(selectedProvider);
+
       working = true;
-      start.disabled = true;
+      updateRequestControls();
       start.textContent = "PREPARING PKCE";
       message("Registering a public client and creating a one-time S256 request.");
       clearPendingRequest();
 
       try {
-        const [clientId, pkce] = await Promise.all([registerClient(discovery), createPkce()]);
+        const [clientId, pkce] = await Promise.all([
+          registerClient(discovery, requestedScope),
+          createPkce(),
+        ]);
         document.querySelector<HTMLElement>("#demo-client-id")!.textContent = clientId;
         sessionStorage.setItem("triad_demo_client_id", clientId);
         sessionStorage.setItem("triad_demo_resource", resource);
@@ -183,18 +307,29 @@ export const prerender = true;
           challenge: pkce.challenge,
           clientId,
           resource,
+          scope: requestedScope,
           state: pkce.state,
         });
-        location.assign(authorization);
+        await startProvider(selectedProvider, authorization);
       } catch {
         clearPendingRequest();
         working = false;
-        start.disabled = false;
+        updateRequestControls();
         start.textContent = "RETRY BROWSER FLOW";
-        message("The public client or PKCE request could not be created. Check the service and retry.", "error");
+        message("The public client, PKCE request, or provider sign-in could not start. Try again.", "error");
       }
     }
 
+    for (const provider of demoProviderCapabilities) {
+      const option = document.createElement("option");
+      option.value = provider.id;
+      option.textContent = provider.id.toUpperCase();
+      providerSelect.append(option);
+    }
+    providerSelect.disabled = false;
+    scopeFieldset.disabled = false;
+    providerSelect.addEventListener("change", updateRequestControls);
+    scopeInputs.forEach((input) => input.addEventListener("change", updateRequestControls));
     start.addEventListener("click", () => {
       void startBrowserFlow();
     });
@@ -205,10 +340,10 @@ export const prerender = true;
 
       working = false;
       clearPendingRequest();
-      start.disabled = discovery === null;
-      start.textContent = discovery ? "START BROWSER FLOW" : "RETRY METADATA";
+      updateRequestControls();
       message("This page was restored from browser history. Start a new request.");
     });
+    updateRequestControls();
     void loadMetadata();
   </script>
 </Shell>

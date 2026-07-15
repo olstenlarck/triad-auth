@@ -11,8 +11,10 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import {
   ACCESS_TOKEN_TTL_SECONDS,
   createTokenComposition,
+  ID_TOKEN_TTL_SECONDS,
   REFRESH_TOKEN_TTL_SECONDS,
   type TokenIdentityResolver,
+  type TokenProfileClaimResolver,
 } from "../../src/better-auth/tokens";
 
 const clientId = "https://client.example/metadata.json";
@@ -36,9 +38,13 @@ function createIdentityResolver(): TokenIdentityResolver {
   };
 }
 
-function createComposition(identity = createIdentityResolver()) {
+function createComposition(
+  identity = createIdentityResolver(),
+  profileClaims?: TokenProfileClaimResolver,
+) {
   return createTokenComposition({
     identity,
+    profileClaims,
     resource: {
       oauthProviderOptions: {
         enforcePerClientResources: true,
@@ -61,23 +67,25 @@ function claimsExtension(
   return extension;
 }
 
-function claimInput(): OAuthClaimExtensionInput {
+function claimInput(scopes = ["openid", "wallet:read"]): OAuthClaimExtensionInput {
   return {
     client: { clientId },
     ctx: {} as OAuthClaimExtensionInput["ctx"],
     opts: {} as OAuthClaimExtensionInput["opts"],
-    scopes: ["openid", "wallet:read"],
+    scopes,
     user,
   };
 }
 
 describe("token composition", () => {
-  it("sets the access and refresh token lifetimes", () => {
+  it("sets five-minute access and ID tokens with a 30-day refresh token", () => {
     const { oauthProviderOptions } = createComposition();
 
     expect(ACCESS_TOKEN_TTL_SECONDS).toBe(5 * 60);
     expect(REFRESH_TOKEN_TTL_SECONDS).toBe(30 * 24 * 60 * 60);
+    expect(ID_TOKEN_TTL_SECONDS).toBe(5 * 60);
     expect(oauthProviderOptions.accessTokenExpiresIn).toBe(ACCESS_TOKEN_TTL_SECONDS);
+    expect(oauthProviderOptions.idTokenExpiresIn).toBe(ID_TOKEN_TTL_SECONDS);
     expect(oauthProviderOptions.refreshTokenExpiresIn).toBe(REFRESH_TOKEN_TTL_SECONDS);
   });
 
@@ -106,28 +114,48 @@ describe("token composition", () => {
     expect(jwtPlugin.options.jwks?.keyPairConfig).toEqual({ alg: "ES256" });
   });
 
-  it("keeps resource policy exact and excludes profile and email scopes", () => {
+  it("combines canonical disclosure scopes with separate resource scopes", () => {
     const { oauthProviderOptions } = createComposition();
 
     expect(oauthProviderOptions.resources).toEqual([
       { identifier: resource, signingAlgorithm: "ES256" },
     ]);
     expect(oauthProviderOptions.enforcePerClientResources).toBe(true);
-    expect(oauthProviderOptions.scopes).toEqual(["openid", "offline_access", "wallet:read"]);
+    expect(oauthProviderOptions.scopes).toEqual([
+      "openid",
+      "email",
+      "handle",
+      "name",
+      "avatar",
+      "wallet:read",
+    ]);
     expect(oauthProviderOptions.scopes).not.toContain("profile");
-    expect(oauthProviderOptions.scopes).not.toContain("email");
   });
 
-  it.each(["profile", "email"])("rejects the synthetic %s scope", (scope) => {
+  it("rejects the synthetic profile scope", () => {
     expect(() =>
       createTokenComposition({
         identity: createIdentityResolver(),
         resource: {
-          oauthProviderOptions: { resources: [resource], scopes: [scope] },
+          oauthProviderOptions: { resources: [resource], scopes: ["profile"] },
           oauthProviderExtensions: [],
         },
       }),
-    ).toThrow(`Token resources must not request the ${scope} scope`);
+    ).toThrow("Token resources must not request the profile scope");
+  });
+
+  it("allows every advertised disclosure scope while defaulting registration to openid", () => {
+    const { oauthProviderOptions } = createComposition();
+
+    expect(oauthProviderOptions.clientRegistrationAllowedScopes).toEqual([
+      "openid",
+      "email",
+      "handle",
+      "name",
+      "avatar",
+      "wallet:read",
+    ]);
+    expect(oauthProviderOptions.clientRegistrationDefaultScopes).toEqual(["openid"]);
   });
 
   it("preserves resource extensions before token claim composition", () => {
@@ -185,6 +213,89 @@ describe("token composition", () => {
     });
   });
 
+  it("resolves and filters optional claims for the exact requested scopes", async () => {
+    const profileClaims: TokenProfileClaimResolver = {
+      resolveProfileClaims: vi.fn(async () => ({
+        email: "person@example.com",
+        email_verified: true,
+        preferred_username: "person",
+        name: "Person Name",
+        picture: "https://images.example.com/person.png",
+      })),
+    };
+    const extension = claimsExtension(createComposition(createIdentityResolver(), profileClaims));
+
+    await expect(
+      extension.claims?.idToken?.(claimInput(["openid", "avatar", "email"])),
+    ).resolves.toEqual({
+      account_sub: user.id,
+      pairwise_sub: `pws:${user.id}:${clientId}`,
+      provider_sub: user.providerSub,
+      email: "person@example.com",
+      email_verified: true,
+      picture: "https://images.example.com/person.png",
+    });
+    expect(profileClaims.resolveProfileClaims).toHaveBeenCalledWith(user, ["email", "avatar"]);
+  });
+
+  it("does not resolve profile claims for identity-only tokens", async () => {
+    const profileClaims: TokenProfileClaimResolver = {
+      resolveProfileClaims: vi.fn(async () => ({ name: "Person Name" })),
+    };
+    const extension = claimsExtension(createComposition(createIdentityResolver(), profileClaims));
+
+    await expect(extension.claims?.idToken?.(claimInput(["openid"]))).resolves.toEqual({
+      account_sub: user.id,
+      pairwise_sub: `pws:${user.id}:${clientId}`,
+      provider_sub: user.providerSub,
+    });
+    expect(profileClaims.resolveProfileClaims).not.toHaveBeenCalled();
+  });
+
+  it("rejects profile-scope token claims without a profile resolver", async () => {
+    const extension = claimsExtension(createComposition());
+
+    await expect(extension.claims?.idToken?.(claimInput(["openid", "email"]))).rejects.toThrow(
+      "profile claim resolver",
+    );
+  });
+
+  it("rejects a resolver result missing a claim required by the requested scope", async () => {
+    const profileClaims: TokenProfileClaimResolver = {
+      resolveProfileClaims: vi.fn(async () => ({ email: "person@example.com" })),
+    };
+    const extension = claimsExtension(createComposition(createIdentityResolver(), profileClaims));
+
+    await expect(extension.claims?.idToken?.(claimInput(["openid", "email"]))).rejects.toThrow(
+      "email_verified",
+    );
+  });
+
+  it("uses the first-party UserInfo hook to override package-owned standard claims", async () => {
+    const profileClaims: TokenProfileClaimResolver = {
+      resolveProfileClaims: vi.fn(async () => ({
+        email: "person@example.com",
+        email_verified: true,
+        preferred_username: "person",
+        picture: "https://images.example.com/person.png",
+      })),
+    };
+    const { oauthProviderOptions } = createComposition(createIdentityResolver(), profileClaims);
+
+    await expect(
+      oauthProviderOptions.customUserInfoClaims?.({
+        jwt: {},
+        requestedClaims: [],
+        scopes: ["openid", "email", "avatar"],
+        user,
+      }),
+    ).resolves.toEqual({
+      email: "person@example.com",
+      email_verified: true,
+      picture: "https://images.example.com/person.png",
+    });
+  });
+
   it("adds global-subject triple claims to access tokens and introspection", async () => {
     const composition = createComposition();
     const extension = claimsExtension(composition);
@@ -221,7 +332,7 @@ describe("token composition", () => {
     });
   });
 
-  it("advertises only subject identity claims", () => {
+  it("advertises truthful disclosure, resource, and claim support", () => {
     const { oauthProviderOptions } = createComposition();
 
     expect(oauthProviderOptions.advertisedMetadata?.claims_supported).toEqual([
@@ -229,6 +340,19 @@ describe("token composition", () => {
       "pairwise_sub",
       "account_sub",
       "provider_sub",
+      "email",
+      "email_verified",
+      "preferred_username",
+      "name",
+      "picture",
+    ]);
+    expect(oauthProviderOptions.advertisedMetadata?.scopes_supported).toEqual([
+      "openid",
+      "email",
+      "handle",
+      "name",
+      "avatar",
+      "wallet:read",
     ]);
   });
 });

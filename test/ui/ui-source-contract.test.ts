@@ -15,19 +15,46 @@ const protocol = source("../../src/scripts/demo-protocol.ts");
 const disclosures = source("../../src/scripts/disclosure-controls.ts");
 
 describe("preserved Better Auth UI wiring", () => {
-  it("removes unsupported profile scope controls and claims", () => {
-    for (const value of [demo, callback, consent, landing, protocol, disclosures]) {
-      expect(value).not.toMatch(
-        /demo-scope|OPTIONAL PROFILE SCOPES|email_verified|preferred_username/,
-      );
-    }
+  it("restores the exact landing privacy promise and optional scope manifest", () => {
+    expect(landing).toContain("ASK FOR LESS.<br />REVEAL LESS.");
+    expect(landing).toContain(
+      "A client chooses its request. Triad shows the complete list before approval, and shares nothing beyond",
+    );
+    expect(landing).toContain(
+      "No raw provider ID, email, handle, name, avatar, or provider access token.",
+    );
+    expect(landing).toContain("OPTIONAL PROFILE SCOPES");
+    expect(landing).toContain("email + email_verified");
+    expect(landing).toContain("preferred_username");
+    expect(landing).toContain("<dt>name</dt><dd>name</dd>");
+    expect(landing).toContain("<dt>avatar</dt><dd>picture</dd>");
   });
 
-  it("starts the demo through Better Auth DCR and authorization endpoints", () => {
+  it("restores provider-aware optional request controls with every option off", () => {
+    expect(demo).toContain('<select id="demo-provider"');
+    expect(demo.match(/<input type="checkbox" name="demo-scope"/g)).toHaveLength(4);
+    expect(demo).toContain('value="email"');
+    expect(demo).toContain('value="handle"');
+    expect(demo).toContain('value="name"');
+    expect(demo).toContain('value="avatar"');
+    expect(demo).not.toMatch(/name="demo-scope"[^>]*checked/);
+    expect(demo).toContain("canonicalScopeRequest");
+    expect(demo).toContain("input.checked = false");
+  });
+
+  it("starts the selected provider through Better Auth DCR and social sign-in", () => {
     expect(demo).toContain("/api/auth/oauth2/register");
     expect(demo).toContain('token_endpoint_auth_method: "none"');
-    expect(demo).toContain('scope: "openid"');
+    expect(demo).toContain("scope: requestedScope");
+    expect(demo).toContain("authorizationRequest");
+    expect(demo).toContain("/api/auth/sign-in/social");
+    expect(demo).toContain("provider: provider.id");
+    expect(demo).toMatch(
+      /fetch\(authorization,\s*\{\s*headers: \{ accept: "application\/json" \},\s*\}\)/,
+    );
+    expect(demo).toContain("oauth_query: signedAuthorization.search.slice(1)");
     expect(demo).not.toContain("/api/providers");
+    expect(demo).not.toContain("DEVICE AUTHORIZATION");
   });
 
   it("exchanges the callback code at Better Auth and signs out through Better Auth", () => {
@@ -41,8 +68,30 @@ describe("preserved Better Auth UI wiring", () => {
     expect(consent).toContain("inspectOAuthQuery(location.search)");
     expect(consent).toContain("/api/auth/oauth2/public-client");
     expect(consent).toContain("/api/auth/oauth2/consent");
+    expect(consent).toContain('scope: inspected.scopes.join(" ")');
     expect(consent).toContain("oauth_query: inspected.oauthQuery");
     expect(consent).not.toContain("/api/consent/");
+  });
+
+  it("renders mandatory identity and requested optional disclosures", () => {
+    expect(disclosures).toContain("identityDisclosures");
+    expect(disclosures).toContain("profileDisclosures");
+    expect(disclosures).toContain("EMAIL + VERIFICATION STATUS");
+    expect(disclosures).toContain("preferred_username");
+    expect(disclosures).toContain("picture");
+    expect(disclosures).toContain('scopes.filter((value) => value !== "openid")');
+    expect(disclosures).not.toContain('document.createElement("input")');
+  });
+
+  it("verifies and renders only optional claims present in the signed token", () => {
+    expect(protocol).toContain("profile: verifiedProfile(payload)");
+    expect(protocol).toContain('optionalString(payload, "email")');
+    expect(protocol).toContain("email_verified");
+    expect(callback).toContain('id="callback-profile"');
+    expect(callback).toContain('id="callback-profile-claims"');
+    expect(callback).toContain("renderProfileClaims(verified.profile)");
+    expect(callback).toContain("SHARED CLAIMS");
+    expect(callback).not.toMatch(/profile[\s\S]{0,240}innerHTML/);
   });
 
   it("uses Better Auth session, account, consent, and sign-out contracts", () => {

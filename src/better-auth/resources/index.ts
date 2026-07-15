@@ -9,14 +9,15 @@ import {
 import type { BetterAuthPlugin } from "better-auth";
 
 import { AUTH_BASE_PATH } from "../auth";
+import { DISCLOSURE_SCOPES, canonicalDisclosureScopes, type DisclosureScope } from "../disclosures";
 
 export const ACCESS_TOKEN_TTL_SECONDS = 5 * 60;
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 
-const DEMO_SCOPES = ["openid"] as const;
+const DEMO_SCOPES = DISCLOSURE_SCOPES;
 const RPC_WALLETS_SCOPES = ["wallets:read", "offline_access"] as const;
 
-export type TriadScope = (typeof DEMO_SCOPES)[number] | (typeof RPC_WALLETS_SCOPES)[number];
+export type TriadScope = DisclosureScope | (typeof RPC_WALLETS_SCOPES)[number];
 
 export interface TriadResourceDependencies {
   rpcWalletsResource?: string;
@@ -206,9 +207,18 @@ function canonicalScopes(
     throw new TriadResourceRequestError("invalid_scope", "duplicate scopes are not allowed");
   }
 
-  const isDemo = resource.allowedScopes.length === 1 && resource.allowedScopes[0] === "openid";
-  if (isDemo && uniqueRequested.size === 1 && uniqueRequested.has("openid")) {
-    return [...DEMO_SCOPES];
+  const isDemo =
+    resource.allowedScopes.length === DEMO_SCOPES.length &&
+    DEMO_SCOPES.every((scope) => resource.allowedScopes.includes(scope));
+  if (isDemo) {
+    try {
+      return canonicalDisclosureScopes(requested);
+    } catch (error) {
+      throw new TriadResourceRequestError(
+        "invalid_scope",
+        error instanceof Error ? error.message : "invalid disclosure scopes",
+      );
+    }
   }
 
   const isRpcWallets =

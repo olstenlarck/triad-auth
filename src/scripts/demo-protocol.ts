@@ -12,7 +12,7 @@ export interface InspectedOAuthQuery {
   clientId: string;
   oauthQuery: string;
   resources: string[];
-  scopes: ["openid"];
+  scopes: DisclosureScope[];
 }
 
 export interface VerifiedIdentity {
@@ -20,7 +20,25 @@ export interface VerifiedIdentity {
   expiresAt: number;
   issuer: string;
   pairwiseSub: string;
+  profile: VerifiedProfile;
   providerSub: string;
+}
+
+export type ProviderName = "google" | "github" | "twitter";
+export type ProfileScope = "email" | "handle" | "name" | "avatar";
+type DisclosureScope = "openid" | ProfileScope;
+
+export interface ProviderCapability {
+  id: ProviderName;
+  scopes: readonly ProfileScope[];
+}
+
+export interface VerifiedProfile {
+  avatar?: string;
+  email?: string;
+  emailVerified?: boolean;
+  handle?: string;
+  name?: string;
 }
 
 interface AuthorizationRequestInput {
@@ -29,6 +47,7 @@ interface AuthorizationRequestInput {
   challenge: string;
   clientId: string;
   resource: string;
+  scope: string;
   state: string;
 }
 
@@ -39,6 +58,15 @@ interface TokenExchangeInput {
   resource: string;
   verifier: string;
 }
+
+const profileScopeOrder: readonly ProfileScope[] = ["email", "handle", "name", "avatar"];
+const disclosureScopeOrder: readonly DisclosureScope[] = ["openid", ...profileScopeOrder];
+
+export const demoProviderCapabilities: readonly ProviderCapability[] = [
+  { id: "google", scopes: ["email", "name", "avatar"] },
+  { id: "github", scopes: ["email", "handle", "name", "avatar"] },
+  { id: "twitter", scopes: ["handle", "name", "avatar"] },
+];
 
 function base64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
@@ -86,6 +114,51 @@ function absoluteHttpUrl(value: string): boolean {
   }
 }
 
+function canonicalDisclosureScopes(requested: readonly string[]): DisclosureScope[] {
+  const unique = new Set(requested);
+  if (
+    unique.size !== requested.length ||
+    !unique.has("openid") ||
+    [...unique].some((scope) => !disclosureScopeOrder.includes(scope as DisclosureScope))
+  ) {
+    throw new Error("The authorization request contains unsupported scopes.");
+  }
+
+  return disclosureScopeOrder.filter((scope) => unique.has(scope));
+}
+
+function optionalString(payload: Record<string, unknown>, claim: string): string | undefined {
+  const value = payload[claim];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error("The verified token has invalid profile claims.");
+  }
+
+  return value;
+}
+
+function optionalValue<Key extends keyof VerifiedProfile>(key: Key, value: VerifiedProfile[Key]) {
+  return value === undefined ? {} : ({ [key]: value } as Pick<VerifiedProfile, Key>);
+}
+
+function verifiedProfile(payload: Record<string, unknown>): VerifiedProfile {
+  const email = optionalString(payload, "email");
+  const emailVerified = payload.email_verified;
+  if (emailVerified !== undefined && (email === undefined || typeof emailVerified !== "boolean")) {
+    throw new Error("The verified token has invalid profile claims.");
+  }
+
+  return {
+    ...(email === undefined ? {} : { email }),
+    ...(emailVerified === undefined ? {} : { emailVerified }),
+    ...optionalValue("handle", optionalString(payload, "preferred_username")),
+    ...optionalValue("name", optionalString(payload, "name")),
+    ...optionalValue("avatar", optionalString(payload, "picture")),
+  };
+}
+
 export function isIdentitySigningKey(candidate: Record<string, unknown>, kid: string): boolean {
   return (
     candidate.kid === kid &&
@@ -116,14 +189,27 @@ export function authorizationRequest(input: AuthorizationRequestInput): URL {
     response_type: "code",
     client_id: input.clientId,
     redirect_uri: input.callbackUrl,
-    scope: "openid",
+    scope: input.scope,
     resource: input.resource,
     state: input.state,
     code_challenge: input.challenge,
     code_challenge_method: "S256",
+    prompt: "login",
   }).toString();
 
   return url;
+}
+
+export function canonicalScopeRequest(
+  provider: ProviderCapability,
+  selected: readonly string[],
+): string {
+  const selectedScopes = new Set(selected);
+  if ([...selectedScopes].some((scope) => !provider.scopes.includes(scope as ProfileScope))) {
+    throw new Error("The selected provider does not support every selected scope.");
+  }
+
+  return ["openid", ...profileScopeOrder.filter((scope) => selectedScopes.has(scope))].join(" ");
 }
 
 export function demoResourceFromIssuer(issuer: string): string {
@@ -146,13 +232,17 @@ export function inspectOAuthQuery(search: string): InspectedOAuthQuery {
   const scopeValues = query.getAll("scope");
   const resources = query.getAll("resource");
   const validResources = resources.length > 0 && resources.every(absoluteHttpUrl);
+  let scopes: DisclosureScope[] = [];
+  if (scopeValues.length === 1) {
+    scopes = canonicalDisclosureScopes(scopeValues[0]!.split(" "));
+  }
 
   if (
     !oauthQuery ||
     clientIds.length !== 1 ||
     !clientIds[0] ||
     scopeValues.length !== 1 ||
-    scopeValues[0] !== "openid" ||
+    scopes.join(" ") !== scopeValues[0] ||
     !validResources
   ) {
     throw new Error("The authorization request is invalid or unsupported.");
@@ -162,7 +252,7 @@ export function inspectOAuthQuery(search: string): InspectedOAuthQuery {
     clientId: clientIds[0],
     oauthQuery,
     resources,
-    scopes: ["openid"],
+    scopes,
   };
 }
 
@@ -225,6 +315,7 @@ export async function verifyIdentityToken(
     expiresAt: payload.exp,
     issuer: discovery.issuer,
     pairwiseSub: payload.pairwise_sub,
+    profile: verifiedProfile(payload),
     providerSub: payload.provider_sub,
   };
 }

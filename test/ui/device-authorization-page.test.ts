@@ -1,0 +1,36 @@
+// @ts-expect-error Node types are intentionally absent from the Worker project.
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vite-plus/test";
+
+const page = readFileSync(new URL("../../src/pages/device/verify.astro", import.meta.url), "utf8");
+
+describe("Better Auth device verification page", () => {
+  it("requires a Better Auth session and links signed-out users to account sign-in", () => {
+    expect(page).toContain("/api/auth/get-session");
+    expect(page).toContain('href="/me/"');
+    expect(page).toContain("A Better Auth session is required");
+  });
+
+  it("uses only Better Auth's stock verification and decision routes", () => {
+    expect(page).toContain("/api/auth/device?user_code=");
+    expect(page).toContain("/api/auth/device/approve");
+    expect(page).toContain("/api/auth/device/deny");
+    expect(page).toContain("JSON.stringify({ userCode: input.value })");
+    expect(page).not.toMatch(/\/api\/device|action="\/device\/verify"/);
+  });
+
+  it("labels the result as Triad session authorization", () => {
+    expect(page).toContain("TRIAD SESSION AUTHORIZATION");
+    expect(page).toContain("TRIAD SESSION AUTHORIZED");
+    expect(page).toContain("Better Auth session bearer token");
+    expect(page).not.toMatch(/OAuth Provider (?:access|refresh|ID) token/);
+  });
+
+  it("removes unsupported custom flow data and retains both decisions", () => {
+    expect(page).toContain("APPROVE SESSION");
+    expect(page).toContain("DENY REQUEST");
+    expect(page).not.toMatch(
+      /csrf_token|device-provider|renderDisclosures|requested profile claims/i,
+    );
+  });
+});

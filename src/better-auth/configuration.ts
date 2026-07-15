@@ -4,8 +4,9 @@ import { jwt } from "better-auth/plugins";
 
 import { createClientAdmissionFragment } from "./admission";
 import type { TriadAuthConfiguration } from "./auth";
+import { createTriadDeviceAuthorization } from "./device";
 import type { TriadEnv } from "./env";
-import { createIdentityConfiguration, pairwiseSubject } from "./identity";
+import { createIdentityConfiguration, pairwiseSubject, profileClaimResolver } from "./identity";
 import { createTriadResourceFragment } from "./resources";
 import { createTokenComposition, type TokenIdentityUser } from "./tokens";
 
@@ -33,12 +34,14 @@ export function createTriadConfiguration(env: TriadEnv) {
         pairwiseSubject(env.IDENTIFIER_SECRET, accountSub, clientId),
       resolveProviderSubject: providerSubjectFromUser,
     },
+    profileClaims: profileClaimResolver,
     resource: resourceFragment,
   });
   const { extensions: admissionExtensions, ...admissionOptions } = admissionFragment.oauthProvider;
   const { extensions: tokenExtensions, ...tokenOptions } = tokenComposition.oauthProviderOptions;
   const plugins = preservePluginTuple([
     ...resourceFragment.betterAuthPlugins,
+    createTriadDeviceAuthorization(env.AUTH_ORIGIN),
     oauthProvider({
       ...tokenOptions,
       ...admissionOptions,

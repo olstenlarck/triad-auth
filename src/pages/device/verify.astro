@@ -7,14 +7,21 @@ export const prerender = true;
 <Shell title="Authorize device | Triad" mode="product">
   <section class="transaction shell narrow" aria-labelledby="device-title">
     <div class="transaction-head">
-      <p>DEVICE FLOW</p>
+      <p>TRIAD SESSION AUTHORIZATION</p>
       <h1 id="device-title">AUTHORIZE<br /><span>THIS DEVICE.</span></h1>
-      <p class="lede">
-        Enter the code shown on your device, then review its app, provider, and required claims.
+      <p id="device-summary" class="lede" aria-live="polite">
+        Checking this browser for an active Triad session.
       </p>
     </div>
 
-    <form id="device-form" class="device-form" method="post" action="/device/verify" aria-busy="false">
+    <div id="device-sign-in" class="transaction-panel" hidden>
+      <p>A Better Auth session is required before this browser can authorize another device.</p>
+      <div class="actions transaction-actions">
+        <a class="button primary" href="/me/">OPEN YOUR TRIAD SESSION</a>
+      </div>
+    </div>
+
+    <form id="device-form" class="device-form" aria-busy="true" hidden>
       <label for="user-code">DEVICE CODE</label>
       <input
         id="user-code"
@@ -25,164 +32,270 @@ export const prerender = true;
         placeholder="ABCD-2345"
         required
       />
-      <input id="device-provider" type="hidden" name="provider" value="" />
-      <input id="device-csrf" type="hidden" name="csrf_token" value="" />
-      <div id="device-app" class="device-app" aria-live="polite" hidden>
-        <div><span>VERIFIED CLIENT ORIGIN</span><strong id="device-client">PENDING</strong></div>
-        <div><span>PROVIDER</span><strong id="device-provider-name">PENDING</strong></div>
-      </div>
-      <div id="device-disclosure" class="device-disclosure" hidden>
-        <strong>IDENTITY + REQUESTED PROFILE CLAIMS</strong>
-        <div id="device-disclosures" class="disclosure-list"></div>
+      <div class="device-app" aria-label="Authorizing session">
+        <div><span>ACTIVE ACCOUNT SUB</span><strong id="device-account">PENDING</strong></div>
+        <div><span>RESULT</span><strong>TRIAD SESSION</strong></div>
       </div>
       <p id="device-status" class="demo-status" aria-live="polite">
         Enter all eight characters to inspect the request.
       </p>
-      <button id="device-submit" class="button primary" type="submit" disabled>APPROVE DEVICE REQUEST</button>
+      <div id="device-actions" class="actions transaction-actions">
+        <button id="device-approve" class="button primary" type="submit" disabled>
+          APPROVE SESSION
+        </button>
+        <button id="device-deny" class="button secondary" type="button" disabled>
+          DENY REQUEST
+        </button>
+      </div>
     </form>
-    <p id="device-error" class="error-message" role="alert" hidden></p>
-    <p class="fine-print">Only continue if this code exactly matches the one on your device.</p>
+
+    <div id="device-result" class="transaction-panel" aria-live="polite" hidden>
+      <strong id="device-result-title">TRIAD SESSION AUTHORIZED</strong>
+      <p id="device-result-copy"></p>
+    </div>
+    <p id="device-error" class="error-message" role="alert" tabindex="-1" hidden></p>
+    <button id="device-retry" class="button secondary" type="button" hidden>RETRY SESSION CHECK</button>
+    <p class="fine-print">
+      Approval lets the requesting device redeem this code for a Better Auth session bearer token. Only
+      continue if the code exactly matches the one shown on that device.
+    </p>
   </section>
 
   <script>
-    import { renderDisclosures } from "../../scripts/disclosure-controls";
+    type SessionResult = { user?: { id?: string } } | null;
+    type DeviceResult = {
+      error?: string;
+      error_description?: string;
+      message?: string;
+      status?: string;
+      success?: boolean;
+    };
 
+    const summary = document.querySelector<HTMLElement>("#device-summary")!;
+    const signedOut = document.querySelector<HTMLElement>("#device-sign-in")!;
     const form = document.querySelector<HTMLFormElement>("#device-form")!;
     const input = document.querySelector<HTMLInputElement>("#user-code")!;
-    const csrf = document.querySelector<HTMLInputElement>("#device-csrf")!;
-    const provider = document.querySelector<HTMLInputElement>("#device-provider")!;
-    const submit = document.querySelector<HTMLButtonElement>("#device-submit")!;
-    const box = document.querySelector<HTMLElement>("#device-app")!;
-    const disclosureBox = document.querySelector<HTMLElement>("#device-disclosure")!;
-    const disclosures = document.querySelector<HTMLElement>("#device-disclosures")!;
+    const account = document.querySelector<HTMLElement>("#device-account")!;
     const status = document.querySelector<HTMLElement>("#device-status")!;
+    const actions = document.querySelector<HTMLElement>("#device-actions")!;
+    const approve = document.querySelector<HTMLButtonElement>("#device-approve")!;
+    const deny = document.querySelector<HTMLButtonElement>("#device-deny")!;
+    const result = document.querySelector<HTMLElement>("#device-result")!;
+    const resultTitle = document.querySelector<HTMLElement>("#device-result-title")!;
+    const resultCopy = document.querySelector<HTMLElement>("#device-result-copy")!;
     const error = document.querySelector<HTMLElement>("#device-error")!;
+    const retry = document.querySelector<HTMLButtonElement>("#device-retry")!;
     const fromUrl = new URLSearchParams(location.search).get("user_code") ?? "";
+    let sessionUserId: string | null = null;
     let inspection = 0;
 
-    function resetInspectedRequest() {
-      csrf.value = "";
-      provider.value = "";
-      disclosures.replaceChildren();
-      disclosureBox.hidden = true;
-      submit.disabled = true;
-      box.hidden = true;
-    }
-
-    function format(value: string) {
+    function formatCode(value: string): string {
       const clean = value
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, "")
         .slice(0, 8);
+
       return clean.length > 4 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
     }
 
-    function clearInspection() {
-      inspection += 1;
-      resetInspectedRequest();
+    function hasCompleteCode(): boolean {
+      return input.value.replace(/[^A-Z0-9]/g, "").length === 8;
+    }
+
+    function responseError(body: DeviceResult, fallback: string): Error {
+      return new Error(body.error_description ?? body.message ?? body.error ?? fallback);
+    }
+
+    function clearError() {
       error.hidden = true;
+      retry.hidden = true;
+    }
+
+    function showError(reason: unknown, fallback: string, retryLabel: string) {
+      error.textContent = reason instanceof Error ? reason.message : fallback;
+      error.hidden = false;
+      retry.textContent = retryLabel;
+      retry.hidden = false;
+      error.focus();
+    }
+
+    function setDecisionAvailable(available: boolean) {
+      approve.disabled = !available;
+      deny.disabled = !available;
+    }
+
+    function resetInspection() {
+      inspection += 1;
+      setDecisionAvailable(false);
+      actions.hidden = false;
+      result.hidden = true;
       form.setAttribute("aria-busy", "false");
       status.textContent = "Enter all eight characters to inspect the request.";
       status.dataset.tone = "working";
+      clearError();
     }
 
     async function inspect() {
-      if (input.value.replace(/[^A-Z0-9]/gi, "").length !== 8) {return;}
+      if (!sessionUserId || !hasCompleteCode()) {
+        return;
+      }
+
       const current = ++inspection;
+      setDecisionAvailable(false);
+      clearError();
       form.setAttribute("aria-busy", "true");
       status.textContent = "Checking this device code.";
+      status.dataset.tone = "working";
+
       try {
-        const response = await fetch(`/api/device/${encodeURIComponent(input.value)}`);
-        const body = (await response.json()) as {
-          client_id?: string;
-          provider?: string;
-          scopes?: string[];
-          csrf_token?: string;
-          error_description?: string;
-        };
-        if (current !== inspection) {return;}
-        form.setAttribute("aria-busy", "false");
-        if (
-          !response.ok ||
-          !body.csrf_token ||
-          !body.provider ||
-          !["google", "github", "twitter"].includes(body.provider) ||
-          !Array.isArray(body.scopes) ||
-          !body.scopes.includes("openid")
-        ) {
-          resetInspectedRequest();
-          error.textContent = body.error_description ?? "That device code is invalid or expired.";
-          error.hidden = false;
-          status.textContent = "The request could not be verified.";
+        const response = await fetch(
+          `/api/auth/device?user_code=${encodeURIComponent(input.value)}`,
+          { headers: { accept: "application/json" } },
+        );
+        const body = (await response.json()) as DeviceResult;
+        if (current !== inspection) {
+          return;
+        }
+        if (!response.ok) {
+          throw responseError(body, "That device code is invalid or expired.");
+        }
+        if (body.status !== "pending") {
+          status.textContent = `This request is already ${body.status ?? "processed"}.`;
           status.dataset.tone = "error";
           return;
         }
-        document.querySelector("#device-client")!.textContent = body.client_id ?? "UNKNOWN ORIGIN";
-        document.querySelector("#device-provider-name")!.textContent = body.provider.toUpperCase();
-        provider.value = body.provider;
-        renderDisclosures(disclosures, body.scopes);
-        disclosureBox.hidden = false;
-        csrf.value = body.csrf_token;
-        error.hidden = true;
-        box.hidden = false;
-        submit.disabled = false;
-        status.textContent =
-          "Request found. Triad verified control of this client origin. Match the code before approving.";
+
+        setDecisionAvailable(true);
+        status.textContent = "Request found. Match the code on the requesting device before deciding.";
         status.dataset.tone = "success";
-      } catch {
-        if (current !== inspection) {return;}
-        resetInspectedRequest();
-        form.setAttribute("aria-busy", "false");
-        error.textContent = "The broker could not inspect this device code.";
-        error.hidden = false;
+      } catch (reason) {
+        if (current !== inspection) {
+          return;
+        }
+
         status.textContent = "The request could not be verified.";
         status.dataset.tone = "error";
+        showError(reason, "The device request could not be inspected.", "RETRY REQUEST");
+      } finally {
+        if (current === inspection) {
+          form.setAttribute("aria-busy", "false");
+        }
       }
     }
 
-    input.value = format(fromUrl);
-    input.addEventListener("input", () => {
-      input.value = format(input.value);
-      clearInspection();
-      if (input.value.replace(/[^A-Z0-9]/g, "").length === 8) {void inspect();}
-    });
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (!csrf.value) {
-        error.textContent = "Inspect a valid device code before continuing.";
-        error.hidden = false;
+    async function decide(action: "approve" | "deny") {
+      if (!sessionUserId || !hasCompleteCode()) {
+        showError(
+          new Error("Inspect a valid device code before deciding."),
+          "The request is not ready.",
+          "RETRY REQUEST",
+        );
         return;
       }
-      submit.disabled = true;
-      submit.textContent = "APPROVING REQUEST";
+
+      setDecisionAvailable(false);
+      input.disabled = true;
+      clearError();
       form.setAttribute("aria-busy", "true");
-      error.hidden = true;
+      const active = action === "approve" ? approve : deny;
+      const endpoint =
+        action === "approve" ? "/api/auth/device/approve" : "/api/auth/device/deny";
+      active.textContent = action === "approve" ? "APPROVING SESSION" : "DENYING REQUEST";
+
       try {
-        const response = await fetch("/device/verify", {
+        const response = await fetch(endpoint, {
           method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            user_code: input.value,
-            provider: provider.value,
-            csrf_token: csrf.value,
-          }),
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ userCode: input.value }),
         });
-        const body = (await response.json()) as { redirect_to?: string; error_description?: string };
-        if (!response.ok || !body.redirect_to) {
-          throw new Error(body.error_description ?? "The device request could not be started.");
+        const body = (await response.json()) as DeviceResult;
+        if (!response.ok || body.success !== true) {
+          throw responseError(body, "The device request could not be completed.");
         }
-        location.assign(body.redirect_to);
+
+        actions.hidden = true;
+        resultTitle.textContent = action === "approve" ? "TRIAD SESSION AUTHORIZED" : "REQUEST DENIED";
+        resultCopy.textContent =
+          action === "approve"
+            ? "The requesting device may now redeem its code for a Triad session."
+            : "The requesting device cannot redeem this code for a Triad session.";
+        result.hidden = false;
+        status.textContent = action === "approve" ? "Session authorization complete." : "Request denied.";
+        status.dataset.tone = "success";
       } catch (reason) {
-        resetInspectedRequest();
-        submit.textContent = "APPROVE DEVICE REQUEST";
-        form.setAttribute("aria-busy", "false");
-        status.textContent = "The request must be inspected again before continuing.";
+        input.disabled = false;
+        setDecisionAvailable(true);
+        status.textContent = "The request was not changed.";
         status.dataset.tone = "error";
-        error.textContent =
-          reason instanceof Error ? reason.message : "The device request could not be started.";
-        error.hidden = false;
+        showError(reason, "The device request could not be completed.", "RETRY REQUEST");
+      } finally {
+        active.textContent = action === "approve" ? "APPROVE SESSION" : "DENY REQUEST";
+        form.setAttribute("aria-busy", "false");
+      }
+    }
+
+    async function loadSession() {
+      inspection += 1;
+      sessionUserId = null;
+      signedOut.hidden = true;
+      form.hidden = true;
+      clearError();
+      summary.textContent = "Checking this browser for an active Triad session.";
+
+      try {
+        const response = await fetch("/api/auth/get-session", {
+          headers: { accept: "application/json" },
+        });
+        const session = (await response.json()) as SessionResult;
+        if (!response.ok) {
+          throw new Error("The browser session could not be checked.");
+        }
+        if (!session?.user?.id) {
+          summary.textContent = "Sign in before authorizing a session on another device.";
+          signedOut.hidden = false;
+          return;
+        }
+
+        sessionUserId = session.user.id;
+        account.textContent = sessionUserId;
+        summary.textContent = "Authorize one requesting device to create a Triad session for this account.";
+        form.hidden = false;
+        form.setAttribute("aria-busy", "false");
+        if (hasCompleteCode()) {
+          await inspect();
+        }
+      } catch (reason) {
+        summary.textContent = "The browser session could not be checked.";
+        showError(reason, "The browser session could not be checked.", "RETRY SESSION CHECK");
+      }
+    }
+
+    input.value = formatCode(fromUrl);
+    input.addEventListener("input", () => {
+      input.value = formatCode(input.value);
+      resetInspection();
+      if (hasCompleteCode()) {
+        void inspect();
       }
     });
-    if (fromUrl) {void inspect();}
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void decide("approve");
+    });
+    deny.addEventListener("click", () => {
+      void decide("deny");
+    });
+    retry.addEventListener("click", () => {
+      if (sessionUserId) {
+        void inspect();
+        return;
+      }
+
+      void loadSession();
+    });
+    void loadSession();
   </script>
 </Shell>

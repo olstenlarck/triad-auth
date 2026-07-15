@@ -22,13 +22,13 @@ describe("Triad OAuth resource fragment", () => {
       resources: [
         {
           accessTokenTtl: 300,
-          allowedScopes: ["openid"],
+          allowedScopes: ["openid", "email", "handle", "name", "avatar"],
           disabled: false,
           identifier: "https://auth.example.com/demo/",
           name: "Triad demo",
         },
       ],
-      scopes: ["openid"],
+      scopes: ["openid", "email", "handle", "name", "avatar"],
     });
     expect(fragment.oauthProviderOptions.resources?.[0]).not.toHaveProperty("refreshTokenTtl");
     expect(fragment.oauthProviderExtensions).toEqual([]);
@@ -44,13 +44,17 @@ describe("Triad OAuth resource fragment", () => {
 
     expect(fragment.oauthProviderOptions.scopes).toEqual([
       "openid",
+      "email",
+      "handle",
+      "name",
+      "avatar",
       "wallets:read",
       "offline_access",
     ]);
     expect(fragment.oauthProviderOptions.resources).toEqual([
       expect.objectContaining({
         identifier: "https://auth.example.com/demo/",
-        allowedScopes: ["openid"],
+        allowedScopes: ["openid", "email", "handle", "name", "avatar"],
       }),
       {
         accessTokenTtl: 300,
@@ -100,8 +104,9 @@ describe("Triad OAuth resource request semantics", () => {
   });
 
   it.each([
-    ["https://auth.example.com/demo/", []],
+    ["https://auth.example.com/demo/", ["email"]],
     ["https://auth.example.com/demo/", ["openid", "offline_access"]],
+    ["https://auth.example.com/demo/", ["openid", "email", "email"]],
     ["https://wallets.example.com/mcp", ["openid"]],
     ["https://wallets.example.com/mcp", ["offline_access"]],
     ["https://wallets.example.com/mcp", ["wallets:read", "profile"]],
@@ -129,6 +134,21 @@ describe("Triad OAuth resource request semantics", () => {
       resources: ["https://auth.example.com/demo/"],
       scopes: ["openid"],
     });
+  });
+
+  it("defaults and canonicalizes demo disclosure scopes", () => {
+    const defaulted = resolveTriadResourceRequest(fragment, {
+      resource: "https://auth.example.com/demo/",
+      scopes: [],
+    });
+    const canonical = resolveTriadResourceRequest(fragment, {
+      resource: "https://auth.example.com/demo/",
+      scopes: ["avatar", "openid", "email"],
+    });
+
+    expect(defaulted.scopes).toEqual(["openid"]);
+    expect(canonical.scopes).toEqual(["openid", "email", "avatar"]);
+    expect(canonical.issueRefreshToken).toBe(false);
   });
 
   it.each([
@@ -164,7 +184,7 @@ describe("Triad RFC 9728 protected-resource metadata", () => {
           bearer_methods_supported: ["header"],
           resource: "https://auth.example.com/demo/",
           resource_name: "Triad demo",
-          scopes_supported: ["openid"],
+          scopes_supported: ["openid", "email", "handle", "name", "avatar"],
         },
       },
       {

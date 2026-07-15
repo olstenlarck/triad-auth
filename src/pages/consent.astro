@@ -83,7 +83,7 @@ export const prerender = true;
           },
           body: JSON.stringify({
             accept: action === "approve",
-            scope: "openid",
+            scope: inspected.scopes.join(" "),
             oauth_query: inspected.oauthQuery,
           }),
         });

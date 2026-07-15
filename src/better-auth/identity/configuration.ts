@@ -1,5 +1,6 @@
 import type { Account, BetterAuthOptions } from "better-auth";
 import type { TriadEnv } from "../env";
+import { captureProviderProfile, type CapturedProfile } from "./profile";
 import { accountSubject, type IdentityProvider, providerSubject } from "./subjects";
 
 const ACCOUNT_SUB_PATTERN = /^acc_[0-9a-f]{64}$/;
@@ -46,7 +47,12 @@ function twitterUpstreamId(profile: unknown): string {
   return upstreamId;
 }
 
-async function mapIdentity(secret: string, provider: IdentityProvider, upstreamId: string) {
+async function mapIdentity(
+  secret: string,
+  provider: IdentityProvider,
+  upstreamId: string,
+  profile: CapturedProfile,
+) {
   const [providerSub, accountSub] = await Promise.all([
     providerSubject(secret, provider, upstreamId),
     accountSubject(secret, provider, upstreamId),
@@ -54,10 +60,13 @@ async function mapIdentity(secret: string, provider: IdentityProvider, upstreamI
 
   return {
     id: providerSub,
+    name: accountSub,
     email: `${accountSub}@identity.invalid`,
     emailVerified: false,
+    image: undefined,
     provider,
     providerSub,
+    ...profile,
   };
 }
 
@@ -112,9 +121,14 @@ export function createIdentityConfiguration(env: TriadEnv) {
       disableDefaultScope: true,
       disableIdTokenSignIn: true,
       includeGrantedScopes: false,
-      scope: ["openid"],
+      scope: ["openid", "email", "profile"],
       mapProfileToUser: (profile: unknown) =>
-        mapIdentity(env.IDENTIFIER_SECRET, "google", googleUpstreamId(profile)),
+        mapIdentity(
+          env.IDENTIFIER_SECRET,
+          "google",
+          googleUpstreamId(profile),
+          captureProviderProfile("google", profile),
+        ),
     };
   }
   if (githubClientId && githubClientSecret) {
@@ -123,9 +137,14 @@ export function createIdentityConfiguration(env: TriadEnv) {
       clientSecret: githubClientSecret,
       disableDefaultScope: true,
       disableIdTokenSignIn: true,
-      scope: [],
+      scope: ["user:email"],
       mapProfileToUser: (profile: unknown) =>
-        mapIdentity(env.IDENTIFIER_SECRET, "github", githubUpstreamId(profile)),
+        mapIdentity(
+          env.IDENTIFIER_SECRET,
+          "github",
+          githubUpstreamId(profile),
+          captureProviderProfile("github", profile),
+        ),
     };
   }
   if (twitterClientId && twitterClientSecret) {
@@ -136,7 +155,12 @@ export function createIdentityConfiguration(env: TriadEnv) {
       disableIdTokenSignIn: true,
       scope: ["tweet.read", "users.read"],
       mapProfileToUser: (profile: unknown) =>
-        mapIdentity(env.IDENTIFIER_SECRET, "twitter", twitterUpstreamId(profile)),
+        mapIdentity(
+          env.IDENTIFIER_SECRET,
+          "twitter",
+          twitterUpstreamId(profile),
+          captureProviderProfile("twitter", profile),
+        ),
     };
   }
 
@@ -152,6 +176,26 @@ export function createIdentityConfiguration(env: TriadEnv) {
           type: "string",
           required: true,
           unique: true,
+        },
+        profileEmail: {
+          type: "string",
+          required: false,
+        },
+        profileEmailVerified: {
+          type: "boolean",
+          required: false,
+        },
+        profileHandle: {
+          type: "string",
+          required: false,
+        },
+        profileDisplayName: {
+          type: "string",
+          required: false,
+        },
+        profileAvatar: {
+          type: "string",
+          required: false,
         },
       },
     },
@@ -179,7 +223,18 @@ export function createIdentityConfiguration(env: TriadEnv) {
         },
         update: {
           before: async (user, _context) => {
-            if ("provider" in user || "providerSub" in user || "email" in user) {
+            if (
+              "provider" in user ||
+              "providerSub" in user ||
+              "email" in user ||
+              "name" in user ||
+              "image" in user ||
+              "profileEmail" in user ||
+              "profileEmailVerified" in user ||
+              "profileHandle" in user ||
+              "profileDisplayName" in user ||
+              "profileAvatar" in user
+            ) {
               return false;
             }
           },
