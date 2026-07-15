@@ -38,5 +38,5 @@ run_worker_first = true
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "triad-better-auth-staging"
-database_id = "a1ace265-9dba-4bd0-8660-da4e50fe9c45"
+database_id = "e49cee8d-f960-4839-948f-9abefdf82a15"
 migrations_dir = "migrations"

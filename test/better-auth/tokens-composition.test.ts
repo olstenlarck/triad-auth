@@ -346,9 +346,7 @@ describe("token composition", () => {
     const extension = claimsExtension(createComposition(createIdentityResolver(), profileClaims));
 
     await expect(
-      extension.claims?.accessToken?.(
-        claimInput(["openid", "email", "handle", "name", "avatar"]),
-      ),
+      extension.claims?.accessToken?.(claimInput(["openid", "email", "handle", "name", "avatar"])),
     ).resolves.toEqual({
       account_sub: user.id,
       pairwise_sub: `pws:${user.id}:${clientId}`,
