@@ -213,7 +213,7 @@ describe("token composition", () => {
     });
   });
 
-  it("resolves and filters optional claims for the exact requested scopes", async () => {
+  it("uses the first-party ID-token hook for exact requested profile scopes", async () => {
     const profileClaims: TokenProfileClaimResolver = {
       resolveProfileClaims: vi.fn(async () => ({
         email: "person@example.com",
@@ -223,14 +223,15 @@ describe("token composition", () => {
         picture: "https://images.example.com/person.png",
       })),
     };
-    const extension = claimsExtension(createComposition(createIdentityResolver(), profileClaims));
+    const { oauthProviderOptions } = createComposition(createIdentityResolver(), profileClaims);
 
     await expect(
-      extension.claims?.idToken?.(claimInput(["openid", "avatar", "email"])),
+      oauthProviderOptions.customIdTokenClaims?.({
+        metadata: {},
+        scopes: ["openid", "avatar", "email"],
+        user,
+      }),
     ).resolves.toEqual({
-      account_sub: user.id,
-      pairwise_sub: `pws:${user.id}:${clientId}`,
-      provider_sub: user.providerSub,
       email: "person@example.com",
       email_verified: true,
       picture: "https://images.example.com/person.png",
@@ -238,37 +239,57 @@ describe("token composition", () => {
     expect(profileClaims.resolveProfileClaims).toHaveBeenCalledWith(user, ["email", "avatar"]);
   });
 
-  it("does not resolve profile claims for identity-only tokens", async () => {
+  it("does not resolve profile claims for identity-only ID tokens", async () => {
     const profileClaims: TokenProfileClaimResolver = {
       resolveProfileClaims: vi.fn(async () => ({ name: "Person Name" })),
     };
-    const extension = claimsExtension(createComposition(createIdentityResolver(), profileClaims));
+    const { oauthProviderOptions } = createComposition(createIdentityResolver(), profileClaims);
 
-    await expect(extension.claims?.idToken?.(claimInput(["openid"]))).resolves.toEqual({
-      account_sub: user.id,
-      pairwise_sub: `pws:${user.id}:${clientId}`,
-      provider_sub: user.providerSub,
-    });
+    await expect(
+      oauthProviderOptions.customIdTokenClaims?.({ metadata: {}, scopes: ["openid"], user }),
+    ).resolves.toEqual({});
     expect(profileClaims.resolveProfileClaims).not.toHaveBeenCalled();
   });
 
   it("rejects profile-scope token claims without a profile resolver", async () => {
-    const extension = claimsExtension(createComposition());
+    const { oauthProviderOptions } = createComposition();
 
-    await expect(extension.claims?.idToken?.(claimInput(["openid", "email"]))).rejects.toThrow(
-      "profile claim resolver",
-    );
+    await expect(
+      oauthProviderOptions.customIdTokenClaims?.({
+        metadata: {},
+        scopes: ["openid", "email"],
+        user,
+      }),
+    ).rejects.toThrow("profile claim resolver");
   });
 
   it("rejects a resolver result missing a claim required by the requested scope", async () => {
     const profileClaims: TokenProfileClaimResolver = {
       resolveProfileClaims: vi.fn(async () => ({ email: "person@example.com" })),
     };
+    const { oauthProviderOptions } = createComposition(createIdentityResolver(), profileClaims);
+
+    await expect(
+      oauthProviderOptions.customIdTokenClaims?.({
+        metadata: {},
+        scopes: ["openid", "email"],
+        user,
+      }),
+    ).rejects.toThrow("email_verified");
+  });
+
+  it("keeps package-owned profile claims out of the additive ID-token extension", async () => {
+    const profileClaims: TokenProfileClaimResolver = {
+      resolveProfileClaims: vi.fn(async () => ({ name: "Person Name" })),
+    };
     const extension = claimsExtension(createComposition(createIdentityResolver(), profileClaims));
 
-    await expect(extension.claims?.idToken?.(claimInput(["openid", "email"]))).rejects.toThrow(
-      "email_verified",
-    );
+    await expect(extension.claims?.idToken?.(claimInput(["openid", "name"]))).resolves.toEqual({
+      account_sub: user.id,
+      pairwise_sub: `pws:${user.id}:${clientId}`,
+      provider_sub: user.providerSub,
+    });
+    expect(profileClaims.resolveProfileClaims).not.toHaveBeenCalled();
   });
 
   it("uses the first-party UserInfo hook to override package-owned standard claims", async () => {

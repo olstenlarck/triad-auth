@@ -185,13 +185,7 @@ function createIdentityClaimsExtension(
           : {},
       idToken: (input: OAuthClaimExtensionInput) =>
         input.user
-          ? resolveTokenIdentityClaims(
-              identity,
-              profileClaims,
-              input.user,
-              input.client.clientId,
-              input.scopes,
-            )
+          ? resolveTripleIdentityClaims(identity, input.user, input.client.clientId)
           : {},
       userInfo: (input: OAuthUserInfoExtensionInput) =>
         resolveTripleIdentityClaims(identity, input.user, userInfoClientId(input)),
@@ -237,6 +231,8 @@ export function createTokenComposition({
     clientRegistrationAllowedScopes: scopes,
     clientRegistrationDefaultScopes: ["openid"],
     resolveSubjectIdentifier,
+    customIdTokenClaims: (input) =>
+      resolveScopedProfileClaims(profileClaims, input.user, input.scopes),
     customUserInfoClaims: (input) =>
       resolveScopedProfileClaims(profileClaims, input.user, input.scopes),
     extensions: [...resource.oauthProviderExtensions, claimsExtension],
