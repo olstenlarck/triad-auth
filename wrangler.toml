@@ -20,3 +20,23 @@ binding = "DB"
 database_name = "triad-better-auth"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
+
+[env.staging]
+name = "triad-better-auth-staging"
+workers_dev = true
+
+[env.staging.vars]
+AUTH_ORIGIN = "https://triad-better-auth-staging.equator-owl-studio.workers.dev"
+
+[env.staging.assets]
+directory = "./dist"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
+run_worker_first = true
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "triad-better-auth-staging"
+database_id = "a1ace265-9dba-4bd0-8660-da4e50fe9c45"
+migrations_dir = "migrations"
