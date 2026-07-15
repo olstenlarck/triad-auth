@@ -53,7 +53,7 @@ describe("Triad protected-resource metadata routing", () => {
       createEnv(),
       "https://auth.example.com/.well-known/oauth-protected-resource/demo/",
       "https://auth.example.com/demo/",
-      ["openid"],
+      ["openid", "email", "handle", "name", "avatar"],
     ],
     [
       "RPC Wallets",

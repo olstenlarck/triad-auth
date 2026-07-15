@@ -52,13 +52,17 @@ describe("Triad Better Auth integration configuration", () => {
     const jwtPlugin = requireJwtPlugin(configuration.plugins);
 
     expect(configuration.socialProviders).toMatchObject({
-      google: { clientId: "google-client-id", scope: ["openid"] },
-      github: { clientId: "github-client-id", scope: [] },
+      google: { clientId: "google-client-id", scope: ["openid", "email", "profile"] },
+      github: { clientId: "github-client-id", scope: ["user:email"] },
       twitter: { clientId: "twitter-client-id", scope: ["tweet.read", "users.read"] },
     });
     expect(configuration.databaseHooks.user.create.before).toBeTypeOf("function");
     expect(configuration.databaseHooks.account.create.before).toBeTypeOf("function");
-    expect(configuration.plugins.map((plugin) => plugin.id)).toEqual(["oauth-provider", "jwt"]);
+    expect(configuration.plugins.map((plugin) => plugin.id)).toEqual([
+      "device-authorization",
+      "oauth-provider",
+      "jwt",
+    ]);
 
     expect(providerPlugin.options).toMatchObject({
       allowDynamicClientRegistration: true,
@@ -69,7 +73,7 @@ describe("Triad Better Auth integration configuration", () => {
       loginPage: "/me/",
       accessTokenExpiresIn: 300,
       refreshTokenExpiresIn: 2_592_000,
-      scopes: ["openid", "offline_access"],
+      scopes: ["openid", "email", "handle", "name", "avatar"],
     });
     expect(providerPlugin.options.extensions).toHaveLength(2);
     expect(providerPlugin.options.extensions?.[0]?.claims).toBeDefined();
@@ -87,13 +91,13 @@ describe("Triad Better Auth integration configuration", () => {
     expect(providerPlugin.options.resources).toEqual([
       {
         accessTokenTtl: 300,
-        allowedScopes: ["openid"],
+        allowedScopes: ["openid", "email", "handle", "name", "avatar"],
         disabled: false,
         identifier: "https://auth.example.com/demo/",
         name: "Triad demo",
       },
     ]);
-    expect(providerPlugin.options.scopes).toEqual(["openid", "offline_access"]);
+    expect(providerPlugin.options.scopes).toEqual(["openid", "email", "handle", "name", "avatar"]);
   });
 
   it("adds RPC Wallets without replacing demo resource policy", () => {
@@ -105,13 +109,21 @@ describe("Triad Better Auth integration configuration", () => {
     expect(providerPlugin.options.resources).toEqual([
       expect.objectContaining({
         identifier: "https://auth.example.com/demo/",
-        allowedScopes: ["openid"],
+        allowedScopes: ["openid", "email", "handle", "name", "avatar"],
       }),
       expect.objectContaining({
         identifier: "https://wallets.example.com/mcp",
         allowedScopes: ["wallets:read", "offline_access"],
       }),
     ]);
-    expect(providerPlugin.options.scopes).toEqual(["openid", "offline_access", "wallets:read"]);
+    expect(providerPlugin.options.scopes).toEqual([
+      "openid",
+      "email",
+      "handle",
+      "name",
+      "avatar",
+      "wallets:read",
+      "offline_access",
+    ]);
   });
 });

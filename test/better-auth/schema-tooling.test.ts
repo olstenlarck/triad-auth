@@ -84,7 +84,7 @@ const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
 const wranglerSource = readSource("wrangler.toml");
 const schemaSource = readSource("src/better-auth/schema.ts");
 const schemaDatabaseSource = readSource("scripts/auth-schema-database.ts");
-const migrationFiles = readdirSync("migrations").filter((path) => path.endsWith(".sql"));
+const migrationFiles = readdirSync("migrations").filter((path: string) => path.endsWith(".sql"));
 const baselineMigration = readSource("migrations/0001_better-auth.sql");
 
 describe("Better Auth schema tooling", () => {
