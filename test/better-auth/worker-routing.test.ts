@@ -11,6 +11,7 @@ function createServices() {
   const configuration = { application: "triad" };
 
   const authHandler = vi.fn(() => new Response("auth"));
+  const getSession = vi.fn(async () => null);
   const createTriadConfiguration = vi.fn(() => {
     calls.push("configuration");
 
@@ -20,7 +21,7 @@ function createServices() {
     calls.push("auth");
     expect(receivedConfiguration).toBe(configuration);
 
-    return { handler: authHandler };
+    return { api: { getSession }, handler: authHandler };
   });
   const handleAstro = vi.fn(async () => {
     calls.push("astro");
@@ -46,6 +47,7 @@ function createServices() {
       createTriadConfiguration,
       createTriadAuth,
       authHandler,
+      getSession,
       handleAstro,
       fetchAssets,
     },

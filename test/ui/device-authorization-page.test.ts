@@ -19,6 +19,13 @@ describe("Better Auth device verification page", () => {
     expect(page).not.toMatch(/\/api\/device|action="\/device\/verify"/);
   });
 
+  it("shows the exact requested disclosures before enabling approval", () => {
+    expect(page).toContain('id="device-disclosures"');
+    expect(page).toContain("/api/auth/device/disclosure?user_code=");
+    expect(page).toContain("renderDisclosures(disclosures, disclosureBody.scopes)");
+    expect(page).toMatch(/renderDisclosures[\s\S]+setDecisionAvailable\(true\)/);
+  });
+
   it("labels the result as Triad session authorization", () => {
     expect(page).toContain("TRIAD SESSION AUTHORIZATION");
     expect(page).toContain("TRIAD SESSION AUTHORIZED");
@@ -26,11 +33,9 @@ describe("Better Auth device verification page", () => {
     expect(page).not.toMatch(/OAuth Provider (?:access|refresh|ID) token/);
   });
 
-  it("removes unsupported custom flow data and retains both decisions", () => {
+  it("removes unsupported custom broker data and retains both decisions", () => {
     expect(page).toContain("APPROVE SESSION");
     expect(page).toContain("DENY REQUEST");
-    expect(page).not.toMatch(
-      /csrf_token|device-provider|renderDisclosures|requested profile claims/i,
-    );
+    expect(page).not.toMatch(/csrf_token|device-provider/i);
   });
 });

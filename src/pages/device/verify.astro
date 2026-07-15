@@ -36,6 +36,7 @@ export const prerender = true;
         <div><span>ACTIVE ACCOUNT SUB</span><strong id="device-account">PENDING</strong></div>
         <div><span>RESULT</span><strong>TRIAD SESSION</strong></div>
       </div>
+      <div id="device-disclosures" class="disclosure-list" hidden></div>
       <p id="device-status" class="demo-status" aria-live="polite">
         Enter all eight characters to inspect the request.
       </p>
@@ -62,6 +63,8 @@ export const prerender = true;
   </section>
 
   <script>
+    import { renderDisclosures } from "../../scripts/disclosure-controls";
+
     type SessionResult = { user?: { id?: string } } | null;
     type DeviceResult = {
       error?: string;
@@ -70,12 +73,17 @@ export const prerender = true;
       status?: string;
       success?: boolean;
     };
+    type DeviceDisclosureResult = {
+      error?: string;
+      scopes?: string[];
+    };
 
     const summary = document.querySelector<HTMLElement>("#device-summary")!;
     const signedOut = document.querySelector<HTMLElement>("#device-sign-in")!;
     const form = document.querySelector<HTMLFormElement>("#device-form")!;
     const input = document.querySelector<HTMLInputElement>("#user-code")!;
     const account = document.querySelector<HTMLElement>("#device-account")!;
+    const disclosures = document.querySelector<HTMLElement>("#device-disclosures")!;
     const status = document.querySelector<HTMLElement>("#device-status")!;
     const actions = document.querySelector<HTMLElement>("#device-actions")!;
     const approve = document.querySelector<HTMLButtonElement>("#device-approve")!;
@@ -127,6 +135,8 @@ export const prerender = true;
     function resetInspection() {
       inspection += 1;
       setDecisionAvailable(false);
+      disclosures.replaceChildren();
+      disclosures.hidden = true;
       actions.hidden = false;
       result.hidden = true;
       form.setAttribute("aria-busy", "false");
@@ -164,6 +174,21 @@ export const prerender = true;
           status.dataset.tone = "error";
           return;
         }
+
+        const disclosureResponse = await fetch(
+          `/api/auth/device/disclosure?user_code=${encodeURIComponent(input.value)}`,
+          { headers: { accept: "application/json" } },
+        );
+        const disclosureBody = (await disclosureResponse.json()) as DeviceDisclosureResult;
+        if (current !== inspection) {
+          return;
+        }
+        if (!disclosureResponse.ok || !Array.isArray(disclosureBody.scopes)) {
+          throw responseError(disclosureBody, "The requested disclosures could not be inspected.");
+        }
+
+        renderDisclosures(disclosures, disclosureBody.scopes);
+        disclosures.hidden = false;
 
         setDecisionAvailable(true);
         status.textContent = "Request found. Match the code on the requesting device before deciding.";

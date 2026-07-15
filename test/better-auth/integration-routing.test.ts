@@ -24,8 +24,9 @@ function createEnv(overrides: Partial<TriadEnv> = {}): TriadEnv {
 
 function createServices() {
   const authHandler = vi.fn(() => new Response("auth"));
+  const getSession = vi.fn(async () => ({ user: { id: "acc_session" } }));
   const createTriadConfiguration = vi.fn(() => ({ application: "triad" }));
-  const createTriadAuth = vi.fn(() => ({ handler: authHandler }));
+  const createTriadAuth = vi.fn(() => ({ api: { getSession }, handler: authHandler }));
   const handleAstro = vi.fn(async () => new Response("astro"));
   const fetchAssets = vi.fn(async () => new Response("assets"));
 
@@ -38,11 +39,23 @@ function createServices() {
     },
     spies: {
       authHandler,
+      getSession,
       createTriadConfiguration,
       createTriadAuth,
       handleAstro,
       fetchAssets,
     },
+  };
+}
+
+function createDeviceDatabase(record: { scope: string } | null) {
+  const first = vi.fn(async () => record);
+  const bind = vi.fn(() => ({ first }));
+  const prepare = vi.fn(() => ({ bind }));
+
+  return {
+    database: { prepare } as unknown as D1Database,
+    spies: { bind, first, prepare },
   };
 }
 
@@ -136,5 +149,55 @@ describe("Triad protected-resource metadata routing", () => {
     expect(spies.createTriadConfiguration).toHaveBeenCalledWith(env);
     expect(spies.authHandler).toHaveBeenCalledWith(request);
     expect(spies.fetchAssets).not.toHaveBeenCalled();
+  });
+
+  it("returns canonical disclosures for the active session's bound pending device request", async () => {
+    const { database, spies: databaseSpies } = createDeviceDatabase({
+      scope: "openid email handle name avatar",
+    });
+    const { services, spies } = createServices();
+    const worker = createWorker(services);
+    const request = new Request(
+      "https://auth.example.com/api/auth/device/disclosure?user_code=4KLF-MBB8",
+    ) as Parameters<typeof worker.fetch>[0];
+
+    const response = await worker.fetch(request, createEnv({ DB: database }), context);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      scopes: ["openid", "email", "handle", "name", "avatar"],
+    });
+    expect(spies.getSession).toHaveBeenCalledWith({ headers: request.headers });
+    expect(databaseSpies.bind).toHaveBeenCalledWith("4KLFMBB8", "acc_session");
+    expect(spies.authHandler).not.toHaveBeenCalled();
+  });
+
+  it("does not inspect device disclosures without an active session", async () => {
+    const { database, spies: databaseSpies } = createDeviceDatabase({ scope: "openid" });
+    const { services, spies } = createServices();
+    spies.getSession.mockResolvedValueOnce(null as never);
+    const worker = createWorker(services);
+    const request = new Request(
+      "https://auth.example.com/api/auth/device/disclosure?user_code=4KLF-MBB8",
+    ) as Parameters<typeof worker.fetch>[0];
+
+    const response = await worker.fetch(request, createEnv({ DB: database }), context);
+
+    expect(response.status).toBe(401);
+    expect(databaseSpies.prepare).not.toHaveBeenCalled();
+  });
+
+  it("rejects a pending device request with unsupported disclosure scopes", async () => {
+    const { database } = createDeviceDatabase({ scope: "openid admin" });
+    const { services } = createServices();
+    const worker = createWorker(services);
+    const request = new Request(
+      "https://auth.example.com/api/auth/device/disclosure?user_code=4KLF-MBB8",
+    ) as Parameters<typeof worker.fetch>[0];
+
+    const response = await worker.fetch(request, createEnv({ DB: database }), context);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_scope" });
   });
 });
