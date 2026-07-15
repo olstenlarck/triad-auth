@@ -184,9 +184,7 @@ function createIdentityClaimsExtension(
             )
           : {},
       idToken: (input: OAuthClaimExtensionInput) =>
-        input.user
-          ? resolveTripleIdentityClaims(identity, input.user, input.client.clientId)
-          : {},
+        input.user ? resolveTripleIdentityClaims(identity, input.user, input.client.clientId) : {},
       userInfo: (input: OAuthUserInfoExtensionInput) =>
         resolveTripleIdentityClaims(identity, input.user, userInfoClientId(input)),
     },

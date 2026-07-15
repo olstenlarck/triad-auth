@@ -6,16 +6,16 @@ export const prerender = true;
 
 <Shell
   title="Try the broker | Triad"
-  description="Run Triad's authorization-code flow with PKCE, then inspect a verified identity token."
+  description="Run Triad's authorization-code PKCE and device flows, then inspect a verified ID token."
   mode="product"
 >
   <section class="transaction shell demo" aria-labelledby="demo-title">
     <div class="transaction-head demo-head">
       <p>TRY TRIAD</p>
-      <h1 id="demo-title">ONE REQUEST.<br /><span>THREE EXPLICIT IDS.</span></h1>
+      <h1 id="demo-title">ONE REQUEST.<br /><span>TWO FLOWS.</span></h1>
       <p class="lede">
-        Configure what the public browser client asks for, then run Better Auth authorization code + PKCE and
-        inspect the locally verified result.
+        Configure what the demo client asks for, then use a browser redirect or device code. Both paths return
+        the same verifiable identity contract.
       </p>
     </div>
 
@@ -65,7 +65,7 @@ export const prerender = true;
       </dl>
     </section>
 
-    <div class="demo-grid browser-only">
+    <div class="demo-grid">
       <section class="demo-bay" aria-labelledby="browser-demo-title">
         <div class="demo-bay-head">
           <div>
@@ -90,6 +90,32 @@ export const prerender = true;
           >START BROWSER FLOW</button
         >
       </section>
+
+      <section class="demo-bay" aria-labelledby="device-demo-title">
+        <div class="demo-bay-head">
+          <div>
+            <span class="demo-index">02 / DEVICE</span>
+            <h2 id="device-demo-title">DEVICE AUTHORIZATION</h2>
+          </div>
+          <span class="status-mark" aria-hidden="true"></span>
+        </div>
+        <p>
+          Start a device grant, approve the displayed code in another browser tab, and leave this page open
+          while it polls.
+        </p>
+        <div id="device-instructions" class="device-ticket" hidden>
+          <span>USER CODE</span>
+          <strong id="demo-user-code"></strong>
+          <a id="verification-link" class="text-link" href="/device/verify/" target="_blank" rel="noopener"
+            >OPEN VERIFICATION PAGE ↗</a
+          >
+          <small id="device-expiry"></small>
+        </div>
+        <p id="device-status" class="demo-status" aria-live="polite">No device request is active.</p>
+        <button id="device-start" class="button primary demo-action" type="button" disabled
+          >START DEVICE FLOW</button
+        >
+      </section>
     </div>
   </section>
 
@@ -98,12 +124,6 @@ export const prerender = true;
       grid-column: 1 / -1;
       margin: 0;
       padding: 0 1.25rem 1.25rem;
-    }
-    .demo-grid.browser-only {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .browser-only .demo-bay {
-      min-height: 30rem;
     }
   </style>
 
@@ -114,6 +134,7 @@ export const prerender = true;
       createPkce,
       demoProviderCapabilities,
       demoResourceFromIssuer,
+      devicePollDecision,
       fetchDiscovery,
       inspectOAuthQuery,
       type ProviderCapability,
@@ -123,16 +144,33 @@ export const prerender = true;
     const expectedRegistrationPath = "/api/auth/oauth2/register";
     const start = document.querySelector<HTMLButtonElement>("#browser-start")!;
     const status = document.querySelector<HTMLElement>("#browser-status")!;
+    const deviceStart = document.querySelector<HTMLButtonElement>("#device-start")!;
+    const deviceStatus = document.querySelector<HTMLElement>("#device-status")!;
+    const deviceInstructions = document.querySelector<HTMLElement>("#device-instructions")!;
     const providerSelect = document.querySelector<HTMLSelectElement>("#demo-provider")!;
     const scopeFieldset = document.querySelector<HTMLFieldSetElement>("#scope-fieldset")!;
     const scopeInputs = [...document.querySelectorAll<HTMLInputElement>('input[name="demo-scope"]')];
     let discovery: Awaited<ReturnType<typeof fetchDiscovery>> | null = null;
     let resource = "";
     let working = false;
+    let deviceWorking = false;
+    let deviceCode = "";
+    let deviceExpiresAt = 0;
+    let deviceIntervalMs = 5_000;
+    let devicePollTimer: number | undefined;
+    let deviceController = new AbortController();
 
     function message(text: string, tone: "working" | "error" | "success" = "working") {
       status.textContent = text;
       status.dataset.tone = tone;
+    }
+
+    function deviceMessage(
+      text: string,
+      tone: "working" | "error" | "success" = "working",
+    ) {
+      deviceStatus.textContent = text;
+      deviceStatus.dataset.tone = tone;
     }
 
     function selectedCapability(): ProviderCapability | undefined {
@@ -148,19 +186,21 @@ export const prerender = true;
 
     function updateRequestControls() {
       const provider = selectedCapability();
+      const locked = working || deviceWorking;
       for (const input of scopeInputs) {
         const supported = provider?.scopes.some((scope) => scope === input.value) ?? false;
-        input.disabled = working || !supported;
+        input.disabled = locked || !supported;
         if (!supported) {
           input.checked = false;
         }
       }
 
-      providerSelect.disabled = working;
-      scopeFieldset.disabled = working;
+      providerSelect.disabled = locked;
+      scopeFieldset.disabled = locked;
       const providerName = provider?.id.toUpperCase() ?? "PROVIDER";
       start.textContent = discovery ? `SIGN IN WITH ${providerName}` : "LOADING AUTH SERVER";
-      start.disabled = working || !discovery || !provider;
+      start.disabled = locked || !discovery || !provider;
+      deviceStart.disabled = locked || !provider;
       document.querySelector<HTMLElement>("#demo-scope-request")!.textContent = provider
         ? selectedScopeRequest(provider)
         : "openid";
@@ -171,6 +211,184 @@ export const prerender = true;
       sessionStorage.removeItem("triad_demo_resource");
       sessionStorage.removeItem("triad_demo_state");
       sessionStorage.removeItem("triad_demo_verifier");
+    }
+
+    function stopDevicePolling() {
+      if (devicePollTimer !== undefined) {
+        window.clearTimeout(devicePollTimer);
+      }
+      devicePollTimer = undefined;
+    }
+
+    function stopDeviceFlow() {
+      stopDevicePolling();
+      deviceController.abort();
+    }
+
+    function finishDeviceFlow() {
+      deviceWorking = false;
+      deviceStart.textContent = "START NEW DEVICE FLOW";
+      updateRequestControls();
+    }
+
+    function resetDevicePresentation() {
+      deviceCode = "";
+      deviceExpiresAt = 0;
+      deviceIntervalMs = 5_000;
+      deviceInstructions.hidden = true;
+      document.querySelector<HTMLElement>("#demo-user-code")!.textContent = "";
+      document.querySelector<HTMLElement>("#device-expiry")!.textContent = "";
+      document.querySelector<HTMLAnchorElement>("#verification-link")!.href = "/device/verify/";
+    }
+
+    function scheduleDevicePoll() {
+      const remaining = deviceExpiresAt - Date.now();
+      if (remaining <= 0) {
+        deviceMessage("This device code expired. Start a new device flow.", "error");
+        stopDeviceFlow();
+        finishDeviceFlow();
+        return;
+      }
+
+      devicePollTimer = window.setTimeout(() => {
+        void pollDevice();
+      }, Math.min(deviceIntervalMs, remaining));
+    }
+
+    async function pollDevice() {
+      if (!deviceWorking || !deviceCode) {
+        return;
+      }
+      if (Date.now() >= deviceExpiresAt) {
+        deviceMessage("This device code expired. Start a new device flow.", "error");
+        stopDeviceFlow();
+        finishDeviceFlow();
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/auth/device/token", {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          signal: deviceController.signal,
+          body: JSON.stringify({
+            grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+            device_code: deviceCode,
+            client_id: location.origin,
+          }),
+        });
+        const body = (await response.json()) as {
+          access_token?: string;
+          error?: string;
+          expires_in?: number;
+          token_type?: string;
+        };
+        if (!deviceWorking) {
+          return;
+        }
+        if (
+          response.ok &&
+          body.access_token &&
+          body.token_type === "Bearer" &&
+          typeof body.expires_in === "number"
+        ) {
+          stopDevicePolling();
+          deviceMessage("Device authorization complete.", "success");
+          finishDeviceFlow();
+          return;
+        }
+
+        const decision = devicePollDecision(body.error ?? "invalid_grant", deviceIntervalMs);
+        deviceIntervalMs = decision.intervalMs;
+        deviceMessage(decision.message, decision.continuePolling ? "working" : "error");
+        if (decision.continuePolling) {
+          scheduleDevicePoll();
+          return;
+        }
+
+        stopDeviceFlow();
+        finishDeviceFlow();
+      } catch (reason) {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          return;
+        }
+
+        deviceMessage("The device flow could not be completed. Start again.", "error");
+        stopDeviceFlow();
+        finishDeviceFlow();
+      }
+    }
+
+    async function startDeviceFlow() {
+      const provider = selectedCapability();
+      if (working || deviceWorking || !provider) {
+        return;
+      }
+
+      stopDeviceFlow();
+      resetDevicePresentation();
+      deviceController = new AbortController();
+      deviceWorking = true;
+      updateRequestControls();
+      deviceStart.textContent = "REQUESTING CODE";
+      deviceMessage("Requesting a one-time device code.");
+
+      try {
+        const response = await fetch("/api/auth/device/code", {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          signal: deviceController.signal,
+          body: JSON.stringify({
+            client_id: location.origin,
+            scope: selectedScopeRequest(provider),
+          }),
+        });
+        const body = (await response.json()) as {
+          device_code?: string;
+          error_description?: string;
+          expires_in?: number;
+          interval?: number;
+          user_code?: string;
+          verification_uri_complete?: string;
+        };
+        if (
+          !response.ok ||
+          !body.device_code ||
+          !body.user_code ||
+          !body.verification_uri_complete ||
+          typeof body.expires_in !== "number" ||
+          typeof body.interval !== "number"
+        ) {
+          throw new Error(body.error_description ?? "invalid device response");
+        }
+
+        deviceCode = body.device_code;
+        deviceExpiresAt = Date.now() + body.expires_in * 1_000;
+        deviceIntervalMs = Math.max(1, body.interval) * 1_000;
+        document.querySelector<HTMLElement>("#demo-user-code")!.textContent = body.user_code;
+        document.querySelector<HTMLAnchorElement>("#verification-link")!.href =
+          body.verification_uri_complete;
+        document.querySelector<HTMLElement>("#device-expiry")!.textContent =
+          `Expires in ${Math.ceil(body.expires_in / 60)} minutes`;
+        deviceInstructions.hidden = false;
+        deviceStart.textContent = "FLOW IN PROGRESS";
+        deviceMessage("Waiting for browser approval.");
+        scheduleDevicePoll();
+      } catch (reason) {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          return;
+        }
+
+        deviceMessage("A device code could not be issued. Check the broker and try again.", "error");
+        stopDeviceFlow();
+        finishDeviceFlow();
+      }
     }
 
     async function loadMetadata() {
@@ -270,7 +488,7 @@ export const prerender = true;
     }
 
     async function startBrowserFlow() {
-      if (working) {
+      if (working || deviceWorking) {
         return;
       }
       if (!discovery || !resource) {
@@ -333,15 +551,25 @@ export const prerender = true;
     start.addEventListener("click", () => {
       void startBrowserFlow();
     });
+    deviceStart.addEventListener("click", () => {
+      void startDeviceFlow();
+    });
+    window.addEventListener("pagehide", stopDeviceFlow);
     window.addEventListener("pageshow", (event) => {
       if (!event.persisted) {
         return;
       }
 
+      stopDeviceFlow();
       working = false;
+      deviceWorking = false;
+      deviceController = new AbortController();
       clearPendingRequest();
+      resetDevicePresentation();
+      deviceStart.textContent = "START DEVICE FLOW";
       updateRequestControls();
       message("This page was restored from browser history. Start a new request.");
+      deviceMessage("No device request is active.");
     });
     updateRequestControls();
     void loadMetadata();

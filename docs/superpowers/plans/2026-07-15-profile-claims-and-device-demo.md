@@ -22,10 +22,12 @@
 ### Task 1: Correct ID-Token Profile Claim Ownership
 
 **Files:**
+
 - Modify: `src/better-auth/tokens/index.ts`
 - Modify: `test/better-auth/tokens-composition.test.ts`
 
 **Interfaces:**
+
 - Consumes: `TokenProfileClaimResolver.resolveProfileClaims(user, scopes)`.
 - Produces: `oauthProviderOptions.customIdTokenClaims` and `customUserInfoClaims`, both returning only claims authorized by requested scopes.
 
@@ -39,11 +41,13 @@
 ### Task 2: Restore the V1 Device Demo Bay
 
 **Files:**
+
 - Modify: `src/pages/demo/index.astro`
 - Modify: `test/ui/ui-source-contract.test.ts`
 - Create: `test/ui/demo-device-flow.test.ts`
 
 **Interfaces:**
+
 - Consumes: `POST /api/auth/device/code`, `POST /api/auth/device/token`, and the existing `/device/verify/` page.
 - Produces: device ticket rendering, verification-page launch, interval polling, terminal success/error states, and page-lifecycle cancellation.
 
@@ -59,11 +63,13 @@
 ### Task 3: Consolidate the Baseline Schema
 
 **Files:**
+
 - Modify: `migrations/0001_better-auth.sql`
 - Delete: `migrations/0002_disclosures_device.sql`
 - Modify: schema migration tests under `test/schema/` if exact migration inventory is asserted.
 
 **Interfaces:**
+
 - Produces: one baseline migration containing the five nullable `profile*` user columns and complete `deviceCode` table with its indexes and foreign key.
 
 - [ ] Add or update the migration contract test to require profile columns and `deviceCode` in `0001_better-auth.sql` and exactly one migration file.
@@ -75,9 +81,11 @@
 ### Task 4: Verify and Rebuild Staging
 
 **Files:**
+
 - Modify: `wrangler.toml` with the replacement staging D1 UUID.
 
 **Interfaces:**
+
 - Consumes: the consolidated baseline migration and existing staging Worker secrets.
 - Produces: a clean staging database and deployed Worker.
 

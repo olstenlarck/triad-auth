@@ -54,7 +54,21 @@ describe("preserved Better Auth UI wiring", () => {
     );
     expect(demo).toContain("oauth_query: signedAuthorization.search.slice(1)");
     expect(demo).not.toContain("/api/providers");
-    expect(demo).not.toContain("DEVICE AUTHORIZATION");
+  });
+
+  it("restores the v1 device authorization bay through Better Auth", () => {
+    expect(demo).toContain("ONE REQUEST.<br /><span>TWO FLOWS.</span>");
+    expect(demo).toContain("02 / DEVICE");
+    expect(demo).toContain("DEVICE AUTHORIZATION");
+    expect(demo).toContain('id="device-instructions"');
+    expect(demo).toContain('id="verification-link"');
+    expect(demo).toContain('id="device-start"');
+    expect(demo).toContain("/api/auth/device/code");
+    expect(demo).toContain("/api/auth/device/token");
+    expect(demo).toContain("urn:ietf:params:oauth:grant-type:device_code");
+    expect(demo).toContain("devicePollDecision");
+    expect(demo).toContain('window.addEventListener("pagehide", stopDeviceFlow)');
+    expect(demo).toContain('window.addEventListener("pageshow"');
   });
 
   it("exchanges the callback code at Better Auth and signs out through Better Auth", () => {

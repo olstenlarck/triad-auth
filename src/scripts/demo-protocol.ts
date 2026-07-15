@@ -41,6 +41,12 @@ export interface VerifiedProfile {
   name?: string;
 }
 
+export interface DevicePollDecision {
+  continuePolling: boolean;
+  intervalMs: number;
+  message: string;
+}
+
 interface AuthorizationRequestInput {
   authorizationEndpoint: string;
   callbackUrl: string;
@@ -181,6 +187,43 @@ export async function createPkce(): Promise<{
   const state = base64url(crypto.getRandomValues(new Uint8Array(32)));
 
   return { challenge, state, verifier };
+}
+
+export function devicePollDecision(error: string, intervalMs: number): DevicePollDecision {
+  if (error === "authorization_pending") {
+    return {
+      continuePolling: true,
+      intervalMs,
+      message: "Waiting for browser approval.",
+    };
+  }
+  if (error === "slow_down") {
+    return {
+      continuePolling: true,
+      intervalMs: intervalMs + 5_000,
+      message: "The broker asked this device to poll less often.",
+    };
+  }
+  if (error === "access_denied") {
+    return {
+      continuePolling: false,
+      intervalMs,
+      message: "Authorization was denied in the browser.",
+    };
+  }
+  if (error === "expired_token") {
+    return {
+      continuePolling: false,
+      intervalMs,
+      message: "This device code expired. Start a new device flow.",
+    };
+  }
+
+  return {
+    continuePolling: false,
+    intervalMs,
+    message: "The device flow could not be completed. Start again.",
+  };
 }
 
 export function authorizationRequest(input: AuthorizationRequestInput): URL {
