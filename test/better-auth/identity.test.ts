@@ -1,0 +1,204 @@
+import { describe, expect, it } from "vite-plus/test";
+
+import {
+  accountSubject,
+  createIdentityConfiguration,
+  type IdentityProvider,
+  pairwiseSubject,
+  providerSubject,
+} from "../../src/better-auth/identity";
+import type { TriadEnv } from "../../src/better-auth/env";
+
+const IDENTIFIER_SECRET = "test-identifier-secret";
+
+function createEnv(): TriadEnv {
+  return {
+    ASSETS: {} as Fetcher,
+    DB: {} as D1Database,
+    AUTH_ORIGIN: "https://auth.example.com",
+    BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
+    IDENTIFIER_SECRET,
+    GOOGLE_CLIENT_ID: "google-client-id",
+    GOOGLE_CLIENT_SECRET: "google-client-secret",
+    GITHUB_CLIENT_ID: "github-client-id",
+    GITHUB_CLIENT_SECRET: "github-client-secret",
+    TWITTER_CLIENT_ID: "twitter-client-id",
+    TWITTER_CLIENT_SECRET: "twitter-client-secret",
+  };
+}
+
+function createUserRecord(email: string, provider: IdentityProvider, providerSub: string) {
+  const now = new Date("2026-01-01T00:00:00Z");
+
+  return {
+    id: "pending-user-id",
+    name: "Identity User",
+    email,
+    emailVerified: false,
+    createdAt: now,
+    updatedAt: now,
+    provider,
+    providerSub,
+  };
+}
+
+describe("Triad deterministic identity", () => {
+  it("derives exact domain-separated HMAC-SHA-256 subjects", async () => {
+    await expect(providerSubject(IDENTIFIER_SECRET, "github", "123456")).resolves.toBe(
+      "pid_github_7a19d65bdafa7d4d7b7c76cdb0e1dfeb60e307724904e79c29ccc278ee182529",
+    );
+    await expect(accountSubject(IDENTIFIER_SECRET, "github", "123456")).resolves.toBe(
+      "acc_8ab64ca34bb1e6ddf1431479808322a406a155eb3fa94a9301e04c4c0a1b2bcd",
+    );
+    await expect(
+      pairwiseSubject(
+        IDENTIFIER_SECRET,
+        "acc_7777777777777777777777777777777777777777777777777777777777777777",
+        "https://client.example/metadata.json",
+      ),
+    ).resolves.toBe("pws_66994e35b566efb8e33d9a0dd52f8872da80a0c929ebd709b3bf5f51ed1f84dd");
+  });
+
+  it("keeps every identity boundary domain separated", async () => {
+    const providerSub = await providerSubject(IDENTIFIER_SECRET, "google", "123456");
+    const accountSub = await accountSubject(IDENTIFIER_SECRET, "google", "123456");
+    const otherProviderSub = await providerSubject(IDENTIFIER_SECRET, "twitter", "123456");
+    const firstPairwiseSub = await pairwiseSubject(IDENTIFIER_SECRET, accountSub, "client-a");
+    const secondPairwiseSub = await pairwiseSubject(IDENTIFIER_SECRET, accountSub, "client-b");
+
+    expect(
+      new Set([providerSub, accountSub, otherProviderSub, firstPairwiseSub, secondPairwiseSub]),
+    ).toHaveLength(5);
+  });
+});
+
+describe("Triad provider identity configuration", () => {
+  it("uses fixed minimal scopes and disables client-supplied ID token sign-in", () => {
+    const { socialProviders } = createIdentityConfiguration(createEnv());
+
+    expect(socialProviders.google).toMatchObject({
+      clientId: "google-client-id",
+      clientSecret: "google-client-secret",
+      disableDefaultScope: true,
+      disableIdTokenSignIn: true,
+      includeGrantedScopes: false,
+      scope: ["openid"],
+    });
+    expect(socialProviders.github).toMatchObject({
+      clientId: "github-client-id",
+      clientSecret: "github-client-secret",
+      disableDefaultScope: true,
+      disableIdTokenSignIn: true,
+      scope: [],
+    });
+    expect(socialProviders.twitter).toMatchObject({
+      clientId: "twitter-client-id",
+      clientSecret: "twitter-client-secret",
+      disableDefaultScope: true,
+      disableIdTokenSignIn: true,
+      scope: ["tweet.read", "users.read"],
+    });
+  });
+
+  it.each([
+    ["google", { sub: "google-subject", name: "Google User", email: "same@example.com" }],
+    ["github", { id: 123456, login: "github-user", email: "same@example.com" }],
+    ["twitter", { data: { id: "987654", name: "Twitter User", username: "twitter-user" } }],
+  ] as const)("maps %s profiles to opaque IDs and synthetic email", async (provider, profile) => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const mapped = await configuration.socialProviders[provider].mapProfileToUser(profile);
+
+    expect(mapped).toMatchObject({
+      emailVerified: false,
+      provider,
+    });
+    expect(mapped?.id).toMatch(new RegExp(`^pid_${provider}_[0-9a-f]{64}$`));
+    expect(mapped?.providerSub).toBe(mapped?.id);
+    expect(mapped?.email).toMatch(/^acc_[0-9a-f]{64}@identity\.invalid$/);
+    expect(mapped?.email).not.toContain("same@example.com");
+  });
+
+  it.each([
+    ["google", {}],
+    ["google", { sub: "" }],
+    ["google", { sub: 123456 }],
+    ["github", { id: 0 }],
+    ["github", { id: 1.5 }],
+    ["github", { id: Number.MAX_SAFE_INTEGER + 1 }],
+    ["twitter", { data: {} }],
+    ["twitter", { data: { id: "01" } }],
+    ["twitter", { data: { id: 123456 } }],
+  ] as const)("rejects a malformed %s immutable upstream ID", (provider, profile) => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const mapProfile = configuration.socialProviders[provider].mapProfileToUser;
+
+    expect(() => mapProfile(profile)).toThrow("immutable upstream ID");
+  });
+
+  it("disables all account linking and provider token persistence", () => {
+    const configuration = createIdentityConfiguration(createEnv());
+
+    expect(configuration.account).toEqual({
+      updateAccountOnSignIn: false,
+      storeAccountCookie: false,
+      accountLinking: {
+        enabled: false,
+        disableImplicitLinking: true,
+        trustedProviders: [],
+      },
+    });
+  });
+
+  it("promotes the synthetic email subject to the Better Auth user ID", async () => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const accountSub = await accountSubject(IDENTIFIER_SECRET, "github", "123456");
+    const providerSub = await providerSubject(IDENTIFIER_SECRET, "github", "123456");
+    const beforeCreate = configuration.databaseHooks.user.create.before;
+
+    await expect(
+      beforeCreate(createUserRecord(`${accountSub}@identity.invalid`, "github", providerSub), null),
+    ).resolves.toMatchObject({ data: { id: accountSub } });
+  });
+
+  it("rejects incoherent provider identity during user creation", async () => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const accountSub = await accountSubject(IDENTIFIER_SECRET, "github", "123456");
+    const googleProviderSub = await providerSubject(IDENTIFIER_SECRET, "google", "123456");
+    const beforeCreate = configuration.databaseHooks.user.create.before;
+
+    await expect(
+      beforeCreate(
+        createUserRecord(`${accountSub}@identity.invalid`, "github", googleProviderSub),
+        null,
+      ),
+    ).rejects.toThrow("provider identity");
+  });
+
+  it.each(["create", "update"] as const)("strips tokens before account %s", async (operation) => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const stripTokens = configuration.databaseHooks.account[operation].before;
+    const account = {
+      id: "account-row-id",
+      providerId: "github",
+      accountId: "pid_github_subject",
+      userId: "acc_subject",
+      accessToken: "access-secret",
+      refreshToken: "refresh-secret",
+      idToken: "id-secret",
+      accessTokenExpiresAt: new Date("2030-01-01T00:00:00Z"),
+      refreshTokenExpiresAt: new Date("2030-02-01T00:00:00Z"),
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+
+    await expect(stripTokens(account, null)).resolves.toMatchObject({
+      data: {
+        accessToken: null,
+        refreshToken: null,
+        idToken: null,
+        accessTokenExpiresAt: null,
+        refreshTokenExpiresAt: null,
+      },
+    });
+  });
+});

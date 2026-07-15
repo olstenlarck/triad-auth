@@ -22,29 +22,6 @@ const identityDisclosures: readonly Disclosure[] = [
   },
 ];
 
-const profileDisclosures: Record<string, Disclosure> = {
-  email: {
-    label: "EMAIL + VERIFICATION STATUS",
-    claim: "email + email_verified",
-    description: "Share your email address and its verification status.",
-  },
-  handle: {
-    label: "PROVIDER HANDLE",
-    claim: "preferred_username",
-    description: "Share the username shown on your provider account.",
-  },
-  name: {
-    label: "DISPLAY NAME",
-    claim: "name",
-    description: "Share the display name shown on your provider account.",
-  },
-  avatar: {
-    label: "AVATAR",
-    claim: "picture",
-    description: "Share the profile image from your provider account.",
-  },
-};
-
 function disclosureText(disclosure: Disclosure): DocumentFragment {
   const content = document.createDocumentFragment();
   const label = document.createElement("span");
@@ -62,24 +39,13 @@ function disclosureText(disclosure: Disclosure): DocumentFragment {
 }
 
 export function renderDisclosures(container: HTMLElement, scopes: readonly string[]): void {
-  if (!scopes.includes("openid")) {
-    throw new Error("This request does not include identity.");
+  if (scopes.length !== 1 || scopes[0] !== "openid") {
+    throw new Error("This request contains an unsupported scope.");
   }
 
   container.replaceChildren();
 
   for (const disclosure of identityDisclosures) {
-    const row = document.createElement("div");
-    row.appendChild(disclosureText(disclosure));
-    container.appendChild(row);
-  }
-
-  for (const scope of scopes.filter((value) => value !== "openid")) {
-    const disclosure = profileDisclosures[scope];
-    if (!disclosure) {
-      throw new Error("This request contains an unsupported claim.");
-    }
-
     const row = document.createElement("div");
     row.appendChild(disclosureText(disclosure));
     container.appendChild(row);

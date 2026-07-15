@@ -16,12 +16,12 @@ export const prerender = true;
       <div class="request-party">
         <div class="app-glyph" aria-hidden="true">?</div>
         <div><span id="client-kind">APPLICATION</span><strong id="client-name">LOADING...</strong></div>
-        <div><span>PROVIDER</span><strong id="provider-name">PENDING</strong></div>
+        <div><span>RESOURCE</span><strong id="resource-name">PENDING</strong></div>
       </div>
       <div id="consent-disclosures" class="disclosure-list"></div>
     </div>
 
-    <p id="consent-error" class="error-message" role="alert" hidden></p>
+    <p id="consent-error" class="error-message" role="alert" tabindex="-1" hidden></p>
     <div class="actions transaction-actions">
       <button id="approve" class="button primary" type="button" disabled>APPROVE CONNECTION</button>
       <button id="deny" class="button secondary" type="button" disabled>CANCEL</button>
@@ -36,15 +36,15 @@ export const prerender = true;
 
   <script>
     import { renderDisclosures } from "../scripts/disclosure-controls";
+    import { inspectOAuthQuery } from "../scripts/demo-protocol";
 
-    const request = new URLSearchParams(location.search).get("request");
     const panel = document.querySelector<HTMLElement>("#consent-panel")!;
     const approve = document.querySelector<HTMLButtonElement>("#approve")!;
     const deny = document.querySelector<HTMLButtonElement>("#deny")!;
     const error = document.querySelector<HTMLElement>("#consent-error")!;
     const restart = document.querySelector<HTMLAnchorElement>("#consent-restart")!;
     const disclosures = document.querySelector<HTMLElement>("#consent-disclosures")!;
-    let csrfToken = "";
+    let inspected: ReturnType<typeof inspectOAuthQuery> | null = null;
 
     function resetActions() {
       approve.textContent = "APPROVE CONNECTION";
@@ -59,11 +59,15 @@ export const prerender = true;
       panel.setAttribute("aria-busy", "false");
       approve.disabled = true;
       deny.disabled = true;
+      error.focus();
     }
 
     async function act(action: "approve" | "deny") {
-      if (!request || !csrfToken)
-        {return fail("This request is not ready. Reload the page to inspect it again.");}
+      if (!inspected) {
+        fail("This request is not ready. Return to the demo and start it again.");
+        return;
+      }
+
       approve.disabled = true;
       deny.disabled = true;
       error.hidden = true;
@@ -71,66 +75,64 @@ export const prerender = true;
       const active = action === "approve" ? approve : deny;
       active.textContent = action === "approve" ? "APPROVING CONNECTION" : "CANCELLING";
       try {
-        const response = await fetch(`/api/consent/${encodeURIComponent(request)}/${action}`, {
+        const response = await fetch("/api/auth/oauth2/consent", {
           method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ csrf_token: csrfToken }),
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            accept: action === "approve",
+            scope: "openid",
+            oauth_query: inspected.oauthQuery,
+          }),
         });
-        const body = (await response.json()) as { redirect_to?: string; error_description?: string };
-        if (!response.ok || !body.redirect_to)
-          {return fail(body.error_description ?? "This request could not be completed. Reload and try again.");}
-        location.assign(body.redirect_to);
+        const body = (await response.json()) as { url?: string; error_description?: string };
+        if (!response.ok || !body.url) {
+          fail(body.error_description ?? "This request could not be completed. Return to the demo and try again.");
+          return;
+        }
+
+        location.assign(body.url);
       } catch {
-        fail("The broker could not complete this request. Reload the page to inspect it again.");
+        fail("The authorization server could not complete this request. Return to the demo and try again.");
       }
     }
 
-    if (!request) {
-      fail("This authorization request is missing its ticket.");
-    } else {
-      fetch(`/api/consent/${encodeURIComponent(request)}`)
-        .then(async (response) => ({
-          response,
-          body: (await response.json()) as {
-            client_name?: string;
-            client_id?: string;
-            provider?: string;
-            scopes?: string[];
-            csrf_token?: string;
-            error_description?: string;
-          },
-        }))
-        .then(({ response, body }) => {
-          if (
-            !response.ok ||
-            !body.csrf_token ||
-            !body.provider ||
-            !["google", "github", "twitter"].includes(body.provider) ||
-            !Array.isArray(body.scopes) ||
-            !body.scopes.includes("openid")
-          )
-            {return fail(body.error_description ?? "This authorization request expired.");}
-          csrfToken = body.csrf_token;
-          const originClient = body.client_id?.startsWith("https://") || body.client_id?.startsWith("http://localhost");
-          const clientDisplay = originClient ? body.client_id : body.client_name;
-          document.querySelector("#client-kind")!.textContent = originClient
-            ? "CALLBACK-BOUND CLIENT ORIGIN"
-            : "APPLICATION";
-          document.querySelector("#client-name")!.textContent = clientDisplay ?? "UNKNOWN APP";
-          document.querySelector("#provider-name")!.textContent = body.provider.toUpperCase();
-          document.querySelector("#consent-summary")!.textContent =
-            `${clientDisplay ?? "This app"} wants to connect through ${body.provider}. Review the required claims before approving.`;
-          document.querySelector(".app-glyph")!.textContent = (clientDisplay ?? "A")
-            .slice(0, 1)
-            .toUpperCase();
-          renderDisclosures(disclosures, body.scopes);
-          panel.setAttribute("aria-busy", "false");
-          approve.disabled = false;
-          deny.disabled = false;
-        })
-        .catch(() => fail("The broker could not load this request."));
+    async function loadRequest() {
+      inspected = inspectOAuthQuery(location.search);
+      const endpoint = new URL("/api/auth/oauth2/public-client", location.origin);
+      endpoint.searchParams.set("client_id", inspected.clientId);
+      const response = await fetch(endpoint, { headers: { accept: "application/json" } });
+      const client = (await response.json()) as {
+        client_id?: string;
+        client_name?: string;
+        error_description?: string;
+      };
+      if (!response.ok || client.client_id !== inspected.clientId) {
+        throw new Error(client.error_description ?? "This authorization request expired.");
+      }
+
+      const clientDisplay = client.client_name?.trim() || client.client_id;
+      document.querySelector("#client-name")!.textContent = clientDisplay;
+      document.querySelector("#resource-name")!.textContent = inspected.resources.join(" · ");
+      document.querySelector("#consent-summary")!.textContent =
+        `${clientDisplay} requests identity for ${inspected.resources.join(", ")}. Review every claim before approving.`;
+      document.querySelector(".app-glyph")!.textContent = clientDisplay.slice(0, 1).toUpperCase();
+      renderDisclosures(disclosures, inspected.scopes);
+      panel.setAttribute("aria-busy", "false");
+      approve.disabled = false;
+      deny.disabled = false;
     }
-    approve.addEventListener("click", () => act("approve"));
-    deny.addEventListener("click", () => act("deny"));
+
+    approve.addEventListener("click", () => {
+      void act("approve");
+    });
+    deny.addEventListener("click", () => {
+      void act("deny");
+    });
+    loadRequest().catch((reason: unknown) => {
+      fail(reason instanceof Error ? reason.message : "The authorization server could not load this request.");
+    });
   </script>
 </Shell>

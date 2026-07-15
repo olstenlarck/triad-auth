@@ -5,7 +5,7 @@ function unsupportedQuery(): never {
 }
 
 function unsupportedIntrospection(): never {
-  throw new Error("The schema database only supports Better Auth schema introspection");
+  throw new Error("no such table: oauthResource");
 }
 
 const schemaIntrospectionQuery =

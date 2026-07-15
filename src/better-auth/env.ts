@@ -10,4 +10,5 @@ export interface TriadEnv {
   GITHUB_CLIENT_SECRET: string;
   TWITTER_CLIENT_ID: string;
   TWITTER_CLIENT_SECRET: string;
+  RPC_WALLETS_RESOURCE?: string;
 }

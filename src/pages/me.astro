@@ -7,20 +7,15 @@ export const prerender = true;
 <Shell title="Your identity | Triad" mode="product">
   <section class="account shell" aria-labelledby="account-title">
     <div class="account-heading">
-      <p>YOUR BROKER SESSION</p>
+      <p>YOUR AUTHORIZATION SESSION</p>
       <h1 id="account-title">YOUR<br /><span>IDENTITY.</span></h1>
-      <p id="account-summary" class="lede">Loading your broker session...</p>
+      <p id="account-summary" class="lede" aria-live="polite">Loading your session...</p>
     </div>
 
     <div id="signed-out" class="signed-out" hidden>
-      <p>Choose an enabled provider to inspect your broker account and authorized applications.</p>
+      <p>Choose a provider to continue. Triad stores a provider-derived identity, never its access token.</p>
       <div class="control-feedback">
-        <div id="account-provider-actions" class="actions" aria-live="polite">
-          Loading enabled providers...
-        </div>
-        <button id="account-provider-retry" class="button secondary" type="button" hidden
-          >RETRY PROVIDERS</button
-        >
+        <div id="account-provider-actions" class="actions" aria-live="polite"></div>
       </div>
     </div>
 
@@ -35,341 +30,336 @@ export const prerender = true;
 
       <section class="account-panel" aria-labelledby="apps-title">
         <div class="panel-heading"><h2 id="apps-title">AUTHORIZED APPS</h2><span id="app-count">0</span></div>
+        <p class="fine-print">
+          Removing consent deletes the stored approval. Existing tokens may remain valid until expiry. Sign out
+          separately to end this browser session.
+        </p>
         <div id="authorized-apps" class="authorized-apps"></div>
       </section>
       <div class="actions account-actions">
         <button id="logout" class="button danger" type="button">SIGN OUT</button>
       </div>
-      <section class="account-panel destructive-account" aria-labelledby="delete-account-title">
-        <h2 id="delete-account-title">DELETE ACCOUNT</h2>
-        <div class="destructive-content">
-          <p>Erase the account state Triad stores for this identity.</p>
-          <button id="delete-account" class="button danger" type="button">DELETE ACCOUNT</button>
-          <div id="delete-account-confirmation" class="deletion-confirmation" hidden>
-            <p>
-              Deletes every Triad browser session, linked identity, app consent, unredeemed
-              authorization code, and approved device grant.
-            </p>
-            <p>Previously issued ID tokens remain valid for up to five minutes.</p>
-            <p>Signing in again recreates the same deterministic identifiers.</p>
-            <p>Triad does not revoke authorization at your upstream provider.</p>
-            <div class="actions">
-              <button id="delete-account-confirm" class="button danger" type="button"
-                >CONFIRM DELETE ACCOUNT</button
-              >
-              <button id="delete-account-cancel" class="button secondary" type="button"
-                >CANCEL</button
-              >
-            </div>
-            <p id="deletion-status" class="deletion-status" role="status" aria-live="polite"></p>
-          </div>
-        </div>
-      </section>
     </div>
-    <p id="me-error" class="error-message" role="alert" hidden></p>
+
+    <div class="control-feedback">
+      <p id="me-error" class="error-message" role="alert" tabindex="-1" hidden></p>
+      <button id="account-retry" class="button secondary" type="button" hidden>RETRY ACCOUNT</button>
+    </div>
   </section>
 
-  <style>
-    .destructive-account {
-      margin-top: 3rem;
-      border-color: var(--danger);
-    }
-    .destructive-account > h2 {
-      color: var(--danger);
-    }
-    .destructive-content,
-    .deletion-confirmation {
-      display: grid;
-      gap: 1rem;
-    }
-    .destructive-content {
-      padding: 1.25rem;
-    }
-    .destructive-content > p,
-    .deletion-confirmation > p {
-      max-width: 72ch;
-      margin: 0;
-      color: var(--muted);
-    }
-    .destructive-content > .button {
-      justify-self: start;
-    }
-    .deletion-confirmation {
-      padding-top: 1.25rem;
-      border-top: 1px solid var(--rule);
-    }
-    .deletion-confirmation[hidden] {
-      display: none;
-    }
-    .deletion-confirmation > .deletion-status {
-      min-height: 1.25rem;
-      color: var(--ink);
-    }
-  </style>
-
   <script>
-    import { fetchProviderCapabilities } from "../scripts/demo-protocol";
+    import { inspectOAuthQuery } from "../scripts/demo-protocol";
 
+    type LinkedAccount = { providerId?: string };
+    type OAuthConsent = {
+      clientId?: string;
+      id?: string;
+      resources?: string[];
+      scopes?: string[];
+      updatedAt?: string;
+    };
+    type PublicClient = { client_id?: string; client_name?: string };
+    type SessionResult = { user?: { id?: string } } | null;
+
+    const providers = ["google", "github", "twitter"] as const;
     const content = document.querySelector<HTMLElement>("#account-content")!;
     const signedOut = document.querySelector<HTMLElement>("#signed-out")!;
     const error = document.querySelector<HTMLElement>("#me-error")!;
+    const retry = document.querySelector<HTMLButtonElement>("#account-retry")!;
     const logout = document.querySelector<HTMLButtonElement>("#logout")!;
-    const deleteAccount = document.querySelector<HTMLButtonElement>("#delete-account")!;
-    const deleteConfirmation = document.querySelector<HTMLElement>("#delete-account-confirmation")!;
-    const deleteConfirm = document.querySelector<HTMLButtonElement>("#delete-account-confirm")!;
-    const deleteCancel = document.querySelector<HTMLButtonElement>("#delete-account-cancel")!;
-    const deletionStatus = document.querySelector<HTMLElement>("#deletion-status")!;
     const appCount = document.querySelector<HTMLElement>("#app-count")!;
     const list = document.querySelector<HTMLElement>("#authorized-apps")!;
     const providerActions = document.querySelector<HTMLElement>("#account-provider-actions")!;
-    const providerRetry = document.querySelector<HTMLButtonElement>("#account-provider-retry")!;
-    let csrfToken = "";
-    let remainingClients = 0;
-    let loadGeneration = 0;
     let loadController: AbortController | null = null;
-    let providerController: AbortController | null = null;
+    let loading = false;
 
-    function setMutationControls(disabled: boolean) {
-      logout.disabled = disabled;
-      deleteAccount.disabled = disabled;
-      deleteConfirm.disabled = disabled;
-      deleteCancel.disabled = disabled;
-      list.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-        button.disabled = disabled;
-      });
+    function responseError(body: unknown, fallback: string): Error {
+      if (body && typeof body === "object") {
+        const candidate = body as { error?: string; message?: string };
+        return new Error(candidate.message ?? candidate.error ?? fallback);
+      }
+
+      return new Error(fallback);
     }
 
     function showError(reason: unknown, fallback: string) {
       error.textContent = reason instanceof Error ? reason.message : fallback;
       error.hidden = false;
+      retry.hidden = false;
+      error.focus();
     }
 
-    async function responseError(response: Response, fallback: string): Promise<Error> {
-      try {
-        const body = (await response.json()) as { error_description?: string; error?: string };
-        return new Error(body.error_description ?? body.error ?? fallback);
-      } catch {
-        return new Error(fallback);
+    function setMutationControls(disabled: boolean) {
+      logout.disabled = disabled;
+      providerActions.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+        button.disabled = disabled;
+      });
+      list.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+        button.disabled = disabled;
+      });
+    }
+
+    async function jsonResponse<T>(response: Response, fallback: string): Promise<T> {
+      const body = (await response.json()) as T;
+      if (!response.ok) {
+        throw responseError(body, fallback);
       }
+
+      return body;
     }
 
-    async function takeCsrfToken(): Promise<string> {
-      if (!csrfToken) {await load();}
-      if (!csrfToken) {throw new Error("Could not refresh account security state.");}
-      const token = csrfToken;
-      csrfToken = "";
-      return token;
-    }
-
-    async function recoverAccount(reason: unknown, fallback: string) {
-      csrfToken = "";
-      showError(reason, fallback);
-      try {
-        await load();
-        showError(reason, fallback);
-      } catch (reloadReason) {
-        showError(reloadReason, fallback);
+    function currentOAuthQuery(): string | undefined {
+      if (!location.search) {
+        return undefined;
       }
+
+      return inspectOAuthQuery(location.search).oauthQuery;
     }
 
-    async function revokeClient(clientId: string, row: HTMLElement) {
+    async function signIn(provider: (typeof providers)[number], button: HTMLButtonElement) {
       setMutationControls(true);
-      try {
-        const token = await takeCsrfToken();
-        setMutationControls(true);
-        const revoked = await fetch(`/api/me/clients/${encodeURIComponent(clientId)}`, {
-          method: "DELETE",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ csrf_token: token }),
-        });
-        if (!revoked.ok) {throw await responseError(revoked, "Could not revoke this authorization.");}
-        const next = (await revoked.json()) as { csrf_token?: string };
-        if (!next.csrf_token)
-          {throw new Error("Authorization changed, but security state could not be refreshed.");}
-        csrfToken = next.csrf_token;
-        row.remove();
-        appCount.textContent = String(--remainingClients);
-        if (!remainingClients)
-          {list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;}
-      } catch (reason) {
-        await recoverAccount(reason, "Could not revoke this authorization.");
-      } finally {
-        setMutationControls(false);
-      }
-    }
+      error.hidden = true;
+      retry.hidden = true;
+      button.textContent = `OPENING ${provider.toUpperCase()}`;
 
-    async function logoutAccount() {
-      setMutationControls(true);
       try {
-        const token = await takeCsrfToken();
-        setMutationControls(true);
-        const response = await fetch("/session/logout", {
+        const oauthQuery = currentOAuthQuery();
+        const response = await fetch("/api/auth/sign-in/social", {
           method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ csrf_token: token }),
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            provider,
+            ...(oauthQuery
+              ? { oauth_query: oauthQuery }
+              : { callbackURL: new URL("/me/", location.origin).href }),
+          }),
         });
-        if (!response.ok) {throw await responseError(response, "Could not sign out.");}
-        location.reload();
+        const body = await jsonResponse<{ url?: string }>(response, "Provider sign-in could not start.");
+        if (!body.url) {
+          throw new Error("Provider sign-in did not return a destination.");
+        }
+
+        location.assign(body.url);
       } catch (reason) {
-        await recoverAccount(reason, "Could not sign out.");
-      } finally {
+        button.textContent = `RETRY ${provider.toUpperCase()}`;
         setMutationControls(false);
+        showError(reason, "Provider sign-in could not start.");
       }
     }
 
-    async function deleteCurrentAccount() {
+    function renderProviderActions() {
+      providerActions.replaceChildren();
+      for (const provider of providers) {
+        const button = document.createElement("button");
+        button.className = "button primary";
+        button.type = "button";
+        button.textContent = `CONTINUE WITH ${provider.toUpperCase()}`;
+        button.addEventListener("click", () => {
+          void signIn(provider, button);
+        });
+        providerActions.append(button);
+      }
+    }
+
+    async function publicClient(clientId: string, signal: AbortSignal): Promise<PublicClient> {
+      const endpoint = new URL("/api/auth/oauth2/public-client", location.origin);
+      endpoint.searchParams.set("client_id", clientId);
+      const response = await fetch(endpoint, {
+        headers: { accept: "application/json" },
+        signal,
+      });
+
+      return jsonResponse(response, `Could not load client ${clientId}.`);
+    }
+
+    async function removeConsent(consentId: string, row: HTMLElement) {
       setMutationControls(true);
-      deletionStatus.textContent = "DELETING ACCOUNT...";
+      error.hidden = true;
+      retry.hidden = true;
+
       try {
-        const token = await takeCsrfToken();
-        setMutationControls(true);
-        const response = await fetch("/api/me", {
-          method: "DELETE",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ csrf_token: token }),
+        const response = await fetch("/api/auth/oauth2/delete-consent", {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ id: consentId }),
         });
-        if (!response.ok) {throw await responseError(response, "Could not delete this account.");}
-        deletionStatus.textContent = "ACCOUNT DELETED. RETURNING TO SIGN IN.";
-        location.reload();
-      } catch (reason) {
-        await recoverAccount(reason, "Could not delete this account.");
-        if (!content.hidden) {
-          deleteAccount.hidden = true;
-          deleteConfirmation.hidden = false;
-          deletionStatus.textContent = "ACCOUNT NOT DELETED. REVIEW THE ERROR AND TRY AGAIN.";
+        if (!response.ok) {
+          throw responseError(await response.json(), "Could not remove this consent.");
         }
+
+        row.remove();
+        const remaining = list.querySelectorAll(".authorized-app").length;
+        appCount.textContent = String(remaining);
+        if (remaining === 0) {
+          const empty = document.createElement("p");
+          empty.className = "empty-state";
+          empty.textContent = "No downstream applications are authorized.";
+          list.append(empty);
+        }
+      } catch (reason) {
+        showError(reason, "Could not remove this consent.");
       } finally {
         setMutationControls(false);
       }
     }
 
-    async function renderProviderActions() {
-      providerController?.abort();
-      const controller = new AbortController();
-      providerController = controller;
-      providerActions.textContent = "Loading enabled providers...";
-      providerRetry.hidden = true;
-      providerRetry.disabled = true;
+    async function renderConsents(consents: OAuthConsent[], signal: AbortSignal) {
+      const completeConsents = consents.filter(
+        (consent): consent is OAuthConsent & { clientId: string; id: string } =>
+          typeof consent.clientId === "string" && typeof consent.id === "string",
+      );
+      const clients = await Promise.all(
+        completeConsents.map((consent) => publicClient(consent.clientId, signal)),
+      );
+
+      list.replaceChildren();
+      appCount.textContent = String(completeConsents.length);
+      if (completeConsents.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "empty-state";
+        empty.textContent = "No downstream applications are authorized.";
+        list.append(empty);
+        return;
+      }
+
+      completeConsents.forEach((consent, index) => {
+        const client = clients[index];
+        const row = document.createElement("article");
+        row.className = "authorized-app";
+
+        const copy = document.createElement("div");
+        const title = document.createElement("h3");
+        title.textContent = client?.client_name?.trim() || consent.clientId;
+        const id = document.createElement("code");
+        id.textContent = client?.client_id ?? consent.clientId;
+        const details = document.createElement("small");
+        details.textContent = [
+          consent.scopes?.join(" ") || "openid",
+          consent.resources?.join(" · ") || "no resource recorded",
+        ].join(" / ");
+        copy.append(title, details);
+        const button = document.createElement("button");
+        button.className = "button danger";
+        button.type = "button";
+        button.textContent = "REMOVE CONSENT";
+        button.addEventListener("click", () => {
+          void removeConsent(consent.id, row);
+        });
+
+        row.append(copy, id, button);
+        list.append(row);
+      });
+    }
+
+    async function signOut() {
+      setMutationControls(true);
+      logout.textContent = "SIGNING OUT";
+      error.hidden = true;
+      retry.hidden = true;
+
       try {
-        const providers = await fetchProviderCapabilities(location.origin, controller.signal);
-        if (!providers.length) {throw new Error("No sign-in providers are enabled.");}
-        providerActions.replaceChildren();
-        for (const provider of providers) {
-          const link = document.createElement("a");
-          link.className = "button primary";
-          link.href = `/session/start/${provider.id}`;
-          link.textContent = `CONTINUE WITH ${provider.id.toUpperCase()}`;
-          providerActions.append(link);
+        const response = await fetch("/api/auth/sign-out", {
+          method: "POST",
+          headers: { accept: "application/json" },
+        });
+        if (!response.ok) {
+          throw responseError(await response.json(), "Could not sign out.");
         }
+
+        location.reload();
       } catch (reason) {
-        if (reason instanceof DOMException && reason.name === "AbortError") {return;}
-        providerActions.textContent = "Sign-in providers could not be loaded.";
-        providerRetry.hidden = false;
-      } finally {
-        if (providerController === controller) {
-          providerController = null;
-          providerRetry.disabled = false;
-        }
+        logout.textContent = "RETRY SIGN OUT";
+        setMutationControls(false);
+        showError(reason, "Could not sign out.");
       }
     }
 
     async function load() {
-      const generation = ++loadGeneration;
+      if (loading) {
+        return;
+      }
+
+      loading = true;
       loadController?.abort();
       const controller = new AbortController();
       loadController = controller;
-      csrfToken = "";
       setMutationControls(true);
+      error.hidden = true;
+      retry.hidden = true;
+      document.querySelector("#account-summary")!.textContent = "Loading your session...";
+
       try {
-        const response = await fetch("/api/me", { signal: controller.signal });
-        if (generation !== loadGeneration) {return;}
-        if (response.status === 401) {
+        const sessionResponse = await fetch("/api/auth/get-session", {
+          headers: { accept: "application/json" },
+          signal: controller.signal,
+        });
+        const session = await jsonResponse<SessionResult>(sessionResponse, "Could not load your session.");
+        if (!session?.user?.id) {
           document.querySelector("#account-summary")!.textContent =
-            "No active broker session on this browser.";
+            "No active authorization session on this browser.";
           content.hidden = true;
           signedOut.hidden = false;
-          list.replaceChildren();
-          await renderProviderActions();
+          renderProviderActions();
           return;
         }
-        const body = (await response.json()) as {
-          account_sub?: string;
-          identities?: string[];
-          clients?: Array<{ client_id: string; name: string; updated_at: number }>;
-          csrf_token?: string;
-          error?: string;
-        };
-        if (generation !== loadGeneration) {return;}
-        if (!response.ok) {throw new Error(body.error ?? "Could not load your session.");}
-        if (!body.csrf_token) {throw new Error("Account security state is unavailable.");}
+
+        const [accountsResponse, consentsResponse] = await Promise.all([
+          fetch("/api/auth/list-accounts", {
+            headers: { accept: "application/json" },
+            signal: controller.signal,
+          }),
+          fetch("/api/auth/oauth2/get-consents", {
+            headers: { accept: "application/json" },
+            signal: controller.signal,
+          }),
+        ]);
+        const accounts = await jsonResponse<LinkedAccount[]>(
+          accountsResponse,
+          "Could not load linked identities.",
+        );
+        const consents = await jsonResponse<OAuthConsent[]>(
+          consentsResponse,
+          "Could not load authorized applications.",
+        );
+
         document.querySelector("#account-summary")!.textContent =
-          "This is the identity map Triad holds for you.";
-        document.querySelector("#account-sub")!.textContent = body.account_sub ?? "NONE";
-        document.querySelector("#identity-list")!.textContent = body.identities?.join(" · ") || "NONE";
-        const clients = body.clients ?? [];
-        csrfToken = body.csrf_token;
-        remainingClients = clients.length;
-        appCount.textContent = String(remainingClients);
-        list.replaceChildren();
-        if (!clients.length)
-          {list.innerHTML = `<p class="empty-state">No downstream applications are authorized.</p>`;}
-        for (const client of clients) {
-          const row = document.createElement("article");
-          row.className = "authorized-app";
-          const title = document.createElement("h3");
-          title.textContent = client.name;
-          const id = document.createElement("code");
-          id.textContent = client.client_id;
-          const button = document.createElement("button");
-          button.className = "button danger";
-          button.textContent = "REVOKE";
-          button.addEventListener("click", () => {
-            void revokeClient(client.client_id, row);
-          });
-          row.append(title, id, button);
-          list.append(row);
-        }
+          "This is the identity map and authorization ledger Triad holds for you.";
+        document.querySelector("#account-sub")!.textContent = session.user.id;
+        document.querySelector("#identity-list")!.textContent =
+          accounts.map((account) => account.providerId?.toUpperCase()).filter(Boolean).join(" · ") || "NONE";
+        await renderConsents(consents, controller.signal);
         signedOut.hidden = true;
         content.hidden = false;
-        error.hidden = true;
+      } catch (reason) {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          return;
+        }
+
+        showError(reason, "Could not load your session.");
       } finally {
-        if (generation === loadGeneration) {
+        if (loadController === controller) {
           loadController = null;
+          loading = false;
           setMutationControls(false);
         }
       }
     }
 
     logout.addEventListener("click", () => {
-      void logoutAccount();
+      void signOut();
     });
-    deleteAccount.addEventListener("click", () => {
-      deleteAccount.hidden = true;
-      deleteConfirmation.hidden = false;
-      deletionStatus.textContent = "AWAITING CONFIRMATION.";
-      deleteConfirm.focus();
-    });
-    deleteCancel.addEventListener("click", () => {
-      deleteAccount.hidden = false;
-      deleteConfirmation.hidden = true;
-      deletionStatus.textContent = "";
-      deleteAccount.focus();
-    });
-    deleteConfirm.addEventListener("click", () => {
-      void deleteCurrentAccount();
-    });
-    providerRetry.addEventListener("click", () => {
-      void renderProviderActions();
+    retry.addEventListener("click", () => {
+      void load();
     });
     window.addEventListener("pagehide", () => {
-      loadGeneration++;
       loadController?.abort();
-      providerController?.abort();
     });
-    load().catch((reason: unknown) => {
-      if (!(reason instanceof DOMException && reason.name === "AbortError")) {
-        showError(reason, "Could not load your session.");
-      }
-    });
+    void load();
   </script>
 </Shell>

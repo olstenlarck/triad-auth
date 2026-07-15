@@ -45,6 +45,15 @@ function assertPluginEndpointInference() {
   expectTypeOf(auth.api.platformContract).toBeFunction();
 }
 
+function assertComposedPluginEndpointInference() {
+  const env = createEnv();
+  const configuration = createTriadConfiguration(env);
+  const auth = createTriadAuth(env, configuration);
+
+  expectTypeOf(auth.api.oauth2Authorize).toBeFunction();
+  expectTypeOf(auth.api.getJwks).toBeFunction();
+}
+
 function assertFixedOptionsCannotBeConfigured() {
   const env = createEnv();
 
@@ -94,6 +103,7 @@ function assertFixedOptionsCannotBeConfigured() {
 }
 
 void assertPluginEndpointInference;
+void assertComposedPluginEndpointInference;
 void assertFixedOptionsCannotBeConfigured;
 
 afterEach(() => {
@@ -231,12 +241,19 @@ describe("Triad Better Auth platform options", () => {
     expect(options.baseURL).toBe(normalizedOrigin);
   });
 
-  it("provides the canonical application configuration seam", () => {
+  it("passes the composed product configuration through the canonical seam", () => {
     const env = createEnv();
     const configuration = createTriadConfiguration(env);
     const options = createTriadAuthOptions(env, configuration);
 
-    expect(configuration).toEqual({});
+    expect(configuration).toMatchObject({
+      socialProviders: expect.any(Object),
+      databaseHooks: expect.any(Object),
+      plugins: expect.any(Array),
+    });
+    expect(options.socialProviders).toBe(configuration.socialProviders);
+    expect(options.databaseHooks).toBe(configuration.databaseHooks);
+    expect(options.plugins).toBe(configuration.plugins);
     expect(options.database).toBe(env.DB);
   });
 });

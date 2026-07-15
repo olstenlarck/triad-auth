@@ -75,6 +75,7 @@ const schemaIntrospectionParameters = [
   "kysely_migration",
   "kysely_migration_lock",
 ];
+const unsupportedIntrospectionError = "no such table: oauthResource";
 const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
@@ -159,14 +160,14 @@ describe("Better Auth schema tooling", () => {
 
   it("rejects arbitrary application SQL", () => {
     expect(() => authSchemaDatabase.prepare('select * from "user"')).toThrow(
-      "schema introspection",
+      unsupportedIntrospectionError,
     );
   });
 
   it("rejects introspection execution with unexpected bindings", async () => {
     const statement = authSchemaDatabase.prepare(schemaIntrospectionQuery).bind("table");
 
-    await expect(statement.all()).rejects.toThrow("schema introspection");
+    await expect(statement.all()).rejects.toThrow(unsupportedIntrospectionError);
   });
 
   it("throws from every unsupported query method", () => {
