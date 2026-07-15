@@ -137,21 +137,6 @@ async function resolveScopedProfileClaims(
   return claims;
 }
 
-async function resolveTokenIdentityClaims(
-  identity: TokenIdentityResolver,
-  profileClaims: TokenProfileClaimResolver | undefined,
-  user: TokenIdentityUser,
-  clientId: string,
-  scopes: readonly string[],
-): Promise<TripleIdentityClaims & TokenProfileClaims> {
-  const [identityClaims, scopedProfileClaims] = await Promise.all([
-    resolveTripleIdentityClaims(identity, user, clientId),
-    resolveScopedProfileClaims(profileClaims, user, scopes),
-  ]);
-
-  return { ...identityClaims, ...scopedProfileClaims };
-}
-
 function userInfoClientId(input: OAuthUserInfoExtensionInput): string {
   const tokenClientId =
     typeof input.jwt.client_id === "string"
@@ -167,22 +152,11 @@ function userInfoClientId(input: OAuthUserInfoExtensionInput): string {
   return clientId;
 }
 
-function createIdentityClaimsExtension(
-  identity: TokenIdentityResolver,
-  profileClaims: TokenProfileClaimResolver | undefined,
-): OAuthProviderExtension {
+function createIdentityClaimsExtension(identity: TokenIdentityResolver): OAuthProviderExtension {
   return {
     claims: {
       accessToken: (input: OAuthClaimExtensionInput) =>
-        input.user
-          ? resolveTokenIdentityClaims(
-              identity,
-              profileClaims,
-              input.user,
-              input.client.clientId,
-              input.scopes,
-            )
-          : {},
+        input.user ? resolveTripleIdentityClaims(identity, input.user, input.client.clientId) : {},
       idToken: (input: OAuthClaimExtensionInput) =>
         input.user ? resolveTripleIdentityClaims(identity, input.user, input.client.clientId) : {},
       userInfo: (input: OAuthUserInfoExtensionInput) =>
@@ -208,7 +182,7 @@ export function createTokenComposition({
 }: TokenCompositionDependencies) {
   const resolveSubjectIdentifier: NonNullable<OAuthOptions["resolveSubjectIdentifier"]> = (input) =>
     identity.resolvePairwiseSubject(input.userId, input.clientId);
-  const claimsExtension = createIdentityClaimsExtension(identity, profileClaims);
+  const claimsExtension = createIdentityClaimsExtension(identity);
   const {
     resources,
     scopes: resourceScopes = [],

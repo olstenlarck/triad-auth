@@ -333,6 +333,30 @@ describe("token composition", () => {
     expect(claims).not.toHaveProperty("aud");
   });
 
+  it("keeps optional profile claims out of bearer access tokens", async () => {
+    const profileClaims: TokenProfileClaimResolver = {
+      resolveProfileClaims: vi.fn(async () => ({
+        email: "person@example.com",
+        email_verified: true,
+        preferred_username: "person",
+        name: "Person Name",
+        picture: "https://images.example.com/person.png",
+      })),
+    };
+    const extension = claimsExtension(createComposition(createIdentityResolver(), profileClaims));
+
+    await expect(
+      extension.claims?.accessToken?.(
+        claimInput(["openid", "email", "handle", "name", "avatar"]),
+      ),
+    ).resolves.toEqual({
+      account_sub: user.id,
+      pairwise_sub: `pws:${user.id}:${clientId}`,
+      provider_sub: user.providerSub,
+    });
+    expect(profileClaims.resolveProfileClaims).not.toHaveBeenCalled();
+  });
+
   it("adds the same pairwise subject and triple claims to UserInfo", async () => {
     const composition = createComposition();
     const extension = claimsExtension(composition);
