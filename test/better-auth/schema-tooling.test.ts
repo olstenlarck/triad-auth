@@ -84,8 +84,20 @@ const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
 const wranglerSource = readSource("wrangler.toml");
 const schemaSource = readSource("src/better-auth/schema.ts");
 const schemaDatabaseSource = readSource("scripts/auth-schema-database.ts");
+const migrationFiles = readdirSync("migrations").filter((path) => path.endsWith(".sql"));
+const baselineMigration = readSource("migrations/0001_better-auth.sql");
 
 describe("Better Auth schema tooling", () => {
+  it("keeps one complete baseline migration", () => {
+    expect(migrationFiles).toEqual(["0001_better-auth.sql"]);
+    expect(baselineMigration).toContain('"profileEmail" text');
+    expect(baselineMigration).toContain('"profileEmailVerified" integer');
+    expect(baselineMigration).toContain('"profileHandle" text');
+    expect(baselineMigration).toContain('"profileDisplayName" text');
+    expect(baselineMigration).toContain('"profileAvatar" text');
+    expect(baselineMigration).toContain('create table "deviceCode"');
+  });
+
   it("configures only the isolated placeholder D1 binding", () => {
     const bindingBlocks = wranglerSource.match(/\[\[d1_databases\]\][\s\S]*?(?=\n\[|$)/g) ?? [];
 
@@ -94,7 +106,9 @@ describe("Better Auth schema tooling", () => {
     expect(bindingBlocks[0]).toContain('database_name = "triad-better-auth"');
     expect(bindingBlocks[0]).toContain('database_id = "00000000-0000-0000-0000-000000000000"');
     expect(bindingBlocks[0]).toContain('migrations_dir = "migrations"');
-    expect(wranglerSource.match(/database_id\s*=/g)).toHaveLength(1);
+    expect(wranglerSource).toContain("[[env.staging.d1_databases]]");
+    expect(wranglerSource).toContain('database_name = "triad-better-auth-staging"');
+    expect(wranglerSource.match(/database_id\s*=/g)).toHaveLength(2);
   });
 
   it("exposes generation and local-only migration commands", () => {
