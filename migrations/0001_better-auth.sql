@@ -57,3 +57,5 @@ create index "oauthAccessToken_refreshId_idx" on "oauthAccessToken" ("refreshId"
 create index "oauthConsent_clientId_idx" on "oauthConsent" ("clientId");
 
 create index "oauthConsent_userId_idx" on "oauthConsent" ("userId");
+
+create index "deviceCode_userCode_userId_idx" on "deviceCode" ("userCode", "userId");

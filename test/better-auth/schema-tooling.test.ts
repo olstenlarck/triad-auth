@@ -96,6 +96,9 @@ describe("Better Auth schema tooling", () => {
     expect(baselineMigration).toContain('"profileDisplayName" text');
     expect(baselineMigration).toContain('"profileAvatar" text');
     expect(baselineMigration).toContain('create table "deviceCode"');
+    expect(baselineMigration).toContain(
+      'create index "deviceCode_userCode_userId_idx" on "deviceCode" ("userCode", "userId")',
+    );
   });
 
   it("configures only the isolated placeholder D1 binding", () => {
