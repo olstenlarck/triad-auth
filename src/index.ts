@@ -3,6 +3,7 @@ import { createTriadConfiguration } from "./better-auth/configuration";
 import { canonicalDisclosureScopes } from "./better-auth/disclosures";
 import type { TriadEnv } from "./better-auth/env";
 import { createTriadResourceFragment } from "./better-auth/resources";
+import { cspScriptHashes } from "./generated/csp-script-hashes";
 
 interface TriadAuthService {
   api: {
@@ -23,6 +24,26 @@ interface DeviceDisclosureRecord {
 }
 
 const DEVICE_DISCLOSURE_PATH = `${AUTH_BASE_PATH}/device/disclosure`;
+const OIDC_DISCOVERY_PATH = `${AUTH_BASE_PATH}/.well-known/openid-configuration`;
+const SECURITY_HEADERS: Record<string, string> = {
+  "content-security-policy": [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    `script-src 'self' ${cspScriptHashes.join(" ")}`.trim(),
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self'",
+    "connect-src 'self'",
+  ].join("; "),
+  "x-frame-options": "DENY",
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "permissions-policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+  "cross-origin-opener-policy": "same-origin",
+};
 
 export function isAuthPath(pathname: string): boolean {
   return pathname === AUTH_BASE_PATH || pathname.startsWith(`${AUTH_BASE_PATH}/`);
@@ -33,12 +54,64 @@ function protectedResourceDocument(url: URL, env: TriadEnv) {
     return undefined;
   }
 
-  const fragment = createTriadResourceFragment(env, {
-    rpcWalletsResource: env.RPC_WALLETS_RESOURCE,
-  });
+  const fragment = createTriadResourceFragment(env);
 
   return fragment.protectedResourceMetadata.find(({ metadataUrl }) => metadataUrl === url.href)
     ?.document;
+}
+
+function withSecurityHeaders(response: Response, env: TriadEnv): Response {
+  const secured = new Response(response.body, response);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    secured.headers.set(name, value);
+  }
+
+  try {
+    if (new URL(env.AUTH_ORIGIN).protocol === "https:") {
+      secured.headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
+    }
+  } catch {
+    // Authentication configuration validates AUTH_ORIGIN on authenticated routes.
+  }
+
+  return secured;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+async function enforcePairwiseDiscovery(request: Request, response: Response): Promise<Response> {
+  if (request.method !== "GET" || response.status !== 200) {
+    return response;
+  }
+
+  let document: unknown;
+  try {
+    document = await response.clone().json();
+  } catch {
+    return response;
+  }
+  if (!isRecord(document)) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("content-type", "application/json");
+  headers.delete("content-length");
+  headers.delete("etag");
+
+  return new Response(
+    JSON.stringify({
+      ...document,
+      subject_types_supported: ["pairwise"],
+    }),
+    {
+      headers,
+      status: response.status,
+      statusText: response.statusText,
+    },
+  );
 }
 
 async function handleDeviceDisclosure(
@@ -95,27 +168,32 @@ export function createWorker<Configuration>(services: WorkerServices<Configurati
       const url = new URL(request.url);
       const resourceDocument = protectedResourceDocument(url, env);
       if (resourceDocument) {
-        return Response.json(resourceDocument);
+        return withSecurityHeaders(Response.json(resourceDocument), env);
       }
 
       if (url.pathname === DEVICE_DISCLOSURE_PATH) {
         const configuration = services.createTriadConfiguration(env);
         const auth = services.createTriadAuth(env, configuration);
 
-        return handleDeviceDisclosure(request, env, auth);
+        return withSecurityHeaders(await handleDeviceDisclosure(request, env, auth), env);
       }
 
       if (isAuthPath(url.pathname)) {
         const configuration = services.createTriadConfiguration(env);
+        const authResponse = await services.createTriadAuth(env, configuration).handler(request);
+        const discoveryResponse =
+          url.pathname === OIDC_DISCOVERY_PATH
+            ? await enforcePairwiseDiscovery(request, authResponse)
+            : authResponse;
 
-        return services.createTriadAuth(env, configuration).handler(request);
+        return withSecurityHeaders(discoveryResponse, env);
       }
 
       if (url.pathname.startsWith("/__astro_")) {
-        return services.handleAstro(request, env, context);
+        return withSecurityHeaders(await services.handleAstro(request, env, context), env);
       }
 
-      return services.fetchAssets(request, env);
+      return withSecurityHeaders(await services.fetchAssets(request, env), env);
     },
   } satisfies ExportedHandler<TriadEnv>;
 }

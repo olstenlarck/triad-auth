@@ -84,18 +84,32 @@ const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
 const wranglerSource = readSource("wrangler.toml");
 const schemaSource = readSource("src/better-auth/schema.ts");
 const schemaDatabaseSource = readSource("scripts/auth-schema-database.ts");
-const migrationFiles = readdirSync("migrations").filter((path: string) => path.endsWith(".sql"));
+const migrationFiles = readdirSync("migrations")
+  .filter((path: string) => path.endsWith(".sql"))
+  .sort();
 const baselineMigration = readSource("migrations/0001_better-auth.sql");
+const profileDataMigration = readSource("migrations/0002-profile-data.sql");
 
 describe("Better Auth schema tooling", () => {
-  it("keeps one complete baseline migration", () => {
-    expect(migrationFiles).toEqual(["0001_better-auth.sql"]);
+  it("keeps the baseline migration immutable and applies profile changes forward", () => {
+    expect(migrationFiles).toEqual(["0001_better-auth.sql", "0002-profile-data.sql"]);
     expect(baselineMigration).toContain('"profileEmail" text');
-    expect(baselineMigration).toContain('"profileEmailVerified" integer');
-    expect(baselineMigration).toContain('"profileHandle" text');
-    expect(baselineMigration).toContain('"profileDisplayName" text');
-    expect(baselineMigration).toContain('"profileAvatar" text');
+    expect(baselineMigration).not.toContain('"profileData" text');
     expect(baselineMigration).toContain('create table "deviceCode"');
+    expect(profileDataMigration).toContain('create table "user_new"');
+    expect(profileDataMigration).toContain('drop table "user"');
+    expect(profileDataMigration).toContain('alter table "user_new" rename to "user"');
+    expect(profileDataMigration).toContain('"profileData" text');
+    expect(profileDataMigration).not.toContain('"name" text');
+    expect(profileDataMigration).not.toContain('"email" text');
+    expect(profileDataMigration).not.toContain('"emailVerified"');
+    expect(profileDataMigration).not.toContain('"image" text');
+    expect(profileDataMigration).not.toContain('"profileEmail"');
+    expect(profileDataMigration).not.toContain('"profileEmailVerified"');
+    expect(profileDataMigration).not.toContain('"profileHandle"');
+    expect(profileDataMigration).not.toContain('"profileDisplayName"');
+    expect(profileDataMigration).not.toContain('"profileAvatar"');
+    expect(profileDataMigration).toContain('create table "rateLimit"');
     expect(baselineMigration).toContain(
       'create index "deviceCode_userCode_userId_idx" on "deviceCode" ("userCode", "userId")',
     );
@@ -116,7 +130,7 @@ describe("Better Auth schema tooling", () => {
 
   it("exposes generation and local-only migration commands", () => {
     expect(packageJson.scripts["auth:schema"]).toBe(
-      "vp exec auth generate --config src/better-auth/schema.ts --output migrations/0001_better-auth.sql --yes",
+      "vp exec auth generate --config src/better-auth/schema.ts --output /tmp/triad-better-auth-schema.sql --yes",
     );
     expect(packageJson.scripts["db:migrate:local"]).toBe(
       "vp exec wrangler d1 migrations apply triad-better-auth --local",

@@ -64,17 +64,17 @@
 
 **Files:**
 
-- Modify: `migrations/0001_better-auth.sql`
-- Delete: `migrations/0002_disclosures_device.sql`
+- Keep: `migrations/0001_better-auth.sql` unchanged.
+- Create: `migrations/0002-profile-data.sql`
 - Modify: schema migration tests under `test/schema/` if exact migration inventory is asserted.
 
 **Interfaces:**
 
-- Produces: one baseline migration containing the five nullable `profile*` user columns and complete `deviceCode` table with its indexes and foreign key.
+- Produces: an ordered migration set whose forward migration rebuilds the user table without Better Auth's raw profile columns or the five nullable `profile*` user columns, adds encrypted `profileData`, and creates the rate-limit table.
 
-- [ ] Add or update the migration contract test to require profile columns and `deviceCode` in `0001_better-auth.sql` and exactly one migration file.
+- [ ] Add or update the migration contract test to require the legacy profile columns and `deviceCode` in `0001_better-auth.sql`, the forward `profileData` migration in `0002-profile-data.sql`, and exactly two migration files.
 - [ ] Run the focused schema test and confirm it fails.
-- [ ] Fold all statements from `0002_disclosures_device.sql` into the original `user` definition and baseline table/index ordering, then delete `0002`.
+- [ ] Add the ordered `0002-profile-data.sql` migration without editing the baseline file.
 - [ ] Run the focused schema test and confirm it passes.
 - [ ] Commit with `chore: consolidate better auth schema`.
 
@@ -92,7 +92,7 @@
 - [ ] Run `vp run check` and require zero formatting, lint, type, or test failures.
 - [ ] Run `vp run build` and require a successful Astro/Cloudflare build.
 - [ ] Delete only the D1 database named `triad-better-auth-staging`, create it again, and replace the staging `database_id` in `wrangler.toml`.
-- [ ] Run `vp run db:migrate:staging` and verify only `0001_better-auth.sql` is applied.
+- [ ] Run `vp run db:migrate:staging` and verify the ordered migration set is applied.
 - [ ] Run `vp run deploy:staging` and record the new deployment version.
 - [ ] Verify discovery advertises `openid email handle name avatar`, DCR accepts those scopes, and device code issuance returns the configured verification URI.
 - [ ] Complete a browser Google flow with all optional scopes and verify the returned signed ID token contains all requested standard claims plus the three Triad identity claims.

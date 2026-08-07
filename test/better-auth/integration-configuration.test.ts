@@ -12,7 +12,9 @@ function createEnv(overrides: Partial<TriadEnv> = {}): TriadEnv {
     DB: {} as D1Database,
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
-    IDENTIFIER_SECRET: "identifier-secret",
+    IDENTIFIER_SECRET: "identifier-secret-with-enough-entropy-1234567890",
+    PROFILE_DATA_KEYRING:
+      '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -84,7 +86,7 @@ describe("Triad Better Auth integration configuration", () => {
     });
   });
 
-  it("always configures the demo resource and leaves RPC disabled by default", () => {
+  it("always configures the demo resource", () => {
     const configuration = createTriadConfiguration(createEnv());
     const providerPlugin = requireOAuthProviderPlugin(configuration.plugins);
 
@@ -98,32 +100,5 @@ describe("Triad Better Auth integration configuration", () => {
       },
     ]);
     expect(providerPlugin.options.scopes).toEqual(["openid", "email", "handle", "name", "avatar"]);
-  });
-
-  it("adds RPC Wallets without replacing demo resource policy", () => {
-    const configuration = createTriadConfiguration(
-      createEnv({ RPC_WALLETS_RESOURCE: "https://wallets.example.com/mcp" }),
-    );
-    const providerPlugin = requireOAuthProviderPlugin(configuration.plugins);
-
-    expect(providerPlugin.options.resources).toEqual([
-      expect.objectContaining({
-        identifier: "https://auth.example.com/demo/",
-        allowedScopes: ["openid", "email", "handle", "name", "avatar"],
-      }),
-      expect.objectContaining({
-        identifier: "https://wallets.example.com/mcp",
-        allowedScopes: ["wallets:read", "offline_access"],
-      }),
-    ]);
-    expect(providerPlugin.options.scopes).toEqual([
-      "openid",
-      "email",
-      "handle",
-      "name",
-      "avatar",
-      "wallets:read",
-      "offline_access",
-    ]);
   });
 });

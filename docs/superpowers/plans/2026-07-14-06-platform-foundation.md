@@ -226,7 +226,7 @@ Expected: PASS.
 Assert that:
 
 1. `wrangler.toml` binds `DB` to database name `triad-better-auth`, migration directory `migrations`, and only the all-zero placeholder database UUID.
-2. `package.json` exposes `auth:schema` targeting `migrations/0001_better-auth.sql` and `db:migrate:local` with Wrangler's `--local` flag.
+2. `package.json` exposes `auth:schema` targeting a temporary generated schema outside `migrations/` and `db:migrate:local` with Wrangler's `--local` flag.
 3. No Drizzle, Miniflare, SQLite driver, or old database/Worker name appears in the new tooling.
 4. The schema auth entry exports `const auth`, calls the canonical configuration function, and passes that exact result to the runtime factory rather than duplicating Better Auth options.
 
@@ -269,7 +269,7 @@ Create `src/better-auth/schema.ts` with an inert `ASSETS` value so its environme
 Add sorted scripts equivalent to:
 
 ```json
-"auth:schema": "vp exec auth generate --config src/better-auth/schema.ts --output migrations/0001_better-auth.sql --yes",
+"auth:schema": "vp exec auth generate --config src/better-auth/schema.ts --output /tmp/triad-better-auth-schema.sql --yes",
 "db:migrate:local": "vp exec wrangler d1 migrations apply triad-better-auth --local"
 ```
 

@@ -7,7 +7,7 @@ Fix optional profile claim issuance and restore the v1 two-flow device demo comp
 ## Browser Flow
 
 - Keep synthetic email, name, image, account subject, and provider subject authoritative and immutable.
-- Persist the provider profile snapshot in the separate `profile*` user columns created with the user.
+- Persist the provider profile snapshot only in the encrypted `profileData` envelope.
 - Emit requested standard profile claims through OAuth Provider's first-party `customIdTokenClaims` and `customUserInfoClaims` hooks so package-owned claim guards cannot suppress them.
 - Keep `pairwise_sub`, `account_sub`, and `provider_sub` in the extension claim path.
 - Continue rejecting token issuance when a requested profile claim is unavailable or invalid.
@@ -23,9 +23,9 @@ Fix optional profile claim issuance and restore the v1 two-flow device demo comp
 
 ## Schema and Staging
 
-- Fold the five nullable provider-profile columns and the `deviceCode` table into `migrations/0001_better-auth.sql`.
-- Delete `migrations/0002_disclosures_device.sql`; the repository keeps one complete baseline migration rather than transitional staging history.
-- Destroy and recreate the isolated staging D1 database, update its binding ID, run the baseline migration once, and redeploy the staging Worker.
+- Keep `migrations/0001_better-auth.sql` immutable and apply `migrations/0002-profile-data.sql` as the forward schema change.
+- Have the forward migration rebuild the user table without Better Auth's raw profile columns (`name`, `email`, `emailVerified`, and `image`) or the five legacy provider-profile columns, add `profileData`, and create the rate-limit table.
+- Destroy and recreate the isolated staging D1 database, update its binding ID, apply the ordered migration set, and redeploy the staging Worker.
 - Preserve Worker secrets and all production resources.
 
 ## Verification
