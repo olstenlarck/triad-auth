@@ -142,22 +142,32 @@ Triad supports RFC 8628 through a self-contained internal companion plugin built
 
 The module stores only hashed device codes, normalized user codes, polling state, client, scopes, resources, expiry, approval identity, and authentication time. It authenticates confidential clients through their registered method, supports public clients, advertises the device endpoint and grant in authorization-server metadata, and implements the standard pending, slow-down, denial, expiry, and one-winner redemption behavior.
 
-## Protected Resource Flow
+## MCP And Resource Flow
 
-Triad publishes protected-resource metadata for its demo resource and issues tokens only for recognized resources.
-The resource is distinct from the client: the client requests authorization, while the resource receives the token.
+For an MCP integration such as RPC Wallets (an example Triad app/client):
 
 ```text
-1. A resource publishes RFC 9728 protected-resource metadata naming Triad.
-2. An OAuth client discovers Triad's authorization metadata.
-3. The client uses CIMD, or public DCR as a fallback.
-4. The client starts authorization with S256 PKCE and the exact resource URI.
-5. Triad authenticates the user through the selected upstream provider.
-6. Consent identifies the client, resource, and requested scopes.
-7. Triad returns an authorization code to the exact registered redirect URI.
-8. The client exchanges the code for an audience-bound access token and optional ID token.
-9. The resource verifies signature, issuer, expiry, audience, client, and scopes on every request.
+ChatGPT          OAuth client
+RPC Wallets MCP  Resource server
+Triad            Authorization server
+Google           Upstream identity provider
 ```
+
+The flow is:
+
+```text
+1. RPC Wallets publishes RFC 9728 protected-resource metadata naming Triad.
+2. ChatGPT discovers Triad's RFC 8414/OIDC authorization metadata.
+3. ChatGPT uses CIMD, or public DCR as a fallback.
+4. ChatGPT starts authorization with S256 PKCE and resource=RPC Wallets URI.
+5. Triad authenticates the user through the selected upstream provider.
+6. Consent identifies both the client and resource and lists requested scopes.
+7. Triad returns an authorization code to the exact registered redirect URI.
+8. ChatGPT exchanges the code for a resource-bound JWT access token and optional ID token.
+9. RPC Wallets verifies signature, issuer, expiry, audience, client, and scopes on every request.
+```
+
+Triad only issues access tokens for recognized resources. A resource is distinct from a client: ChatGPT is the client requesting access, while RPC Wallets is the audience receiving the token.
 
 ## Better Auth Policy And Patches
 

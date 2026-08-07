@@ -1,7 +1,6 @@
 import { betterAuth, env as betterAuthEnv, type BetterAuthOptions } from "better-auth";
 
 import type { TriadEnv } from "./env";
-import { validateProfileDataKeyring } from "./identity/profile";
 
 type FixedOption =
   | "database"
@@ -78,20 +77,6 @@ function validateSecret(secret: string): void {
   }
 }
 
-function validateIdentifierSecret(secret: string): void {
-  if (
-    typeof secret !== "string" ||
-    secret.length < 32 ||
-    secret.trim() !== secret ||
-    new Set(secret).size < 16 ||
-    /^(.)\1+$/.test(secret)
-  ) {
-    throw new Error(
-      "IDENTIFIER_SECRET must be a strong, non-whitespace secret with at least 32 characters",
-    );
-  }
-}
-
 function rejectAmbientOverrides(): void {
   const forbiddenNames = ["BETTER_AUTH_SECRETS", "BETTER_AUTH_TRUSTED_ORIGINS"] as const;
 
@@ -108,11 +93,6 @@ export function createTriadAuthOptions<const Configuration extends TriadAuthConf
 ) {
   rejectAmbientOverrides();
   validateSecret(env.BETTER_AUTH_SECRET);
-  validateIdentifierSecret(env.IDENTIFIER_SECRET);
-  validateProfileDataKeyring(env.PROFILE_DATA_KEYRING, [
-    env.IDENTIFIER_SECRET,
-    env.BETTER_AUTH_SECRET,
-  ]);
   const baseURL = normalizeAuthOrigin(env.AUTH_ORIGIN);
 
   const {

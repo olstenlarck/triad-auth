@@ -1,34 +1,21 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  createProfileClaimResolver,
-  sealProfileData,
-  type CapturedProfile,
-} from "../../src/better-auth/identity";
+import { profileClaimResolver } from "../../src/better-auth/identity";
 
-const PROFILE_DATA_KEYRING =
-  '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}';
-const profile = {
+const profileUser = {
+  id: "acc_subject",
+  email: "acc_subject@identity.invalid",
   profileEmail: "person@example.com",
   profileEmailVerified: true,
   profileHandle: "person",
   profileDisplayName: "Person Name",
   profileAvatar: "https://images.example.com/person.png",
-} satisfies CapturedProfile;
-
-async function profileUser(profileData: CapturedProfile = profile) {
-  return {
-    id: "acc_subject",
-    profileData: await sealProfileData(PROFILE_DATA_KEYRING, profileData),
-  };
-}
+};
 
 describe("Triad profile claim resolver", () => {
-  const resolver = createProfileClaimResolver(PROFILE_DATA_KEYRING);
-
   it("returns only claims authorized by downstream profile scopes", async () => {
     await expect(
-      resolver.resolveProfileClaims(await profileUser(), ["email", "avatar"]),
+      profileClaimResolver.resolveProfileClaims(profileUser, ["email", "avatar"]),
     ).resolves.toEqual({
       email: "person@example.com",
       email_verified: true,
@@ -38,7 +25,7 @@ describe("Triad profile claim resolver", () => {
 
   it("maps handle and display name to standard claims", async () => {
     await expect(
-      resolver.resolveProfileClaims(await profileUser(), ["handle", "name"]),
+      profileClaimResolver.resolveProfileClaims(profileUser, ["handle", "name"]),
     ).resolves.toEqual({
       preferred_username: "person",
       name: "Person Name",
@@ -46,24 +33,30 @@ describe("Triad profile claim resolver", () => {
   });
 
   it("returns no profile claims when no profile scope is granted", async () => {
-    await expect(resolver.resolveProfileClaims(await profileUser(), [])).resolves.toEqual({});
+    await expect(profileClaimResolver.resolveProfileClaims(profileUser, [])).resolves.toEqual({});
   });
 
   it("never returns a synthetic identity email", async () => {
-    for (const email of ["acc_subject@identity.invalid", "acc_subject@IDENTITY.INVALID"]) {
+    for (const profileEmail of ["acc_subject@identity.invalid", "acc_subject@IDENTITY.INVALID"]) {
       await expect(
-        resolver.resolveProfileClaims(await profileUser({ profileEmail: email }), ["email"]),
+        profileClaimResolver.resolveProfileClaims({ ...profileUser, profileEmail }, ["email"]),
       ).resolves.toEqual({});
     }
   });
 
-  it("rejects malformed encrypted profile values instead of coercing them", async () => {
-    const malformed = await sealProfileData(PROFILE_DATA_KEYRING, {
-      profileEmail: 42,
-    } as unknown as CapturedProfile);
-
+  it("omits invalid persisted values instead of coercing them", async () => {
     await expect(
-      resolver.resolveProfileClaims({ id: "acc_subject", profileData: malformed }, ["email"]),
-    ).rejects.toThrow("Invalid profile email payload");
+      profileClaimResolver.resolveProfileClaims(
+        {
+          id: "acc_subject",
+          profileEmail: 42,
+          profileEmailVerified: "true",
+          profileHandle: "",
+          profileDisplayName: null,
+          profileAvatar: "data:text/plain,avatar",
+        },
+        ["email", "handle", "name", "avatar"],
+      ),
+    ).resolves.toEqual({});
   });
 });

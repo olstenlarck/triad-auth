@@ -11,9 +11,7 @@ function createEnv(overrides: Partial<TriadEnv> = {}): TriadEnv {
     DB: {} as D1Database,
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
-    IDENTIFIER_SECRET: "identifier-secret-with-enough-entropy-1234567890",
-    PROFILE_DATA_KEYRING:
-      '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
+    IDENTIFIER_SECRET: "identifier-secret",
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -70,6 +68,13 @@ describe("Triad protected-resource metadata routing", () => {
       "https://auth.example.com/demo/",
       ["openid", "email", "handle", "name", "avatar"],
     ],
+    [
+      "RPC Wallets",
+      createEnv({ RPC_WALLETS_RESOURCE: "https://wallets.example.com/mcp" }),
+      "https://wallets.example.com/.well-known/oauth-protected-resource/mcp",
+      "https://wallets.example.com/mcp",
+      ["wallets:read", "offline_access"],
+    ],
   ])(
     "serves the configured HTTPS %s document before application routing",
     async (_name, env, metadataUrl, resource, scopes) => {
@@ -85,7 +90,7 @@ describe("Triad protected-resource metadata routing", () => {
         authorization_servers: ["https://auth.example.com/api/auth"],
         bearer_methods_supported: ["header"],
         resource,
-        resource_name: "Triad demo",
+        resource_name: _name === "demo" ? "Triad demo" : "RPC Wallets",
         scopes_supported: scopes,
       });
       expect(spies.createTriadConfiguration).not.toHaveBeenCalled();

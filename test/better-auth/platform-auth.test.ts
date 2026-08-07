@@ -19,9 +19,7 @@ function createEnv(overrides: Partial<TriadEnv> = {}): TriadEnv {
     DB: database,
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
-    IDENTIFIER_SECRET: "identifier-secret-with-enough-entropy-1234567890",
-    PROFILE_DATA_KEYRING:
-      '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
+    IDENTIFIER_SECRET: "identifier-secret",
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",

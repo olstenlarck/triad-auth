@@ -1,11 +1,6 @@
 import type { Account, BetterAuthOptions } from "better-auth";
 import type { TriadEnv } from "../env";
-import {
-  captureProviderProfile,
-  sealProfileData,
-  type CapturedProfile,
-  validateProfileDataKeyring,
-} from "./profile";
+import { captureProviderProfile, type CapturedProfile } from "./profile";
 import { accountSubject, type IdentityProvider, providerSubject } from "./subjects";
 
 const ACCOUNT_SUB_PATTERN = /^acc_[0-9a-f]{64}$/;
@@ -57,14 +52,10 @@ async function mapIdentity(
   provider: IdentityProvider,
   upstreamId: string,
   profile: CapturedProfile,
-  profileDataKeyring: string,
 ) {
-  const [[providerSub, accountSub], profileData] = await Promise.all([
-    Promise.all([
-      providerSubject(secret, provider, upstreamId),
-      accountSubject(secret, provider, upstreamId),
-    ]),
-    sealProfileData(profileDataKeyring, profile),
+  const [providerSub, accountSub] = await Promise.all([
+    providerSubject(secret, provider, upstreamId),
+    accountSubject(secret, provider, upstreamId),
   ]);
 
   return {
@@ -75,7 +66,7 @@ async function mapIdentity(
     image: undefined,
     provider,
     providerSub,
-    ...(profileData ? { profileData } : {}),
+    ...profile,
   };
 }
 
@@ -115,11 +106,6 @@ function stripProviderTokens(account: Partial<Account> & Record<string, unknown>
 }
 
 export function createIdentityConfiguration(env: TriadEnv) {
-  validateProfileDataKeyring(env.PROFILE_DATA_KEYRING, [
-    env.IDENTIFIER_SECRET,
-    env.BETTER_AUTH_SECRET,
-  ]);
-
   const socialProviders: NonNullable<BetterAuthOptions["socialProviders"]> = {};
   const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
   const googleClientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
@@ -142,7 +128,6 @@ export function createIdentityConfiguration(env: TriadEnv) {
           "google",
           googleUpstreamId(profile),
           captureProviderProfile("google", profile),
-          env.PROFILE_DATA_KEYRING,
         ),
     };
   }
@@ -159,7 +144,6 @@ export function createIdentityConfiguration(env: TriadEnv) {
           "github",
           githubUpstreamId(profile),
           captureProviderProfile("github", profile),
-          env.PROFILE_DATA_KEYRING,
         ),
     };
   }
@@ -176,7 +160,6 @@ export function createIdentityConfiguration(env: TriadEnv) {
           "twitter",
           twitterUpstreamId(profile),
           captureProviderProfile("twitter", profile),
-          env.PROFILE_DATA_KEYRING,
         ),
     };
   }
@@ -194,18 +177,27 @@ export function createIdentityConfiguration(env: TriadEnv) {
           required: true,
           unique: true,
         },
-        profileData: {
+        profileEmail: {
           type: "string",
           required: false,
-          returned: false,
+        },
+        profileEmailVerified: {
+          type: "boolean",
+          required: false,
+        },
+        profileHandle: {
+          type: "string",
+          required: false,
+        },
+        profileDisplayName: {
+          type: "string",
+          required: false,
+        },
+        profileAvatar: {
+          type: "string",
+          required: false,
         },
       },
-      deleteUser: {
-        enabled: true,
-      },
-    },
-    session: {
-      freshAge: 0,
     },
     account: {
       updateAccountOnSignIn: false,
@@ -237,15 +229,14 @@ export function createIdentityConfiguration(env: TriadEnv) {
               "email" in user ||
               "name" in user ||
               "image" in user ||
-              "profileData" in user
+              "profileEmail" in user ||
+              "profileEmailVerified" in user ||
+              "profileHandle" in user ||
+              "profileDisplayName" in user ||
+              "profileAvatar" in user
             ) {
               return false;
             }
-          },
-        },
-        delete: {
-          before: async (user, _context) => {
-            await env.DB.prepare('delete from "deviceCode" where "userId" = ?').bind(user.id).run();
           },
         },
       },

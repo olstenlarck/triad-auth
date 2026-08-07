@@ -90,9 +90,12 @@ const baselineMigration = readSource("migrations/0001_better-auth.sql");
 describe("Better Auth schema tooling", () => {
   it("keeps one complete baseline migration", () => {
     expect(migrationFiles).toEqual(["0001_better-auth.sql"]);
-    expect(baselineMigration).toContain('"profileData" text');
+    expect(baselineMigration).toContain('"profileEmail" text');
+    expect(baselineMigration).toContain('"profileEmailVerified" integer');
+    expect(baselineMigration).toContain('"profileHandle" text');
+    expect(baselineMigration).toContain('"profileDisplayName" text');
+    expect(baselineMigration).toContain('"profileAvatar" text');
     expect(baselineMigration).toContain('create table "deviceCode"');
-    expect(baselineMigration).toContain('create table "rateLimit"');
     expect(baselineMigration).toContain(
       'create index "deviceCode_userCode_userId_idx" on "deviceCode" ("userCode", "userId")',
     );

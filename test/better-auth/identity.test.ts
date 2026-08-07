@@ -3,7 +3,6 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   accountSubject,
   createIdentityConfiguration,
-  openProfileData,
   type IdentityProvider,
   pairwiseSubject,
   providerSubject,
@@ -19,8 +18,6 @@ function createEnv(): TriadEnv {
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
     IDENTIFIER_SECRET,
-    PROFILE_DATA_KEYRING:
-      '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -61,14 +58,6 @@ function profileMapper(
   }
 
   return mapProfile;
-}
-
-async function mappedProfile(mapped: Record<string, unknown>) {
-  if (typeof mapped.profileData !== "string") {
-    throw new Error("Expected encrypted profile data");
-  }
-
-  return openProfileData(createEnv().PROFILE_DATA_KEYRING, mapped.profileData);
 }
 
 describe("Triad deterministic identity", () => {
@@ -205,7 +194,7 @@ describe("Triad provider identity configuration", () => {
       const configuration = createIdentityConfiguration(createEnv());
       const mapped = await profileMapper(configuration, provider)(profile);
 
-      await expect(mappedProfile(mapped)).resolves.toEqual(expected);
+      expect(mapped).toMatchObject(expected);
     },
   );
 
@@ -223,14 +212,22 @@ describe("Triad provider identity configuration", () => {
       picture: "javascript:alert(1)",
     });
 
-    expect(mapped).not.toHaveProperty("profileData");
+    expect(mapped).not.toHaveProperty("profileEmail");
+    expect(mapped).not.toHaveProperty("profileEmailVerified");
+    expect(mapped).not.toHaveProperty("profileHandle");
+    expect(mapped).not.toHaveProperty("profileDisplayName");
+    expect(mapped).not.toHaveProperty("profileAvatar");
   });
 
   it("declares captured profile data as optional user fields", () => {
     const configuration = createIdentityConfiguration(createEnv());
 
     expect(configuration.user.additionalFields).toMatchObject({
-      profileData: { type: "string", required: false, returned: false },
+      profileEmail: { type: "string", required: false },
+      profileEmailVerified: { type: "boolean", required: false },
+      profileHandle: { type: "string", required: false },
+      profileDisplayName: { type: "string", required: false },
+      profileAvatar: { type: "string", required: false },
     });
   });
 
@@ -293,8 +290,12 @@ describe("Triad provider identity configuration", () => {
   it.each([
     { name: "Changed Name" },
     { image: "https://images.example.com/changed.png" },
-    { profileData: "v1.v1.invalid.invalid" },
-  ])("rejects updates to durable identity and encrypted profile data", async (update) => {
+    { profileEmail: "changed@example.com" },
+    { profileEmailVerified: true },
+    { profileHandle: "changed" },
+    { profileDisplayName: "Changed Name" },
+    { profileAvatar: "https://images.example.com/changed.png" },
+  ])("rejects updates to durable identity and captured profile fields", async (update) => {
     const configuration = createIdentityConfiguration(createEnv());
 
     await expect(configuration.databaseHooks.user.update.before(update, null)).resolves.toBe(false);
