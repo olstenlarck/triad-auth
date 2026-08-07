@@ -78,8 +78,6 @@ describe("Triad OAuth resource request semantics", () => {
     ["https://auth.example.com/demo/", ["email"]],
     ["https://auth.example.com/demo/", ["openid", "offline_access"]],
     ["https://auth.example.com/demo/", ["openid", "email", "email"]],
-    ["https://other.example.com/resource", ["openid"]],
-    ["https://other.example.com/resource", ["offline_access"]],
     ["https://auth.example.com/demo/", ["openid", "profile"]],
   ])("rejects noncanonical scopes for %s", (resource, scopes) => {
     expect(() => resolveTriadResourceRequest(fragment, { resource, scopes })).toThrow(

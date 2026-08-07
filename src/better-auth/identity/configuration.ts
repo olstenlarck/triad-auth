@@ -91,6 +91,21 @@ function accountSubFromSyntheticEmail(email: unknown): string {
   return accountSub;
 }
 
+function sanitizedUserData(user: Record<string, unknown>): Record<string, unknown> {
+  const accountSub = accountSubFromSyntheticEmail(user.email);
+
+  return {
+    id: accountSub,
+    name: "",
+    email: `${accountSub}@identity.invalid`,
+    emailVerified: false,
+    image: "",
+    provider: user.provider,
+    providerSub: user.providerSub,
+    profileData: user.profileData,
+  };
+}
+
 function assertProviderIdentity(user: Record<string, unknown>): void {
   const provider = user.provider;
   if (
@@ -222,11 +237,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
           before: async (user, _context) => {
             assertProviderIdentity(user);
 
-            return {
-              data: {
-                id: accountSubFromSyntheticEmail(user.email),
-              },
-            };
+            return { data: sanitizedUserData(user) };
           },
         },
         update: {

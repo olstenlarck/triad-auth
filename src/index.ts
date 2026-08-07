@@ -24,7 +24,6 @@ interface DeviceDisclosureRecord {
 }
 
 const DEVICE_DISCLOSURE_PATH = `${AUTH_BASE_PATH}/device/disclosure`;
-const OIDC_DISCOVERY_PATH = `${AUTH_BASE_PATH}/.well-known/openid-configuration`;
 const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy": [
     "default-src 'self'",
@@ -75,43 +74,6 @@ function withSecurityHeaders(response: Response, env: TriadEnv): Response {
   }
 
   return secured;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-async function enforcePairwiseDiscovery(request: Request, response: Response): Promise<Response> {
-  if (request.method !== "GET" || response.status !== 200) {
-    return response;
-  }
-
-  let document: unknown;
-  try {
-    document = await response.clone().json();
-  } catch {
-    return response;
-  }
-  if (!isRecord(document)) {
-    return response;
-  }
-
-  const headers = new Headers(response.headers);
-  headers.set("content-type", "application/json");
-  headers.delete("content-length");
-  headers.delete("etag");
-
-  return new Response(
-    JSON.stringify({
-      ...document,
-      subject_types_supported: ["pairwise"],
-    }),
-    {
-      headers,
-      status: response.status,
-      statusText: response.statusText,
-    },
-  );
 }
 
 async function handleDeviceDisclosure(
@@ -181,12 +143,8 @@ export function createWorker<Configuration>(services: WorkerServices<Configurati
       if (isAuthPath(url.pathname)) {
         const configuration = services.createTriadConfiguration(env);
         const authResponse = await services.createTriadAuth(env, configuration).handler(request);
-        const discoveryResponse =
-          url.pathname === OIDC_DISCOVERY_PATH
-            ? await enforcePairwiseDiscovery(request, authResponse)
-            : authResponse;
 
-        return withSecurityHeaders(discoveryResponse, env);
+        return withSecurityHeaders(authResponse, env);
       }
 
       if (url.pathname.startsWith("/__astro_")) {

@@ -270,10 +270,24 @@ describe("Triad provider identity configuration", () => {
     const accountSub = await accountSubject(IDENTIFIER_SECRET, "github", "123456");
     const providerSub = await providerSubject(IDENTIFIER_SECRET, "github", "123456");
     const beforeCreate = configuration.databaseHooks.user.create.before;
+    const encryptedProfileData = "v1.k1.iv.ciphertext";
+    const user = {
+      ...createUserRecord(`${accountSub}@identity.invalid`, "github", providerSub),
+      profileData: encryptedProfileData,
+    };
 
-    await expect(
-      beforeCreate(createUserRecord(`${accountSub}@identity.invalid`, "github", providerSub), null),
-    ).resolves.toMatchObject({ data: { id: accountSub } });
+    await expect(beforeCreate(user, null)).resolves.toMatchObject({
+      data: {
+        id: accountSub,
+        name: "",
+        email: `${accountSub}@identity.invalid`,
+        emailVerified: false,
+        image: "",
+        provider: "github",
+        providerSub,
+        profileData: encryptedProfileData,
+      },
+    });
   });
 
   it("rejects incoherent provider identity during user creation", async () => {

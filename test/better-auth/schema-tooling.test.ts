@@ -100,10 +100,11 @@ describe("Better Auth schema tooling", () => {
     expect(profileDataMigration).toContain('drop table "user"');
     expect(profileDataMigration).toContain('alter table "user_new" rename to "user"');
     expect(profileDataMigration).toContain('"profileData" text');
-    expect(profileDataMigration).not.toContain('"name" text');
-    expect(profileDataMigration).not.toContain('"email" text');
-    expect(profileDataMigration).not.toContain('"emailVerified"');
-    expect(profileDataMigration).not.toContain('"image" text');
+    expect(profileDataMigration).toContain('"name" text not null');
+    expect(profileDataMigration).toContain('"email" text not null unique');
+    expect(profileDataMigration).toContain('"emailVerified" integer not null');
+    expect(profileDataMigration).toContain('"image" text');
+    expect(profileDataMigration).toContain("\"id\" || '@identity.invalid'");
     expect(profileDataMigration).not.toContain('"profileEmail"');
     expect(profileDataMigration).not.toContain('"profileEmailVerified"');
     expect(profileDataMigration).not.toContain('"profileHandle"');
