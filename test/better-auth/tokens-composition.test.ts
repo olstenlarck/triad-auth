@@ -18,7 +18,7 @@ import {
 } from "../../src/better-auth/tokens";
 
 const clientId = "https://client.example/metadata.json";
-const resource = "https://wallet.example/mcp";
+const resource = "https://resource.example/api";
 const user = {
   createdAt: new Date("2026-07-15T00:00:00Z"),
   email: "acc_global@identity.invalid",
@@ -49,7 +49,7 @@ function createComposition(
       oauthProviderOptions: {
         enforcePerClientResources: true,
         resources: [{ identifier: resource, signingAlgorithm: "ES256" }],
-        scopes: ["wallet:read"],
+        scopes: ["resource:read"],
       },
       oauthProviderExtensions: [],
     },
@@ -67,7 +67,7 @@ function claimsExtension(
   return extension;
 }
 
-function claimInput(scopes = ["openid", "wallet:read"]): OAuthClaimExtensionInput {
+function claimInput(scopes = ["openid", "resource:read"]): OAuthClaimExtensionInput {
   return {
     client: { clientId },
     ctx: {} as OAuthClaimExtensionInput["ctx"],
@@ -127,7 +127,7 @@ describe("token composition", () => {
       "handle",
       "name",
       "avatar",
-      "wallet:read",
+      "resource:read",
     ]);
     expect(oauthProviderOptions.scopes).not.toContain("profile");
   });
@@ -153,7 +153,7 @@ describe("token composition", () => {
       "handle",
       "name",
       "avatar",
-      "wallet:read",
+      "resource:read",
     ]);
     expect(oauthProviderOptions.clientRegistrationDefaultScopes).toEqual(["openid"]);
   });
@@ -165,7 +165,7 @@ describe("token composition", () => {
     const composition = createTokenComposition({
       identity: createIdentityResolver(),
       resource: {
-        oauthProviderOptions: { resources: [resource], scopes: ["wallet:read"] },
+        oauthProviderOptions: { resources: [resource], scopes: ["resource:read"] },
         oauthProviderExtensions: [resourceExtension],
       },
     });
@@ -179,7 +179,7 @@ describe("token composition", () => {
       createTokenComposition({
         identity: createIdentityResolver(),
         resource: {
-          oauthProviderOptions: { scopes: ["wallet:read"] },
+          oauthProviderOptions: { scopes: ["resource:read"] },
           oauthProviderExtensions: [],
         },
       }),
@@ -378,6 +378,7 @@ describe("token composition", () => {
   it("advertises truthful disclosure, resource, and claim support", () => {
     const { oauthProviderOptions } = createComposition();
 
+    expect(oauthProviderOptions.advertisedMetadata?.subject_types_supported).toEqual(["pairwise"]);
     expect(oauthProviderOptions.advertisedMetadata?.claims_supported).toEqual([
       "sub",
       "pairwise_sub",
@@ -395,7 +396,7 @@ describe("token composition", () => {
       "handle",
       "name",
       "avatar",
-      "wallet:read",
+      "resource:read",
     ]);
   });
 });

@@ -2,10 +2,13 @@ export { createIdentityConfiguration } from "./configuration";
 export {
   type CapturedProfile,
   captureProviderProfile,
+  createProfileClaimResolver,
   type ProfileClaims,
-  profileClaimResolver,
+  openProfileData,
+  sealProfileData,
   type ProfileIdentityUser,
   type ProfileScope,
+  validateProfileDataKeyring,
 } from "./profile";
 export {
   accountSubject,

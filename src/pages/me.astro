@@ -39,6 +39,17 @@ export const prerender = true;
       <div class="actions account-actions">
         <button id="logout" class="button danger" type="button">SIGN OUT</button>
       </div>
+
+      <section class="account-panel account-danger" aria-labelledby="delete-account-title">
+        <div class="panel-heading">
+          <h2 id="delete-account-title">DELETE ACCOUNT</h2>
+        </div>
+        <div class="account-danger-copy">
+          <p>Delete the Triad account, its profile envelope, sessions, consents, grants, and device records.</p>
+          <p class="fine-print">Already issued short-lived tokens may remain valid until expiry. This action cannot be undone.</p>
+          <button id="delete-account" class="button danger" type="button">DELETE ACCOUNT</button>
+        </div>
+      </section>
     </div>
 
     <div class="control-feedback">
@@ -67,6 +78,7 @@ export const prerender = true;
     const error = document.querySelector<HTMLElement>("#me-error")!;
     const retry = document.querySelector<HTMLButtonElement>("#account-retry")!;
     const logout = document.querySelector<HTMLButtonElement>("#logout")!;
+    const deleteAccountButton = document.querySelector<HTMLButtonElement>("#delete-account")!;
     const appCount = document.querySelector<HTMLElement>("#app-count")!;
     const list = document.querySelector<HTMLElement>("#authorized-apps")!;
     const providerActions = document.querySelector<HTMLElement>("#account-provider-actions")!;
@@ -91,6 +103,7 @@ export const prerender = true;
 
     function setMutationControls(disabled: boolean) {
       logout.disabled = disabled;
+      deleteAccountButton.disabled = disabled;
       providerActions.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
         button.disabled = disabled;
       });
@@ -280,6 +293,38 @@ export const prerender = true;
       }
     }
 
+    async function deleteAccount() {
+      if (!window.confirm("Delete this Triad account and its stored authorization records?")) {
+        return;
+      }
+
+      setMutationControls(true);
+      deleteAccountButton.textContent = "DELETING ACCOUNT";
+      error.hidden = true;
+      retry.hidden = true;
+
+      try {
+        const response = await fetch("/api/auth/delete-user", {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({}),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => undefined);
+          throw responseError(body, "Could not delete this account.");
+        }
+
+        location.assign("/me/");
+      } catch (reason) {
+        deleteAccountButton.textContent = "RETRY DELETE ACCOUNT";
+        setMutationControls(false);
+        showError(reason, "Could not delete this account.");
+      }
+    }
+
     async function load() {
       if (loading) {
         return;
@@ -353,6 +398,9 @@ export const prerender = true;
 
     logout.addEventListener("click", () => {
       void signOut();
+    });
+    deleteAccountButton.addEventListener("click", () => {
+      void deleteAccount();
     });
     retry.addEventListener("click", () => {
       void load();
