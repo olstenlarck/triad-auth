@@ -149,6 +149,10 @@ export function createCimdAdmissionOptions(
       }
 
       try {
+        // Known accepted TOCTOU gap: CIMD's own fetch re-resolves DNS independently
+        // of this check, and Workers has no primitive to pin the validated address
+        // onto that fetch for an arbitrary third-party origin. See
+        // docs/superpowers/research/2026-08-07-cimd-dns-rebinding-accepted-risk.md.
         const addresses = await resolveHostname(hostname);
 
         return addresses.length > 0 && addresses.every(isPublicAddress);
