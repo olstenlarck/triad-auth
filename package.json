@@ -13,8 +13,7 @@
     "deploy": "vp run build && vp exec wrangler deploy",
     "deploy:staging": "vp run build:staging && vp exec wrangler deploy --env staging",
     "dev": "vp exec astro dev",
-    "preview": "vp run build && vp exec astro preview",
-    "test": "vp test"
+    "preview": "vp run build && vp exec astro preview"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.2",
