@@ -6,8 +6,8 @@ minimumReleaseAgeExclude:
   - "@cloudflare/workers-types@5.20260710.1"
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@latest
-  vitest: npm:@voidzero-dev/vite-plus-test@latest
-  vite-plus: latest
+  vitest: ^4.1.10
+  vite-plus: ^0.2.8
 overrides:
   kysely: 0.28.17
   vite: "catalog:"

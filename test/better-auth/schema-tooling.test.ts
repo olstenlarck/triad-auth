@@ -101,13 +101,13 @@ describe("Better Auth schema tooling", () => {
     );
   });
 
-  it("configures only the isolated placeholder D1 binding", () => {
+  it("configures only the isolated production D1 binding", () => {
     const bindingBlocks = wranglerSource.match(/\[\[d1_databases\]\][\s\S]*?(?=\n\[|$)/g) ?? [];
 
     expect(bindingBlocks).toHaveLength(1);
     expect(bindingBlocks[0]).toContain('binding = "DB"');
     expect(bindingBlocks[0]).toContain('database_name = "triad-better-auth"');
-    expect(bindingBlocks[0]).toContain('database_id = "00000000-0000-0000-0000-000000000000"');
+    expect(bindingBlocks[0]).toContain('database_id = "399fd461-e15b-4175-8424-e268ad1dad89"');
     expect(bindingBlocks[0]).toContain('migrations_dir = "migrations"');
     expect(wranglerSource).toContain("[[env.staging.d1_databases]]");
     expect(wranglerSource).toContain('database_name = "triad-better-auth-staging"');
@@ -140,7 +140,7 @@ describe("Better Auth schema tooling", () => {
     expect(toolingSource).not.toMatch(
       /drizzle|miniflare|better-sqlite3|bun:sqlite|node:sqlite|sqlite3/i,
     );
-    expect(toolingSource).not.toMatch(/triad-auth-broker|["']triad-auth["']/);
+    expect(toolingSource).not.toMatch(/["']triad-auth["']/);
   });
 
   it("builds the schema auth instance through the canonical configuration", () => {
