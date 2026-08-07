@@ -1120,6 +1120,25 @@ h3 {
 .account-actions {
   margin-top: 1.5rem;
 }
+.account-danger {
+  margin-top: 4rem;
+  border-color: var(--danger);
+}
+.account-danger .panel-heading {
+  border-bottom-color: var(--danger);
+}
+.account-danger-copy {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.25rem;
+}
+.account-danger-copy p {
+  max-width: 60ch;
+  margin: 0;
+}
+.account-danger-copy .fine-print {
+  color: var(--muted);
+}
 .account-panel > h2,
 .panel-heading {
   margin: 0;
@@ -1177,6 +1196,74 @@ h3 {
   color: var(--muted);
 }
 
+.legal-page {
+  max-width: 70rem;
+  padding-block: clamp(4rem, 8vw, 8rem);
+}
+.legal-heading {
+  max-width: 52rem;
+  margin-bottom: clamp(4rem, 9vw, 8rem);
+}
+.legal-heading > p:first-child,
+.section-kicker {
+  color: var(--signal);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.legal-heading h1 {
+  max-width: 10ch;
+  margin: 1rem 0 1.5rem;
+  font-family: var(--display);
+  font-size: clamp(3.3rem, 9vw, 8rem);
+  font-weight: 850;
+  letter-spacing: -0.075em;
+  line-height: 0.86;
+}
+.legal-heading h1 span {
+  color: var(--signal);
+}
+.legal-heading .lede {
+  max-width: 58ch;
+}
+.legal-section {
+  max-width: 62rem;
+  padding-block: clamp(2rem, 4vw, 3.5rem);
+  border-top: 1px solid var(--rule);
+}
+.legal-section h2 {
+  margin: 0 0 1.25rem;
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.legal-section p:not(.section-kicker) {
+  max-width: 70ch;
+  color: var(--muted);
+}
+.legal-ledger {
+  margin: 0;
+  border-top: 1px solid var(--rule-soft);
+}
+.legal-ledger > div {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.legal-ledger dt {
+  color: var(--signal);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.legal-ledger dd {
+  max-width: 70ch;
+  margin: 0;
+  color: var(--muted);
+}
+
 @media (max-width: 900px) {
   .device-callout {
     grid-template-columns: 1fr;
@@ -1217,6 +1304,10 @@ h3 {
     flex-direction: column;
   }
   .claim-ledger > div {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+  .legal-ledger > div {
     grid-template-columns: 1fr;
     gap: 0.4rem;
   }

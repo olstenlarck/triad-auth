@@ -1,5 +1,4 @@
 import {
-  ResourceUriSchema,
   type OAuthOptions,
   type OAuthProviderExtension,
   type OAuthResourceInput,
@@ -15,13 +14,8 @@ export const ACCESS_TOKEN_TTL_SECONDS = 5 * 60;
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 const DEMO_SCOPES = DISCLOSURE_SCOPES;
-const RPC_WALLETS_SCOPES = ["wallets:read", "offline_access"] as const;
 
-export type TriadScope = DisclosureScope | (typeof RPC_WALLETS_SCOPES)[number];
-
-export interface TriadResourceDependencies {
-  rpcWalletsResource?: string;
-}
+export type TriadScope = DisclosureScope;
 
 export interface TriadResourceRequest {
   resource?: string | readonly string[];
@@ -100,18 +94,6 @@ function demoResource(origin: string): TriadRecognizedResource {
   };
 }
 
-function rpcWalletsResource(identifier: string): TriadRecognizedResource {
-  ResourceUriSchema.parse(identifier);
-
-  return {
-    identifier,
-    name: "RPC Wallets",
-    accessTokenTtl: ACCESS_TOKEN_TTL_SECONDS,
-    allowedScopes: [...RPC_WALLETS_SCOPES],
-    disabled: false,
-  };
-}
-
 function metadataUrl(identifier: string): string | undefined {
   const resource = new URL(identifier);
   if (resource.protocol !== "https:") {
@@ -147,21 +129,11 @@ function protectedResourceMetadata(
   };
 }
 
-export function createTriadResourceFragment(
-  env: { AUTH_ORIGIN: string },
-  dependencies: TriadResourceDependencies = {},
-): TriadResourceFragment {
+export function createTriadResourceFragment(env: { AUTH_ORIGIN: string }): TriadResourceFragment {
   const origin = canonicalOrigin(env.AUTH_ORIGIN);
   const issuer = authorizationServer(origin);
-  const recognizedResources = [
-    demoResource(origin),
-    ...(dependencies.rpcWalletsResource
-      ? [rpcWalletsResource(dependencies.rpcWalletsResource)]
-      : []),
-  ];
-  const scopes: TriadScope[] = dependencies.rpcWalletsResource
-    ? [...DEMO_SCOPES, ...RPC_WALLETS_SCOPES]
-    : [...DEMO_SCOPES];
+  const recognizedResources = [demoResource(origin)];
+  const scopes: TriadScope[] = [...DEMO_SCOPES];
 
   return {
     authorizationServer: issuer,
@@ -221,18 +193,6 @@ function canonicalScopes(
     }
   }
 
-  const isRpcWallets =
-    resource.allowedScopes.length === RPC_WALLETS_SCOPES.length &&
-    RPC_WALLETS_SCOPES.every((scope) => resource.allowedScopes.includes(scope));
-  const hasCanonicalRpcScopes =
-    isRpcWallets &&
-    uniqueRequested.has("wallets:read") &&
-    (uniqueRequested.size === 1 ||
-      (uniqueRequested.size === 2 && uniqueRequested.has("offline_access")));
-  if (hasCanonicalRpcScopes) {
-    return uniqueRequested.has("offline_access") ? [...RPC_WALLETS_SCOPES] : ["wallets:read"];
-  }
-
   throw new TriadResourceRequestError(
     "invalid_scope",
     `requested scopes are not valid for resource ${resource.identifier}`,
@@ -267,6 +227,6 @@ export function resolveTriadResourceRequest(
     resources: [resource.identifier],
     scopes,
     audience,
-    issueRefreshToken: scopes.includes("offline_access"),
+    issueRefreshToken: false,
   };
 }

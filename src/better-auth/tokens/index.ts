@@ -192,6 +192,23 @@ export function createTokenComposition({
     throw new Error("Token composition requires at least one OAuth resource");
   }
   const scopes = tokenScopes(resourceScopes);
+  const advertisedMetadata = {
+    subject_types_supported: ["pairwise"] as const,
+    scopes_supported: scopes,
+    claims_supported: [
+      "sub",
+      "pairwise_sub",
+      "account_sub",
+      "provider_sub",
+      "email",
+      "email_verified",
+      "preferred_username",
+      "name",
+      "picture",
+    ],
+  } as NonNullable<OAuthOptions<Scope[]>["advertisedMetadata"]> & {
+    subject_types_supported: readonly ["pairwise"];
+  };
 
   const oauthProviderOptions = {
     ...resourceOptions,
@@ -208,20 +225,7 @@ export function createTokenComposition({
     customUserInfoClaims: (input) =>
       resolveScopedProfileClaims(profileClaims, input.user, input.scopes),
     extensions: [...resource.oauthProviderExtensions, claimsExtension],
-    advertisedMetadata: {
-      scopes_supported: scopes,
-      claims_supported: [
-        "sub",
-        "pairwise_sub",
-        "account_sub",
-        "provider_sub",
-        "email",
-        "email_verified",
-        "preferred_username",
-        "name",
-        "picture",
-      ],
-    },
+    advertisedMetadata,
   } satisfies Partial<OAuthOptions<Scope[]>>;
   const jwtOptions = {
     disableSettingJwtHeader: true,
