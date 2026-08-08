@@ -42,7 +42,6 @@ export interface ProfileClaims {
   name?: string;
   picture?: string;
   wallet?: string;
-  chains?: number[];
   cred?: string;
   pubkey?: string;
 }
@@ -335,21 +334,6 @@ async function walletClaim(database: D1Database, userId: string): Promise<string
   return typeof address === "string" && /^0x[0-9a-fA-F]{40}$/.test(address) ? address : undefined;
 }
 
-async function chainsClaim(database: D1Database, userId: string): Promise<number[]> {
-  const result = await database
-    .prepare('select distinct "chainId" from "walletAddress" where "userId" = ?')
-    .bind(userId)
-    .all<{ chainId: unknown }>();
-
-  return result.results
-    .map((row) => row.chainId)
-    .filter(
-      (chainId): chainId is number =>
-        typeof chainId === "number" && Number.isSafeInteger(chainId) && chainId > 0,
-    )
-    .sort((left, right) => left - right);
-}
-
 async function passkeyClaims(
   database: D1Database,
   userId: string,
@@ -382,12 +366,7 @@ export function createProfileClaimResolver(encryptionSecrets: string, database?:
         return {};
       }
 
-      const databaseScopes: readonly OptionalDisclosureScope[] = [
-        "wallet",
-        "chains",
-        "cred",
-        "pubkey",
-      ];
+      const databaseScopes: readonly OptionalDisclosureScope[] = ["wallet", "cred", "pubkey"];
       const requiresDatabaseClaims = scopes.some((scope) => databaseScopes.includes(scope));
       if (requiresDatabaseClaims && !database) {
         throw new Error("Credential claims require an identity database");
@@ -396,29 +375,21 @@ export function createProfileClaimResolver(encryptionSecrets: string, database?:
         scopes.includes("wallet") && database
           ? walletClaim(database, user.id)
           : Promise.resolve(undefined);
-      const chainsPromise: Promise<number[]> =
-        scopes.includes("chains") && database
-          ? chainsClaim(database, user.id)
-          : Promise.resolve([]);
       const passkeyPromise: Promise<Pick<ProfileClaims, "cred" | "pubkey">> =
         (scopes.includes("cred") || scopes.includes("pubkey")) && database
           ? passkeyClaims(database, user.id)
           : Promise.resolve({});
 
-      const [profile, wallet, chains, passkey] = await Promise.all([
+      const [profile, wallet, passkey] = await Promise.all([
         typeof user.encryptedData === "string"
           ? openProfileEncryptedData(encryptionSecrets, user.id, user.encryptedData)
           : {},
         walletPromise,
-        chainsPromise,
         passkeyPromise,
       ]);
       const claims = await resolveProfileClaims(profile, scopes);
       if (wallet) {
         claims.wallet = wallet;
-      }
-      if (scopes.includes("chains")) {
-        claims.chains = chains;
       }
       if (scopes.includes("cred") && passkey.cred) {
         claims.cred = passkey.cred;

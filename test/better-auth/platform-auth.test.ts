@@ -22,7 +22,7 @@ function createEnv(overrides: Partial<TriadEnv> = {}): TriadEnv {
     IDENTIFIER_SECRET: "identifier-secret-with-enough-entropy-1234567890",
     RATE_LIMIT_SECRET: "rate-limit-secret-with-enough-entropy-1234567890",
     ENCRYPTION_SECRETS:
-      '{"active":"v1","secrets":{"v1":"test-encryption-secret-with-enough-entropy-123456"}}',
+      '{"active":"v1","secrets":{"v1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -219,17 +219,35 @@ describe("Triad Better Auth platform options", () => {
   );
 
   it("keeps profile encryption material separate from the rate-limit secret", () => {
-    const rateLimitSecret = "rate-limit-secret-with-enough-entropy-1234567890";
+    const rateLimitSecret = "0123456789abcdef0123456789abcdef";
+    const encodedRateLimitSecret = btoa(rateLimitSecret)
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replace(/=+$/, "");
     const env = createEnv({
       RATE_LIMIT_SECRET: rateLimitSecret,
       ENCRYPTION_SECRETS: JSON.stringify({
         active: "v1",
-        secrets: { v1: rateLimitSecret },
+        secrets: { v1: encodedRateLimitSecret },
       }),
     });
 
     expect(() => createTriadAuthOptions(env)).toThrow("ENCRYPTION_SECRETS");
   });
+
+  it.each(["a".repeat(32), btoa("a".repeat(31)).replace(/=+$/, "")])(
+    "rejects profile encryption material that is not canonical base64url for 32 bytes",
+    (encryptionSecret) => {
+      const env = createEnv({
+        ENCRYPTION_SECRETS: JSON.stringify({
+          active: "v1",
+          secrets: { v1: encryptionSecret },
+        }),
+      });
+
+      expect(() => createTriadAuthOptions(env)).toThrow("canonical base64url for exactly 32 bytes");
+    },
+  );
 
   it("requires independent authentication, identifier, and rate-limit secrets", () => {
     const sharedSecret = "shared-secret-with-enough-entropy-1234567890";

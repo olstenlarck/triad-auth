@@ -226,23 +226,29 @@ describe("token composition", () => {
     });
   });
 
-  it("adds the SIWE session chain to the ID token only when chain_id is granted", async () => {
+  it("adds unique sorted wallet chains and the current SIWE chain to the ID token", async () => {
     const sessionClaims: TokenSessionClaimResolver = {
-      resolveAuthenticationChainId: vi.fn(async () => 1),
+      resolveAuthenticationChains: vi.fn(async () => ({
+        chainId: 10,
+        chains: [137, 1, 137, "invalid"],
+      })),
     };
     const extension = claimsExtension(
       createComposition(createIdentityResolver(), undefined, sessionClaims),
     );
-    const input = { ...claimInput(["openid", "chain_id"]), sessionId: "session-id" };
+    const input = { ...claimInput(["openid", "chains"]), sessionId: "session-id" };
 
-    await expect(extension.claims?.idToken?.(input)).resolves.toMatchObject({ chain_id: 1 });
-    await expect(extension.claims?.accessToken?.(input)).resolves.not.toHaveProperty("chain_id");
-    expect(sessionClaims.resolveAuthenticationChainId).toHaveBeenCalledWith("session-id");
+    await expect(extension.claims?.idToken?.(input)).resolves.toMatchObject({
+      chains: [1, 10, 137],
+    });
+    await expect(extension.claims?.idToken?.(input)).resolves.not.toHaveProperty("chain_id");
+    await expect(extension.claims?.accessToken?.(input)).resolves.not.toHaveProperty("chains");
+    expect(sessionClaims.resolveAuthenticationChains).toHaveBeenCalledWith("session-id", user.id);
   });
 
   it("loads the granted session chain for UserInfo from the access-token session", async () => {
     const sessionClaims: TokenSessionClaimResolver = {
-      resolveAuthenticationChainId: vi.fn(async () => 1),
+      resolveAuthenticationChains: vi.fn(async () => ({ chainId: 1, chains: [1] })),
     };
     const extension = claimsExtension(
       createComposition(createIdentityResolver(), undefined, sessionClaims),
@@ -258,7 +264,7 @@ describe("token composition", () => {
     };
 
     await expect(extension.claims?.userInfo?.(input)).resolves.toMatchObject({ chain_id: 1 });
-    expect(sessionClaims.resolveAuthenticationChainId).toHaveBeenCalledWith("session-id");
+    expect(sessionClaims.resolveAuthenticationChains).toHaveBeenCalledWith("session-id", user.id);
   });
 
   it("uses the first-party ID-token hook for exact requested profile scopes", async () => {

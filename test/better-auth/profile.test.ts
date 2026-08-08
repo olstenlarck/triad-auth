@@ -7,7 +7,7 @@ import {
 } from "../../src/better-auth/identity";
 
 const ENCRYPTION_SECRETS =
-  '{"active":"v1","secrets":{"v1":"test-encryption-secret-with-enough-entropy-123456"}}';
+  '{"active":"v1","secrets":{"v1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"}}';
 const profile = {
   profileEmail: "person@example.com",
   profileEmailVerified: true,

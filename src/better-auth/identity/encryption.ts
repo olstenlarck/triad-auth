@@ -4,7 +4,7 @@ const SECRET_ID_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
 
 interface ParsedEncryptionSecrets {
   active: string;
-  secrets: Record<string, string>;
+  secrets: Record<string, Uint8Array<ArrayBuffer>>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -33,15 +33,20 @@ function parseEncryptionSecrets(serialized: string): ParsedEncryptionSecrets {
     throw new Error("ENCRYPTION_SECRETS must define keyed secret material");
   }
 
-  const secrets: Record<string, string> = {};
+  const secrets: Record<string, Uint8Array<ArrayBuffer>> = {};
   for (const [secretId, secret] of Object.entries(parsed.secrets)) {
     if (!SECRET_ID_PATTERN.test(secretId)) {
       throw new Error("ENCRYPTION_SECRETS contains an invalid secret ID");
     }
-    if (typeof secret !== "string" || secret.length < 32 || secret.trim() !== secret) {
-      throw new Error("ENCRYPTION_SECRETS values must contain at least 32 characters");
+    if (typeof secret !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(secret)) {
+      throw new Error("ENCRYPTION_SECRETS values must be canonical base64url for exactly 32 bytes");
     }
-    secrets[secretId] = secret;
+
+    const decoded = base64UrlDecode(secret);
+    if (decoded.length !== 32 || base64UrlEncode(decoded) !== secret) {
+      throw new Error("ENCRYPTION_SECRETS values must be canonical base64url for exactly 32 bytes");
+    }
+    secrets[secretId] = decoded;
   }
 
   if (Object.keys(secrets).length === 0 || !secrets[parsed.active]) {
@@ -56,7 +61,18 @@ export function validateEncryptionSecrets(
   forbiddenSecrets: readonly string[] = [],
 ): void {
   const encryption = parseEncryptionSecrets(serialized);
-  if (Object.values(encryption.secrets).some((secret) => forbiddenSecrets.includes(secret))) {
+  const encoder = new TextEncoder();
+  const reusesForbiddenSecret = Object.values(encryption.secrets).some((secret) =>
+    forbiddenSecrets.some((forbidden) => {
+      const forbiddenBytes = encoder.encode(forbidden);
+
+      return (
+        forbiddenBytes.length === secret.length &&
+        forbiddenBytes.every((byte, index) => byte === secret[index])
+      );
+    }),
+  );
+  if (reusesForbiddenSecret) {
     throw new Error("ENCRYPTION_SECRETS must not reuse an identity or Better Auth secret");
   }
 }
@@ -107,19 +123,15 @@ function validateContext(context: string): void {
 }
 
 async function encryptionKey(
-  secret: string,
+  secret: Uint8Array<ArrayBuffer>,
   secretId: string,
   context: string,
   binding: string,
   usages: KeyUsage[],
 ) {
-  const material = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HKDF" },
-    false,
-    ["deriveKey"],
-  );
+  const material = await crypto.subtle.importKey("raw", secret, { name: "HKDF" }, false, [
+    "deriveKey",
+  ]);
 
   return crypto.subtle.deriveKey(
     {

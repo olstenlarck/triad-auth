@@ -35,13 +35,15 @@ export interface TokenProfileClaims {
   name?: string;
   picture?: string;
   wallet?: string;
-  chains?: number[];
   cred?: string;
   pubkey?: string;
 }
 
 export interface TokenSessionClaimResolver {
-  resolveAuthenticationChainId(sessionId: string): number | undefined | Promise<number | undefined>;
+  resolveAuthenticationChains(
+    sessionId: string,
+    userId: string,
+  ): { chainId?: number; chains: unknown[] } | Promise<{ chainId?: number; chains: unknown[] }>;
 }
 
 export interface TokenProfileClaimResolver {
@@ -108,13 +110,7 @@ function assignProfileClaim(
   if (value === undefined) {
     throw new Error(`Token profile resolver did not return the required ${claim} claim`);
   }
-  const valid =
-    claim === "email_verified"
-      ? typeof value === "boolean"
-      : claim === "chains"
-        ? Array.isArray(value) &&
-          value.every((chainId) => Number.isSafeInteger(chainId) && chainId > 0)
-        : typeof value === "string";
+  const valid = claim === "email_verified" ? typeof value === "boolean" : typeof value === "string";
   if (!valid) {
     throw new Error(`Token profile resolver returned an invalid ${claim} claim`);
   }
@@ -130,20 +126,31 @@ async function resolveSessionClaims(
   resolver: TokenSessionClaimResolver | undefined,
   scopes: readonly string[],
   sessionId: string | undefined,
+  userId: string | undefined,
 ): Promise<Record<string, unknown>> {
-  if (!scopes.includes("chain_id")) {
+  const includeChains = scopes.includes("chains");
+  const includeChainId = scopes.includes("chain_id");
+  if (!includeChains && !includeChainId) {
     return {};
   }
-  if (!resolver || !sessionId) {
-    throw new Error("The chain_id scope requires an Ethereum authentication session");
+  if (!resolver || !sessionId || !userId) {
+    throw new Error("Ethereum chain scopes require an authentication session");
   }
 
-  const chainId = await resolver.resolveAuthenticationChainId(sessionId);
+  const resolved = await resolver.resolveAuthenticationChains(sessionId, userId);
+  const chainId = resolved.chainId;
   if (!validChainId(chainId)) {
     throw new Error("The authentication session does not contain a valid chain_id claim");
   }
 
-  return { chain_id: chainId };
+  const chains = [...new Set([...resolved.chains.filter(validChainId), chainId])].sort(
+    (left, right) => left - right,
+  );
+
+  return {
+    ...(includeChains ? { chains } : {}),
+    ...(includeChainId ? { chain_id: chainId } : {}),
+  };
 }
 
 async function resolveScopedProfileClaims(
@@ -152,7 +159,7 @@ async function resolveScopedProfileClaims(
   scopes: readonly string[],
 ): Promise<TokenProfileClaims> {
   const requestedScopes = OPTIONAL_DISCLOSURE_SCOPES.filter(
-    (scope) => scope !== "chain_id" && scopes.includes(scope),
+    (scope) => scope !== "chains" && scope !== "chain_id" && scopes.includes(scope),
   );
   if (requestedScopes.length === 0) {
     return {};
@@ -166,7 +173,7 @@ async function resolveScopedProfileClaims(
 
   for (const scope of requestedScopes) {
     for (const claim of DISCLOSURE_CLAIMS[scope]) {
-      if (claim === "chain_id") {
+      if (claim === "chains" || claim === "chain_id") {
         continue;
       }
       assignProfileClaim(claims, claim, resolved[claim]);
@@ -206,7 +213,12 @@ function createIdentityClaimsExtension(
         ...(input.user
           ? await resolveTripleIdentityClaims(identity, input.user, input.client.clientId)
           : {}),
-        ...(await resolveSessionClaims(sessionClaims, input.scopes, input.sessionId)),
+        ...(await resolveSessionClaims(
+          sessionClaims,
+          input.scopes,
+          input.sessionId,
+          input.user?.id,
+        )),
       }),
       userInfo: async (input: OAuthUserInfoExtensionInput) => ({
         ...(await resolveTripleIdentityClaims(identity, input.user, userInfoClientId(input))),
@@ -214,6 +226,7 @@ function createIdentityClaimsExtension(
           sessionClaims,
           input.scopes,
           typeof input.jwt.sid === "string" ? input.jwt.sid : undefined,
+          input.user.id,
         )),
       }),
     },

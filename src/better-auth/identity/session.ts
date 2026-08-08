@@ -1,15 +1,27 @@
 export function createSessionClaimResolver(database: D1Database) {
   return {
-    resolveAuthenticationChainId: async (sessionId: string): Promise<number | undefined> => {
-      const row = await database
-        .prepare('select "authenticationChainId" from "session" where "id" = ? limit 1')
-        .bind(sessionId)
-        .first<{ authenticationChainId: unknown }>();
-      const chainId = row?.authenticationChainId;
+    resolveAuthenticationChains: async (sessionId: string, userId: string) => {
+      const [session, wallets] = await Promise.all([
+        database
+          .prepare(
+            'select "authenticationChainId" from "session" where "id" = ? and "userId" = ? limit 1',
+          )
+          .bind(sessionId, userId)
+          .first<{ authenticationChainId: unknown }>(),
+        database
+          .prepare('select "chainId" from "walletAddress" where "userId" = ?')
+          .bind(userId)
+          .all<{ chainId: unknown }>(),
+      ]);
+      const chainId = session?.authenticationChainId;
 
-      return typeof chainId === "number" && Number.isSafeInteger(chainId) && chainId > 0
-        ? chainId
-        : undefined;
+      return {
+        chainId:
+          typeof chainId === "number" && Number.isSafeInteger(chainId) && chainId > 0
+            ? chainId
+            : undefined,
+        chains: wallets.results.map((wallet) => wallet.chainId),
+      };
     },
   };
 }

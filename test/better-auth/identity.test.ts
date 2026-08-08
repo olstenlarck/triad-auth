@@ -21,7 +21,7 @@ function createEnv(): TriadEnv {
     IDENTIFIER_SECRET,
     RATE_LIMIT_SECRET: "test-rate-limit-secret-with-enough-entropy-1234567890",
     ENCRYPTION_SECRETS:
-      '{"active":"v1","secrets":{"v1":"test-encryption-secret-with-enough-entropy-123456"}}',
+      '{"active":"v1","secrets":{"v1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",

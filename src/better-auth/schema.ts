@@ -12,7 +12,7 @@ const schemaEnv = {
   IDENTIFIER_SECRET: "schema-identifier-secret-with-enough-entropy-123456",
   RATE_LIMIT_SECRET: "schema-rate-limit-secret-with-enough-entropy-123456",
   ENCRYPTION_SECRETS:
-    '{"active":"v1","secrets":{"v1":"schema-encryption-secret-with-enough-entropy-123456"}}',
+    '{"active":"v1","secrets":{"v1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"}}',
   GOOGLE_CLIENT_ID: "schema-google-client-id",
   GOOGLE_CLIENT_SECRET: "schema-google-client-secret",
   GITHUB_CLIENT_ID: "schema-github-client-id",
