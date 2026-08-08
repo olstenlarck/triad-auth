@@ -1,4 +1,5 @@
 import type { IdentityProvider } from "./subjects";
+import type { OptionalDisclosureScope } from "../disclosures";
 import {
   base64UrlDecode,
   base64UrlEncode,
@@ -12,16 +13,6 @@ const SYNTHETIC_EMAIL_SUFFIX = "@identity.invalid";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 const MAX_CREDENTIAL_ID_BYTES = 1023;
-
-export type ProfileScope =
-  | "email"
-  | "handle"
-  | "name"
-  | "avatar"
-  | "wallet"
-  | "chains"
-  | "cred"
-  | "pubkey";
 
 export interface CapturedProfile {
   profileEmail?: string;
@@ -290,7 +281,7 @@ export function captureProviderProfile(
 
 async function resolveProfileClaims(
   user: CapturedProfile,
-  scopes: readonly ProfileScope[],
+  scopes: readonly OptionalDisclosureScope[],
 ): Promise<ProfileClaims> {
   const claims: ProfileClaims = {};
 
@@ -379,12 +370,20 @@ export function createProfileClaimResolver(encryptionSecrets: string, database?:
   validateEncryptionSecrets(encryptionSecrets);
 
   return {
-    resolveProfileClaims: async (user: ProfileIdentityUser, scopes: readonly ProfileScope[]) => {
+    resolveProfileClaims: async (
+      user: ProfileIdentityUser,
+      scopes: readonly OptionalDisclosureScope[],
+    ) => {
       if (scopes.length === 0) {
         return {};
       }
 
-      const databaseScopes: readonly ProfileScope[] = ["wallet", "chains", "cred", "pubkey"];
+      const databaseScopes: readonly OptionalDisclosureScope[] = [
+        "wallet",
+        "chains",
+        "cred",
+        "pubkey",
+      ];
       const requiresDatabaseClaims = scopes.some((scope) => databaseScopes.includes(scope));
       if (requiresDatabaseClaims && !database) {
         throw new Error("Credential claims require an identity database");

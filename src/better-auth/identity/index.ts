@@ -9,7 +9,6 @@ export {
   openProfileEncryptedData,
   sealProfileEncryptedData,
   type ProfileIdentityUser,
-  type ProfileScope,
 } from "./profile";
 export { createEthereumAuthentication } from "./siwe";
 export { createSessionClaimResolver } from "./session";

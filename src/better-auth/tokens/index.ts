@@ -47,12 +47,9 @@ export interface TokenSessionClaimResolver {
 export interface TokenProfileClaimResolver {
   resolveProfileClaims(
     user: TokenIdentityUser,
-    scopes: readonly StoredDisclosureScope[],
+    scopes: readonly OptionalDisclosureScope[],
   ): TokenProfileClaims | Promise<TokenProfileClaims>;
 }
-
-type StoredDisclosureScope = Exclude<OptionalDisclosureScope, "chain_id">;
-type StoredDisclosureClaim = (typeof DISCLOSURE_CLAIMS)[StoredDisclosureScope][number];
 
 type OAuthResourceOptionName =
   | "accessTokenExpiresIn"
@@ -103,15 +100,9 @@ async function resolveTripleIdentityClaims(
   };
 }
 
-function requestedStoredScopes(scopes: readonly string[]): StoredDisclosureScope[] {
-  return OPTIONAL_DISCLOSURE_SCOPES.filter(
-    (scope): scope is StoredDisclosureScope => scope !== "chain_id" && scopes.includes(scope),
-  );
-}
-
 function assignProfileClaim(
   claims: TokenProfileClaims,
-  claim: StoredDisclosureClaim,
+  claim: keyof TokenProfileClaims,
   value: unknown,
 ): void {
   if (value === undefined) {
@@ -160,7 +151,9 @@ async function resolveScopedProfileClaims(
   user: TokenIdentityUser,
   scopes: readonly string[],
 ): Promise<TokenProfileClaims> {
-  const requestedScopes = requestedStoredScopes(scopes);
+  const requestedScopes = OPTIONAL_DISCLOSURE_SCOPES.filter(
+    (scope) => scope !== "chain_id" && scopes.includes(scope),
+  );
   if (requestedScopes.length === 0) {
     return {};
   }
@@ -173,6 +166,9 @@ async function resolveScopedProfileClaims(
 
   for (const scope of requestedScopes) {
     for (const claim of DISCLOSURE_CLAIMS[scope]) {
+      if (claim === "chain_id") {
+        continue;
+      }
       assignProfileClaim(claims, claim, resolved[claim]);
     }
   }
