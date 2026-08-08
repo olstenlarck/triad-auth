@@ -10,9 +10,8 @@ import type { JwtOptions } from "better-auth/plugins";
 import {
   DISCLOSURE_CLAIMS,
   DISCLOSURE_SCOPES,
-  PROFILE_DISCLOSURE_SCOPES,
-  type ProfileDisclosureClaim,
-  type ProfileDisclosureScope,
+  OPTIONAL_DISCLOSURE_SCOPES,
+  type OptionalDisclosureScope,
 } from "../disclosures";
 
 export const ACCESS_TOKEN_TTL_SECONDS = 5 * 60;
@@ -48,9 +47,12 @@ export interface TokenSessionClaimResolver {
 export interface TokenProfileClaimResolver {
   resolveProfileClaims(
     user: TokenIdentityUser,
-    scopes: readonly ProfileDisclosureScope[],
+    scopes: readonly StoredDisclosureScope[],
   ): TokenProfileClaims | Promise<TokenProfileClaims>;
 }
+
+type StoredDisclosureScope = Exclude<OptionalDisclosureScope, "chain_id">;
+type StoredDisclosureClaim = (typeof DISCLOSURE_CLAIMS)[StoredDisclosureScope][number];
 
 type OAuthResourceOptionName =
   | "accessTokenExpiresIn"
@@ -101,13 +103,15 @@ async function resolveTripleIdentityClaims(
   };
 }
 
-function requestedProfileScopes(scopes: readonly string[]): ProfileDisclosureScope[] {
-  return PROFILE_DISCLOSURE_SCOPES.filter((scope) => scopes.includes(scope));
+function requestedStoredScopes(scopes: readonly string[]): StoredDisclosureScope[] {
+  return OPTIONAL_DISCLOSURE_SCOPES.filter(
+    (scope): scope is StoredDisclosureScope => scope !== "chain_id" && scopes.includes(scope),
+  );
 }
 
 function assignProfileClaim(
   claims: TokenProfileClaims,
-  claim: ProfileDisclosureClaim,
+  claim: StoredDisclosureClaim,
   value: unknown,
 ): void {
   if (value === undefined) {
@@ -151,23 +155,12 @@ async function resolveSessionClaims(
   return { chain_id: chainId };
 }
 
-function userInfoSessionClaims(input: OAuthUserInfoExtensionInput): Record<string, unknown> {
-  if (!input.scopes.includes("chain_id")) {
-    return {};
-  }
-  if (!validChainId(input.jwt.chain_id)) {
-    throw new Error("The access token does not contain a valid chain_id claim");
-  }
-
-  return { chain_id: input.jwt.chain_id };
-}
-
 async function resolveScopedProfileClaims(
   resolver: TokenProfileClaimResolver | undefined,
   user: TokenIdentityUser,
   scopes: readonly string[],
 ): Promise<TokenProfileClaims> {
-  const requestedScopes = requestedProfileScopes(scopes);
+  const requestedScopes = requestedStoredScopes(scopes);
   if (requestedScopes.length === 0) {
     return {};
   }
@@ -212,7 +205,6 @@ function createIdentityClaimsExtension(
         ...(input.user
           ? await resolveTripleIdentityClaims(identity, input.user, input.client.clientId)
           : {}),
-        ...(await resolveSessionClaims(sessionClaims, input.scopes, input.sessionId)),
       }),
       idToken: async (input: OAuthClaimExtensionInput) => ({
         ...(input.user
@@ -222,7 +214,11 @@ function createIdentityClaimsExtension(
       }),
       userInfo: async (input: OAuthUserInfoExtensionInput) => ({
         ...(await resolveTripleIdentityClaims(identity, input.user, userInfoClientId(input))),
-        ...userInfoSessionClaims(input),
+        ...(await resolveSessionClaims(
+          sessionClaims,
+          input.scopes,
+          typeof input.jwt.sid === "string" ? input.jwt.sid : undefined,
+        )),
       }),
     },
   };

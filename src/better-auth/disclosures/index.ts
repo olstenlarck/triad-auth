@@ -1,5 +1,4 @@
-export const DISCLOSURE_SCOPES = [
-  "openid",
+export const OPTIONAL_DISCLOSURE_SCOPES = [
   "email",
   "handle",
   "name",
@@ -10,21 +9,10 @@ export const DISCLOSURE_SCOPES = [
   "cred",
   "pubkey",
 ] as const;
-export const PROFILE_DISCLOSURE_SCOPES = [
-  "email",
-  "handle",
-  "name",
-  "avatar",
-  "wallet",
-  "chains",
-  "cred",
-  "pubkey",
-] as const;
-export const SESSION_DISCLOSURE_SCOPES = ["chain_id"] as const;
+export const DISCLOSURE_SCOPES = ["openid", ...OPTIONAL_DISCLOSURE_SCOPES] as const;
 
 export type DisclosureScope = (typeof DISCLOSURE_SCOPES)[number];
-export type ProfileDisclosureScope = (typeof PROFILE_DISCLOSURE_SCOPES)[number];
-export type SessionDisclosureScope = (typeof SESSION_DISCLOSURE_SCOPES)[number];
+export type OptionalDisclosureScope = (typeof OPTIONAL_DISCLOSURE_SCOPES)[number];
 export type DisclosureProvider = "google" | "github" | "twitter" | "ethereum" | "passkey";
 
 export const DISCLOSURE_CLAIMS = {
@@ -41,7 +29,6 @@ export const DISCLOSURE_CLAIMS = {
 } as const satisfies Record<DisclosureScope, readonly string[]>;
 
 export type DisclosureClaim = (typeof DISCLOSURE_CLAIMS)[DisclosureScope][number];
-export type ProfileDisclosureClaim = (typeof DISCLOSURE_CLAIMS)[ProfileDisclosureScope][number];
 
 export const PROVIDER_DISCLOSURE_SCOPES = {
   google: ["email", "name", "avatar"],
@@ -49,7 +36,7 @@ export const PROVIDER_DISCLOSURE_SCOPES = {
   twitter: ["handle", "name", "avatar"],
   ethereum: ["wallet", "chains", "chain_id"],
   passkey: ["cred", "pubkey"],
-} as const satisfies Record<DisclosureProvider, readonly DisclosureScope[]>;
+} as const satisfies Record<DisclosureProvider, readonly OptionalDisclosureScope[]>;
 
 export const PROVIDER_UPSTREAM_SCOPE_MAP = {
   google: {

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   DISCLOSURE_CLAIMS,
   DISCLOSURE_SCOPES,
-  PROFILE_DISCLOSURE_SCOPES,
+  OPTIONAL_DISCLOSURE_SCOPES,
   PROVIDER_DISCLOSURE_SCOPES,
   PROVIDER_UPSTREAM_SCOPE_MAP,
   canonicalDisclosureScopes,
@@ -26,13 +26,14 @@ describe("downstream disclosure scope policy", () => {
       "cred",
       "pubkey",
     ]);
-    expect(PROFILE_DISCLOSURE_SCOPES).toEqual([
+    expect(OPTIONAL_DISCLOSURE_SCOPES).toEqual([
       "email",
       "handle",
       "name",
       "avatar",
       "wallet",
       "chains",
+      "chain_id",
       "cred",
       "pubkey",
     ]);

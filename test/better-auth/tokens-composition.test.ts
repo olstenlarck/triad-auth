@@ -226,7 +226,7 @@ describe("token composition", () => {
     });
   });
 
-  it("adds the SIWE session chain only when chain_id is granted", async () => {
+  it("adds the SIWE session chain to the ID token only when chain_id is granted", async () => {
     const sessionClaims: TokenSessionClaimResolver = {
       resolveAuthenticationChainId: vi.fn(async () => 1),
     };
@@ -236,16 +236,21 @@ describe("token composition", () => {
     const input = { ...claimInput(["openid", "chain_id"]), sessionId: "session-id" };
 
     await expect(extension.claims?.idToken?.(input)).resolves.toMatchObject({ chain_id: 1 });
-    await expect(extension.claims?.accessToken?.(input)).resolves.toMatchObject({ chain_id: 1 });
+    await expect(extension.claims?.accessToken?.(input)).resolves.not.toHaveProperty("chain_id");
     expect(sessionClaims.resolveAuthenticationChainId).toHaveBeenCalledWith("session-id");
   });
 
-  it("copies the granted session chain from the access token into UserInfo", async () => {
-    const extension = claimsExtension(createComposition());
+  it("loads the granted session chain for UserInfo from the access-token session", async () => {
+    const sessionClaims: TokenSessionClaimResolver = {
+      resolveAuthenticationChainId: vi.fn(async () => 1),
+    };
+    const extension = claimsExtension(
+      createComposition(createIdentityResolver(), undefined, sessionClaims),
+    );
     const input: OAuthUserInfoExtensionInput = {
       client: { clientId },
       ctx: {} as OAuthUserInfoExtensionInput["ctx"],
-      jwt: { chain_id: 1, client_id: clientId, sub: user.id },
+      jwt: { client_id: clientId, sid: "session-id", sub: user.id },
       opts: {} as OAuthUserInfoExtensionInput["opts"],
       requestedClaims: [],
       scopes: ["openid", "chain_id"],
@@ -253,6 +258,7 @@ describe("token composition", () => {
     };
 
     await expect(extension.claims?.userInfo?.(input)).resolves.toMatchObject({ chain_id: 1 });
+    expect(sessionClaims.resolveAuthenticationChainId).toHaveBeenCalledWith("session-id");
   });
 
   it("uses the first-party ID-token hook for exact requested profile scopes", async () => {
