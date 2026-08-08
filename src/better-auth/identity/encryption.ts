@@ -61,7 +61,7 @@ export function validateEncryptionSecrets(
   }
 }
 
-function base64UrlEncode(bytes: Uint8Array): string {
+export function base64UrlEncode(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
@@ -77,7 +77,7 @@ function arrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return copy.buffer;
 }
 
-function base64UrlDecode(value: string): Uint8Array<ArrayBuffer> {
+export function base64UrlDecode(value: string): Uint8Array<ArrayBuffer> {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) {
     throw new Error("Invalid encrypted data encoding");
   }

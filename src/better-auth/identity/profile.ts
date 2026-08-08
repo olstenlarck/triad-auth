@@ -1,10 +1,15 @@
 import type { IdentityProvider } from "./subjects";
-import { openEncryptedData, sealEncryptedData, validateEncryptionSecrets } from "./encryption";
+import {
+  base64UrlDecode,
+  base64UrlEncode,
+  openEncryptedData,
+  sealEncryptedData,
+  validateEncryptionSecrets,
+} from "./encryption";
 import { storedPasskeyPublicKeyHex } from "./passkey";
 
 const SYNTHETIC_EMAIL_SUFFIX = "@identity.invalid";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;
-const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 const MAX_CREDENTIAL_ID_BYTES = 1023;
 
 export type ProfileScope = "email" | "handle" | "name" | "avatar" | "wallet" | "cred" | "pubkey";
@@ -76,20 +81,17 @@ function webUrl(value: unknown): string | undefined {
 }
 
 function credentialId(value: unknown): string | undefined {
-  if (typeof value !== "string" || !BASE64URL_PATTERN.test(value) || value.length % 4 === 1) {
+  if (typeof value !== "string") {
     return undefined;
   }
 
   try {
-    const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
-    const decoded = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="));
-    if (decoded.length === 0 || decoded.length > MAX_CREDENTIAL_ID_BYTES) {
+    const decoded = base64UrlDecode(value);
+    if (decoded.byteLength === 0 || decoded.byteLength > MAX_CREDENTIAL_ID_BYTES) {
       return undefined;
     }
 
-    const canonical = btoa(decoded).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-
-    return canonical === value ? value : undefined;
+    return base64UrlEncode(decoded) === value ? value : undefined;
   } catch {
     return undefined;
   }
