@@ -20,6 +20,7 @@
     "@better-auth/passkey": "1.7.0-rc.1",
     "@fontsource-variable/archivo": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@paralleldrive/cuid2": "^3.3.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.1",
     "astro": "^7.0.7",

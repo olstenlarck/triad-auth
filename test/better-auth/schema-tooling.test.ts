@@ -96,7 +96,10 @@ describe("Better Auth schema tooling", () => {
     expect(initialMigration).toContain('"encryptedData" text');
     expect(initialMigration).toContain('create table "walletAddress"');
     expect(initialMigration).toContain('create table "passkey"');
+    expect(initialMigration).toContain('create table "passkeyUsername"');
     expect(initialMigration).toContain('"credentialID" text not null');
+    expect(initialMigration).toContain('"username" text not null unique');
+    expect(initialMigration).toContain('"accountSub" text not null unique');
     expect(initialMigration).toContain('"name" text not null');
     expect(initialMigration).toContain('"email" text not null unique');
     expect(initialMigration).toContain('"emailVerified" integer not null');
