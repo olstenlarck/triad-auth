@@ -22,10 +22,10 @@ migrations_dir = "migrations"
 
 [env.staging]
 name = "triad-auth-staging"
-workers_dev = true
+workers_dev = false
 
 [env.staging.vars]
-AUTH_ORIGIN = "https://triad-auth-staging.equator-owl-studio.workers.dev"
+AUTH_ORIGIN = "https://triad-auth-staging.wgw.lol"
 
 [env.staging.assets]
 directory = "./dist"

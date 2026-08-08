@@ -10,8 +10,8 @@
     "db:migrate": "vp exec wrangler d1 migrations apply DB --remote",
     "db:migrate:local": "vp exec wrangler d1 migrations apply DB --local",
     "db:migrate:staging": "vp exec wrangler d1 migrations apply DB --env staging --remote",
-    "deploy": "vp run build && vp run db:migrate && vp exec wrangler deploy",
-    "deploy:staging": "vp run build:staging && vp run db:migrate:staging && vp exec wrangler deploy --env staging",
+    "deploy": "vp run db:migrate && vp exec wrangler deploy",
+    "deploy:staging": "vp run db:migrate:staging && vp exec wrangler deploy --env staging",
     "dev": "vp exec astro dev",
     "preview": "vp run build && vp exec astro preview"
   },
