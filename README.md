@@ -30,11 +30,16 @@ OIDC discovery document advertises pairwise subjects only. Provider accounts rem
 emails match.
 
 The optional provider profile fields (`email`, `email_verified`, `handle`, `name`, and `avatar_url`) are stored only
-inside the versioned, encrypted `PROFILE_DATA_KEYRING` envelope. Better Auth-managed session, OAuth, and JWKS records
-remain protocol state; upstream provider access, refresh, and ID tokens are removed before account persistence.
+inside the versioned, encrypted `PROFILE_DATA_SECRETS` envelope. Better Auth owns ES256 signing and persists its JWKS;
+Triad does not accept a separate signing key secret. Better Auth-managed session, OAuth, and JWKS records remain
+protocol state; upstream provider access, refresh, and ID tokens are removed before account persistence.
 The physical `user` table keeps Better Auth's required structural columns, but the user create hook replaces the core
 `name`, `email`, `emailVerified`, and `image` values with an empty name, an account-subject placeholder email, `false`,
 and an empty image before persistence. No provider profile value is written to those columns.
+
+Rate-limit buckets are HMAC-derived with `RATE_LIMIT_SECRET` from Better Auth's normalized IP-and-path key. D1 receives
+only the opaque digest, request count, and timestamp. Session rows retain Better Auth's generated request-metadata
+columns, but create and update hooks always persist `NULL` for `ipAddress` and `userAgent`.
 
 The signed-in account page can delete the account. Deletion removes the profile envelope, sessions, provider account,
 device records, consents, grants, and user-bound token records. Already issued short-lived JWTs may remain valid until

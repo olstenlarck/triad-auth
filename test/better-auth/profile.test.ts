@@ -6,8 +6,8 @@ import {
   type CapturedProfile,
 } from "../../src/better-auth/identity";
 
-const PROFILE_DATA_KEYRING =
-  '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}';
+const PROFILE_DATA_SECRETS =
+  '{"active":"v1","secrets":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}';
 const profile = {
   profileEmail: "person@example.com",
   profileEmailVerified: true,
@@ -19,12 +19,12 @@ const profile = {
 async function profileUser(profileData: CapturedProfile = profile) {
   return {
     id: "acc_subject",
-    profileData: await sealProfileData(PROFILE_DATA_KEYRING, profileData),
+    profileData: await sealProfileData(PROFILE_DATA_SECRETS, profileData),
   };
 }
 
 describe("Triad profile claim resolver", () => {
-  const resolver = createProfileClaimResolver(PROFILE_DATA_KEYRING);
+  const resolver = createProfileClaimResolver(PROFILE_DATA_SECRETS);
 
   it("returns only claims authorized by downstream profile scopes", async () => {
     await expect(
@@ -58,7 +58,7 @@ describe("Triad profile claim resolver", () => {
   });
 
   it("rejects malformed encrypted profile values instead of coercing them", async () => {
-    const malformed = await sealProfileData(PROFILE_DATA_KEYRING, {
+    const malformed = await sealProfileData(PROFILE_DATA_SECRETS, {
       profileEmail: 42,
     } as unknown as CapturedProfile);
 

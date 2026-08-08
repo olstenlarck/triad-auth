@@ -10,8 +10,9 @@ const schemaEnv = {
   AUTH_ORIGIN: "http://localhost",
   BETTER_AUTH_SECRET: "schema-only-secret-that-is-at-least-32-characters",
   IDENTIFIER_SECRET: "schema-identifier-secret-with-enough-entropy-123456",
-  PROFILE_DATA_KEYRING:
-    '{"active":"v1","keys":{"v1":"schema-profile-data-keyring-with-enough-entropy-123456"}}',
+  RATE_LIMIT_SECRET: "schema-rate-limit-secret-with-enough-entropy-123456",
+  PROFILE_DATA_SECRETS:
+    '{"active":"v1","secrets":{"v1":"schema-profile-data-keyring-with-enough-entropy-123456"}}',
   GOOGLE_CLIENT_ID: "schema-google-client-id",
   GOOGLE_CLIENT_SECRET: "schema-google-client-secret",
   GITHUB_CLIENT_ID: "schema-github-client-id",

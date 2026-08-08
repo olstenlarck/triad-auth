@@ -16,9 +16,9 @@ export interface CapturedProfile {
   profileAvatar?: string;
 }
 
-interface ParsedProfileDataKeyring {
+interface ParsedProfileDataSecrets {
   active: string;
-  keys: Record<string, string>;
+  secrets: Record<string, string>;
 }
 
 interface StoredProfileData {
@@ -76,53 +76,53 @@ function webUrl(value: unknown): string | undefined {
   }
 }
 
-function parseProfileDataKeyring(serialized: string): ParsedProfileDataKeyring {
+function parseProfileDataSecrets(serialized: string): ParsedProfileDataSecrets {
   if (typeof serialized !== "string" || serialized.length === 0) {
-    throw new Error("PROFILE_DATA_KEYRING must be a JSON keyring");
+    throw new Error("PROFILE_DATA_SECRETS must contain versioned JSON secrets");
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(serialized);
   } catch {
-    throw new Error("PROFILE_DATA_KEYRING must contain valid JSON");
+    throw new Error("PROFILE_DATA_SECRETS must contain valid JSON");
   }
 
   if (!isRecord(parsed) || typeof parsed.active !== "string") {
-    throw new Error("PROFILE_DATA_KEYRING must define an active key ID");
+    throw new Error("PROFILE_DATA_SECRETS must define an active key ID");
   }
   if (!PROFILE_DATA_KEY_ID_PATTERN.test(parsed.active)) {
-    throw new Error("PROFILE_DATA_KEYRING contains an invalid active key ID");
+    throw new Error("PROFILE_DATA_SECRETS contains an invalid active key ID");
   }
-  if (!isRecord(parsed.keys)) {
-    throw new Error("PROFILE_DATA_KEYRING must define keyed encryption material");
+  if (!isRecord(parsed.secrets)) {
+    throw new Error("PROFILE_DATA_SECRETS must define versioned encryption material");
   }
 
-  const keys: Record<string, string> = {};
-  for (const [keyId, key] of Object.entries(parsed.keys)) {
+  const secrets: Record<string, string> = {};
+  for (const [keyId, secret] of Object.entries(parsed.secrets)) {
     if (!PROFILE_DATA_KEY_ID_PATTERN.test(keyId)) {
-      throw new Error("PROFILE_DATA_KEYRING contains an invalid key ID");
+      throw new Error("PROFILE_DATA_SECRETS contains an invalid key ID");
     }
-    if (typeof key !== "string" || key.length < 32 || key.trim() !== key) {
-      throw new Error("PROFILE_DATA_KEYRING keys must contain at least 32 characters");
+    if (typeof secret !== "string" || secret.length < 32 || secret.trim() !== secret) {
+      throw new Error("PROFILE_DATA_SECRETS values must contain at least 32 characters");
     }
-    keys[keyId] = key;
+    secrets[keyId] = secret;
   }
 
-  if (Object.keys(keys).length === 0 || !keys[parsed.active]) {
-    throw new Error("PROFILE_DATA_KEYRING active key is not configured");
+  if (Object.keys(secrets).length === 0 || !secrets[parsed.active]) {
+    throw new Error("PROFILE_DATA_SECRETS active secret is not configured");
   }
 
-  return { active: parsed.active, keys };
+  return { active: parsed.active, secrets };
 }
 
-export function validateProfileDataKeyring(
+export function validateProfileDataSecrets(
   serialized: string,
   forbiddenSecrets: readonly string[] = [],
 ): void {
-  const keyring = parseProfileDataKeyring(serialized);
-  if (Object.values(keyring.keys).some((key) => forbiddenSecrets.includes(key))) {
-    throw new Error("PROFILE_DATA_KEYRING must not reuse an identity or Better Auth secret");
+  const profileSecrets = parseProfileDataSecrets(serialized);
+  if (Object.values(profileSecrets.secrets).some((secret) => forbiddenSecrets.includes(secret))) {
+    throw new Error("PROFILE_DATA_SECRETS must not reuse another Worker secret");
   }
 }
 
@@ -248,22 +248,26 @@ function profileDataAdditionalData(keyId: string): Uint8Array {
 }
 
 export async function sealProfileData(
-  serializedKeyring: string,
+  serializedSecrets: string,
   profile: CapturedProfile,
 ): Promise<string | undefined> {
-  const keyring = parseProfileDataKeyring(serializedKeyring);
+  const profileSecrets = parseProfileDataSecrets(serializedSecrets);
   const data = profileDataFromCaptured(profile);
   if (Object.keys(data).length === 0) {
     return undefined;
   }
 
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await profileEncryptionKey(keyring.keys[keyring.active], keyring.active, ["encrypt"]);
+  const key = await profileEncryptionKey(
+    profileSecrets.secrets[profileSecrets.active],
+    profileSecrets.active,
+    ["encrypt"],
+  );
   const encrypted = await crypto.subtle.encrypt(
     {
       name: "AES-GCM",
       iv: iv as unknown as BufferSource,
-      additionalData: profileDataAdditionalData(keyring.active) as unknown as BufferSource,
+      additionalData: profileDataAdditionalData(profileSecrets.active) as unknown as BufferSource,
     },
     key,
     new TextEncoder().encode(JSON.stringify(data)),
@@ -271,17 +275,17 @@ export async function sealProfileData(
 
   return [
     PROFILE_DATA_ENVELOPE_VERSION,
-    keyring.active,
+    profileSecrets.active,
     base64UrlEncode(iv),
     base64UrlEncode(new Uint8Array(encrypted)),
   ].join(".");
 }
 
 export async function openProfileData(
-  serializedKeyring: string,
+  serializedSecrets: string,
   envelope: string,
 ): Promise<CapturedProfile> {
-  const keyring = parseProfileDataKeyring(serializedKeyring);
+  const profileSecrets = parseProfileDataSecrets(serializedSecrets);
   const [version, keyId, encodedIv, encodedCiphertext] = envelope.split(".");
   if (
     version !== PROFILE_DATA_ENVELOPE_VERSION ||
@@ -289,7 +293,7 @@ export async function openProfileData(
     !encodedIv ||
     !encodedCiphertext ||
     !PROFILE_DATA_KEY_ID_PATTERN.test(keyId) ||
-    !keyring.keys[keyId]
+    !profileSecrets.secrets[keyId]
   ) {
     throw new Error("Invalid profile data envelope");
   }
@@ -301,7 +305,7 @@ export async function openProfileData(
 
   let decrypted: ArrayBuffer;
   try {
-    const key = await profileEncryptionKey(keyring.keys[keyId], keyId, ["decrypt"]);
+    const key = await profileEncryptionKey(profileSecrets.secrets[keyId], keyId, ["decrypt"]);
     decrypted = await crypto.subtle.decrypt(
       {
         name: "AES-GCM",
@@ -461,8 +465,8 @@ async function resolveProfileClaims(
   return claims;
 }
 
-export function createProfileClaimResolver(serializedKeyring: string) {
-  validateProfileDataKeyring(serializedKeyring);
+export function createProfileClaimResolver(serializedSecrets: string) {
+  validateProfileDataSecrets(serializedSecrets);
 
   return {
     resolveProfileClaims: async (user: ProfileIdentityUser, scopes: readonly ProfileScope[]) => {
@@ -472,7 +476,7 @@ export function createProfileClaimResolver(serializedKeyring: string) {
 
       const profile =
         typeof user.profileData === "string"
-          ? await openProfileData(serializedKeyring, user.profileData)
+          ? await openProfileData(serializedSecrets, user.profileData)
           : {};
 
       return resolveProfileClaims(profile, scopes);

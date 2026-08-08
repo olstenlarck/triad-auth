@@ -11,6 +11,7 @@ import {
   createProfileClaimResolver,
   pairwiseSubject,
 } from "./identity";
+import { createD1RateLimitStorage, RATE_LIMIT_WINDOW_SECONDS } from "./rate-limit";
 import { createTriadResourceFragment } from "./resources";
 import { createTokenComposition, type TokenIdentityUser } from "./tokens";
 
@@ -36,7 +37,7 @@ export function createTriadConfiguration(env: TriadEnv) {
         pairwiseSubject(env.IDENTIFIER_SECRET, accountSub, clientId),
       resolveProviderSubject: providerSubjectFromUser,
     },
-    profileClaims: createProfileClaimResolver(env.PROFILE_DATA_KEYRING),
+    profileClaims: createProfileClaimResolver(env.PROFILE_DATA_SECRETS),
     resource: resourceFragment,
   });
   const { extensions: admissionExtensions, ...admissionOptions } = admissionFragment.oauthProvider;
@@ -51,12 +52,12 @@ export function createTriadConfiguration(env: TriadEnv) {
       loginPage: "/me",
       pairwiseSecret: env.IDENTIFIER_SECRET,
       rateLimit: {
-        token: { window: 60, max: 20 },
-        authorize: { window: 60, max: 30 },
-        introspect: { window: 60, max: 60 },
-        revoke: { window: 60, max: 30 },
-        register: { window: 60, max: 5 },
-        userinfo: { window: 60, max: 60 },
+        token: { window: RATE_LIMIT_WINDOW_SECONDS, max: 20 },
+        authorize: { window: RATE_LIMIT_WINDOW_SECONDS, max: 30 },
+        introspect: { window: RATE_LIMIT_WINDOW_SECONDS, max: 60 },
+        revoke: { window: RATE_LIMIT_WINDOW_SECONDS, max: 30 },
+        register: { window: RATE_LIMIT_WINDOW_SECONDS, max: 5 },
+        userinfo: { window: RATE_LIMIT_WINDOW_SECONDS, max: 60 },
       },
       extensions: [...tokenExtensions, ...admissionExtensions],
     }),
@@ -67,14 +68,14 @@ export function createTriadConfiguration(env: TriadEnv) {
     ...identityConfiguration,
     rateLimit: {
       enabled: true,
-      storage: "database",
-      window: 60,
+      customStorage: createD1RateLimitStorage(env.DB, env.RATE_LIMIT_SECRET),
+      window: RATE_LIMIT_WINDOW_SECONDS,
       max: 60,
       customRules: {
-        "/sign-in/social": { window: 60, max: 10 },
-        "/device/code": { window: 60, max: 10 },
-        "/device": { window: 60, max: 30 },
-        "/device/token": { window: 60, max: 30 },
+        "/sign-in/social": { window: RATE_LIMIT_WINDOW_SECONDS, max: 10 },
+        "/device/code": { window: RATE_LIMIT_WINDOW_SECONDS, max: 10 },
+        "/device": { window: RATE_LIMIT_WINDOW_SECONDS, max: 30 },
+        "/device/token": { window: RATE_LIMIT_WINDOW_SECONDS, max: 30 },
       },
     },
     plugins,

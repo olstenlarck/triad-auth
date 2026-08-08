@@ -1,7 +1,7 @@
 import { betterAuth, env as betterAuthEnv, type BetterAuthOptions } from "better-auth";
 
 import type { TriadEnv } from "./env";
-import { validateProfileDataKeyring } from "./identity/profile";
+import { validateProfileDataSecrets } from "./identity/profile";
 
 type FixedOption =
   | "database"
@@ -78,7 +78,10 @@ function validateSecret(secret: string): void {
   }
 }
 
-function validateIdentifierSecret(secret: string): void {
+function validateStrongSecret(
+  name: "IDENTIFIER_SECRET" | "RATE_LIMIT_SECRET",
+  secret: string,
+): void {
   if (
     typeof secret !== "string" ||
     secret.length < 32 ||
@@ -86,8 +89,15 @@ function validateIdentifierSecret(secret: string): void {
     new Set(secret).size < 16 ||
     /^(.)\1+$/.test(secret)
   ) {
+    throw new Error(`${name} must be a strong, non-whitespace secret with at least 32 characters`);
+  }
+}
+
+function validateIndependentSecrets(env: TriadEnv): void {
+  const secrets = [env.BETTER_AUTH_SECRET, env.IDENTIFIER_SECRET, env.RATE_LIMIT_SECRET];
+  if (new Set(secrets).size !== secrets.length) {
     throw new Error(
-      "IDENTIFIER_SECRET must be a strong, non-whitespace secret with at least 32 characters",
+      "BETTER_AUTH_SECRET, IDENTIFIER_SECRET, and RATE_LIMIT_SECRET must use independent values",
     );
   }
 }
@@ -108,9 +118,12 @@ export function createTriadAuthOptions<const Configuration extends TriadAuthConf
 ) {
   rejectAmbientOverrides();
   validateSecret(env.BETTER_AUTH_SECRET);
-  validateIdentifierSecret(env.IDENTIFIER_SECRET);
-  validateProfileDataKeyring(env.PROFILE_DATA_KEYRING, [
+  validateStrongSecret("IDENTIFIER_SECRET", env.IDENTIFIER_SECRET);
+  validateStrongSecret("RATE_LIMIT_SECRET", env.RATE_LIMIT_SECRET);
+  validateIndependentSecrets(env);
+  validateProfileDataSecrets(env.PROFILE_DATA_SECRETS, [
     env.IDENTIFIER_SECRET,
+    env.RATE_LIMIT_SECRET,
     env.BETTER_AUTH_SECRET,
   ]);
   const baseURL = normalizeAuthOrigin(env.AUTH_ORIGIN);
