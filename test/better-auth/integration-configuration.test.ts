@@ -67,7 +67,7 @@ describe("Triad Better Auth integration configuration", () => {
       enabled: true,
       customStorage: { consume: expect.any(Function) },
     });
-    expect(configuration.rateLimit).not.toHaveProperty("storage");
+    expect(configuration.rateLimit).toMatchObject({ storage: "database" });
     expect(configuration.plugins.map((plugin) => plugin.id)).toEqual([
       "device-authorization",
       "siwe",

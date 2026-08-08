@@ -120,6 +120,7 @@ export function createTriadConfiguration(env: TriadEnv) {
     ...identityConfiguration,
     rateLimit: {
       enabled: true,
+      storage: "database",
       customStorage: createD1RateLimitStorage(env.DB, env.RATE_LIMIT_SECRET),
       window: RATE_LIMIT_WINDOW_SECONDS,
       max: 60,
