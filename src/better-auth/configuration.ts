@@ -17,6 +17,7 @@ import {
   createEthereumAuthentication,
   createPasskeyAuthentication,
   createProfileClaimResolver,
+  createSessionClaimResolver,
   pairwiseSubject,
 } from "./identity";
 import { createD1RateLimitStorage, RATE_LIMIT_WINDOW_SECONDS } from "./rate-limit";
@@ -73,6 +74,7 @@ export function createTriadConfiguration(env: TriadEnv) {
       resolveProviderSubject: providerSubjectFromUser,
     },
     profileClaims: createProfileClaimResolver(env.ENCRYPTION_SECRETS, env.DB),
+    sessionClaims: createSessionClaimResolver(env.DB),
     resource: resourceFragment,
   });
   const { extensions: admissionExtensions, ...admissionOptions } = admissionFragment.oauthProvider;

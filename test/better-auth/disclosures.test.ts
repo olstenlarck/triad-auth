@@ -21,6 +21,8 @@ describe("downstream disclosure scope policy", () => {
       "name",
       "avatar",
       "wallet",
+      "chains",
+      "chain_id",
       "cred",
       "pubkey",
     ]);
@@ -30,6 +32,7 @@ describe("downstream disclosure scope policy", () => {
       "name",
       "avatar",
       "wallet",
+      "chains",
       "cred",
       "pubkey",
     ]);
@@ -56,6 +59,8 @@ describe("downstream disclosure scope policy", () => {
       name: ["name"],
       avatar: ["picture"],
       wallet: ["wallet"],
+      chains: ["chains"],
+      chain_id: ["chain_id"],
       cred: ["cred"],
       pubkey: ["pubkey"],
     });
@@ -74,7 +79,7 @@ describe("downstream disclosure scope policy", () => {
       google: ["email", "name", "avatar"],
       github: ["email", "handle", "name", "avatar"],
       twitter: ["handle", "name", "avatar"],
-      ethereum: ["wallet"],
+      ethereum: ["wallet", "chains", "chain_id"],
       passkey: ["cred", "pubkey"],
     });
     expect(() =>
@@ -84,7 +89,9 @@ describe("downstream disclosure scope policy", () => {
       "handle",
     );
     expect(() => validateProviderDisclosureScopes("twitter", ["openid", "email"])).toThrow("email");
-    expect(() => validateProviderDisclosureScopes("ethereum", ["openid", "wallet"])).not.toThrow();
+    expect(() =>
+      validateProviderDisclosureScopes("ethereum", ["openid", "wallet", "chains", "chain_id"]),
+    ).not.toThrow();
     expect(() =>
       validateProviderDisclosureScopes("passkey", ["openid", "cred", "pubkey"]),
     ).not.toThrow();
@@ -99,6 +106,8 @@ describe("downstream disclosure scope policy", () => {
         name: ["profile"],
         avatar: ["profile"],
         wallet: [],
+        chains: [],
+        chain_id: [],
         cred: [],
         pubkey: [],
       },
@@ -109,6 +118,8 @@ describe("downstream disclosure scope policy", () => {
         name: [],
         avatar: [],
         wallet: [],
+        chains: [],
+        chain_id: [],
         cred: [],
         pubkey: [],
       },
@@ -119,6 +130,8 @@ describe("downstream disclosure scope policy", () => {
         name: [],
         avatar: [],
         wallet: [],
+        chains: [],
+        chain_id: [],
         cred: [],
         pubkey: [],
       },
@@ -129,6 +142,8 @@ describe("downstream disclosure scope policy", () => {
         name: [],
         avatar: [],
         wallet: [],
+        chains: [],
+        chain_id: [],
         cred: [],
         pubkey: [],
       },
@@ -139,6 +154,8 @@ describe("downstream disclosure scope policy", () => {
         name: [],
         avatar: [],
         wallet: [],
+        chains: [],
+        chain_id: [],
         cred: [],
         pubkey: [],
       },

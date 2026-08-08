@@ -169,6 +169,18 @@ function clearSessionRequestMetadata(session: Record<string, unknown>) {
   };
 }
 
+function siweAuthenticationChainId(context: unknown): number | undefined {
+  if (!isRecord(context) || context.path !== "/siwe/verify" || !isRecord(context.body)) {
+    return undefined;
+  }
+
+  const chainId = context.body.chainId;
+
+  return typeof chainId === "number" && Number.isSafeInteger(chainId) && chainId > 0
+    ? chainId
+    : undefined;
+}
+
 export function createIdentityConfiguration(env: TriadEnv) {
   validateEncryptionSecrets(env.ENCRYPTION_SECRETS, [
     env.IDENTIFIER_SECRET,
@@ -262,6 +274,13 @@ export function createIdentityConfiguration(env: TriadEnv) {
     },
     session: {
       freshAge: 0,
+      additionalFields: {
+        authenticationChainId: {
+          type: "number",
+          required: false,
+          returned: false,
+        },
+      },
     },
     account: {
       updateAccountOnSignIn: false,
@@ -275,9 +294,16 @@ export function createIdentityConfiguration(env: TriadEnv) {
     databaseHooks: {
       session: {
         create: {
-          before: async (session, _context) => ({
-            data: clearSessionRequestMetadata(session),
-          }),
+          before: async (session, context) => {
+            const authenticationChainId = siweAuthenticationChainId(context);
+
+            return {
+              data: {
+                ...clearSessionRequestMetadata(session),
+                ...(authenticationChainId ? { authenticationChainId } : {}),
+              },
+            };
+          },
         },
         update: {
           before: async (session, _context) => ({

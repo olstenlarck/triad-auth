@@ -5,6 +5,8 @@ export const DISCLOSURE_SCOPES = [
   "name",
   "avatar",
   "wallet",
+  "chains",
+  "chain_id",
   "cred",
   "pubkey",
 ] as const;
@@ -14,12 +16,15 @@ export const PROFILE_DISCLOSURE_SCOPES = [
   "name",
   "avatar",
   "wallet",
+  "chains",
   "cred",
   "pubkey",
 ] as const;
+export const SESSION_DISCLOSURE_SCOPES = ["chain_id"] as const;
 
 export type DisclosureScope = (typeof DISCLOSURE_SCOPES)[number];
 export type ProfileDisclosureScope = (typeof PROFILE_DISCLOSURE_SCOPES)[number];
+export type SessionDisclosureScope = (typeof SESSION_DISCLOSURE_SCOPES)[number];
 export type DisclosureProvider = "google" | "github" | "twitter" | "ethereum" | "passkey";
 
 export const DISCLOSURE_CLAIMS = {
@@ -29,23 +34,22 @@ export const DISCLOSURE_CLAIMS = {
   name: ["name"],
   avatar: ["picture"],
   wallet: ["wallet"],
+  chains: ["chains"],
+  chain_id: ["chain_id"],
   cred: ["cred"],
   pubkey: ["pubkey"],
 } as const satisfies Record<DisclosureScope, readonly string[]>;
 
 export type DisclosureClaim = (typeof DISCLOSURE_CLAIMS)[DisclosureScope][number];
-export type ProfileDisclosureClaim = Exclude<
-  DisclosureClaim,
-  "pairwise_sub" | "account_sub" | "provider_sub"
->;
+export type ProfileDisclosureClaim = (typeof DISCLOSURE_CLAIMS)[ProfileDisclosureScope][number];
 
 export const PROVIDER_DISCLOSURE_SCOPES = {
   google: ["email", "name", "avatar"],
   github: ["email", "handle", "name", "avatar"],
   twitter: ["handle", "name", "avatar"],
-  ethereum: ["wallet"],
+  ethereum: ["wallet", "chains", "chain_id"],
   passkey: ["cred", "pubkey"],
-} as const satisfies Record<DisclosureProvider, readonly ProfileDisclosureScope[]>;
+} as const satisfies Record<DisclosureProvider, readonly DisclosureScope[]>;
 
 export const PROVIDER_UPSTREAM_SCOPE_MAP = {
   google: {
@@ -55,6 +59,8 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     name: ["profile"],
     avatar: ["profile"],
     wallet: [],
+    chains: [],
+    chain_id: [],
     cred: [],
     pubkey: [],
   },
@@ -65,6 +71,8 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     name: [],
     avatar: [],
     wallet: [],
+    chains: [],
+    chain_id: [],
     cred: [],
     pubkey: [],
   },
@@ -75,6 +83,8 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     name: [],
     avatar: [],
     wallet: [],
+    chains: [],
+    chain_id: [],
     cred: [],
     pubkey: [],
   },
@@ -85,6 +95,8 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     name: [],
     avatar: [],
     wallet: [],
+    chains: [],
+    chain_id: [],
     cred: [],
     pubkey: [],
   },
@@ -95,6 +107,8 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     name: [],
     avatar: [],
     wallet: [],
+    chains: [],
+    chain_id: [],
     cred: [],
     pubkey: [],
   },

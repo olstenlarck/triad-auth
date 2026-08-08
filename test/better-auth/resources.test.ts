@@ -29,6 +29,8 @@ describe("Triad OAuth resource fragment", () => {
             "name",
             "avatar",
             "wallet",
+            "chains",
+            "chain_id",
             "cred",
             "pubkey",
           ],
@@ -37,7 +39,18 @@ describe("Triad OAuth resource fragment", () => {
           name: "Triad demo",
         },
       ],
-      scopes: ["openid", "email", "handle", "name", "avatar", "wallet", "cred", "pubkey"],
+      scopes: [
+        "openid",
+        "email",
+        "handle",
+        "name",
+        "avatar",
+        "wallet",
+        "chains",
+        "chain_id",
+        "cred",
+        "pubkey",
+      ],
     });
     expect(fragment.oauthProviderOptions.resources?.[0]).not.toHaveProperty("refreshTokenTtl");
     expect(fragment.oauthProviderExtensions).toEqual([]);
@@ -146,6 +159,8 @@ describe("Triad RFC 9728 protected-resource metadata", () => {
             "name",
             "avatar",
             "wallet",
+            "chains",
+            "chain_id",
             "cred",
             "pubkey",
           ],

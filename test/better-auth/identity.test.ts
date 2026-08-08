@@ -254,6 +254,14 @@ describe("Triad provider identity configuration", () => {
     });
   });
 
+  it("keeps the SIWE authentication chain private on the session", () => {
+    const configuration = createIdentityConfiguration(createEnv());
+
+    expect(configuration.session.additionalFields).toEqual({
+      authenticationChainId: { type: "number", required: false, returned: false },
+    });
+  });
+
   it.each([
     ["google", {}],
     ["google", { sub: "" }],
@@ -383,4 +391,23 @@ describe("Triad provider identity configuration", () => {
       });
     },
   );
+
+  it("records the chain used to create a SIWE session", async () => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const session = {
+      id: "session-id",
+      userId: "acc_subject",
+      token: "session-token",
+      expiresAt: new Date("2030-01-01T00:00:00Z"),
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+
+    await expect(
+      configuration.databaseHooks.session.create.before(session, {
+        path: "/siwe/verify",
+        body: { chainId: 1 },
+      } as never),
+    ).resolves.toMatchObject({ data: { authenticationChainId: 1 } });
+  });
 });

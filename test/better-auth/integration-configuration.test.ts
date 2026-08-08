@@ -85,7 +85,18 @@ describe("Triad Better Auth integration configuration", () => {
       loginPage: "/me",
       accessTokenExpiresIn: 300,
       refreshTokenExpiresIn: 2_592_000,
-      scopes: ["openid", "email", "handle", "name", "avatar", "wallet", "cred", "pubkey"],
+      scopes: [
+        "openid",
+        "email",
+        "handle",
+        "name",
+        "avatar",
+        "wallet",
+        "chains",
+        "chain_id",
+        "cred",
+        "pubkey",
+      ],
     });
     expect(providerPlugin.options.extensions).toHaveLength(2);
     expect(providerPlugin.options.extensions?.[0]?.claims).toBeDefined();
@@ -103,7 +114,18 @@ describe("Triad Better Auth integration configuration", () => {
     expect(providerPlugin.options.resources).toEqual([
       {
         accessTokenTtl: 300,
-        allowedScopes: ["openid", "email", "handle", "name", "avatar", "wallet", "cred", "pubkey"],
+        allowedScopes: [
+          "openid",
+          "email",
+          "handle",
+          "name",
+          "avatar",
+          "wallet",
+          "chains",
+          "chain_id",
+          "cred",
+          "pubkey",
+        ],
         disabled: false,
         identifier: "https://auth.example.com/demo",
         name: "Triad demo",
@@ -116,6 +138,8 @@ describe("Triad Better Auth integration configuration", () => {
       "name",
       "avatar",
       "wallet",
+      "chains",
+      "chain_id",
       "cred",
       "pubkey",
     ]);

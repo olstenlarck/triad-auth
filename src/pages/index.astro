@@ -72,8 +72,8 @@ export const prerender = true;
         <h3>IDENTITY ONLY</h3>
         <code>scope=openid</code>
         <p>
-          No raw provider ID, wallet, passkey credential, public key, email, handle, name, avatar, or provider
-          access token.
+          No raw provider ID, wallet, authenticated chain data, passkey credential, public key, email, handle,
+          name, avatar, or provider access token.
         </p>
       </article>
       <div class="scope-manifest">
@@ -84,6 +84,8 @@ export const prerender = true;
           <div><dt>name</dt><dd>name</dd></div>
           <div><dt>avatar</dt><dd>picture</dd></div>
           <div><dt>wallet</dt><dd>wallet</dd></div>
+          <div><dt>chains</dt><dd>chains</dd></div>
+          <div><dt>chain_id</dt><dd>chain_id</dd></div>
           <div><dt>cred</dt><dd>cred</dd></div>
           <div><dt>pubkey</dt><dd>pubkey</dd></div>
         </dl>

@@ -48,6 +48,16 @@ const profileDisclosures: Record<string, Disclosure> = {
     claim: "wallet",
     description: "Share the wallet address used for this Ethereum identity.",
   },
+  chains: {
+    label: "AUTHENTICATED EVM CHAINS",
+    claim: "chains",
+    description: "Share every chain where this wallet identity has authenticated.",
+  },
+  chain_id: {
+    label: "CURRENT EVM CHAIN",
+    claim: "chain_id",
+    description: "Share the chain used for this authentication session.",
+  },
   cred: {
     label: "PASSKEY CREDENTIAL",
     claim: "cred",

@@ -41,11 +41,12 @@ export const prerender = true;
         <div>
           <dt>WALLET + PASSKEY CREDENTIALS</dt>
           <dd>
-            Better Auth stores wallet addresses and chain data in its wallet table, and passkey credential IDs and
-            public keys in its passkey table, because those values are required to verify later sign-ins. Triad does
-            not disclose them to an OAuth client by default. A client receives one only when it requests and the user
-            approves <code>wallet</code>, <code>cred</code>, or <code>pubkey</code>. Passkey credentials are never linked
-            to another Triad account.
+            Better Auth stores wallet addresses and authenticated chains in its wallet table, and passkey credential
+            IDs and public keys in its passkey table, because those values are required to verify later sign-ins.
+            Triad does not disclose them to an OAuth client by default. A client receives them only when it requests
+            and the user approves <code>wallet</code>, <code>chains</code>, <code>chain_id</code>, <code>cred</code>, or
+            <code>pubkey</code>. The <code>chain_id</code> value identifies the chain used for the current SIWE session.
+            Passkey credentials are never linked to another Triad account.
           </dd>
         </div>
         <div>

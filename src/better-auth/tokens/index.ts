@@ -36,8 +36,13 @@ export interface TokenProfileClaims {
   name?: string;
   picture?: string;
   wallet?: string;
+  chains?: number[];
   cred?: string;
   pubkey?: string;
+}
+
+export interface TokenSessionClaimResolver {
+  resolveAuthenticationChainId(sessionId: string): number | undefined | Promise<number | undefined>;
 }
 
 export interface TokenProfileClaimResolver {
@@ -68,6 +73,7 @@ export interface TokenResourceFragment {
 export interface TokenCompositionDependencies {
   identity: TokenIdentityResolver;
   profileClaims?: TokenProfileClaimResolver;
+  sessionClaims?: TokenSessionClaimResolver;
   resource: TokenResourceFragment;
 }
 
@@ -107,12 +113,53 @@ function assignProfileClaim(
   if (value === undefined) {
     throw new Error(`Token profile resolver did not return the required ${claim} claim`);
   }
-  const valid = claim === "email_verified" ? typeof value === "boolean" : typeof value === "string";
+  const valid =
+    claim === "email_verified"
+      ? typeof value === "boolean"
+      : claim === "chains"
+        ? Array.isArray(value) &&
+          value.every((chainId) => Number.isSafeInteger(chainId) && chainId > 0)
+        : typeof value === "string";
   if (!valid) {
     throw new Error(`Token profile resolver returned an invalid ${claim} claim`);
   }
 
   Object.assign(claims, { [claim]: value });
+}
+
+function validChainId(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+async function resolveSessionClaims(
+  resolver: TokenSessionClaimResolver | undefined,
+  scopes: readonly string[],
+  sessionId: string | undefined,
+): Promise<Record<string, unknown>> {
+  if (!scopes.includes("chain_id")) {
+    return {};
+  }
+  if (!resolver || !sessionId) {
+    throw new Error("The chain_id scope requires an Ethereum authentication session");
+  }
+
+  const chainId = await resolver.resolveAuthenticationChainId(sessionId);
+  if (!validChainId(chainId)) {
+    throw new Error("The authentication session does not contain a valid chain_id claim");
+  }
+
+  return { chain_id: chainId };
+}
+
+function userInfoSessionClaims(input: OAuthUserInfoExtensionInput): Record<string, unknown> {
+  if (!input.scopes.includes("chain_id")) {
+    return {};
+  }
+  if (!validChainId(input.jwt.chain_id)) {
+    throw new Error("The access token does not contain a valid chain_id claim");
+  }
+
+  return { chain_id: input.jwt.chain_id };
 }
 
 async function resolveScopedProfileClaims(
@@ -155,15 +202,28 @@ function userInfoClientId(input: OAuthUserInfoExtensionInput): string {
   return clientId;
 }
 
-function createIdentityClaimsExtension(identity: TokenIdentityResolver): OAuthProviderExtension {
+function createIdentityClaimsExtension(
+  identity: TokenIdentityResolver,
+  sessionClaims: TokenSessionClaimResolver | undefined,
+): OAuthProviderExtension {
   return {
     claims: {
-      accessToken: (input: OAuthClaimExtensionInput) =>
-        input.user ? resolveTripleIdentityClaims(identity, input.user, input.client.clientId) : {},
-      idToken: (input: OAuthClaimExtensionInput) =>
-        input.user ? resolveTripleIdentityClaims(identity, input.user, input.client.clientId) : {},
-      userInfo: (input: OAuthUserInfoExtensionInput) =>
-        resolveTripleIdentityClaims(identity, input.user, userInfoClientId(input)),
+      accessToken: async (input: OAuthClaimExtensionInput) => ({
+        ...(input.user
+          ? await resolveTripleIdentityClaims(identity, input.user, input.client.clientId)
+          : {}),
+        ...(await resolveSessionClaims(sessionClaims, input.scopes, input.sessionId)),
+      }),
+      idToken: async (input: OAuthClaimExtensionInput) => ({
+        ...(input.user
+          ? await resolveTripleIdentityClaims(identity, input.user, input.client.clientId)
+          : {}),
+        ...(await resolveSessionClaims(sessionClaims, input.scopes, input.sessionId)),
+      }),
+      userInfo: async (input: OAuthUserInfoExtensionInput) => ({
+        ...(await resolveTripleIdentityClaims(identity, input.user, userInfoClientId(input))),
+        ...userInfoSessionClaims(input),
+      }),
     },
   };
 }
@@ -181,11 +241,12 @@ function tokenScopes(resourceScopes: readonly Scope[]): Scope[] {
 export function createTokenComposition({
   identity,
   profileClaims,
+  sessionClaims,
   resource,
 }: TokenCompositionDependencies) {
   const resolveSubjectIdentifier: NonNullable<OAuthOptions["resolveSubjectIdentifier"]> = (input) =>
     identity.resolvePairwiseSubject(input.userId, input.clientId);
-  const claimsExtension = createIdentityClaimsExtension(identity);
+  const claimsExtension = createIdentityClaimsExtension(identity, sessionClaims);
   const {
     resources,
     scopes: resourceScopes = [],
@@ -209,6 +270,8 @@ export function createTokenComposition({
       "name",
       "picture",
       "wallet",
+      "chains",
+      "chain_id",
       "cred",
       "pubkey",
     ],

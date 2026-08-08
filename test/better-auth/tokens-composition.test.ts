@@ -15,6 +15,7 @@ import {
   REFRESH_TOKEN_TTL_SECONDS,
   type TokenIdentityResolver,
   type TokenProfileClaimResolver,
+  type TokenSessionClaimResolver,
 } from "../../src/better-auth/tokens";
 
 const clientId = "https://client.example/metadata.json";
@@ -41,10 +42,12 @@ function createIdentityResolver(): TokenIdentityResolver {
 function createComposition(
   identity = createIdentityResolver(),
   profileClaims?: TokenProfileClaimResolver,
+  sessionClaims?: TokenSessionClaimResolver,
 ) {
   return createTokenComposition({
     identity,
     profileClaims,
+    sessionClaims,
     resource: {
       oauthProviderOptions: {
         enforcePerClientResources: true,
@@ -128,6 +131,8 @@ describe("token composition", () => {
       "name",
       "avatar",
       "wallet",
+      "chains",
+      "chain_id",
       "cred",
       "pubkey",
       "resource:read",
@@ -157,6 +162,8 @@ describe("token composition", () => {
       "name",
       "avatar",
       "wallet",
+      "chains",
+      "chain_id",
       "cred",
       "pubkey",
       "resource:read",
@@ -217,6 +224,35 @@ describe("token composition", () => {
       pairwise_sub: `pws:${user.id}:${clientId}`,
       provider_sub: user.providerSub,
     });
+  });
+
+  it("adds the SIWE session chain only when chain_id is granted", async () => {
+    const sessionClaims: TokenSessionClaimResolver = {
+      resolveAuthenticationChainId: vi.fn(async () => 1),
+    };
+    const extension = claimsExtension(
+      createComposition(createIdentityResolver(), undefined, sessionClaims),
+    );
+    const input = { ...claimInput(["openid", "chain_id"]), sessionId: "session-id" };
+
+    await expect(extension.claims?.idToken?.(input)).resolves.toMatchObject({ chain_id: 1 });
+    await expect(extension.claims?.accessToken?.(input)).resolves.toMatchObject({ chain_id: 1 });
+    expect(sessionClaims.resolveAuthenticationChainId).toHaveBeenCalledWith("session-id");
+  });
+
+  it("copies the granted session chain from the access token into UserInfo", async () => {
+    const extension = claimsExtension(createComposition());
+    const input: OAuthUserInfoExtensionInput = {
+      client: { clientId },
+      ctx: {} as OAuthUserInfoExtensionInput["ctx"],
+      jwt: { chain_id: 1, client_id: clientId, sub: user.id },
+      opts: {} as OAuthUserInfoExtensionInput["opts"],
+      requestedClaims: [],
+      scopes: ["openid", "chain_id"],
+      user,
+    };
+
+    await expect(extension.claims?.userInfo?.(input)).resolves.toMatchObject({ chain_id: 1 });
   });
 
   it("uses the first-party ID-token hook for exact requested profile scopes", async () => {
@@ -396,6 +432,8 @@ describe("token composition", () => {
       "name",
       "picture",
       "wallet",
+      "chains",
+      "chain_id",
       "cred",
       "pubkey",
     ]);
@@ -406,6 +444,8 @@ describe("token composition", () => {
       "name",
       "avatar",
       "wallet",
+      "chains",
+      "chain_id",
       "cred",
       "pubkey",
       "resource:read",
