@@ -6,6 +6,6 @@ export default defineConfig({
   output: "server",
   // Triad owns browser sessions in D1; this prevents an unused KV binding.
   session: { driver: sessionDrivers.lruCache() },
-  trailingSlash: "always",
+  trailingSlash: "never",
   build: { format: "directory" },
 });
