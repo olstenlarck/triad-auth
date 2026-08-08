@@ -1,10 +1,16 @@
 import { oauthProvider } from "@better-auth/oauth-provider";
 import type { BetterAuthPlugin } from "better-auth";
+import { APIError } from "better-auth/api";
 import { jwt } from "better-auth/plugins";
 
 import { createClientAdmissionFragment } from "./admission";
 import type { TriadAuthConfiguration } from "./auth";
 import { createTriadDeviceAuthorization } from "./device";
+import {
+  type DisclosureProvider,
+  type DisclosureScope,
+  validateProviderDisclosureScopes,
+} from "./disclosures";
 import type { TriadEnv } from "./env";
 import {
   createIdentityConfiguration,
@@ -13,6 +19,7 @@ import {
   createProfileClaimResolver,
   pairwiseSubject,
 } from "./identity";
+import { createD1RateLimitStorage, RATE_LIMIT_WINDOW_SECONDS } from "./rate-limit";
 import { createTriadResourceFragment } from "./resources";
 import { createTokenComposition, type TokenIdentityUser } from "./tokens";
 
@@ -26,6 +33,33 @@ function providerSubjectFromUser(user: TokenIdentityUser): string {
 
 function preservePluginTuple<const Plugins extends BetterAuthPlugin[]>(plugins: Plugins): Plugins {
   return plugins;
+}
+
+function validateProviderAuthorization(
+  user: Record<string, unknown>,
+  scopes: readonly string[],
+): void {
+  const provider = user.provider;
+  if (
+    provider !== "google" &&
+    provider !== "github" &&
+    provider !== "twitter" &&
+    provider !== "ethereum" &&
+    provider !== "passkey"
+  ) {
+    throw new APIError("BAD_REQUEST", { message: "Identity provider is invalid" });
+  }
+
+  try {
+    validateProviderDisclosureScopes(
+      provider satisfies DisclosureProvider,
+      scopes as readonly DisclosureScope[],
+    );
+  } catch (reason) {
+    throw new APIError("BAD_REQUEST", {
+      message: reason instanceof Error ? reason.message : "Provider does not support these scopes",
+    });
+  }
 }
 
 export function createTriadConfiguration(env: TriadEnv) {
@@ -53,14 +87,27 @@ export function createTriadConfiguration(env: TriadEnv) {
       ...admissionOptions,
       consentPage: "/consent",
       loginPage: "/me",
+      postLogin: {
+        page: "/me",
+        shouldRedirect: ({ user, scopes }) => {
+          validateProviderAuthorization(user, scopes);
+
+          return false;
+        },
+        consentReferenceId: ({ user, scopes }) => {
+          validateProviderAuthorization(user, scopes);
+
+          return undefined;
+        },
+      },
       pairwiseSecret: env.IDENTIFIER_SECRET,
       rateLimit: {
-        token: { window: 60, max: 20 },
-        authorize: { window: 60, max: 30 },
-        introspect: { window: 60, max: 60 },
-        revoke: { window: 60, max: 30 },
-        register: { window: 60, max: 5 },
-        userinfo: { window: 60, max: 60 },
+        token: { window: RATE_LIMIT_WINDOW_SECONDS, max: 20 },
+        authorize: { window: RATE_LIMIT_WINDOW_SECONDS, max: 30 },
+        introspect: { window: RATE_LIMIT_WINDOW_SECONDS, max: 60 },
+        revoke: { window: RATE_LIMIT_WINDOW_SECONDS, max: 30 },
+        register: { window: RATE_LIMIT_WINDOW_SECONDS, max: 5 },
+        userinfo: { window: RATE_LIMIT_WINDOW_SECONDS, max: 60 },
       },
       extensions: [...tokenExtensions, ...admissionExtensions],
     }),
@@ -71,20 +118,23 @@ export function createTriadConfiguration(env: TriadEnv) {
     ...identityConfiguration,
     rateLimit: {
       enabled: true,
-      storage: "database",
-      window: 60,
+      customStorage: createD1RateLimitStorage(env.DB, env.RATE_LIMIT_SECRET),
+      window: RATE_LIMIT_WINDOW_SECONDS,
       max: 60,
       customRules: {
-        "/sign-in/social": { window: 60, max: 10 },
-        "/siwe/nonce": { window: 60, max: 10 },
-        "/siwe/verify": { window: 60, max: 10 },
-        "/passkey/generate-register-options": { window: 60, max: 10 },
-        "/passkey/verify-registration": { window: 60, max: 10 },
-        "/passkey/generate-authenticate-options": { window: 60, max: 20 },
-        "/passkey/verify-authentication": { window: 60, max: 20 },
-        "/device/code": { window: 60, max: 10 },
-        "/device": { window: 60, max: 30 },
-        "/device/token": { window: 60, max: 30 },
+        "/sign-in/social": { window: RATE_LIMIT_WINDOW_SECONDS, max: 10 },
+        "/siwe/nonce": { window: RATE_LIMIT_WINDOW_SECONDS, max: 10 },
+        "/siwe/verify": { window: RATE_LIMIT_WINDOW_SECONDS, max: 10 },
+        "/passkey/generate-register-options": { window: RATE_LIMIT_WINDOW_SECONDS, max: 10 },
+        "/passkey/verify-registration": { window: RATE_LIMIT_WINDOW_SECONDS, max: 10 },
+        "/passkey/generate-authenticate-options": {
+          window: RATE_LIMIT_WINDOW_SECONDS,
+          max: 20,
+        },
+        "/passkey/verify-authentication": { window: RATE_LIMIT_WINDOW_SECONDS, max: 20 },
+        "/device/code": { window: RATE_LIMIT_WINDOW_SECONDS, max: 10 },
+        "/device": { window: RATE_LIMIT_WINDOW_SECONDS, max: 30 },
+        "/device/token": { window: RATE_LIMIT_WINDOW_SECONDS, max: 30 },
       },
     },
     plugins,

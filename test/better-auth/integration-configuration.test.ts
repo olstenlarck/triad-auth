@@ -13,6 +13,7 @@ function createEnv(overrides: Partial<TriadEnv> = {}): TriadEnv {
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
     IDENTIFIER_SECRET: "identifier-secret-with-enough-entropy-1234567890",
+    RATE_LIMIT_SECRET: "rate-limit-secret-with-enough-entropy-1234567890",
     ENCRYPTION_SECRETS:
       '{"active":"v1","secrets":{"v1":"test-encryption-secret-with-enough-entropy-123456"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
@@ -59,7 +60,14 @@ describe("Triad Better Auth integration configuration", () => {
       twitter: { clientId: "twitter-client-id", scope: ["tweet.read", "users.read"] },
     });
     expect(configuration.databaseHooks.user.create.before).toBeTypeOf("function");
+    expect(configuration.databaseHooks.session.create.before).toBeTypeOf("function");
+    expect(configuration.databaseHooks.session.update.before).toBeTypeOf("function");
     expect(configuration.databaseHooks.account.create.before).toBeTypeOf("function");
+    expect(configuration.rateLimit).toMatchObject({
+      enabled: true,
+      customStorage: { consume: expect.any(Function) },
+    });
+    expect(configuration.rateLimit).not.toHaveProperty("storage");
     expect(configuration.plugins.map((plugin) => plugin.id)).toEqual([
       "device-authorization",
       "siwe",

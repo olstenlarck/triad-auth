@@ -161,9 +161,18 @@ function stripProviderTokens(account: Partial<Account> & Record<string, unknown>
   };
 }
 
+function clearSessionRequestMetadata(session: Record<string, unknown>) {
+  return {
+    ...session,
+    ipAddress: null,
+    userAgent: null,
+  };
+}
+
 export function createIdentityConfiguration(env: TriadEnv) {
   validateEncryptionSecrets(env.ENCRYPTION_SECRETS, [
     env.IDENTIFIER_SECRET,
+    env.RATE_LIMIT_SECRET,
     env.BETTER_AUTH_SECRET,
   ]);
 
@@ -264,6 +273,18 @@ export function createIdentityConfiguration(env: TriadEnv) {
       },
     },
     databaseHooks: {
+      session: {
+        create: {
+          before: async (session, _context) => ({
+            data: clearSessionRequestMetadata(session),
+          }),
+        },
+        update: {
+          before: async (session, _context) => ({
+            data: clearSessionRequestMetadata(session),
+          }),
+        },
+      },
       user: {
         create: {
           before: async (user, _context) => ({

@@ -32,27 +32,36 @@ manually.
 
 ## Secrets
 
-Add the required secrets to `triad-auth`:
+Add the ten required secrets to `triad-auth`:
 
 ```sh
 vp exec wrangler secret put BETTER_AUTH_SECRET
 vp exec wrangler secret put IDENTIFIER_SECRET
+vp exec wrangler secret put RATE_LIMIT_SECRET
 vp exec wrangler secret put ENCRYPTION_SECRETS
+vp exec wrangler secret put GOOGLE_CLIENT_ID
+vp exec wrangler secret put GOOGLE_CLIENT_SECRET
+vp exec wrangler secret put GITHUB_CLIENT_ID
+vp exec wrangler secret put GITHUB_CLIENT_SECRET
+vp exec wrangler secret put TWITTER_CLIENT_ID
+vp exec wrangler secret put TWITTER_CLIENT_SECRET
 ```
 
-`ENCRYPTION_SECRETS` is a versioned JSON secret set used for the encrypted user profile envelope:
+`ENCRYPTION_SECRETS` is versioned symmetric secret material for the encrypted user profile envelope:
 
 ```json
-{ "active": "v1", "secrets": { "v1": "<independent high-entropy secret material>" } }
+{ "active": "v1", "secrets": { "v1": "<independent high-entropy secret bytes>" } }
 ```
 
-Each enabled provider also needs its client ID and secret:
+The provider pairs are:
 
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
 - `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`
 - `TWITTER_CLIENT_ID` and `TWITTER_CLIENT_SECRET`
 
 Register both the production and staging callback origins with each enabled provider.
+
+Better Auth owns ES256 signing and JWKS persistence. Do not configure a separate signing secret.
 
 ## Cloudflare Workers Builds
 
@@ -91,4 +100,18 @@ Then deploy the current checkout as production or upload it as staging:
 ```sh
 vp run deploy
 vp run deploy:staging
+```
+
+After the production deployment is active, remove pre-HMAC limiter rows and scrub historical session metadata:
+
+```sh
+vp exec wrangler d1 execute DB --remote --command \
+  'delete from "rateLimit"; update "session" set "ipAddress" = null, "userAgent" = null where "ipAddress" is not null or "userAgent" is not null'
+```
+
+Confirm the cleanup without selecting private values:
+
+```sh
+vp exec wrangler d1 execute DB --remote --command \
+  'select (select count(*) from "rateLimit") as rate_limit_rows, (select count(*) from "session" where "ipAddress" is not null or "userAgent" is not null) as metadata_sessions'
 ```
