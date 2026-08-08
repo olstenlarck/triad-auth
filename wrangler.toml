@@ -18,5 +18,5 @@ run_worker_first = false
 [[d1_databases]]
 binding = "DB"
 database_name = "triad-auth"
-database_id = "61519699-e934-41ec-93f4-b337a2d3e328"
+database_id = "0cc84298-d28c-4bfa-b261-4ce298aa662e"
 migrations_dir = "migrations"

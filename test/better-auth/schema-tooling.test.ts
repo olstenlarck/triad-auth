@@ -116,7 +116,7 @@ describe("Better Auth schema tooling", () => {
     expect(wranglerSource).toContain("preview_urls = true");
     expect(bindingBlocks[0]).toContain('binding = "DB"');
     expect(bindingBlocks[0]).toContain('database_name = "triad-auth"');
-    expect(bindingBlocks[0]).toContain('database_id = "61519699-e934-41ec-93f4-b337a2d3e328"');
+    expect(bindingBlocks[0]).toContain('database_id = "0cc84298-d28c-4bfa-b261-4ce298aa662e"');
     expect(bindingBlocks[0]).toContain('migrations_dir = "migrations"');
     expect(wranglerSource).not.toContain("[env.staging]");
     expect(wranglerSource).not.toContain("triad-auth-staging");
