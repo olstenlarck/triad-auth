@@ -73,6 +73,7 @@ describe("Triad Better Auth integration configuration", () => {
       "siwe",
       "passkey",
       "oauth-provider",
+      "oauth-provider-device-code",
       "jwt",
     ]);
 

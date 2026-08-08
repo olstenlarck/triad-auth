@@ -9,7 +9,7 @@ catalog:
   vitest: ^4.1.10
   vite-plus: ^0.2.8
 overrides:
-  "@better-auth/core": 1.7.0-rc.1
+  "@better-auth/core": 1.7.0-rc.4
   kysely: 0.28.17
   vite: "catalog:"
   vitest: "catalog:"
@@ -21,5 +21,4 @@ peerDependencyRules:
     vite: "*"
     vitest: "*"
 patchedDependencies:
-  "@better-auth/cimd@1.7.0-rc.1": patches/@better-auth__cimd@1.7.0-rc.1.patch
-  "@better-auth/oauth-provider@1.7.0-rc.1": patches/@better-auth__oauth-provider@1.7.0-rc.1.patch
+  "@better-auth/oauth-provider@1.7.0-rc.4": patches/@better-auth__oauth-provider@1.7.0-rc.4.patch

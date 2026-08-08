@@ -46,6 +46,7 @@ describe("preserved Better Auth UI wiring", () => {
   it("starts the selected provider through Better Auth DCR and social sign-in", () => {
     expect(demo).toContain("/api/auth/oauth2/register");
     expect(demo).toContain('token_endpoint_auth_method: "none"');
+    expect(demo).toContain('application_type: "web"');
     expect(demo).toContain("scope: requestedScope");
     expect(demo).toContain("authorizationRequest");
     expect(demo).toContain("/api/auth/sign-in/social");
@@ -57,16 +58,20 @@ describe("preserved Better Auth UI wiring", () => {
     expect(demo).not.toContain("/api/providers");
   });
 
-  it("restores the v1 device authorization bay through Better Auth", () => {
-    expect(demo).toContain("ONE REQUEST.<br /><span>TWO FLOWS.</span>");
+  it("keeps first-party device login and adds registered-client OAuth device authorization", () => {
+    expect(demo).toContain("ONE REQUEST.<br /><span>THREE FLOWS.</span>");
     expect(demo).toContain("02 / DEVICE");
-    expect(demo).toContain("DEVICE AUTHORIZATION");
+    expect(demo).toContain("TWO DEVICE CONTRACTS");
     expect(demo).toContain('id="device-instructions"');
     expect(demo).toContain('id="verification-link"');
-    expect(demo).toContain('id="device-start"');
-    expect(demo).toContain("/api/auth/device/code");
+    expect(demo).toContain('id="device-session-start"');
+    expect(demo).toContain('id="device-oauth-start"');
+    expect(demo).toContain("discovery.device_authorization_endpoint");
     expect(demo).toContain("/api/auth/device/token");
-    expect(demo).toContain("urn:ietf:params:oauth:grant-type:device_code");
+    expect(demo).toContain("discovery.token_endpoint");
+    expect(demo).toContain('application_type: "native"');
+    expect(demo).toContain("grant_types: [DEVICE_CODE_GRANT_TYPE]");
+    expect(protocol).toContain("urn:ietf:params:oauth:grant-type:device_code");
     expect(demo).toContain("devicePollDecision");
     expect(demo).toContain('window.addEventListener("pagehide", stopDeviceFlow)');
     expect(demo).toContain('window.addEventListener("pageshow"');

@@ -153,6 +153,7 @@ describe("Triad provider identity configuration", () => {
       const configuration = createIdentityConfiguration(createEnv());
       const mapProfile = profileMapper(configuration, provider);
       const expectedAccountSub = await accountSubject(IDENTIFIER_SECRET, provider, upstreamId);
+      const expectedProviderSub = await providerSubject(IDENTIFIER_SECRET, provider, upstreamId);
       const mapped = await mapProfile(profile);
       const remapped = await mapProfile(profile);
 
@@ -160,13 +161,12 @@ describe("Triad provider identity configuration", () => {
         emailVerified: false,
         image: "",
         provider,
+        providerSub: expectedProviderSub,
       });
-      expect(mapped?.id).toMatch(new RegExp(`^pid_${provider}_[0-9a-f]{64}$`));
-      expect(mapped?.providerSub).toBe(mapped?.id);
+      expect(mapped).not.toHaveProperty("id");
       expect(mapped?.name).toBe(expectedAccountSub);
       expect(mapped?.email).toBe(`${expectedAccountSub}@identity.invalid`);
       expect(mapped?.email).not.toContain("same@example.com");
-      expect(remapped?.id).toBe(mapped?.id);
       expect(remapped?.providerSub).toBe(mapped?.providerSub);
       expect(remapped?.name).toBe(mapped?.name);
       expect(remapped?.email).toBe(mapped?.email);
@@ -348,6 +348,7 @@ describe("Triad provider identity configuration", () => {
     const stripTokens = configuration.databaseHooks.account[operation].before;
     const account = {
       id: "account-row-id",
+      issuer: "github",
       providerId: "github",
       accountId: "pid_github_subject",
       userId: "acc_subject",

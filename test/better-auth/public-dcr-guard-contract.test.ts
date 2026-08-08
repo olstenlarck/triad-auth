@@ -11,8 +11,8 @@ const plugin = oauthProvider({
 });
 
 const entryUrl = new URL(import.meta.resolve("@better-auth/oauth-provider"));
-const entrySource = readFileSync(entryUrl, "utf8");
-const openRegistration = entrySource.match(
+const registrationSource = readFileSync(new URL("./register-BotzQoS8.mjs", entryUrl), "utf8");
+const openRegistration = registrationSource.match(
   /if \(!session && !isTokenAuthorized\) \{[\s\S]*?\n\t}/,
 )?.[0];
 

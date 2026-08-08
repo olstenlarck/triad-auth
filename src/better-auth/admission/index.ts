@@ -4,15 +4,8 @@ import { createPublicDcrOptions } from "./dcr";
 export * from "./cimd";
 export * from "./dcr";
 
-export interface ClientAdmissionEnv {
-  AUTH_ORIGIN: string;
-}
-
-export function createClientAdmissionFragment(
-  env: ClientAdmissionEnv,
-  dependencies: CimdAdmissionDependencies = {},
-) {
-  const clientDiscovery = createCimdClientDiscovery(env.AUTH_ORIGIN, dependencies);
+export function createClientAdmissionFragment(dependencies: CimdAdmissionDependencies = {}) {
+  const clientDiscovery = createCimdClientDiscovery(dependencies);
 
   return {
     oauthProvider: {
