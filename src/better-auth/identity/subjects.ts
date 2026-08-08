@@ -1,19 +1,15 @@
+import { toHex } from "viem";
+
 export type IdentityProvider = "google" | "github" | "twitter";
 export type AuthenticationProvider = IdentityProvider | "ethereum" | "passkey";
 
 const encoder = new TextEncoder();
 
-function hex(bytes: ArrayBuffer | Uint8Array): string {
-  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-
-  return Array.from(view, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 export async function sha256Hex(value: string | Uint8Array): Promise<string> {
   const bytes = typeof value === "string" ? encoder.encode(value) : value;
   const digest = await crypto.subtle.digest("SHA-256", bytes as unknown as BufferSource);
 
-  return hex(digest);
+  return toHex(new Uint8Array(digest)).slice(2);
 }
 
 export async function ethereumUpstreamId(address: string): Promise<string> {
@@ -42,7 +38,7 @@ async function hmacSha256(secret: string, value: string): Promise<string> {
   );
   const digest = await crypto.subtle.sign("HMAC", key, encoder.encode(value));
 
-  return hex(digest);
+  return toHex(new Uint8Array(digest)).slice(2);
 }
 
 export async function providerSubject(

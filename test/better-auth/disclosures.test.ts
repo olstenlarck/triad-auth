@@ -81,7 +81,7 @@ describe("downstream disclosure scope policy", () => {
       github: ["email", "handle", "name", "avatar"],
       twitter: ["handle", "name", "avatar"],
       ethereum: ["wallet", "chains", "chain_id"],
-      passkey: ["cred", "pubkey"],
+      passkey: ["handle", "cred", "pubkey"],
     });
     expect(() =>
       validateProviderDisclosureScopes("github", ["openid", "email", "handle", "name", "avatar"]),
@@ -94,7 +94,7 @@ describe("downstream disclosure scope policy", () => {
       validateProviderDisclosureScopes("ethereum", ["openid", "wallet", "chains", "chain_id"]),
     ).not.toThrow();
     expect(() =>
-      validateProviderDisclosureScopes("passkey", ["openid", "cred", "pubkey"]),
+      validateProviderDisclosureScopes("passkey", ["openid", "handle", "cred", "pubkey"]),
     ).not.toThrow();
   });
 

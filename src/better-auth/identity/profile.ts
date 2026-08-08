@@ -7,7 +7,7 @@ import {
   sealEncryptedData,
   validateEncryptionSecrets,
 } from "./encryption";
-import { storedPasskeyPublicKeyHex } from "./passkey";
+import { storedPasskeyPublicKeyHex } from "./passkey-public-key";
 
 const SYNTHETIC_EMAIL_SUFFIX = "@identity.invalid";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;

@@ -69,6 +69,7 @@ export const prerender = true;
       type PublicKeyCredentialRequestOptionsJSON,
     } from "@simplewebauthn/browser";
     import { inspectOAuthQuery } from "../scripts/demo-protocol";
+    import { passkeyWebAuthnUserId } from "../better-auth/identity/passkey-username";
 
     type LinkedAccount = { providerId?: string };
     type OAuthConsent = {
@@ -117,8 +118,8 @@ export const prerender = true;
     function setMutationControls(disabled: boolean) {
       logout.disabled = disabled;
       deleteAccountButton.disabled = disabled;
-      providerActions.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
-        button.disabled = disabled;
+      providerActions.querySelectorAll<HTMLButtonElement | HTMLInputElement>("button, input").forEach((control) => {
+        control.disabled = disabled;
       });
       list.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
         button.disabled = disabled;
@@ -170,7 +171,7 @@ export const prerender = true;
         github: ["openid", "email", "handle", "name", "avatar"],
         twitter: ["openid", "handle", "name", "avatar"],
         ethereum: ["openid", "wallet", "chains", "chain_id"],
-        passkey: ["openid", "cred", "pubkey"],
+        passkey: ["openid", "handle", "cred", "pubkey"],
       };
 
       return requestedScopes().every((scope) => capabilities[provider]?.includes(scope));
@@ -392,14 +393,20 @@ export const prerender = true;
       }
     }
 
-    async function registerPasskey(button: HTMLButtonElement) {
+    async function registerPasskey(button: HTMLButtonElement, usernameInput: HTMLInputElement) {
+      if (!usernameInput.reportValidity()) {
+        return;
+      }
+
       setMutationControls(true);
       error.hidden = true;
       retry.hidden = true;
       button.textContent = "CREATING PASSKEY";
 
       try {
-        const optionsResponse = await fetch("/api/auth/passkey/generate-register-options", {
+        const endpoint = new URL("/api/auth/passkey/generate-register-options", location.origin);
+        endpoint.searchParams.set("context", usernameInput.value);
+        const optionsResponse = await fetch(endpoint, {
           headers: { accept: "application/json" },
         });
         const options = await jsonResponse<PublicKeyCredentialCreationOptionsJSON>(
@@ -410,8 +417,13 @@ export const prerender = true;
         if (p256Algorithms.length === 0) {
           throw new Error("Triad did not offer the required ES256 passkey algorithm.");
         }
+        const userId = await passkeyWebAuthnUserId(options.user.name);
         const response = await startRegistration({
-          optionsJSON: { ...options, pubKeyCredParams: p256Algorithms },
+          optionsJSON: {
+            ...options,
+            user: { ...options.user, id: userId },
+            pubKeyCredParams: p256Algorithms,
+          },
         });
         const extensionResults = response.clientExtensionResults as unknown as {
           prf?: { enabled?: boolean };
@@ -473,14 +485,38 @@ export const prerender = true;
           void signInWithPasskey(passkey);
         });
 
+        const registration = document.createElement("form");
+        registration.className = "passkey-registration";
+
+        const usernameLabel = document.createElement("label");
+        usernameLabel.htmlFor = "passkey-username";
+        usernameLabel.textContent = "NEW PASSKEY USERNAME";
+
+        const username = document.createElement("input");
+        username.id = "passkey-username";
+        username.name = "passkey-username";
+        username.type = "text";
+        username.autocomplete = "username";
+        username.autocapitalize = "none";
+        username.spellcheck = false;
+        username.minLength = 3;
+        username.maxLength = 24;
+        username.pattern = "[A-Za-z0-9][A-Za-z0-9-]{2,23}";
+        username.placeholder = "alice";
+        username.required = true;
+        username.title = "Use 3 to 24 letters, numbers, or hyphens.";
+
         const register = document.createElement("button");
         register.className = "button secondary";
-        register.type = "button";
+        register.type = "submit";
         register.textContent = "REGISTER A PASSKEY";
-        register.addEventListener("click", () => {
-          void registerPasskey(register);
+        registration.addEventListener("submit", (event) => {
+          event.preventDefault();
+          void registerPasskey(register, username);
         });
-        providerActions.append(passkey, register);
+
+        registration.append(usernameLabel, username, register);
+        providerActions.append(passkey, registration);
       }
 
       if (providerActions.childElementCount === 0) {

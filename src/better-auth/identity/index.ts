@@ -2,6 +2,15 @@ export { createIdentityConfiguration } from "./configuration";
 export { openEncryptedData, sealEncryptedData, validateEncryptionSecrets } from "./encryption";
 export { createPasskeyAuthentication } from "./passkey";
 export {
+  canonicalPasskeyUsername,
+  createPasskeyUsernameGenerator,
+  normalizePasskeyUsername,
+  passkeyAccountSubject,
+  passkeyDisplayName,
+  type PasskeyUsernameGeneratorOptions,
+  passkeyWebAuthnUserId,
+} from "./passkey-username";
+export {
   type CapturedProfile,
   captureProviderProfile,
   createProfileClaimResolver,
