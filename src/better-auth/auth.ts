@@ -1,7 +1,7 @@
 import { betterAuth, env as betterAuthEnv, type BetterAuthOptions } from "better-auth";
 
 import type { TriadEnv } from "./env";
-import { validateProfileDataSecrets } from "./identity/profile";
+import { validateEncryptionSecrets } from "./identity/encryption";
 
 type FixedOption =
   | "database"
@@ -121,7 +121,7 @@ export function createTriadAuthOptions<const Configuration extends TriadAuthConf
   validateStrongSecret("IDENTIFIER_SECRET", env.IDENTIFIER_SECRET);
   validateStrongSecret("RATE_LIMIT_SECRET", env.RATE_LIMIT_SECRET);
   validateIndependentSecrets(env);
-  validateProfileDataSecrets(env.PROFILE_DATA_SECRETS, [
+  validateEncryptionSecrets(env.ENCRYPTION_SECRETS, [
     env.IDENTIFIER_SECRET,
     env.RATE_LIMIT_SECRET,
     env.BETTER_AUTH_SECRET,

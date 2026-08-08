@@ -70,9 +70,9 @@
 **Interfaces:**
 
 - Produces: one Better Auth-generated migration without the five nullable `profile*` user columns, with encrypted
-  `profileData` and the rate-limit table.
+  `encryptedData` and the rate-limit table.
 
-- [ ] Add or update the migration contract test to require `deviceCode`, encrypted `profileData`, the rate-limit table,
+- [ ] Add or update the migration contract test to require `deviceCode`, encrypted `encryptedData`, the rate-limit table,
       no legacy profile columns, and exactly one migration file.
 - [ ] Run the focused schema test and confirm it fails.
 - [ ] Generate `0001-initial.sql` directly from the finalized Better Auth configuration.

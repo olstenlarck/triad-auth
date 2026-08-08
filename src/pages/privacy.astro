@@ -34,8 +34,19 @@ export const prerender = true;
           <dt>PROFILE ENVELOPE</dt>
           <dd>
             When a provider supplies them, email, email verification state, handle, display name, and avatar URL
-            are stored together in an encrypted, versioned profile envelope. The encryption keyring is separate
+            are stored together in an encrypted, versioned profile envelope. The encryption secrets are separate
             from the identity and session secrets.
+          </dd>
+        </div>
+        <div>
+          <dt>WALLET + PASSKEY CREDENTIALS</dt>
+          <dd>
+            Better Auth stores wallet addresses and authenticated chains in its wallet table, and passkey credential
+            IDs and public keys in its passkey table, because those values are required to verify later sign-ins.
+            Triad does not disclose them to an OAuth client by default. A client receives them only when it requests
+            and the user approves <code>wallet</code>, <code>chains</code>, <code>chain_id</code>, <code>cred</code>, or
+            <code>pubkey</code>. The <code>chain_id</code> value identifies the chain used for the current SIWE session.
+            Passkey credentials are never linked to another Triad account.
           </dd>
         </div>
         <div>
@@ -61,8 +72,9 @@ export const prerender = true;
       <h2 id="privacy-not-kept">WHAT IS NOT KEPT</h2>
       <p>
         Triad does not retain upstream provider access tokens, refresh tokens, or ID tokens after provider sign-in.
-        Triad also does not receive a provider password. The provider remains responsible for data it keeps about
-        your provider account.
+        Triad also does not receive a provider password. Wallet and passkey credential material is retained only for
+        authentication and explicitly approved claims; it is not included in default client identity claims. The
+        provider remains responsible for data it keeps about your provider account.
       </p>
       <p>
         Triad's application database does not store request IP addresses, authentication paths, or browser user-agent
@@ -76,7 +88,8 @@ export const prerender = true;
       <h2 id="privacy-retention">WHEN RECORDS LEAVE</h2>
       <p>
         The encrypted profile envelope belongs to the account and is removed with it. Account deletion also removes
-        sessions, linked provider accounts, device records, consents, grants, and user-bound OAuth token records.
+        sessions, wallet or passkey credentials, provider accounts, device records, consents, grants, and
+        user-bound OAuth token records.
         Database relationships remove other account-owned records when their user record is deleted.
       </p>
       <p>

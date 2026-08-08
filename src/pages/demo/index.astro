@@ -53,6 +53,31 @@ export const prerender = true;
               >AVATAR<small>picture</small></span
             ></label
           >
+          <label
+            ><input type="checkbox" name="demo-scope" value="wallet" /><span
+              >WALLET<small>wallet</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="chains" /><span
+              >CHAINS<small>chains</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="chain_id" /><span
+              >CURRENT CHAIN<small>chain_id</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="cred" /><span
+              >CREDENTIAL<small>cred</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="pubkey" /><span
+              >PUBLIC KEY<small>pubkey</small></span
+            ></label
+          >
         </div>
       </fieldset>
       <p id="provider-status" class="control-status" aria-live="polite">
@@ -462,6 +487,20 @@ export const prerender = true;
         inspected.clientId !== authorization.searchParams.get("client_id")
       ) {
         throw new Error("The authorization server returned an invalid login request.");
+      }
+
+      if (provider.id === "ethereum" || provider.id === "passkey") {
+        const signOutResponse = await fetch("/api/auth/sign-out", {
+          method: "POST",
+          headers: { accept: "application/json" },
+        });
+        if (!signOutResponse.ok) {
+          throw new Error("The existing authorization session could not be cleared.");
+        }
+
+        signedAuthorization.hash = new URLSearchParams({ provider: provider.id }).toString();
+        location.assign(signedAuthorization);
+        return;
       }
 
       const response = await fetch("/api/auth/sign-in/social", {

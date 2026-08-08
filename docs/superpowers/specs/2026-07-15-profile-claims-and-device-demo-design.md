@@ -8,7 +8,7 @@ Fix optional profile claim issuance and restore the v1 two-flow device demo comp
 
 - Keep the account subject and provider subject authoritative and immutable. Treat Better Auth's email as an
   account-subject storage placeholder and keep its name and image values empty.
-- Persist the provider profile snapshot only in the encrypted `profileData` envelope.
+- Persist the provider profile snapshot only in the encrypted `encryptedData` envelope.
 - Emit requested standard profile claims through OAuth Provider's first-party `customIdTokenClaims` and `customUserInfoClaims` hooks so package-owned claim guards cannot suppress them.
 - Keep `pairwise_sub`, `account_sub`, and `provider_sub` in the extension claim path.
 - Continue rejecting token issuance when a requested profile claim is unavailable or invalid.
@@ -25,7 +25,7 @@ Fix optional profile claim issuance and restore the v1 two-flow device demo comp
 ## Schema and Deployment
 
 - Generate one fresh `migrations/0001-initial.sql` migration from the finalized Better Auth configuration.
-- Include encrypted `profileData` and the rate-limit table without the five legacy provider-profile columns or any
+- Include encrypted `encryptedData` and the rate-limit table without the five legacy provider-profile columns or any
   transitional data-copy path.
 - Use `triad-auth` for production resources and `triad-auth-staging` for staging resources.
 - Preserve Worker secrets through dashboard renames and replace only the D1 databases.

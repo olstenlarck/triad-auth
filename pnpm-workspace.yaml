@@ -9,6 +9,7 @@ catalog:
   vitest: ^4.1.10
   vite-plus: ^0.2.8
 overrides:
+  "@better-auth/core": 1.7.0-rc.1
   kysely: 0.28.17
   vite: "catalog:"
   vitest: "catalog:"

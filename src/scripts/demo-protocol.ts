@@ -24,8 +24,17 @@ export interface VerifiedIdentity {
   providerSub: string;
 }
 
-export type ProviderName = "google" | "github" | "twitter";
-export type ProfileScope = "email" | "handle" | "name" | "avatar";
+export type ProviderName = "google" | "github" | "twitter" | "ethereum" | "passkey";
+export type ProfileScope =
+  | "email"
+  | "handle"
+  | "name"
+  | "avatar"
+  | "wallet"
+  | "chains"
+  | "chain_id"
+  | "cred"
+  | "pubkey";
 type DisclosureScope = "openid" | ProfileScope;
 
 export interface ProviderCapability {
@@ -39,6 +48,11 @@ export interface VerifiedProfile {
   emailVerified?: boolean;
   handle?: string;
   name?: string;
+  wallet?: string;
+  chains?: number[];
+  chainId?: number;
+  cred?: string;
+  pubkey?: string;
 }
 
 export interface DevicePollDecision {
@@ -65,13 +79,25 @@ interface TokenExchangeInput {
   verifier: string;
 }
 
-const profileScopeOrder: readonly ProfileScope[] = ["email", "handle", "name", "avatar"];
+const profileScopeOrder: readonly ProfileScope[] = [
+  "email",
+  "handle",
+  "name",
+  "avatar",
+  "wallet",
+  "chains",
+  "chain_id",
+  "cred",
+  "pubkey",
+];
 const disclosureScopeOrder: readonly DisclosureScope[] = ["openid", ...profileScopeOrder];
 
 export const demoProviderCapabilities: readonly ProviderCapability[] = [
   { id: "google", scopes: ["email", "name", "avatar"] },
   { id: "github", scopes: ["email", "handle", "name", "avatar"] },
   { id: "twitter", scopes: ["handle", "name", "avatar"] },
+  { id: "ethereum", scopes: ["wallet", "chains", "chain_id"] },
+  { id: "passkey", scopes: ["cred", "pubkey"] },
 ];
 
 function base64url(bytes: Uint8Array): string {
@@ -145,6 +171,35 @@ function optionalString(payload: Record<string, unknown>, claim: string): string
   return value;
 }
 
+function optionalChainId(payload: Record<string, unknown>, claim: string): number | undefined {
+  const value = payload[claim];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw new Error("The verified token has invalid EVM chain claims.");
+  }
+
+  return value;
+}
+
+function optionalChains(payload: Record<string, unknown>): number[] | undefined {
+  const value = payload.chains;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (
+    !Array.isArray(value) ||
+    value.some(
+      (chainId) => typeof chainId !== "number" || !Number.isSafeInteger(chainId) || chainId <= 0,
+    )
+  ) {
+    throw new Error("The verified token has invalid EVM chain claims.");
+  }
+
+  return value;
+}
+
 function optionalValue<Key extends keyof VerifiedProfile>(key: Key, value: VerifiedProfile[Key]) {
   return value === undefined ? {} : ({ [key]: value } as Pick<VerifiedProfile, Key>);
 }
@@ -162,6 +217,11 @@ function verifiedProfile(payload: Record<string, unknown>): VerifiedProfile {
     ...optionalValue("handle", optionalString(payload, "preferred_username")),
     ...optionalValue("name", optionalString(payload, "name")),
     ...optionalValue("avatar", optionalString(payload, "picture")),
+    ...optionalValue("wallet", optionalString(payload, "wallet")),
+    ...optionalValue("chains", optionalChains(payload)),
+    ...optionalValue("chainId", optionalChainId(payload, "chain_id")),
+    ...optionalValue("cred", optionalString(payload, "cred")),
+    ...optionalValue("pubkey", optionalString(payload, "pubkey")),
   };
 }
 

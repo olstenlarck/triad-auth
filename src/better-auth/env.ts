@@ -5,7 +5,7 @@ export interface TriadEnv {
   BETTER_AUTH_SECRET: string;
   IDENTIFIER_SECRET: string;
   RATE_LIMIT_SECRET: string;
-  PROFILE_DATA_SECRETS: string;
+  ENCRYPTION_SECRETS: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   GITHUB_CLIENT_ID: string;

@@ -1,9 +1,19 @@
-export const DISCLOSURE_SCOPES = ["openid", "email", "handle", "name", "avatar"] as const;
-export const PROFILE_DISCLOSURE_SCOPES = ["email", "handle", "name", "avatar"] as const;
+export const OPTIONAL_DISCLOSURE_SCOPES = [
+  "email",
+  "handle",
+  "name",
+  "avatar",
+  "wallet",
+  "chains",
+  "chain_id",
+  "cred",
+  "pubkey",
+] as const;
+export const DISCLOSURE_SCOPES = ["openid", ...OPTIONAL_DISCLOSURE_SCOPES] as const;
 
 export type DisclosureScope = (typeof DISCLOSURE_SCOPES)[number];
-export type ProfileDisclosureScope = (typeof PROFILE_DISCLOSURE_SCOPES)[number];
-export type DisclosureProvider = "google" | "github" | "twitter";
+export type OptionalDisclosureScope = (typeof OPTIONAL_DISCLOSURE_SCOPES)[number];
+export type DisclosureProvider = "google" | "github" | "twitter" | "ethereum" | "passkey";
 
 export const DISCLOSURE_CLAIMS = {
   openid: ["pairwise_sub", "account_sub", "provider_sub"],
@@ -11,19 +21,22 @@ export const DISCLOSURE_CLAIMS = {
   handle: ["preferred_username"],
   name: ["name"],
   avatar: ["picture"],
+  wallet: ["wallet"],
+  chains: ["chains"],
+  chain_id: ["chain_id"],
+  cred: ["cred"],
+  pubkey: ["pubkey"],
 } as const satisfies Record<DisclosureScope, readonly string[]>;
 
 export type DisclosureClaim = (typeof DISCLOSURE_CLAIMS)[DisclosureScope][number];
-export type ProfileDisclosureClaim = Exclude<
-  DisclosureClaim,
-  "pairwise_sub" | "account_sub" | "provider_sub"
->;
 
 export const PROVIDER_DISCLOSURE_SCOPES = {
   google: ["email", "name", "avatar"],
   github: ["email", "handle", "name", "avatar"],
   twitter: ["handle", "name", "avatar"],
-} as const satisfies Record<DisclosureProvider, readonly ProfileDisclosureScope[]>;
+  ethereum: ["wallet", "chains", "chain_id"],
+  passkey: ["cred", "pubkey"],
+} as const satisfies Record<DisclosureProvider, readonly OptionalDisclosureScope[]>;
 
 export const PROVIDER_UPSTREAM_SCOPE_MAP = {
   google: {
@@ -32,6 +45,11 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     handle: [],
     name: ["profile"],
     avatar: ["profile"],
+    wallet: [],
+    chains: [],
+    chain_id: [],
+    cred: [],
+    pubkey: [],
   },
   github: {
     openid: [],
@@ -39,6 +57,11 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     handle: [],
     name: [],
     avatar: [],
+    wallet: [],
+    chains: [],
+    chain_id: [],
+    cred: [],
+    pubkey: [],
   },
   twitter: {
     openid: ["tweet.read", "users.read"],
@@ -46,6 +69,35 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     handle: [],
     name: [],
     avatar: [],
+    wallet: [],
+    chains: [],
+    chain_id: [],
+    cred: [],
+    pubkey: [],
+  },
+  ethereum: {
+    openid: [],
+    email: [],
+    handle: [],
+    name: [],
+    avatar: [],
+    wallet: [],
+    chains: [],
+    chain_id: [],
+    cred: [],
+    pubkey: [],
+  },
+  passkey: {
+    openid: [],
+    email: [],
+    handle: [],
+    name: [],
+    avatar: [],
+    wallet: [],
+    chains: [],
+    chain_id: [],
+    cred: [],
+    pubkey: [],
   },
 } as const satisfies Record<DisclosureProvider, Record<DisclosureScope, readonly string[]>>;
 

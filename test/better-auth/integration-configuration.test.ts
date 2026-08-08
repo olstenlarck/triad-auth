@@ -14,8 +14,8 @@ function createEnv(overrides: Partial<TriadEnv> = {}): TriadEnv {
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
     IDENTIFIER_SECRET: "identifier-secret-with-enough-entropy-1234567890",
     RATE_LIMIT_SECRET: "rate-limit-secret-with-enough-entropy-1234567890",
-    PROFILE_DATA_SECRETS:
-      '{"active":"v1","secrets":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
+    ENCRYPTION_SECRETS:
+      '{"active":"v1","secrets":{"v1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -70,6 +70,8 @@ describe("Triad Better Auth integration configuration", () => {
     expect(configuration.rateLimit).not.toHaveProperty("storage");
     expect(configuration.plugins.map((plugin) => plugin.id)).toEqual([
       "device-authorization",
+      "siwe",
+      "passkey",
       "oauth-provider",
       "jwt",
     ]);
@@ -83,7 +85,18 @@ describe("Triad Better Auth integration configuration", () => {
       loginPage: "/me",
       accessTokenExpiresIn: 300,
       refreshTokenExpiresIn: 2_592_000,
-      scopes: ["openid", "email", "handle", "name", "avatar"],
+      scopes: [
+        "openid",
+        "email",
+        "handle",
+        "name",
+        "avatar",
+        "wallet",
+        "chains",
+        "chain_id",
+        "cred",
+        "pubkey",
+      ],
     });
     expect(providerPlugin.options.extensions).toHaveLength(2);
     expect(providerPlugin.options.extensions?.[0]?.claims).toBeDefined();
@@ -101,12 +114,34 @@ describe("Triad Better Auth integration configuration", () => {
     expect(providerPlugin.options.resources).toEqual([
       {
         accessTokenTtl: 300,
-        allowedScopes: ["openid", "email", "handle", "name", "avatar"],
+        allowedScopes: [
+          "openid",
+          "email",
+          "handle",
+          "name",
+          "avatar",
+          "wallet",
+          "chains",
+          "chain_id",
+          "cred",
+          "pubkey",
+        ],
         disabled: false,
         identifier: "https://auth.example.com/demo",
         name: "Triad demo",
       },
     ]);
-    expect(providerPlugin.options.scopes).toEqual(["openid", "email", "handle", "name", "avatar"]);
+    expect(providerPlugin.options.scopes).toEqual([
+      "openid",
+      "email",
+      "handle",
+      "name",
+      "avatar",
+      "wallet",
+      "chains",
+      "chain_id",
+      "cred",
+      "pubkey",
+    ]);
   });
 });
