@@ -4,7 +4,7 @@ compatibility_date = "2026-07-09"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 workers_dev = false
 preview_urls = true
-routes = [{ pattern = "triad.wgw.lol", custom_domain = true }]
+routes = [{ pattern = "triad.wgw.lol/*", zone_name = "wgw.lol" }]
 
 [vars]
 AUTH_ORIGIN = "https://triad.wgw.lol"

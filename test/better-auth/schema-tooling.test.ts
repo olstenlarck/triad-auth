@@ -115,7 +115,7 @@ describe("Better Auth schema tooling", () => {
     expect(wranglerSource).toContain("workers_dev = false");
     expect(wranglerSource).toContain("preview_urls = true");
     expect(wranglerSource).toContain(
-      'routes = [{ pattern = "triad.wgw.lol", custom_domain = true }]',
+      'routes = [{ pattern = "triad.wgw.lol/*", zone_name = "wgw.lol" }]',
     );
     expect(bindingBlocks[0]).toContain('binding = "DB"');
     expect(bindingBlocks[0]).toContain('database_name = "triad-auth"');
