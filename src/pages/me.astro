@@ -462,6 +462,14 @@ export const prerender = true;
         });
         providerActions.append(passkey, register);
       }
+
+      if (providerActions.childElementCount === 0) {
+        const unavailable = document.createElement("p");
+        unavailable.className = "error-message";
+        unavailable.textContent =
+          "No single identity can disclose every requested claim. Return to the application and request scopes supported by one provider.";
+        providerActions.append(unavailable);
+      }
     }
 
     async function publicClient(clientId: string, signal: AbortSignal): Promise<PublicClient> {
