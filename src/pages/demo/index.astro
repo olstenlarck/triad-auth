@@ -480,6 +480,15 @@ export const prerender = true;
       }
 
       if (provider.id === "ethereum" || provider.id === "passkey") {
+        const signOutResponse = await fetch("/api/auth/sign-out", {
+          method: "POST",
+          headers: { accept: "application/json" },
+        });
+        if (!signOutResponse.ok) {
+          throw new Error("The existing authorization session could not be cleared.");
+        }
+
+        signedAuthorization.hash = new URLSearchParams({ provider: provider.id }).toString();
         location.assign(signedAuthorization);
         return;
       }

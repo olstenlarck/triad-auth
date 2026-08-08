@@ -146,9 +146,23 @@ export const prerender = true;
       return location.search ? inspectOAuthQuery(location.search).scopes : ["openid"];
     }
 
+    function requestedProvider(): "ethereum" | "passkey" | undefined {
+      if (!location.search) {
+        return undefined;
+      }
+
+      const provider = new URLSearchParams(location.hash.slice(1)).get("provider");
+
+      return provider === "ethereum" || provider === "passkey" ? provider : undefined;
+    }
+
     function supportsRequestedScopes(provider: string): boolean {
       if (!location.search) {
         return true;
+      }
+      const selectedProvider = requestedProvider();
+      if (selectedProvider && provider !== selectedProvider) {
+        return false;
       }
 
       const capabilities: Record<string, readonly string[]> = {
