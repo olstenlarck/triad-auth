@@ -19,8 +19,9 @@ function createEnv(): TriadEnv {
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
     IDENTIFIER_SECRET,
-    PROFILE_DATA_KEYRING:
-      '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
+    RATE_LIMIT_SECRET: "test-rate-limit-secret-with-enough-entropy-1234567890",
+    PROFILE_DATA_SECRETS:
+      '{"active":"v1","secrets":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -69,7 +70,7 @@ async function mappedProfile(mapped: Record<string, unknown>) {
     throw new Error("Expected encrypted profile data");
   }
 
-  return openProfileData(createEnv().PROFILE_DATA_KEYRING, mapped.profileData);
+  return openProfileData(createEnv().PROFILE_DATA_SECRETS, mapped.profileData);
 }
 
 describe("Triad deterministic identity", () => {
@@ -357,4 +358,29 @@ describe("Triad provider identity configuration", () => {
       },
     });
   });
+
+  it.each(["create", "update"] as const)(
+    "clears request metadata before session %s",
+    async (operation) => {
+      const configuration = createIdentityConfiguration(createEnv());
+      const clearMetadata = configuration.databaseHooks.session[operation].before;
+      const session = {
+        id: "session-id",
+        userId: "acc_subject",
+        token: "session-token",
+        expiresAt: new Date("2030-01-01T00:00:00Z"),
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        updatedAt: new Date("2026-01-01T00:00:00Z"),
+        ipAddress: "203.0.113.42",
+        userAgent: "private user agent",
+      };
+
+      await expect(clearMetadata(session, null)).resolves.toMatchObject({
+        data: {
+          ipAddress: null,
+          userAgent: null,
+        },
+      });
+    },
+  );
 });

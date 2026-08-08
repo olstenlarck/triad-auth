@@ -8,7 +8,7 @@ export {
   sealProfileData,
   type ProfileIdentityUser,
   type ProfileScope,
-  validateProfileDataKeyring,
+  validateProfileDataSecrets,
 } from "./profile";
 export {
   accountSubject,
