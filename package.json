@@ -15,17 +15,17 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.1.2",
-    "@better-auth/cimd": "1.7.0-rc.1",
-    "@better-auth/oauth-provider": "1.7.0-rc.1",
+    "@better-auth/cimd": "1.7.0-rc.4",
+    "@better-auth/oauth-provider": "1.7.0-rc.4",
     "@fontsource-variable/archivo": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "astro": "^7.0.7",
-    "better-auth": "1.7.0-rc.1",
+    "better-auth": "1.7.0-rc.4",
     "jose": "^6.1.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260710.1",
-    "auth": "1.7.0-rc.1",
+    "auth": "1.7.0-rc.4",
     "eslint-plugin-perfectionist": "^5.10.0",
     "typescript": "^6.0.3",
     "vite-plus": "catalog:",

@@ -1,4 +1,4 @@
-import { oauthProvider } from "@better-auth/oauth-provider";
+import { deviceCodeGrant, oauthProvider } from "@better-auth/oauth-provider";
 import type { BetterAuthPlugin } from "better-auth";
 import { jwt } from "better-auth/plugins";
 
@@ -29,7 +29,7 @@ function preservePluginTuple<const Plugins extends BetterAuthPlugin[]>(plugins: 
 export function createTriadConfiguration(env: TriadEnv) {
   const identityConfiguration = createIdentityConfiguration(env);
   const resourceFragment = createTriadResourceFragment(env);
-  const admissionFragment = createClientAdmissionFragment(env);
+  const admissionFragment = createClientAdmissionFragment();
   const tokenComposition = createTokenComposition({
     identity: {
       resolvePairwiseSubject: (accountSub, clientId) =>
@@ -43,7 +43,7 @@ export function createTriadConfiguration(env: TriadEnv) {
   const { extensions: tokenExtensions, ...tokenOptions } = tokenComposition.oauthProviderOptions;
   const plugins = preservePluginTuple([
     ...resourceFragment.betterAuthPlugins,
-    createTriadDeviceAuthorization(env.AUTH_ORIGIN),
+    createTriadDeviceAuthorization(env),
     oauthProvider({
       ...tokenOptions,
       ...admissionOptions,
@@ -60,6 +60,7 @@ export function createTriadConfiguration(env: TriadEnv) {
       },
       extensions: [...tokenExtensions, ...admissionExtensions],
     }),
+    deviceCodeGrant(),
     jwt(tokenComposition.jwtOptions),
   ]);
 

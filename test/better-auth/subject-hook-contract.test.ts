@@ -14,8 +14,7 @@ const plugin = oauthProvider({
 
 const entryUrl = new URL(import.meta.resolve("@better-auth/oauth-provider"));
 const entrySource = readFileSync(entryUrl, "utf8");
-const tokenSource = readFileSync(new URL("./introspect-DvHp2a64.mjs", entryUrl), "utf8");
-const utilitySource = readFileSync(new URL("./utils-DO8lmoDw.mjs", entryUrl), "utf8");
+const utilitySource = readFileSync(new URL("./utils-GbnW6qPl.mjs", entryUrl), "utf8");
 
 describe("OAuth Provider exact-client subject hook", () => {
   it("exposes the resolver through the public options type", () => {
@@ -24,15 +23,15 @@ describe("OAuth Provider exact-client subject hook", () => {
 
   it("labels every OIDC-facing subject use", () => {
     expect(entrySource).toContain('resolveSubjectIdentifier(userId, client, opts, "logout_token")');
-    expect(tokenSource).toContain('resolveSubjectIdentifier(user.id, client, opts, "userinfo")');
-    expect(tokenSource).toContain('resolveSubjectIdentifier(user.id, client, opts, "id_token")');
+    expect(entrySource).toContain('resolveSubjectIdentifier(user.id, client, opts, "userinfo")');
+    expect(entrySource).toContain('resolveSubjectIdentifier(user.id, client, opts, "id_token")');
   });
 
   it("enables UserInfo subject resolution without a pairwise secret", () => {
-    expect(tokenSource).toContain(
+    expect(entrySource).toContain(
       "const client = clientId && (opts.pairwiseSecret || opts.resolveSubjectIdentifier || hasUserInfoClaimExtension(opts))",
     );
-    expect(tokenSource).toContain(
+    expect(entrySource).toContain(
       "if ((opts.pairwiseSecret || opts.resolveSubjectIdentifier) && client) baseUserClaims.sub",
     );
   });
@@ -43,7 +42,7 @@ describe("OAuth Provider exact-client subject hook", () => {
   });
 
   it("does not pairwise-rewrite introspection subjects", () => {
-    const introspectionResolver = tokenSource.match(
+    const introspectionResolver = entrySource.match(
       /async function resolveIntrospectionSub[\s\S]*?\n}\nasync function introspectEndpoint/,
     )?.[0];
 

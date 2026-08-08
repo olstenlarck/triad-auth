@@ -32,6 +32,9 @@ emails match.
 The optional provider profile fields (`email`, `email_verified`, `handle`, `name`, and `avatar_url`) are stored only
 inside the versioned, encrypted `PROFILE_DATA_KEYRING` envelope. Better Auth-managed session, OAuth, and JWKS records
 remain protocol state; upstream provider access, refresh, and ID tokens are removed before account persistence.
+The provider account record keeps Better Auth's verified issuer and immutable upstream account ID so later sign-ins
+resolve the same account. Those values are not issued to downstream clients; Triad issues its derived identity
+claims instead.
 The physical `user` table keeps Better Auth's required structural columns, but the user create hook replaces the core
 `name`, `email`, `emailVerified`, and `image` values with an empty name, an account-subject placeholder email, `false`,
 and an empty image before persistence. No provider profile value is written to those columns.
@@ -41,3 +44,11 @@ device records, consents, grants, and user-bound token records. Already issued s
 expiry, and deletion does not remove data held by an upstream provider.
 
 Terms and the current data inventory are available at [`/terms`](/terms) and [`/privacy`](/privacy).
+
+## Device authorization
+
+Triad supports two device contracts through Better Auth's shared device-code and approval routes:
+
+- First-party devices use Triad's origin as `client_id` and redeem `/device/token` for a Triad session.
+- Registered OAuth clients request approved scopes and resources, then redeem `/oauth2/token` with the RFC 8628
+  device-code grant for OAuth tokens.

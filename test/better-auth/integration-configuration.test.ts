@@ -63,6 +63,7 @@ describe("Triad Better Auth integration configuration", () => {
     expect(configuration.plugins.map((plugin) => plugin.id)).toEqual([
       "device-authorization",
       "oauth-provider",
+      "oauth-provider-device-code",
       "jwt",
     ]);
 
