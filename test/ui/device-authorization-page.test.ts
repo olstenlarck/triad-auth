@@ -7,7 +7,7 @@ const page = readFileSync(new URL("../../src/pages/device/verify.astro", import.
 describe("Better Auth device verification page", () => {
   it("requires a Better Auth session and links signed-out users to account sign-in", () => {
     expect(page).toContain("/api/auth/get-session");
-    expect(page).toContain('href="/me/"');
+    expect(page).toContain('href="/me"');
     expect(page).toContain("A Better Auth session is required");
   });
 

@@ -7,7 +7,7 @@ const resolver: NonNullable<OAuthOptions["resolveSubjectIdentifier"]> = (input) 
   `${input.use}:${input.clientId}:${input.userId}:${input.defaultSubject}`;
 
 const plugin = oauthProvider({
-  consentPage: "/consent/",
+  consentPage: "/consent",
   loginPage: "/sign-in/",
   resolveSubjectIdentifier: resolver,
 });

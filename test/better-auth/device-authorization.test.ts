@@ -29,7 +29,7 @@ describe("Triad Better Auth device authorization", () => {
     });
     expect(DEVICE_AUTHORIZATION_EXPIRES_IN).toBe("10m");
     expect(DEVICE_AUTHORIZATION_INTERVAL).toBe("5s");
-    expect(DEVICE_AUTHORIZATION_VERIFICATION_URI).toBe("/device/verify/");
+    expect(DEVICE_AUTHORIZATION_VERIFICATION_URI).toBe("/device/verify");
   });
 
   it.each([

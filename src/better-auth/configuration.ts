@@ -47,8 +47,8 @@ export function createTriadConfiguration(env: TriadEnv) {
     oauthProvider({
       ...tokenOptions,
       ...admissionOptions,
-      consentPage: "/consent/",
-      loginPage: "/me/",
+      consentPage: "/consent",
+      loginPage: "/me",
       pairwiseSecret: env.IDENTIFIER_SECRET,
       rateLimit: {
         token: { window: 60, max: 20 },

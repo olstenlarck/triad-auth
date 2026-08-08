@@ -86,7 +86,7 @@ function authorizationServer(origin: string): string {
 
 function demoResource(origin: string): TriadRecognizedResource {
   return {
-    identifier: new URL("/demo/", origin).href,
+    identifier: new URL("/demo", origin).href,
     name: "Triad demo",
     accessTokenTtl: ACCESS_TOKEN_TTL_SECONDS,
     allowedScopes: [...DEMO_SCOPES],
