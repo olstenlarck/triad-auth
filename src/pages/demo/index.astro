@@ -492,7 +492,8 @@ export const prerender = true;
       if (provider.id === "ethereum" || provider.id === "passkey") {
         const signOutResponse = await fetch("/api/auth/sign-out", {
           method: "POST",
-          headers: { accept: "application/json" },
+          headers: { accept: "application/json", "content-type": "application/json" },
+          body: "{}",
         });
         if (!signOutResponse.ok) {
           throw new Error("The existing authorization session could not be cleared.");
