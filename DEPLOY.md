@@ -58,14 +58,14 @@ Register both the production and staging callback origins with each enabled prov
 
 Connect the repository to the existing `triad-auth` Worker and configure:
 
-| Setting                            | Value                                                                                     |
-| ---------------------------------- | ----------------------------------------------------------------------------------------- |
-| Production branch                  | `prod`                                                                                    |
-| Builds for non-production branches | Enabled                                                                                   |
+| Setting                            | Value                                                                                          |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Production branch                  | `prod`                                                                                         |
+| Builds for non-production branches | Enabled                                                                                        |
 | Build command                      | `./node_modules/.bin/vp run check && git diff --exit-code && ./node_modules/.bin/vp run build` |
-| Deploy command                     | `./node_modules/.bin/vp run deploy`                                                        |
-| Non-production deploy command      | `if [ "$WORKERS_CI_BRANCH" = main ]; then ./node_modules/.bin/vp run deploy:staging; fi`   |
-| Root directory                     | `/`                                                                                       |
+| Deploy command                     | `./node_modules/.bin/vp run deploy`                                                            |
+| Non-production deploy command      | `if [ "$WORKERS_CI_BRANCH" = main ]; then ./node_modules/.bin/vp run deploy:staging; fi`       |
+| Root directory                     | `/`                                                                                            |
 
 Cloudflare runs the non-production command for every non-production branch. The branch guard uploads a version only
 for `main`, so pull-request branches perform no deployment and receive no preview version.
