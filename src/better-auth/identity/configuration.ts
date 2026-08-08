@@ -13,6 +13,12 @@ const GOOGLE_SUB_PATTERN = /^[\x21-\x7e]{1,255}$/;
 const DECIMAL_ID_PATTERN = /^[1-9][0-9]*$/;
 const IDENTITY_PROVIDERS: IdentityProvider[] = ["google", "github", "twitter"];
 
+interface PendingIdentityUser {
+  name: string;
+  provider: IdentityProvider;
+  providerSub: string;
+}
+
 function invalidUpstreamId(provider: IdentityProvider): Error {
   return new Error(`Invalid ${provider} immutable upstream ID`);
 }
@@ -72,32 +78,20 @@ async function mapIdentity(
     name: accountSub,
     email: `${accountSub}@identity.invalid`,
     emailVerified: false,
-    image: undefined,
+    image: "",
     provider,
     providerSub,
     ...(profileData ? { profileData } : {}),
   };
 }
 
-function accountSubFromSyntheticEmail(email: unknown): string {
-  if (typeof email !== "string" || !email.endsWith("@identity.invalid")) {
-    throw new Error("Triad users require a synthetic identity email");
-  }
-  const accountSub = email.slice(0, -"@identity.invalid".length);
-  if (!ACCOUNT_SUB_PATTERN.test(accountSub)) {
-    throw new Error("Triad users require a deterministic account subject");
-  }
-
-  return accountSub;
-}
-
 function sanitizedUserData(user: Record<string, unknown>): Record<string, unknown> {
-  const accountSub = accountSubFromSyntheticEmail(user.email);
+  assertProviderIdentity(user);
 
   return {
-    id: accountSub,
+    id: user.name,
     name: "",
-    email: `${accountSub}@identity.invalid`,
+    email: `${user.name}@identity.invalid`,
     emailVerified: false,
     image: "",
     provider: user.provider,
@@ -106,9 +100,13 @@ function sanitizedUserData(user: Record<string, unknown>): Record<string, unknow
   };
 }
 
-function assertProviderIdentity(user: Record<string, unknown>): void {
+function assertProviderIdentity(
+  user: Record<string, unknown>,
+): asserts user is Record<string, unknown> & PendingIdentityUser {
   const provider = user.provider;
   if (
+    typeof user.name !== "string" ||
+    !ACCOUNT_SUB_PATTERN.test(user.name) ||
     typeof provider !== "string" ||
     !IDENTITY_PROVIDERS.includes(provider as IdentityProvider) ||
     typeof user.providerSub !== "string" ||
@@ -234,11 +232,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
     databaseHooks: {
       user: {
         create: {
-          before: async (user, _context) => {
-            assertProviderIdentity(user);
-
-            return { data: sanitizedUserData(user) };
-          },
+          before: async (user, _context) => ({ data: sanitizedUserData(user) }),
         },
         update: {
           before: async (user, _context) => {

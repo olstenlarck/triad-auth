@@ -70,7 +70,9 @@
 
 **Interfaces:**
 
-- Produces: an ordered migration set whose forward migration rebuilds the user table without Better Auth's raw profile columns or the five nullable `profile*` user columns, adds encrypted `profileData`, and creates the rate-limit table.
+- Produces: an ordered migration set whose forward migration rebuilds the user table without the five nullable
+  `profile*` user columns, sanitizes Better Auth's required profile values, adds encrypted `profileData`, and creates
+  the rate-limit table.
 
 - [ ] Add or update the migration contract test to require the legacy profile columns and `deviceCode` in `0001_better-auth.sql`, the forward `profileData` migration in `0002-profile-data.sql`, and exactly two migration files.
 - [ ] Run the focused schema test and confirm it fails.

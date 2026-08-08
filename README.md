@@ -29,7 +29,7 @@ The optional provider profile fields (`email`, `email_verified`, `handle`, `name
 inside the versioned, encrypted `PROFILE_DATA_KEYRING` envelope. Better Auth-managed session, OAuth, and JWKS records
 remain protocol state; upstream provider access, refresh, and ID tokens are removed before account persistence.
 The physical `user` table keeps Better Auth's required structural columns, but the user create hook replaces the core
-`name`, `email`, `emailVerified`, and `image` values with an empty name, a deterministic synthetic email, `false`,
+`name`, `email`, `emailVerified`, and `image` values with an empty name, an account-subject placeholder email, `false`,
 and an empty image before persistence. No provider profile value is written to those columns.
 
 The signed-in account page can delete the account. Deletion removes the profile envelope, sessions, provider account,

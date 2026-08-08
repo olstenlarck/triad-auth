@@ -30,14 +30,15 @@ function createEnv(): TriadEnv {
   };
 }
 
-function createUserRecord(email: string, provider: IdentityProvider, providerSub: string) {
+function createUserRecord(accountSub: string, provider: IdentityProvider, providerSub: string) {
   const now = new Date("2026-01-01T00:00:00Z");
 
   return {
     id: "pending-user-id",
-    name: "Identity User",
-    email,
-    emailVerified: false,
+    name: accountSub,
+    email: "private@example.com",
+    emailVerified: true,
+    image: "https://images.example.com/private.png",
     createdAt: now,
     updatedAt: now,
     provider,
@@ -130,24 +131,42 @@ describe("Triad provider identity configuration", () => {
   });
 
   it.each([
-    ["google", { sub: "google-subject", name: "Google User", email: "same@example.com" }],
-    ["github", { id: 123456, login: "github-user", email: "same@example.com" }],
-    ["twitter", { data: { id: "987654", name: "Twitter User", username: "twitter-user" } }],
-  ] as const)("maps %s profiles to opaque IDs and synthetic email", async (provider, profile) => {
-    const configuration = createIdentityConfiguration(createEnv());
-    const mapped = await profileMapper(configuration, provider)(profile);
+    [
+      "google",
+      "google-subject",
+      { sub: "google-subject", name: "Google User", email: "same@example.com" },
+    ],
+    ["github", "123456", { id: 123456, login: "github-user", email: "same@example.com" }],
+    [
+      "twitter",
+      "987654",
+      { data: { id: "987654", name: "Twitter User", username: "twitter-user" } },
+    ],
+  ] as const)(
+    "maps %s profiles to opaque IDs and synthetic email",
+    async (provider, upstreamId, profile) => {
+      const configuration = createIdentityConfiguration(createEnv());
+      const mapProfile = profileMapper(configuration, provider);
+      const expectedAccountSub = await accountSubject(IDENTIFIER_SECRET, provider, upstreamId);
+      const mapped = await mapProfile(profile);
+      const remapped = await mapProfile(profile);
 
-    expect(mapped).toMatchObject({
-      emailVerified: false,
-      provider,
-    });
-    expect(mapped?.id).toMatch(new RegExp(`^pid_${provider}_[0-9a-f]{64}$`));
-    expect(mapped?.providerSub).toBe(mapped?.id);
-    expect(mapped?.email).toMatch(/^acc_[0-9a-f]{64}@identity\.invalid$/);
-    expect(mapped?.email).not.toContain("same@example.com");
-    expect(mapped?.name).toBe(String(mapped?.email).replace("@identity.invalid", ""));
-    expect(mapped?.image).toBeUndefined();
-  });
+      expect(mapped).toMatchObject({
+        emailVerified: false,
+        image: "",
+        provider,
+      });
+      expect(mapped?.id).toMatch(new RegExp(`^pid_${provider}_[0-9a-f]{64}$`));
+      expect(mapped?.providerSub).toBe(mapped?.id);
+      expect(mapped?.name).toBe(expectedAccountSub);
+      expect(mapped?.email).toBe(`${expectedAccountSub}@identity.invalid`);
+      expect(mapped?.email).not.toContain("same@example.com");
+      expect(remapped?.id).toBe(mapped?.id);
+      expect(remapped?.providerSub).toBe(mapped?.providerSub);
+      expect(remapped?.name).toBe(mapped?.name);
+      expect(remapped?.email).toBe(mapped?.email);
+    },
+  );
 
   it.each([
     [
@@ -265,14 +284,14 @@ describe("Triad provider identity configuration", () => {
     });
   });
 
-  it("promotes the synthetic email subject to the Better Auth user ID", async () => {
+  it("preserves the account subject while sanitizing Better Auth profile fields", async () => {
     const configuration = createIdentityConfiguration(createEnv());
     const accountSub = await accountSubject(IDENTIFIER_SECRET, "github", "123456");
     const providerSub = await providerSubject(IDENTIFIER_SECRET, "github", "123456");
     const beforeCreate = configuration.databaseHooks.user.create.before;
     const encryptedProfileData = "v1.k1.iv.ciphertext";
     const user = {
-      ...createUserRecord(`${accountSub}@identity.invalid`, "github", providerSub),
+      ...createUserRecord(accountSub, "github", providerSub),
       profileData: encryptedProfileData,
     };
 
@@ -297,10 +316,7 @@ describe("Triad provider identity configuration", () => {
     const beforeCreate = configuration.databaseHooks.user.create.before;
 
     await expect(
-      beforeCreate(
-        createUserRecord(`${accountSub}@identity.invalid`, "github", googleProviderSub),
-        null,
-      ),
+      beforeCreate(createUserRecord(accountSub, "github", googleProviderSub), null),
     ).rejects.toThrow("provider identity");
   });
 
