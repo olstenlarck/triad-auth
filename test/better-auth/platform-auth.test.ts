@@ -20,8 +20,9 @@ function createEnv(overrides: Partial<TriadEnv> = {}): TriadEnv {
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
     IDENTIFIER_SECRET: "identifier-secret-with-enough-entropy-1234567890",
-    PROFILE_DATA_KEYRING:
-      '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
+    RATE_LIMIT_SECRET: "rate-limit-secret-with-enough-entropy-1234567890",
+    PROFILE_DATA_SECRETS:
+      '{"active":"v1","secrets":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -207,6 +208,38 @@ describe("Triad Better Auth platform options", () => {
       expect(() => createTriadAuthOptions(env)).toThrow("BETTER_AUTH_SECRET");
     },
   );
+
+  it.each([undefined, "", "short-secret"])(
+    "rejects a missing or short rate-limit secret",
+    (secret) => {
+      const env = createEnv({ RATE_LIMIT_SECRET: secret as string });
+
+      expect(() => createTriadAuthOptions(env)).toThrow("RATE_LIMIT_SECRET");
+    },
+  );
+
+  it("keeps profile encryption material separate from the rate-limit secret", () => {
+    const rateLimitSecret = "rate-limit-secret-with-enough-entropy-1234567890";
+    const env = createEnv({
+      RATE_LIMIT_SECRET: rateLimitSecret,
+      PROFILE_DATA_SECRETS: JSON.stringify({
+        active: "v1",
+        secrets: { v1: rateLimitSecret },
+      }),
+    });
+
+    expect(() => createTriadAuthOptions(env)).toThrow("PROFILE_DATA_SECRETS");
+  });
+
+  it("requires independent authentication, identifier, and rate-limit secrets", () => {
+    const sharedSecret = "shared-secret-with-enough-entropy-1234567890";
+    const env = createEnv({
+      IDENTIFIER_SECRET: sharedSecret,
+      RATE_LIMIT_SECRET: sharedSecret,
+    });
+
+    expect(() => createTriadAuthOptions(env)).toThrow("independent values");
+  });
 
   it.each([
     "not a URL",
