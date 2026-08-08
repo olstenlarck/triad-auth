@@ -13,6 +13,7 @@ const account = source("../../src/pages/me.astro");
 const landing = source("../../src/pages/index.astro");
 const protocol = source("../../src/scripts/demo-protocol.ts");
 const disclosures = source("../../src/scripts/disclosure-controls.ts");
+const staticHeaders = source("../../public/_headers");
 
 describe("preserved Better Auth UI wiring", () => {
   it("restores the exact landing privacy promise and optional scope manifest", () => {
@@ -85,6 +86,11 @@ describe("preserved Better Auth UI wiring", () => {
     expect(consent).toContain('scope: inspected.scopes.join(" ")');
     expect(consent).toContain("oauth_query: inspected.oauthQuery");
     expect(consent).not.toContain("/api/consent/");
+  });
+
+  it("keeps the static consent document compatible with cross-origin popups", () => {
+    expect(staticHeaders).toContain("/consent/*");
+    expect(staticHeaders).toContain("Cross-Origin-Opener-Policy: unsafe-none");
   });
 
   it("renders mandatory identity and requested optional disclosures", () => {

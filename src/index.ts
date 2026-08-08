@@ -41,11 +41,18 @@ const SECURITY_HEADERS: Record<string, string> = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "strict-origin-when-cross-origin",
   "permissions-policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
-  "cross-origin-opener-policy": "same-origin",
 };
 
 export function isAuthPath(pathname: string): boolean {
   return pathname === AUTH_BASE_PATH || pathname.startsWith(`${AUTH_BASE_PATH}/`);
+}
+
+function crossOriginOpenerPolicy(pathname: string): "same-origin" | "unsafe-none" {
+  if (isAuthPath(pathname) || pathname === "/consent" || pathname === "/consent/") {
+    return "unsafe-none";
+  }
+
+  return "same-origin";
 }
 
 function protectedResourceDocument(url: URL, env: TriadEnv) {
@@ -59,11 +66,12 @@ function protectedResourceDocument(url: URL, env: TriadEnv) {
     ?.document;
 }
 
-function withSecurityHeaders(response: Response, env: TriadEnv): Response {
+function withSecurityHeaders(response: Response, env: TriadEnv, pathname: string): Response {
   const secured = new Response(response.body, response);
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     secured.headers.set(name, value);
   }
+  secured.headers.set("cross-origin-opener-policy", crossOriginOpenerPolicy(pathname));
 
   try {
     if (new URL(env.AUTH_ORIGIN).protocol === "https:") {
@@ -130,28 +138,36 @@ export function createWorker<Configuration>(services: WorkerServices<Configurati
       const url = new URL(request.url);
       const resourceDocument = protectedResourceDocument(url, env);
       if (resourceDocument) {
-        return withSecurityHeaders(Response.json(resourceDocument), env);
+        return withSecurityHeaders(Response.json(resourceDocument), env, url.pathname);
       }
 
       if (url.pathname === DEVICE_DISCLOSURE_PATH) {
         const configuration = services.createTriadConfiguration(env);
         const auth = services.createTriadAuth(env, configuration);
 
-        return withSecurityHeaders(await handleDeviceDisclosure(request, env, auth), env);
+        return withSecurityHeaders(
+          await handleDeviceDisclosure(request, env, auth),
+          env,
+          url.pathname,
+        );
       }
 
       if (isAuthPath(url.pathname)) {
         const configuration = services.createTriadConfiguration(env);
         const authResponse = await services.createTriadAuth(env, configuration).handler(request);
 
-        return withSecurityHeaders(authResponse, env);
+        return withSecurityHeaders(authResponse, env, url.pathname);
       }
 
       if (url.pathname.startsWith("/__astro_")) {
-        return withSecurityHeaders(await services.handleAstro(request, env, context), env);
+        return withSecurityHeaders(
+          await services.handleAstro(request, env, context),
+          env,
+          url.pathname,
+        );
       }
 
-      return withSecurityHeaders(await services.fetchAssets(request, env), env);
+      return withSecurityHeaders(await services.fetchAssets(request, env), env, url.pathname);
     },
   } satisfies ExportedHandler<TriadEnv>;
 }
