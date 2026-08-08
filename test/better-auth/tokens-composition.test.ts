@@ -127,6 +127,9 @@ describe("token composition", () => {
       "handle",
       "name",
       "avatar",
+      "wallet",
+      "cred",
+      "pubkey",
       "resource:read",
     ]);
     expect(oauthProviderOptions.scopes).not.toContain("profile");
@@ -153,6 +156,9 @@ describe("token composition", () => {
       "handle",
       "name",
       "avatar",
+      "wallet",
+      "cred",
+      "pubkey",
       "resource:read",
     ]);
     expect(oauthProviderOptions.clientRegistrationDefaultScopes).toEqual(["openid"]);
@@ -389,6 +395,9 @@ describe("token composition", () => {
       "preferred_username",
       "name",
       "picture",
+      "wallet",
+      "cred",
+      "pubkey",
     ]);
     expect(oauthProviderOptions.advertisedMetadata?.scopes_supported).toEqual([
       "openid",
@@ -396,6 +405,9 @@ describe("token composition", () => {
       "handle",
       "name",
       "avatar",
+      "wallet",
+      "cred",
+      "pubkey",
       "resource:read",
     ]);
   });

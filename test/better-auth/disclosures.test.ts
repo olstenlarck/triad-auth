@@ -14,8 +14,25 @@ import {
 
 describe("downstream disclosure scope policy", () => {
   it("defines the exact canonical scope vocabulary and identity-only default", () => {
-    expect(DISCLOSURE_SCOPES).toEqual(["openid", "email", "handle", "name", "avatar"]);
-    expect(PROFILE_DISCLOSURE_SCOPES).toEqual(["email", "handle", "name", "avatar"]);
+    expect(DISCLOSURE_SCOPES).toEqual([
+      "openid",
+      "email",
+      "handle",
+      "name",
+      "avatar",
+      "wallet",
+      "cred",
+      "pubkey",
+    ]);
+    expect(PROFILE_DISCLOSURE_SCOPES).toEqual([
+      "email",
+      "handle",
+      "name",
+      "avatar",
+      "wallet",
+      "cred",
+      "pubkey",
+    ]);
     expect(canonicalDisclosureScopes()).toEqual(["openid"]);
     expect(canonicalDisclosureScopes([])).toEqual(["openid"]);
   });
@@ -38,6 +55,9 @@ describe("downstream disclosure scope policy", () => {
       handle: ["preferred_username"],
       name: ["name"],
       avatar: ["picture"],
+      wallet: ["wallet"],
+      cred: ["cred"],
+      pubkey: ["pubkey"],
     });
     expect(claimsForDisclosureScopes(["openid", "email", "avatar"])).toEqual([
       "pairwise_sub",
@@ -54,6 +74,8 @@ describe("downstream disclosure scope policy", () => {
       google: ["email", "name", "avatar"],
       github: ["email", "handle", "name", "avatar"],
       twitter: ["handle", "name", "avatar"],
+      ethereum: ["wallet"],
+      passkey: ["cred", "pubkey"],
     });
     expect(() =>
       validateProviderDisclosureScopes("github", ["openid", "email", "handle", "name", "avatar"]),
@@ -62,6 +84,10 @@ describe("downstream disclosure scope policy", () => {
       "handle",
     );
     expect(() => validateProviderDisclosureScopes("twitter", ["openid", "email"])).toThrow("email");
+    expect(() => validateProviderDisclosureScopes("ethereum", ["openid", "wallet"])).not.toThrow();
+    expect(() =>
+      validateProviderDisclosureScopes("passkey", ["openid", "cred", "pubkey"]),
+    ).not.toThrow();
   });
 
   it("maps disclosures to only the upstream scopes each provider needs", () => {
@@ -72,6 +98,9 @@ describe("downstream disclosure scope policy", () => {
         handle: [],
         name: ["profile"],
         avatar: ["profile"],
+        wallet: [],
+        cred: [],
+        pubkey: [],
       },
       github: {
         openid: [],
@@ -79,6 +108,9 @@ describe("downstream disclosure scope policy", () => {
         handle: [],
         name: [],
         avatar: [],
+        wallet: [],
+        cred: [],
+        pubkey: [],
       },
       twitter: {
         openid: ["tweet.read", "users.read"],
@@ -86,6 +118,29 @@ describe("downstream disclosure scope policy", () => {
         handle: [],
         name: [],
         avatar: [],
+        wallet: [],
+        cred: [],
+        pubkey: [],
+      },
+      ethereum: {
+        openid: [],
+        email: [],
+        handle: [],
+        name: [],
+        avatar: [],
+        wallet: [],
+        cred: [],
+        pubkey: [],
+      },
+      passkey: {
+        openid: [],
+        email: [],
+        handle: [],
+        name: [],
+        avatar: [],
+        wallet: [],
+        cred: [],
+        pubkey: [],
       },
     });
     expect(upstreamScopesForProvider("google", ["openid", "avatar", "email", "name"])).toEqual([

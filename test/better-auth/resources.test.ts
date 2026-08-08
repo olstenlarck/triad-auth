@@ -22,13 +22,22 @@ describe("Triad OAuth resource fragment", () => {
       resources: [
         {
           accessTokenTtl: 300,
-          allowedScopes: ["openid", "email", "handle", "name", "avatar"],
+          allowedScopes: [
+            "openid",
+            "email",
+            "handle",
+            "name",
+            "avatar",
+            "wallet",
+            "cred",
+            "pubkey",
+          ],
           disabled: false,
           identifier: "https://auth.example.com/demo",
           name: "Triad demo",
         },
       ],
-      scopes: ["openid", "email", "handle", "name", "avatar"],
+      scopes: ["openid", "email", "handle", "name", "avatar", "wallet", "cred", "pubkey"],
     });
     expect(fragment.oauthProviderOptions.resources?.[0]).not.toHaveProperty("refreshTokenTtl");
     expect(fragment.oauthProviderExtensions).toEqual([]);
@@ -130,7 +139,16 @@ describe("Triad RFC 9728 protected-resource metadata", () => {
           bearer_methods_supported: ["header"],
           resource: "https://auth.example.com/demo",
           resource_name: "Triad demo",
-          scopes_supported: ["openid", "email", "handle", "name", "avatar"],
+          scopes_supported: [
+            "openid",
+            "email",
+            "handle",
+            "name",
+            "avatar",
+            "wallet",
+            "cred",
+            "pubkey",
+          ],
         },
       },
     ]);
