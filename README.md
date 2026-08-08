@@ -40,4 +40,4 @@ The signed-in account page can delete the account. Deletion removes the profile 
 device records, consents, grants, and user-bound token records. Already issued short-lived JWTs may remain valid until
 expiry, and deletion does not remove data held by an upstream provider.
 
-Terms and the current data inventory are available at [`/terms/`](/terms/) and [`/privacy/`).
+Terms and the current data inventory are available at [`/terms`](/terms) and [`/privacy`](/privacy).

@@ -66,8 +66,8 @@ describe("Triad protected-resource metadata routing", () => {
     [
       "demo",
       createEnv(),
-      "https://auth.example.com/.well-known/oauth-protected-resource/demo/",
-      "https://auth.example.com/demo/",
+      "https://auth.example.com/.well-known/oauth-protected-resource/demo",
+      "https://auth.example.com/demo",
       ["openid", "email", "handle", "name", "avatar"],
     ],
   ])(

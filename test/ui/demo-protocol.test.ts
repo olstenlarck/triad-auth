@@ -14,22 +14,22 @@ describe("Better Auth demo protocol", () => {
   it("builds the authorization request with the projected client, resource, and canonical scopes", () => {
     const request = authorizationRequest({
       authorizationEndpoint: "https://auth.example/api/auth/oauth2/authorize",
-      callbackUrl: "https://auth.example/demo/callback/",
+      callbackUrl: "https://auth.example/demo/callback",
       challenge: "challenge",
       clientId: "server-client-id",
-      resource: "https://auth.example/demo/",
+      resource: "https://auth.example/demo",
       scope: "openid email avatar",
       state: "state",
     });
 
     expect(request.href).toBe(
-      "https://auth.example/api/auth/oauth2/authorize?response_type=code&client_id=server-client-id&redirect_uri=https%3A%2F%2Fauth.example%2Fdemo%2Fcallback%2F&scope=openid+email+avatar&resource=https%3A%2F%2Fauth.example%2Fdemo%2F&state=state&code_challenge=challenge&code_challenge_method=S256&prompt=login",
+      "https://auth.example/api/auth/oauth2/authorize?response_type=code&client_id=server-client-id&redirect_uri=https%3A%2F%2Fauth.example%2Fdemo%2Fcallback&scope=openid+email+avatar&resource=https%3A%2F%2Fauth.example%2Fdemo&state=state&code_challenge=challenge&code_challenge_method=S256&prompt=login",
     );
   });
 
   it("derives the canonical demo resource from the server issuer", () => {
     expect(demoResourceFromIssuer("https://auth.example/api/auth")).toBe(
-      "https://auth.example/demo/",
+      "https://auth.example/demo",
     );
   });
 
@@ -58,14 +58,14 @@ describe("Better Auth demo protocol", () => {
   it("binds token exchange to the projected client, resource, callback, and verifier", () => {
     expect(
       tokenExchangeRequest({
-        callbackUrl: "https://auth.example/demo/callback/",
+        callbackUrl: "https://auth.example/demo/callback",
         clientId: "server-client-id",
         code: "code",
-        resource: "https://auth.example/demo/",
+        resource: "https://auth.example/demo",
         verifier: "verifier",
       }).toString(),
     ).toBe(
-      "grant_type=authorization_code&client_id=server-client-id&redirect_uri=https%3A%2F%2Fauth.example%2Fdemo%2Fcallback%2F&code=code&code_verifier=verifier&resource=https%3A%2F%2Fauth.example%2Fdemo%2F",
+      "grant_type=authorization_code&client_id=server-client-id&redirect_uri=https%3A%2F%2Fauth.example%2Fdemo%2Fcallback&code=code&code_verifier=verifier&resource=https%3A%2F%2Fauth.example%2Fdemo",
     );
   });
 

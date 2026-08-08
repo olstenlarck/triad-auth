@@ -6,7 +6,7 @@ import { describe, expect, it } from "vite-plus/test";
 const plugin = oauthProvider({
   allowDynamicClientRegistration: true,
   allowUnauthenticatedClientRegistration: true,
-  consentPage: "/consent/",
+  consentPage: "/consent",
   loginPage: "/sign-in/",
 });
 

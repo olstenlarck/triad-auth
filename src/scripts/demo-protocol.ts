@@ -256,7 +256,7 @@ export function canonicalScopeRequest(
 }
 
 export function demoResourceFromIssuer(issuer: string): string {
-  return new URL("/demo/", issuer).href;
+  return new URL("/demo", issuer).href;
 }
 
 export async function fetchDiscovery(

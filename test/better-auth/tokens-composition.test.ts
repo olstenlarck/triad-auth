@@ -102,7 +102,7 @@ describe("token composition", () => {
     const composition = createComposition();
     const providerPlugin = oauthProvider({
       ...composition.oauthProviderOptions,
-      consentPage: "/consent/",
+      consentPage: "/consent",
       loginPage: "/sign-in/",
     });
     const jwtPlugin = jwt(composition.jwtOptions);

@@ -24,7 +24,7 @@ export const prerender = true;
     </div>
 
     <p id="callback-error" class="error-message recovery" role="alert" tabindex="-1" hidden></p>
-    <a id="callback-retry" class="button secondary" href="/demo/" hidden>RETURN TO DEMO</a>
+    <a id="callback-retry" class="button secondary" href="/demo" hidden>RETURN TO DEMO</a>
 
     <section id="callback-identity" class="verified-result" aria-labelledby="callback-result-title" hidden>
       <div class="verified-head">
@@ -60,7 +60,7 @@ export const prerender = true;
         ></time>
       </div>
       <div class="actions callback-actions">
-        <a class="button primary" href="/demo/">RUN ANOTHER FLOW</a>
+        <a class="button primary" href="/demo">RUN ANOTHER FLOW</a>
         <button id="callback-logout" class="button danger" type="button">SIGN OUT</button>
       </div>
       <p id="callback-logout-status" class="error-message callback-logout-status" role="alert" hidden></p>
@@ -148,7 +148,7 @@ export const prerender = true;
           throw new Error("Sign out failed.");
         }
 
-        location.assign("/demo/");
+        location.assign("/demo");
       } catch {
         logout.disabled = false;
         logout.textContent = "RETRY SIGN OUT";
@@ -185,7 +185,7 @@ export const prerender = true;
                 "content-type": "application/x-www-form-urlencoded",
               },
               body: tokenExchangeRequest({
-                callbackUrl: new URL("/demo/callback/", location.origin).href,
+                callbackUrl: new URL("/demo/callback", location.origin).href,
                 clientId,
                 code,
                 resource,

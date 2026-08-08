@@ -37,7 +37,7 @@ describe("public DCR policy", () => {
   it("allows only authorization_code clients", async () => {
     const options: OAuthOptions<Scope[]> = {
       ...createPublicDcrOptions(),
-      consentPage: "/consent/",
+      consentPage: "/consent",
       loginPage: "/sign-in/",
     };
     const client: OAuthClient = {

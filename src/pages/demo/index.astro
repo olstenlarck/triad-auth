@@ -106,7 +106,7 @@ export const prerender = true;
         <div id="device-instructions" class="device-ticket" hidden>
           <span>USER CODE</span>
           <strong id="demo-user-code"></strong>
-          <a id="verification-link" class="text-link" href="/device/verify/" target="_blank" rel="noopener"
+          <a id="verification-link" class="text-link" href="/device/verify" target="_blank" rel="noopener"
             >OPEN VERIFICATION PAGE ↗</a
           >
           <small id="device-expiry"></small>
@@ -140,7 +140,7 @@ export const prerender = true;
       type ProviderCapability,
     } from "../../scripts/demo-protocol";
 
-    const callbackUrl = new URL("/demo/callback/", location.origin).href;
+    const callbackUrl = new URL("/demo/callback", location.origin).href;
     const expectedRegistrationPath = "/api/auth/oauth2/register";
     const start = document.querySelector<HTMLButtonElement>("#browser-start")!;
     const status = document.querySelector<HTMLElement>("#browser-status")!;
@@ -238,7 +238,7 @@ export const prerender = true;
       deviceInstructions.hidden = true;
       document.querySelector<HTMLElement>("#demo-user-code")!.textContent = "";
       document.querySelector<HTMLElement>("#device-expiry")!.textContent = "";
-      document.querySelector<HTMLAnchorElement>("#verification-link")!.href = "/device/verify/";
+      document.querySelector<HTMLAnchorElement>("#verification-link")!.href = "/device/verify";
     }
 
     function scheduleDevicePoll() {

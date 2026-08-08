@@ -147,7 +147,7 @@ export const prerender = true;
             provider,
             ...(oauthQuery
               ? { oauth_query: oauthQuery }
-              : { callbackURL: new URL("/me/", location.origin).href }),
+              : { callbackURL: new URL("/me", location.origin).href }),
           }),
         });
         const body = await jsonResponse<{ url?: string }>(response, "Provider sign-in could not start.");
@@ -317,7 +317,7 @@ export const prerender = true;
           throw responseError(body, "Could not delete this account.");
         }
 
-        location.assign("/me/");
+        location.assign("/me");
       } catch (reason) {
         deleteAccountButton.textContent = "RETRY DELETE ACCOUNT";
         setMutationControls(false);
