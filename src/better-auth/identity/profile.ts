@@ -10,6 +10,7 @@ import { storedPasskeyPublicKeyHex } from "./passkey";
 
 const SYNTHETIC_EMAIL_SUFFIX = "@identity.invalid";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;
+const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 const MAX_CREDENTIAL_ID_BYTES = 1023;
 
 export type ProfileScope = "email" | "handle" | "name" | "avatar" | "wallet" | "cred" | "pubkey";
@@ -81,7 +82,7 @@ function webUrl(value: unknown): string | undefined {
 }
 
 function credentialId(value: unknown): string | undefined {
-  if (typeof value !== "string") {
+  if (typeof value !== "string" || !BASE64URL_PATTERN.test(value) || value.length % 4 === 1) {
     return undefined;
   }
 
