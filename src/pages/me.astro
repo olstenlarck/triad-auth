@@ -327,7 +327,7 @@ export const prerender = true;
       }
     }
 
-    async function authenticatePasskey(): Promise<void> {
+    async function authenticatePasskey(credentialId?: string): Promise<void> {
       const optionsResponse = await fetch("/api/auth/passkey/generate-authenticate-options", {
         headers: { accept: "application/json" },
       });
@@ -337,12 +337,18 @@ export const prerender = true;
       );
       const prfOptions = {
         ...options,
+        ...(credentialId
+          ? { allowCredentials: [{ id: credentialId, type: "public-key" as const }] }
+          : {}),
         extensions: {
           ...options.extensions,
           prf: { eval: { first: crypto.getRandomValues(new Uint8Array(32)) } },
         },
       } as unknown as PublicKeyCredentialRequestOptionsJSON;
       const response = await startAuthentication({ optionsJSON: prfOptions });
+      if (credentialId && response.id !== credentialId) {
+        throw new Error("Passkey authentication returned a different credential.");
+      }
       const first = passkeyPrfResult(response.clientExtensionResults);
       const serializedResponse = {
         ...response,
@@ -408,7 +414,7 @@ export const prerender = true;
         await jsonResponse(verifyResponse, "Triad rejected the passkey registration.");
 
         button.textContent = "VERIFYING PASSKEY";
-        await authenticatePasskey();
+        await authenticatePasskey(response.id);
         resumeAuthorization();
       } catch (reason) {
         button.textContent = "RETRY REGISTER PASSKEY";
