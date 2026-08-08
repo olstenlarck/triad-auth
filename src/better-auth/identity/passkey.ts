@@ -152,7 +152,6 @@ export function createPasskeyAuthentication(env: TriadEnv) {
       },
     },
     authentication: {
-      extensions: { credProps: true },
       afterVerification: ({ verification, clientData }) => {
         if (!verification.authenticationInfo.userVerified) {
           rejectPasskey("Passkey authentication requires user verification");
