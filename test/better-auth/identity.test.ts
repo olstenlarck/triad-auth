@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   accountSubject,
   createIdentityConfiguration,
+  openProfileData,
   type IdentityProvider,
   pairwiseSubject,
   providerSubject,
@@ -18,6 +19,8 @@ function createEnv(): TriadEnv {
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
     IDENTIFIER_SECRET,
+    PROFILE_DATA_KEYRING:
+      '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -27,14 +30,15 @@ function createEnv(): TriadEnv {
   };
 }
 
-function createUserRecord(email: string, provider: IdentityProvider, providerSub: string) {
+function createUserRecord(accountSub: string, provider: IdentityProvider, providerSub: string) {
   const now = new Date("2026-01-01T00:00:00Z");
 
   return {
     id: "pending-user-id",
-    name: "Identity User",
-    email,
-    emailVerified: false,
+    name: accountSub,
+    email: "private@example.com",
+    emailVerified: true,
+    image: "https://images.example.com/private.png",
     createdAt: now,
     updatedAt: now,
     provider,
@@ -58,6 +62,14 @@ function profileMapper(
   }
 
   return mapProfile;
+}
+
+async function mappedProfile(mapped: Record<string, unknown>) {
+  if (typeof mapped.profileData !== "string") {
+    throw new Error("Expected encrypted profile data");
+  }
+
+  return openProfileData(createEnv().PROFILE_DATA_KEYRING, mapped.profileData);
 }
 
 describe("Triad deterministic identity", () => {
@@ -119,24 +131,42 @@ describe("Triad provider identity configuration", () => {
   });
 
   it.each([
-    ["google", { sub: "google-subject", name: "Google User", email: "same@example.com" }],
-    ["github", { id: 123456, login: "github-user", email: "same@example.com" }],
-    ["twitter", { data: { id: "987654", name: "Twitter User", username: "twitter-user" } }],
-  ] as const)("maps %s profiles to opaque IDs and synthetic email", async (provider, profile) => {
-    const configuration = createIdentityConfiguration(createEnv());
-    const mapped = await profileMapper(configuration, provider)(profile);
+    [
+      "google",
+      "google-subject",
+      { sub: "google-subject", name: "Google User", email: "same@example.com" },
+    ],
+    ["github", "123456", { id: 123456, login: "github-user", email: "same@example.com" }],
+    [
+      "twitter",
+      "987654",
+      { data: { id: "987654", name: "Twitter User", username: "twitter-user" } },
+    ],
+  ] as const)(
+    "maps %s profiles to opaque IDs and synthetic email",
+    async (provider, upstreamId, profile) => {
+      const configuration = createIdentityConfiguration(createEnv());
+      const mapProfile = profileMapper(configuration, provider);
+      const expectedAccountSub = await accountSubject(IDENTIFIER_SECRET, provider, upstreamId);
+      const mapped = await mapProfile(profile);
+      const remapped = await mapProfile(profile);
 
-    expect(mapped).toMatchObject({
-      emailVerified: false,
-      provider,
-    });
-    expect(mapped?.id).toMatch(new RegExp(`^pid_${provider}_[0-9a-f]{64}$`));
-    expect(mapped?.providerSub).toBe(mapped?.id);
-    expect(mapped?.email).toMatch(/^acc_[0-9a-f]{64}@identity\.invalid$/);
-    expect(mapped?.email).not.toContain("same@example.com");
-    expect(mapped?.name).toBe(String(mapped?.email).replace("@identity.invalid", ""));
-    expect(mapped?.image).toBeUndefined();
-  });
+      expect(mapped).toMatchObject({
+        emailVerified: false,
+        image: "",
+        provider,
+      });
+      expect(mapped?.id).toMatch(new RegExp(`^pid_${provider}_[0-9a-f]{64}$`));
+      expect(mapped?.providerSub).toBe(mapped?.id);
+      expect(mapped?.name).toBe(expectedAccountSub);
+      expect(mapped?.email).toBe(`${expectedAccountSub}@identity.invalid`);
+      expect(mapped?.email).not.toContain("same@example.com");
+      expect(remapped?.id).toBe(mapped?.id);
+      expect(remapped?.providerSub).toBe(mapped?.providerSub);
+      expect(remapped?.name).toBe(mapped?.name);
+      expect(remapped?.email).toBe(mapped?.email);
+    },
+  );
 
   it.each([
     [
@@ -194,7 +224,7 @@ describe("Triad provider identity configuration", () => {
       const configuration = createIdentityConfiguration(createEnv());
       const mapped = await profileMapper(configuration, provider)(profile);
 
-      expect(mapped).toMatchObject(expected);
+      await expect(mappedProfile(mapped)).resolves.toEqual(expected);
     },
   );
 
@@ -212,22 +242,14 @@ describe("Triad provider identity configuration", () => {
       picture: "javascript:alert(1)",
     });
 
-    expect(mapped).not.toHaveProperty("profileEmail");
-    expect(mapped).not.toHaveProperty("profileEmailVerified");
-    expect(mapped).not.toHaveProperty("profileHandle");
-    expect(mapped).not.toHaveProperty("profileDisplayName");
-    expect(mapped).not.toHaveProperty("profileAvatar");
+    expect(mapped).not.toHaveProperty("profileData");
   });
 
   it("declares captured profile data as optional user fields", () => {
     const configuration = createIdentityConfiguration(createEnv());
 
     expect(configuration.user.additionalFields).toMatchObject({
-      profileEmail: { type: "string", required: false },
-      profileEmailVerified: { type: "boolean", required: false },
-      profileHandle: { type: "string", required: false },
-      profileDisplayName: { type: "string", required: false },
-      profileAvatar: { type: "string", required: false },
+      profileData: { type: "string", required: false, returned: false },
     });
   });
 
@@ -262,15 +284,29 @@ describe("Triad provider identity configuration", () => {
     });
   });
 
-  it("promotes the synthetic email subject to the Better Auth user ID", async () => {
+  it("preserves the account subject while sanitizing Better Auth profile fields", async () => {
     const configuration = createIdentityConfiguration(createEnv());
     const accountSub = await accountSubject(IDENTIFIER_SECRET, "github", "123456");
     const providerSub = await providerSubject(IDENTIFIER_SECRET, "github", "123456");
     const beforeCreate = configuration.databaseHooks.user.create.before;
+    const encryptedProfileData = "v1.k1.iv.ciphertext";
+    const user = {
+      ...createUserRecord(accountSub, "github", providerSub),
+      profileData: encryptedProfileData,
+    };
 
-    await expect(
-      beforeCreate(createUserRecord(`${accountSub}@identity.invalid`, "github", providerSub), null),
-    ).resolves.toMatchObject({ data: { id: accountSub } });
+    await expect(beforeCreate(user, null)).resolves.toMatchObject({
+      data: {
+        id: accountSub,
+        name: "",
+        email: `${accountSub}@identity.invalid`,
+        emailVerified: false,
+        image: "",
+        provider: "github",
+        providerSub,
+        profileData: encryptedProfileData,
+      },
+    });
   });
 
   it("rejects incoherent provider identity during user creation", async () => {
@@ -280,22 +316,15 @@ describe("Triad provider identity configuration", () => {
     const beforeCreate = configuration.databaseHooks.user.create.before;
 
     await expect(
-      beforeCreate(
-        createUserRecord(`${accountSub}@identity.invalid`, "github", googleProviderSub),
-        null,
-      ),
+      beforeCreate(createUserRecord(accountSub, "github", googleProviderSub), null),
     ).rejects.toThrow("provider identity");
   });
 
   it.each([
     { name: "Changed Name" },
     { image: "https://images.example.com/changed.png" },
-    { profileEmail: "changed@example.com" },
-    { profileEmailVerified: true },
-    { profileHandle: "changed" },
-    { profileDisplayName: "Changed Name" },
-    { profileAvatar: "https://images.example.com/changed.png" },
-  ])("rejects updates to durable identity and captured profile fields", async (update) => {
+    { profileData: "v1.v1.invalid.invalid" },
+  ])("rejects updates to durable identity and encrypted profile data", async (update) => {
     const configuration = createIdentityConfiguration(createEnv());
 
     await expect(configuration.databaseHooks.user.update.before(update, null)).resolves.toBe(false);

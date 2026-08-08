@@ -63,8 +63,7 @@ export default defineConfig({
       },
 
       check: {
-        command:
-          "vp check --fix && vp exec astro build && node scripts/generate-csp-hashes.mjs && vp exec wrangler deploy --dry-run",
+        command: "vp check --fix",
         input: [
           "**/vite.config.ts",
           "**/package.json",

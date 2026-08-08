@@ -64,36 +64,38 @@
 
 **Files:**
 
-- Modify: `migrations/0001_better-auth.sql`
-- Delete: `migrations/0002_disclosures_device.sql`
+- Create: `migrations/0001-initial.sql`
 - Modify: schema migration tests under `test/schema/` if exact migration inventory is asserted.
 
 **Interfaces:**
 
-- Produces: one baseline migration containing the five nullable `profile*` user columns and complete `deviceCode` table with its indexes and foreign key.
+- Produces: one Better Auth-generated migration without the five nullable `profile*` user columns, with encrypted
+  `profileData` and the rate-limit table.
 
-- [ ] Add or update the migration contract test to require profile columns and `deviceCode` in `0001_better-auth.sql` and exactly one migration file.
+- [ ] Add or update the migration contract test to require `deviceCode`, encrypted `profileData`, the rate-limit table,
+      no legacy profile columns, and exactly one migration file.
 - [ ] Run the focused schema test and confirm it fails.
-- [ ] Fold all statements from `0002_disclosures_device.sql` into the original `user` definition and baseline table/index ordering, then delete `0002`.
+- [ ] Generate `0001-initial.sql` directly from the finalized Better Auth configuration.
 - [ ] Run the focused schema test and confirm it passes.
 - [ ] Commit with `chore: consolidate better auth schema`.
 
-### Task 4: Verify and Rebuild Staging
+### Task 4: Verify and Rebuild D1
 
 **Files:**
 
-- Modify: `wrangler.toml` with the replacement staging D1 UUID.
+- Modify: `wrangler.toml` with the replacement production and staging D1 UUIDs.
 
 **Interfaces:**
 
-- Consumes: the consolidated baseline migration and existing staging Worker secrets.
-- Produces: a clean staging database and deployed Worker.
+- Consumes: the generated initial migration and renamed Workers with their preserved secrets.
+- Produces: clean production and staging databases using canonical names.
 
 - [ ] Run `vp run check` and require zero formatting, lint, type, or test failures.
 - [ ] Run `vp run build` and require a successful Astro/Cloudflare build.
-- [ ] Delete only the D1 database named `triad-better-auth-staging`, create it again, and replace the staging `database_id` in `wrangler.toml`.
-- [ ] Run `vp run db:migrate:staging` and verify only `0001_better-auth.sql` is applied.
-- [ ] Run `vp run deploy:staging` and record the new deployment version.
+- [ ] Delete the three obsolete Triad D1 databases, create `triad-auth` and `triad-auth-staging`, and replace both
+      `database_id` values in `wrangler.toml`.
+- [ ] Run `vp run db:migrate:staging` and verify the ordered migration set is applied.
+- [ ] Let Cloudflare Workers Builds deploy staging after checks pass and the Git repository is connected.
 - [ ] Verify discovery advertises `openid email handle name avatar`, DCR accepts those scopes, and device code issuance returns the configured verification URI.
 - [ ] Complete a browser Google flow with all optional scopes and verify the returned signed ID token contains all requested standard claims plus the three Triad identity claims.
 - [ ] Complete device issuance, browser approval, and polling, and verify polling returns an authorized bearer session.

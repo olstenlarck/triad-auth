@@ -37,36 +37,6 @@ describe("Triad OAuth resource fragment", () => {
     expect(REFRESH_TOKEN_TTL_SECONDS).toBe(30 * 24 * 60 * 60);
   });
 
-  it("adds RPC Wallets only when its resource identifier is supplied", () => {
-    const fragment = createTriadResourceFragment(productionEnv, {
-      rpcWalletsResource: "https://wallets.example.com/mcp",
-    });
-
-    expect(fragment.oauthProviderOptions.scopes).toEqual([
-      "openid",
-      "email",
-      "handle",
-      "name",
-      "avatar",
-      "wallets:read",
-      "offline_access",
-    ]);
-    expect(fragment.oauthProviderOptions.resources).toEqual([
-      expect.objectContaining({
-        identifier: "https://auth.example.com/demo/",
-        allowedScopes: ["openid", "email", "handle", "name", "avatar"],
-      }),
-      {
-        accessTokenTtl: 300,
-        allowedScopes: ["wallets:read", "offline_access"],
-        disabled: false,
-        identifier: "https://wallets.example.com/mcp",
-        name: "RPC Wallets",
-      },
-    ]);
-    expect(fragment.oauthProviderOptions.resources?.[1]).not.toHaveProperty("refreshTokenTtl");
-  });
-
   it("uses the installed OAuth Provider public option types", () => {
     const fragment = createTriadResourceFragment(productionEnv);
 
@@ -85,14 +55,15 @@ describe("Triad OAuth resource fragment", () => {
 });
 
 describe("Triad OAuth resource request semantics", () => {
-  const fragment = createTriadResourceFragment(productionEnv, {
-    rpcWalletsResource: "https://wallets.example.com/mcp",
-  });
+  const fragment = createTriadResourceFragment(productionEnv);
 
   it.each<[resource: string | string[] | undefined, description: string]>([
     [undefined, "a missing resource"],
     [[], "an empty resource list"],
-    [["https://auth.example.com/demo/", "https://wallets.example.com/mcp"], "multiple resources"],
+    [
+      ["https://auth.example.com/demo/", "https://other.example.com/resource"],
+      "multiple resources",
+    ],
     [["https://auth.example.com/demo/", "https://auth.example.com/demo/"], "a duplicate"],
     ["https://unknown.example.com", "an unrecognized resource"],
   ])("rejects %s with invalid_target (%s)", (resource) => {
@@ -107,9 +78,7 @@ describe("Triad OAuth resource request semantics", () => {
     ["https://auth.example.com/demo/", ["email"]],
     ["https://auth.example.com/demo/", ["openid", "offline_access"]],
     ["https://auth.example.com/demo/", ["openid", "email", "email"]],
-    ["https://wallets.example.com/mcp", ["openid"]],
-    ["https://wallets.example.com/mcp", ["offline_access"]],
-    ["https://wallets.example.com/mcp", ["wallets:read", "profile"]],
+    ["https://auth.example.com/demo/", ["openid", "profile"]],
   ])("rejects noncanonical scopes for %s", (resource, scopes) => {
     expect(() => resolveTriadResourceRequest(fragment, { resource, scopes })).toThrow(
       expect.objectContaining({
@@ -150,31 +119,11 @@ describe("Triad OAuth resource request semantics", () => {
     expect(canonical.scopes).toEqual(["openid", "email", "avatar"]);
     expect(canonical.issueRefreshToken).toBe(false);
   });
-
-  it.each([
-    [["wallets:read"], false],
-    [["offline_access", "wallets:read"], true],
-  ] as const)("canonicalizes RPC Wallets scopes %s", (scopes, issueRefreshToken) => {
-    const resolved = resolveTriadResourceRequest(fragment, {
-      resource: ["https://wallets.example.com/mcp"],
-      scopes,
-    });
-
-    expect(resolved).toEqual({
-      audience: "https://wallets.example.com/mcp",
-      issueRefreshToken,
-      resource: "https://wallets.example.com/mcp",
-      resources: ["https://wallets.example.com/mcp"],
-      scopes: issueRefreshToken ? ["wallets:read", "offline_access"] : ["wallets:read"],
-    });
-  });
 });
 
 describe("Triad RFC 9728 protected-resource metadata", () => {
   it("describes each HTTPS resource at its path-preserving well-known URL", () => {
-    const fragment = createTriadResourceFragment(productionEnv, {
-      rpcWalletsResource: "https://wallets.example.com/mcp",
-    });
+    const fragment = createTriadResourceFragment(productionEnv);
 
     expect(fragment.protectedResourceMetadata).toEqual([
       {
@@ -187,24 +136,11 @@ describe("Triad RFC 9728 protected-resource metadata", () => {
           scopes_supported: ["openid", "email", "handle", "name", "avatar"],
         },
       },
-      {
-        metadataUrl: "https://wallets.example.com/.well-known/oauth-protected-resource/mcp",
-        document: {
-          authorization_servers: ["https://auth.example.com/api/auth"],
-          bearer_methods_supported: ["header"],
-          resource: "https://wallets.example.com/mcp",
-          resource_name: "RPC Wallets",
-          scopes_supported: ["wallets:read", "offline_access"],
-        },
-      },
     ]);
   });
 
   it("does not publish RFC 9728 metadata for local HTTP or non-HTTPS resources", () => {
-    const fragment = createTriadResourceFragment(
-      { AUTH_ORIGIN: "http://localhost:8787" },
-      { rpcWalletsResource: "urn:rpc-wallets" },
-    );
+    const fragment = createTriadResourceFragment({ AUTH_ORIGIN: "http://localhost:8787" });
 
     expect(fragment.protectedResourceMetadata).toEqual([]);
   });

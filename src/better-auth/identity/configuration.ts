@@ -1,12 +1,23 @@
 import type { Account, BetterAuthOptions } from "better-auth";
 import type { TriadEnv } from "../env";
-import { captureProviderProfile, type CapturedProfile } from "./profile";
+import {
+  captureProviderProfile,
+  sealProfileData,
+  type CapturedProfile,
+  validateProfileDataKeyring,
+} from "./profile";
 import { accountSubject, type IdentityProvider, providerSubject } from "./subjects";
 
 const ACCOUNT_SUB_PATTERN = /^acc_[0-9a-f]{64}$/;
 const GOOGLE_SUB_PATTERN = /^[\x21-\x7e]{1,255}$/;
 const DECIMAL_ID_PATTERN = /^[1-9][0-9]*$/;
 const IDENTITY_PROVIDERS: IdentityProvider[] = ["google", "github", "twitter"];
+
+interface PendingIdentityUser {
+  name: string;
+  provider: IdentityProvider;
+  providerSub: string;
+}
 
 function invalidUpstreamId(provider: IdentityProvider): Error {
   return new Error(`Invalid ${provider} immutable upstream ID`);
@@ -52,10 +63,14 @@ async function mapIdentity(
   provider: IdentityProvider,
   upstreamId: string,
   profile: CapturedProfile,
+  profileDataKeyring: string,
 ) {
-  const [providerSub, accountSub] = await Promise.all([
-    providerSubject(secret, provider, upstreamId),
-    accountSubject(secret, provider, upstreamId),
+  const [[providerSub, accountSub], profileData] = await Promise.all([
+    Promise.all([
+      providerSubject(secret, provider, upstreamId),
+      accountSubject(secret, provider, upstreamId),
+    ]),
+    sealProfileData(profileDataKeyring, profile),
   ]);
 
   return {
@@ -63,28 +78,35 @@ async function mapIdentity(
     name: accountSub,
     email: `${accountSub}@identity.invalid`,
     emailVerified: false,
-    image: undefined,
+    image: "",
     provider,
     providerSub,
-    ...profile,
+    ...(profileData ? { profileData } : {}),
   };
 }
 
-function accountSubFromSyntheticEmail(email: unknown): string {
-  if (typeof email !== "string" || !email.endsWith("@identity.invalid")) {
-    throw new Error("Triad users require a synthetic identity email");
-  }
-  const accountSub = email.slice(0, -"@identity.invalid".length);
-  if (!ACCOUNT_SUB_PATTERN.test(accountSub)) {
-    throw new Error("Triad users require a deterministic account subject");
-  }
+function sanitizedUserData(user: Record<string, unknown>): Record<string, unknown> {
+  assertProviderIdentity(user);
 
-  return accountSub;
+  return {
+    id: user.name,
+    name: "",
+    email: `${user.name}@identity.invalid`,
+    emailVerified: false,
+    image: "",
+    provider: user.provider,
+    providerSub: user.providerSub,
+    profileData: user.profileData,
+  };
 }
 
-function assertProviderIdentity(user: Record<string, unknown>): void {
+function assertProviderIdentity(
+  user: Record<string, unknown>,
+): asserts user is Record<string, unknown> & PendingIdentityUser {
   const provider = user.provider;
   if (
+    typeof user.name !== "string" ||
+    !ACCOUNT_SUB_PATTERN.test(user.name) ||
     typeof provider !== "string" ||
     !IDENTITY_PROVIDERS.includes(provider as IdentityProvider) ||
     typeof user.providerSub !== "string" ||
@@ -106,6 +128,11 @@ function stripProviderTokens(account: Partial<Account> & Record<string, unknown>
 }
 
 export function createIdentityConfiguration(env: TriadEnv) {
+  validateProfileDataKeyring(env.PROFILE_DATA_KEYRING, [
+    env.IDENTIFIER_SECRET,
+    env.BETTER_AUTH_SECRET,
+  ]);
+
   const socialProviders: NonNullable<BetterAuthOptions["socialProviders"]> = {};
   const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
   const googleClientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
@@ -128,6 +155,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
           "google",
           googleUpstreamId(profile),
           captureProviderProfile("google", profile),
+          env.PROFILE_DATA_KEYRING,
         ),
     };
   }
@@ -144,6 +172,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
           "github",
           githubUpstreamId(profile),
           captureProviderProfile("github", profile),
+          env.PROFILE_DATA_KEYRING,
         ),
     };
   }
@@ -160,6 +189,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
           "twitter",
           twitterUpstreamId(profile),
           captureProviderProfile("twitter", profile),
+          env.PROFILE_DATA_KEYRING,
         ),
     };
   }
@@ -177,27 +207,18 @@ export function createIdentityConfiguration(env: TriadEnv) {
           required: true,
           unique: true,
         },
-        profileEmail: {
+        profileData: {
           type: "string",
           required: false,
-        },
-        profileEmailVerified: {
-          type: "boolean",
-          required: false,
-        },
-        profileHandle: {
-          type: "string",
-          required: false,
-        },
-        profileDisplayName: {
-          type: "string",
-          required: false,
-        },
-        profileAvatar: {
-          type: "string",
-          required: false,
+          returned: false,
         },
       },
+      deleteUser: {
+        enabled: true,
+      },
+    },
+    session: {
+      freshAge: 0,
     },
     account: {
       updateAccountOnSignIn: false,
@@ -211,15 +232,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
     databaseHooks: {
       user: {
         create: {
-          before: async (user, _context) => {
-            assertProviderIdentity(user);
-
-            return {
-              data: {
-                id: accountSubFromSyntheticEmail(user.email),
-              },
-            };
-          },
+          before: async (user, _context) => ({ data: sanitizedUserData(user) }),
         },
         update: {
           before: async (user, _context) => {
@@ -229,14 +242,15 @@ export function createIdentityConfiguration(env: TriadEnv) {
               "email" in user ||
               "name" in user ||
               "image" in user ||
-              "profileEmail" in user ||
-              "profileEmailVerified" in user ||
-              "profileHandle" in user ||
-              "profileDisplayName" in user ||
-              "profileAvatar" in user
+              "profileData" in user
             ) {
               return false;
             }
+          },
+        },
+        delete: {
+          before: async (user, _context) => {
+            await env.DB.prepare('delete from "deviceCode" where "userId" = ?').bind(user.id).run();
           },
         },
       },

@@ -6,8 +6,9 @@ Fix optional profile claim issuance and restore the v1 two-flow device demo comp
 
 ## Browser Flow
 
-- Keep synthetic email, name, image, account subject, and provider subject authoritative and immutable.
-- Persist the provider profile snapshot in the separate `profile*` user columns created with the user.
+- Keep the account subject and provider subject authoritative and immutable. Treat Better Auth's email as an
+  account-subject storage placeholder and keep its name and image values empty.
+- Persist the provider profile snapshot only in the encrypted `profileData` envelope.
 - Emit requested standard profile claims through OAuth Provider's first-party `customIdTokenClaims` and `customUserInfoClaims` hooks so package-owned claim guards cannot suppress them.
 - Keep `pairwise_sub`, `account_sub`, and `provider_sub` in the extension claim path.
 - Continue rejecting token issuance when a requested profile claim is unavailable or invalid.
@@ -21,12 +22,13 @@ Fix optional profile claim issuance and restore the v1 two-flow device demo comp
 - Poll `POST /api/auth/device/token` at the server-provided interval and handle pending, slow-down, denial, expiry, cancellation, and success states.
 - Reuse the existing `/device/verify/` approval page and Better Auth device plugin. Do not restore the removed custom device broker routes.
 
-## Schema and Staging
+## Schema and Deployment
 
-- Fold the five nullable provider-profile columns and the `deviceCode` table into `migrations/0001_better-auth.sql`.
-- Delete `migrations/0002_disclosures_device.sql`; the repository keeps one complete baseline migration rather than transitional staging history.
-- Destroy and recreate the isolated staging D1 database, update its binding ID, run the baseline migration once, and redeploy the staging Worker.
-- Preserve Worker secrets and all production resources.
+- Generate one fresh `migrations/0001-initial.sql` migration from the finalized Better Auth configuration.
+- Include encrypted `profileData` and the rate-limit table without the five legacy provider-profile columns or any
+  transitional data-copy path.
+- Use `triad-auth` for production resources and `triad-auth-staging` for staging resources.
+- Preserve Worker secrets through dashboard renames and replace only the D1 databases.
 
 ## Verification
 

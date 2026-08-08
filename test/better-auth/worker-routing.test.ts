@@ -123,4 +123,22 @@ describe("Triad Worker routing", () => {
     expect(spies.authHandler).not.toHaveBeenCalled();
     expect(spies.fetchAssets).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["/api/auth/oauth2/authorize", "unsafe-none"],
+    ["/api/auth/callback/google", "unsafe-none"],
+    ["/consent", "unsafe-none"],
+    ["/consent/", "unsafe-none"],
+    ["/me/", "same-origin"],
+  ])("sets the route-specific opener policy for %s", async (pathname, expectedPolicy) => {
+    const { services } = createServices();
+    const worker = createWorker(services);
+    const request = new Request(`https://auth.example.com${pathname}`) as Parameters<
+      typeof worker.fetch
+    >[0];
+
+    const response = await worker.fetch(request, env, context);
+
+    expect(response.headers.get("cross-origin-opener-policy")).toBe(expectedPolicy);
+  });
 });

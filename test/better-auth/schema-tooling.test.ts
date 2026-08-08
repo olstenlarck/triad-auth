@@ -84,44 +84,54 @@ const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
 const wranglerSource = readSource("wrangler.toml");
 const schemaSource = readSource("src/better-auth/schema.ts");
 const schemaDatabaseSource = readSource("scripts/auth-schema-database.ts");
-const migrationFiles = readdirSync("migrations").filter((path: string) => path.endsWith(".sql"));
-const baselineMigration = readSource("migrations/0001_better-auth.sql");
+const migrationFiles = readdirSync("migrations")
+  .filter((path: string) => path.endsWith(".sql"))
+  .sort();
+const initialMigration = readSource("migrations/0001-initial.sql");
 
 describe("Better Auth schema tooling", () => {
-  it("keeps one complete baseline migration", () => {
-    expect(migrationFiles).toEqual(["0001_better-auth.sql"]);
-    expect(baselineMigration).toContain('"profileEmail" text');
-    expect(baselineMigration).toContain('"profileEmailVerified" integer');
-    expect(baselineMigration).toContain('"profileHandle" text');
-    expect(baselineMigration).toContain('"profileDisplayName" text');
-    expect(baselineMigration).toContain('"profileAvatar" text');
-    expect(baselineMigration).toContain('create table "deviceCode"');
-    expect(baselineMigration).toContain(
-      'create index "deviceCode_userCode_userId_idx" on "deviceCode" ("userCode", "userId")',
-    );
+  it("keeps one finalized initial migration", () => {
+    expect(migrationFiles).toEqual(["0001-initial.sql"]);
+    expect(initialMigration).toContain('create table "user"');
+    expect(initialMigration).toContain('"profileData" text');
+    expect(initialMigration).toContain('"name" text not null');
+    expect(initialMigration).toContain('"email" text not null unique');
+    expect(initialMigration).toContain('"emailVerified" integer not null');
+    expect(initialMigration).toContain('"image" text');
+    expect(initialMigration).not.toContain('"profileEmail"');
+    expect(initialMigration).not.toContain('"profileEmailVerified"');
+    expect(initialMigration).not.toContain('"profileHandle"');
+    expect(initialMigration).not.toContain('"profileDisplayName"');
+    expect(initialMigration).not.toContain('"profileAvatar"');
+    expect(initialMigration).toContain('create table "deviceCode"');
+    expect(initialMigration).toContain('create table "rateLimit"');
   });
 
-  it("configures only the isolated production D1 binding", () => {
+  it("configures one canonical Worker and D1 database with preview URLs", () => {
     const bindingBlocks = wranglerSource.match(/\[\[d1_databases\]\][\s\S]*?(?=\n\[|$)/g) ?? [];
 
     expect(bindingBlocks).toHaveLength(1);
+    expect(wranglerSource).toContain('name = "triad-auth"');
+    expect(wranglerSource).toContain("workers_dev = false");
+    expect(wranglerSource).toContain("preview_urls = true");
     expect(bindingBlocks[0]).toContain('binding = "DB"');
-    expect(bindingBlocks[0]).toContain('database_name = "triad-better-auth"');
-    expect(bindingBlocks[0]).toContain('database_id = "399fd461-e15b-4175-8424-e268ad1dad89"');
+    expect(bindingBlocks[0]).toContain('database_name = "triad-auth"');
+    expect(bindingBlocks[0]).toContain('database_id = "61519699-e934-41ec-93f4-b337a2d3e328"');
     expect(bindingBlocks[0]).toContain('migrations_dir = "migrations"');
-    expect(wranglerSource).toContain("[[env.staging.d1_databases]]");
-    expect(wranglerSource).toContain('database_name = "triad-better-auth-staging"');
-    expect(wranglerSource.match(/database_id\s*=/g)).toHaveLength(2);
+    expect(wranglerSource).not.toContain("[env.staging]");
+    expect(wranglerSource).not.toContain("triad-auth-staging");
+    expect(wranglerSource.match(/database_id\s*=/g)).toHaveLength(1);
   });
 
-  it("exposes generation and local-only migration commands", () => {
-    expect(packageJson.scripts["auth:schema"]).toBe(
-      "vp exec auth generate --config src/better-auth/schema.ts --output migrations/0001_better-auth.sql --yes",
+  it("exposes generated schema, migration, and deployment commands", () => {
+    expect(packageJson.scripts["db:generate"]).toBe(
+      "vp exec auth generate --config src/better-auth/schema.ts --output migrations/0001-initial.sql --yes",
     );
-    expect(packageJson.scripts["db:migrate:local"]).toBe(
-      "vp exec wrangler d1 migrations apply triad-better-auth --local",
-    );
-    expect(packageJson.scripts).not.toHaveProperty("db:migrate:remote");
+    expect(packageJson.scripts["db:migrate"]).toContain("--remote");
+    expect(packageJson.scripts["db:migrate:local"]).toContain("--local");
+    expect(packageJson.scripts.deploy).toBe("vp exec wrangler deploy");
+    expect(packageJson.scripts["deploy:staging"]).toContain("versions upload");
+    expect(packageJson.scripts["deploy:staging"]).toContain("--preview-alias staging");
   });
 
   it("does not add an adapter, emulator, SQLite driver, or legacy resource name", () => {
@@ -140,7 +150,7 @@ describe("Better Auth schema tooling", () => {
     expect(toolingSource).not.toMatch(
       /drizzle|miniflare|better-sqlite3|bun:sqlite|node:sqlite|sqlite3/i,
     );
-    expect(toolingSource).not.toMatch(/["']triad-auth["']/);
+    expect(toolingSource).not.toMatch(/triad-better-auth|triad-auth-broker/);
   });
 
   it("builds the schema auth instance through the canonical configuration", () => {
