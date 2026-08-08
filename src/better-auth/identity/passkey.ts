@@ -2,7 +2,6 @@ import type {
   AuthenticationExtensionsClientInputs,
   RegistrationResponseJSON,
 } from "@simplewebauthn/server";
-import { convertCOSEtoPKCS, cose, decodeCredentialPublicKey } from "@simplewebauthn/server/helpers";
 import { passkey } from "@better-auth/passkey";
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, getSessionFromCtx } from "better-auth/api";
@@ -17,6 +16,8 @@ import {
   passkeyDisplayName,
   type PasskeyUsernameGeneratorOptions,
 } from "./passkey-username";
+import { canonicalP256PublicKey } from "./passkey-public-key";
+import { sealProfileEncryptedData } from "./profile";
 import { passkeyUpstreamId, providerSubject } from "./subjects";
 
 interface PrfRegistrationExtensions extends AuthenticationExtensionsClientInputs {
@@ -65,43 +66,6 @@ function requiresPrfAuthentication(clientData: unknown): void {
   if (typeof first !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(first)) {
     rejectPasskey("This passkey did not produce the required PRF result");
   }
-}
-
-function storedPublicKeyBytes(value: string): Uint8Array<ArrayBuffer> {
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
-    throw new Error("Stored passkey public key is invalid");
-  }
-
-  let binary: string;
-  try {
-    binary = atob(value);
-  } catch {
-    throw new Error("Stored passkey public key is invalid");
-  }
-
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
-function canonicalP256PublicKey(
-  credentialPublicKey: Uint8Array<ArrayBuffer>,
-): Uint8Array<ArrayBuffer> {
-  const key = decodeCredentialPublicKey(credentialPublicKey);
-  if (
-    !cose.isCOSEPublicKeyEC2(key) ||
-    key.get(cose.COSEKEYS.kty) !== cose.COSEKTY.EC2 ||
-    key.get(cose.COSEKEYS.alg) !== cose.COSEALG.ES256 ||
-    key.get(cose.COSEKEYS.crv) !== cose.COSECRV.P256 ||
-    key.get(cose.COSEKEYS.x)?.length !== 32 ||
-    key.get(cose.COSEKEYS.y)?.length !== 32
-  ) {
-    throw new Error("Triad passkeys must use an ES256 P-256 public key");
-  }
-
-  return convertCOSEtoPKCS(credentialPublicKey);
-}
-
-export function storedPasskeyPublicKeyHex(publicKey: string): string {
-  return toHex(canonicalP256PublicKey(storedPublicKeyBytes(publicKey))).slice(2);
 }
 
 export function createPasskeyAuthentication(
@@ -191,6 +155,13 @@ export function createPasskeyAuthentication(
           rejectPasskey("This passkey is already registered; sign in with it instead");
         }
 
+        const encryptedData = await sealProfileEncryptedData(env.ENCRYPTION_SECRETS, accountSub, {
+          profileHandle: username,
+        });
+        if (!encryptedData) {
+          rejectPasskey("Triad could not store the passkey username");
+        }
+
         const createdUser = await ctx.context.internalAdapter.createUser(
           {
             id: providerSub,
@@ -200,6 +171,7 @@ export function createPasskeyAuthentication(
             image: "",
             provider: "passkey",
             providerSub,
+            encryptedData,
           },
           { method: "passkey" },
         );

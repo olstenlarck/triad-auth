@@ -7,8 +7,7 @@ import {
   sealEncryptedData,
   validateEncryptionSecrets,
 } from "./encryption";
-import { storedPasskeyPublicKeyHex } from "./passkey";
-import { canonicalPasskeyUsername } from "./passkey-username";
+import { storedPasskeyPublicKeyHex } from "./passkey-public-key";
 
 const SYNTHETIC_EMAIL_SUFFIX = "@identity.invalid";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;
@@ -355,22 +354,6 @@ async function passkeyClaims(
   };
 }
 
-async function passkeyHandle(
-  database: D1Database,
-  accountSub: string,
-): Promise<string | undefined> {
-  const row = await database
-    .prepare('select "username" from "passkeyUsername" where "accountSub" = ? limit 1')
-    .bind(accountSub)
-    .first<{ username: unknown }>();
-
-  try {
-    return canonicalPasskeyUsername(row?.username);
-  } catch {
-    return undefined;
-  }
-}
-
 export function createProfileClaimResolver(encryptionSecrets: string, database?: D1Database) {
   validateEncryptionSecrets(encryptionSecrets);
 
@@ -384,9 +367,7 @@ export function createProfileClaimResolver(encryptionSecrets: string, database?:
       }
 
       const databaseScopes: readonly OptionalDisclosureScope[] = ["wallet", "cred", "pubkey"];
-      const requiresPasskeyHandle = user.provider === "passkey" && scopes.includes("handle");
-      const requiresDatabaseClaims =
-        requiresPasskeyHandle || scopes.some((scope) => databaseScopes.includes(scope));
+      const requiresDatabaseClaims = scopes.some((scope) => databaseScopes.includes(scope));
       if (requiresDatabaseClaims && !database) {
         throw new Error("Credential claims require an identity database");
       }
@@ -398,23 +379,15 @@ export function createProfileClaimResolver(encryptionSecrets: string, database?:
         (scopes.includes("cred") || scopes.includes("pubkey")) && database
           ? passkeyClaims(database, user.id)
           : Promise.resolve({});
-      const passkeyHandlePromise: Promise<string | undefined> =
-        requiresPasskeyHandle && database
-          ? passkeyHandle(database, user.id)
-          : Promise.resolve(undefined);
 
-      const [profile, wallet, passkey, preferredUsername] = await Promise.all([
+      const [profile, wallet, passkey] = await Promise.all([
         typeof user.encryptedData === "string"
           ? openProfileEncryptedData(encryptionSecrets, user.id, user.encryptedData)
           : {},
         walletPromise,
         passkeyPromise,
-        passkeyHandlePromise,
       ]);
       const claims = await resolveProfileClaims(profile, scopes);
-      if (preferredUsername) {
-        claims.preferred_username = preferredUsername;
-      }
       if (wallet) {
         claims.wallet = wallet;
       }

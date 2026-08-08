@@ -33,9 +33,10 @@ export const prerender = true;
         <div>
           <dt>PROFILE ENVELOPE</dt>
           <dd>
-            When a provider supplies them, email, email verification state, handle, display name, and avatar URL
-            are stored together in an encrypted, versioned profile envelope. The encryption secrets are separate
-            from the identity and session secrets.
+            When a provider supplies them, email, email verification state, handle, display name, and avatar URL are
+            stored together in an encrypted, versioned profile envelope. A passkey account stores its canonical
+            username as this encrypted handle. The encryption secrets are separate from the identity and session
+            secrets.
           </dd>
         </div>
         <div>
@@ -43,7 +44,7 @@ export const prerender = true;
           <dd>
             Better Auth stores wallet addresses and authenticated chains in its wallet table, and passkey credential
             IDs and public keys in its passkey table, because those values are required to verify later sign-ins.
-            Triad also stores the immutable canonical username shown by the passkey manager and its account mapping.
+            Triad also stores the immutable canonical username and its account mapping to enforce uniqueness.
             Triad does not disclose these values to an OAuth client by default. A client receives the canonical
             passkey username as <code>preferred_username</code> only when it requests and the user approves
             <code>handle</code>. A client receives credential material only when it requests and the user approves
