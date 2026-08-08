@@ -66,11 +66,15 @@ function profileMapper(
 }
 
 async function mappedProfile(mapped: Record<string, unknown>) {
-  if (typeof mapped.encryptedData !== "string") {
+  if (typeof mapped.name !== "string" || typeof mapped.encryptedData !== "string") {
     throw new Error("Expected encrypted profile data");
   }
 
-  return openProfileEncryptedData(createEnv().ENCRYPTION_SECRETS, mapped.encryptedData);
+  return openProfileEncryptedData(
+    createEnv().ENCRYPTION_SECRETS,
+    mapped.name,
+    mapped.encryptedData,
+  );
 }
 
 describe("Triad deterministic identity", () => {

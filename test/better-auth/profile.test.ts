@@ -19,7 +19,7 @@ const profile = {
 async function profileUser(profileInput: CapturedProfile = profile) {
   return {
     id: "acc_subject",
-    encryptedData: await sealProfileEncryptedData(ENCRYPTION_SECRETS, profileInput),
+    encryptedData: await sealProfileEncryptedData(ENCRYPTION_SECRETS, "acc_subject", profileInput),
   };
 }
 
@@ -58,12 +58,21 @@ describe("Triad profile claim resolver", () => {
   });
 
   it("rejects malformed encrypted profile values instead of coercing them", async () => {
-    const malformed = await sealProfileEncryptedData(ENCRYPTION_SECRETS, {
+    const malformed = await sealProfileEncryptedData(ENCRYPTION_SECRETS, "acc_subject", {
       profileEmail: 42,
     } as unknown as CapturedProfile);
 
     await expect(
       resolver.resolveProfileClaims({ id: "acc_subject", encryptedData: malformed }, ["email"]),
     ).rejects.toThrow("Invalid profile email payload");
+  });
+
+  it("rejects profile data copied to another account", async () => {
+    const encryptedData = await sealProfileEncryptedData(ENCRYPTION_SECRETS, "acc_a", profile);
+    const resolver = createProfileClaimResolver(ENCRYPTION_SECRETS);
+
+    await expect(
+      resolver.resolveProfileClaims({ id: "acc_b", encryptedData }, ["email"]),
+    ).rejects.toThrow("Unable to decrypt encrypted data");
   });
 });

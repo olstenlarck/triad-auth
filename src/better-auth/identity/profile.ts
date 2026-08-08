@@ -166,6 +166,7 @@ function capturedFromProfileData(value: unknown): CapturedProfile {
 
 export async function sealProfileEncryptedData(
   encryptionSecrets: string,
+  accountSub: string,
   profile: CapturedProfile,
 ): Promise<string | undefined> {
   const data = storedProfileFromCaptured(profile);
@@ -173,14 +174,17 @@ export async function sealProfileEncryptedData(
     return undefined;
   }
 
-  return sealEncryptedData(encryptionSecrets, "user", data);
+  return sealEncryptedData(encryptionSecrets, "user", accountSub, data);
 }
 
 export async function openProfileEncryptedData(
   encryptionSecrets: string,
+  accountSub: string,
   envelope: string,
 ): Promise<CapturedProfile> {
-  return capturedFromProfileData(await openEncryptedData(encryptionSecrets, "user", envelope));
+  return capturedFromProfileData(
+    await openEncryptedData(encryptionSecrets, "user", accountSub, envelope),
+  );
 }
 
 function googleProfile(profile: unknown): CapturedProfile {
@@ -403,7 +407,7 @@ export function createProfileClaimResolver(encryptionSecrets: string, database?:
 
       const [profile, wallet, chains, passkey] = await Promise.all([
         typeof user.encryptedData === "string"
-          ? openProfileEncryptedData(encryptionSecrets, user.encryptedData)
+          ? openProfileEncryptedData(encryptionSecrets, user.id, user.encryptedData)
           : {},
         walletPromise,
         chainsPromise,

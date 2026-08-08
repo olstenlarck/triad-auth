@@ -96,8 +96,8 @@ export function base64UrlDecode(value: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
-function additionalData(secretId: string, context: string): Uint8Array {
-  return new TextEncoder().encode(`${ENVELOPE_VERSION}:${secretId}:${context}`);
+function additionalData(secretId: string, context: string, binding: string): Uint8Array {
+  return new TextEncoder().encode(`${ENVELOPE_VERSION}\0${secretId}\0${context}\0${binding}`);
 }
 
 function validateContext(context: string): void {
@@ -110,6 +110,7 @@ async function encryptionKey(
   secret: string,
   secretId: string,
   context: string,
+  binding: string,
   usages: KeyUsage[],
 ) {
   const material = await crypto.subtle.importKey(
@@ -125,7 +126,7 @@ async function encryptionKey(
       name: "HKDF",
       hash: "SHA-256",
       salt: new TextEncoder().encode(ENCRYPTION_CONTEXT),
-      info: new TextEncoder().encode(`${ENCRYPTION_CONTEXT}:${secretId}:${context}`),
+      info: new TextEncoder().encode(`${ENCRYPTION_CONTEXT}\0${secretId}\0${context}\0${binding}`),
     },
     material,
     { name: "AES-GCM", length: 256 },
@@ -137,6 +138,7 @@ async function encryptionKey(
 export async function sealEncryptedData(
   serializedSecrets: string,
   context: string,
+  binding: string,
   value: unknown,
 ): Promise<string> {
   validateContext(context);
@@ -146,13 +148,14 @@ export async function sealEncryptedData(
     encryption.secrets[encryption.active],
     encryption.active,
     context,
+    binding,
     ["encrypt"],
   );
   const encrypted = await crypto.subtle.encrypt(
     {
       name: "AES-GCM",
       iv: arrayBuffer(iv),
-      additionalData: arrayBuffer(additionalData(encryption.active, context)),
+      additionalData: arrayBuffer(additionalData(encryption.active, context, binding)),
     },
     key,
     arrayBuffer(new TextEncoder().encode(JSON.stringify(value))),
@@ -169,6 +172,7 @@ export async function sealEncryptedData(
 export async function openEncryptedData(
   serializedSecrets: string,
   context: string,
+  binding: string,
   envelope: string,
 ): Promise<unknown> {
   validateContext(context);
@@ -192,12 +196,14 @@ export async function openEncryptedData(
 
   let decrypted: ArrayBuffer;
   try {
-    const key = await encryptionKey(encryption.secrets[secretId], secretId, context, ["decrypt"]);
+    const key = await encryptionKey(encryption.secrets[secretId], secretId, context, binding, [
+      "decrypt",
+    ]);
     decrypted = await crypto.subtle.decrypt(
       {
         name: "AES-GCM",
         iv: arrayBuffer(iv),
-        additionalData: arrayBuffer(additionalData(secretId, context)),
+        additionalData: arrayBuffer(additionalData(secretId, context, binding)),
       },
       key,
       arrayBuffer(base64UrlDecode(encodedCiphertext)),

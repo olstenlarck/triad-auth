@@ -73,13 +73,11 @@ async function mapIdentity(
   profile: CapturedProfile,
   encryptionSecrets: string,
 ) {
-  const [[providerSub, accountSub], encryptedData] = await Promise.all([
-    Promise.all([
-      providerSubject(secret, provider, upstreamId),
-      accountSubject(secret, provider, upstreamId),
-    ]),
-    sealProfileEncryptedData(encryptionSecrets, profile),
+  const [providerSub, accountSub] = await Promise.all([
+    providerSubject(secret, provider, upstreamId),
+    accountSubject(secret, provider, upstreamId),
   ]);
+  const encryptedData = await sealProfileEncryptedData(encryptionSecrets, accountSub, profile);
 
   return {
     id: providerSub,
