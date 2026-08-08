@@ -4,6 +4,8 @@ import { storedPasskeyPublicKeyHex } from "./passkey";
 
 const SYNTHETIC_EMAIL_SUFFIX = "@identity.invalid";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;
+const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+const MAX_CREDENTIAL_ID_BYTES = 1023;
 
 export type ProfileScope = "email" | "handle" | "name" | "avatar" | "wallet" | "cred" | "pubkey";
 
@@ -68,6 +70,26 @@ function webUrl(value: unknown): string | undefined {
     const parsed = new URL(url);
 
     return parsed.protocol === "https:" || parsed.protocol === "http:" ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function credentialId(value: unknown): string | undefined {
+  if (typeof value !== "string" || !BASE64URL_PATTERN.test(value) || value.length % 4 === 1) {
+    return undefined;
+  }
+
+  try {
+    const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
+    const decoded = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="));
+    if (decoded.length === 0 || decoded.length > MAX_CREDENTIAL_ID_BYTES) {
+      return undefined;
+    }
+
+    const canonical = btoa(decoded).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+
+    return canonical === value ? value : undefined;
   } catch {
     return undefined;
   }
@@ -317,11 +339,11 @@ async function passkeyClaims(
   if (typeof row?.credentialID !== "string" || typeof row.publicKey !== "string") {
     return {};
   }
-  const cred = row.credentialID;
+  const cred = credentialId(row.credentialID);
   const pubkey = storedPasskeyPublicKeyHex(row.publicKey);
 
   return {
-    ...(typeof cred === "string" && /^[A-Za-z0-9_-]{16,1024}$/.test(cred) ? { cred } : {}),
+    ...(cred ? { cred } : {}),
     ...(typeof pubkey === "string" && /^04[0-9a-f]{128}$/.test(pubkey) ? { pubkey } : {}),
   };
 }
