@@ -17,8 +17,11 @@ vp run build
 
 ## Deployment
 
-Production uses the `triad-auth` Worker and D1 database. Staging uses `triad-auth-staging` for both resources.
-See [`DEPLOY.md`](./DEPLOY.md) for first-time setup, required secrets, manual deployment, and pull-request staging deployment.
+Production and staging use one `triad-auth` Worker and one `triad-auth` D1 database. The `prod` branch deploys the
+production version, while `main` uploads the stable staging preview at
+`staging-triad-auth.equator-owl-studio.workers.dev`. Other branches do not deploy.
+
+See [`DEPLOY.md`](./DEPLOY.md) for first-time setup, required secrets, and Cloudflare Workers Builds configuration.
 
 ## Data and identity boundaries
 

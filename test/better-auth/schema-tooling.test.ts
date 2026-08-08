@@ -107,29 +107,31 @@ describe("Better Auth schema tooling", () => {
     expect(initialMigration).toContain('create table "rateLimit"');
   });
 
-  it("configures the canonical production and staging resources", () => {
+  it("configures one canonical Worker and D1 database with preview URLs", () => {
     const bindingBlocks = wranglerSource.match(/\[\[d1_databases\]\][\s\S]*?(?=\n\[|$)/g) ?? [];
 
     expect(bindingBlocks).toHaveLength(1);
     expect(wranglerSource).toContain('name = "triad-auth"');
-    expect(wranglerSource).toContain('name = "triad-auth-staging"');
+    expect(wranglerSource).toContain("workers_dev = false");
+    expect(wranglerSource).toContain("preview_urls = true");
     expect(bindingBlocks[0]).toContain('binding = "DB"');
     expect(bindingBlocks[0]).toContain('database_name = "triad-auth"');
     expect(bindingBlocks[0]).toContain('database_id = "61519699-e934-41ec-93f4-b337a2d3e328"');
     expect(bindingBlocks[0]).toContain('migrations_dir = "migrations"');
-    expect(wranglerSource).toContain("[[env.staging.d1_databases]]");
-    expect(wranglerSource).toContain('database_name = "triad-auth-staging"');
-    expect(wranglerSource).toContain('database_id = "3792d6b7-2b91-4eab-b8c7-02bd63e582bf"');
-    expect(wranglerSource.match(/database_id\s*=/g)).toHaveLength(2);
+    expect(wranglerSource).not.toContain("[env.staging]");
+    expect(wranglerSource).not.toContain("triad-auth-staging");
+    expect(wranglerSource.match(/database_id\s*=/g)).toHaveLength(1);
   });
 
-  it("exposes generated schema and environment-specific migration commands", () => {
+  it("exposes generated schema, migration, and deployment commands", () => {
     expect(packageJson.scripts["db:generate"]).toBe(
       "vp exec auth generate --config src/better-auth/schema.ts --output migrations/0001-initial.sql --yes",
     );
     expect(packageJson.scripts["db:migrate"]).toContain("--remote");
     expect(packageJson.scripts["db:migrate:local"]).toContain("--local");
-    expect(packageJson.scripts["db:migrate:staging"]).toContain("--env staging --remote");
+    expect(packageJson.scripts.deploy).toBe("vp exec wrangler deploy");
+    expect(packageJson.scripts["deploy:staging"]).toContain("versions upload");
+    expect(packageJson.scripts["deploy:staging"]).toContain("--preview-alias staging");
   });
 
   it("does not add an adapter, emulator, SQLite driver, or legacy resource name", () => {

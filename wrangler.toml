@@ -3,6 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2026-07-09"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 workers_dev = false
+preview_urls = true
 
 [vars]
 AUTH_ORIGIN = "https://triad.wgw.lol"
@@ -18,24 +19,4 @@ run_worker_first = false
 binding = "DB"
 database_name = "triad-auth"
 database_id = "61519699-e934-41ec-93f4-b337a2d3e328"
-migrations_dir = "migrations"
-
-[env.staging]
-name = "triad-auth-staging"
-workers_dev = false
-
-[env.staging.vars]
-AUTH_ORIGIN = "https://triad-auth-staging.wgw.lol"
-
-[env.staging.assets]
-directory = "./dist"
-binding = "ASSETS"
-html_handling = "auto-trailing-slash"
-not_found_handling = "404-page"
-run_worker_first = false
-
-[[env.staging.d1_databases]]
-binding = "DB"
-database_name = "triad-auth-staging"
-database_id = "3792d6b7-2b91-4eab-b8c7-02bd63e582bf"
 migrations_dir = "migrations"
