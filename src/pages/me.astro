@@ -630,7 +630,8 @@ export const prerender = true;
       try {
         const response = await fetch("/api/auth/sign-out", {
           method: "POST",
-          headers: { accept: "application/json" },
+          headers: { accept: "application/json", "content-type": "application/json" },
+          body: "{}",
         });
         if (!response.ok) {
           throw responseError(await response.json(), "Could not sign out.");
