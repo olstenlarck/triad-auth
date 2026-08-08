@@ -40,10 +40,11 @@ Ethereum identities use the SHA-256 digest of the lowercased address as their im
 `wallet` scope to receive it. Passkey identities require a PRF-capable, user-verified ES256/P-256 credential. Each
 registration combines a user-selected name with a six-character CUID2 suffix. The SHA-256 digest of that immutable
 canonical username produces the `acc_*` subject and WebAuthn user handle, while the canonical public key remains the
-input for `pid_passkey_*`. The credential ID and public key are available to clients only through the consented
-`cred` and `pubkey` claims. Better Auth retains wallet addresses, credential IDs, and public keys in the credential
-tables it uses to authenticate them. Triad also retains the canonical passkey username and its account mapping. Every
-passkey credential is its own account, and credential linking is disabled.
+input for `pid_passkey_*`. The canonical username is available as `preferred_username` only through the consented
+`handle` scope. The credential ID and public key are available only through the consented `cred` and `pubkey` claims.
+Better Auth retains wallet addresses, credential IDs, and public keys in the credential tables it uses to authenticate
+them. Triad also retains the canonical passkey username and its account mapping. Every passkey credential is its own
+account, and credential linking is disabled.
 The physical `user` table keeps Better Auth's required structural columns, but the user create hook replaces the core
 `name`, `email`, `emailVerified`, and `image` values with an empty name, an account-subject placeholder email, `false`,
 and an empty image before persistence. No provider profile value is written to those columns.

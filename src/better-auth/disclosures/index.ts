@@ -35,7 +35,7 @@ export const PROVIDER_DISCLOSURE_SCOPES = {
   github: ["email", "handle", "name", "avatar"],
   twitter: ["handle", "name", "avatar"],
   ethereum: ["wallet", "chains", "chain_id"],
-  passkey: ["cred", "pubkey"],
+  passkey: ["handle", "cred", "pubkey"],
 } as const satisfies Record<DisclosureProvider, readonly OptionalDisclosureScope[]>;
 
 export const PROVIDER_UPSTREAM_SCOPE_MAP = {

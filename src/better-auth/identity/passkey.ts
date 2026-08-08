@@ -6,13 +6,14 @@ import { convertCOSEtoPKCS, cose, decodeCredentialPublicKey } from "@simplewebau
 import { passkey } from "@better-auth/passkey";
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, getSessionFromCtx } from "better-auth/api";
+import { toHex } from "viem";
 
 import type { TriadEnv } from "../env";
+import { base64UrlDecode, base64UrlEncode } from "./encryption";
 import {
   canonicalPasskeyUsername,
   createPasskeyUsernameGenerator,
   passkeyAccountSubject,
-  passkeyAccountSubjectFromUserHandle,
   passkeyDisplayName,
   type PasskeyUsernameGeneratorOptions,
 } from "./passkey-username";
@@ -66,10 +67,6 @@ function requiresPrfAuthentication(clientData: unknown): void {
   }
 }
 
-function hex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 function storedPublicKeyBytes(value: string): Uint8Array<ArrayBuffer> {
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
     throw new Error("Stored passkey public key is invalid");
@@ -104,7 +101,7 @@ function canonicalP256PublicKey(
 }
 
 export function storedPasskeyPublicKeyHex(publicKey: string): string {
-  return hex(canonicalP256PublicKey(storedPublicKeyBytes(publicKey)));
+  return toHex(canonicalP256PublicKey(storedPublicKeyBytes(publicKey))).slice(2);
 }
 
 export function createPasskeyAuthentication(
@@ -234,7 +231,15 @@ export function createPasskeyAuthentication(
         if (userHandle) {
           let accountSub: string;
           try {
-            accountSub = passkeyAccountSubjectFromUserHandle(userHandle);
+            if (!/^[A-Za-z0-9_-]{43}$/.test(userHandle)) {
+              throw new Error("Passkey user handle is invalid");
+            }
+
+            const userHandleBytes = base64UrlDecode(userHandle);
+            if (userHandleBytes.length !== 32 || base64UrlEncode(userHandleBytes) !== userHandle) {
+              throw new Error("Passkey user handle is invalid");
+            }
+            accountSub = `acc_${toHex(userHandleBytes).slice(2)}`;
           } catch (reason) {
             rejectPasskey(
               reason instanceof Error ? reason.message : "Passkey user handle is invalid",

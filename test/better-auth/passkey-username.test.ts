@@ -5,7 +5,6 @@ import {
   createPasskeyUsernameGenerator,
   normalizePasskeyUsername,
   passkeyAccountSubject,
-  passkeyAccountSubjectFromUserHandle,
   passkeyDisplayName,
   passkeyWebAuthnUserId,
 } from "../../src/better-auth/identity/passkey-username";
@@ -38,7 +37,6 @@ describe("passkey usernames", () => {
 
     await expect(passkeyAccountSubject(username)).resolves.toBe(accountSub);
     await expect(passkeyWebAuthnUserId(username)).resolves.toBe(userHandle);
-    expect(passkeyAccountSubjectFromUserHandle(userHandle)).toBe(accountSub);
   });
 
   it("puts the immutable username and UTC creation time in the passkey display name", () => {

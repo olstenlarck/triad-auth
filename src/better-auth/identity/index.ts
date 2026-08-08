@@ -6,7 +6,6 @@ export {
   createPasskeyUsernameGenerator,
   normalizePasskeyUsername,
   passkeyAccountSubject,
-  passkeyAccountSubjectFromUserHandle,
   passkeyDisplayName,
   type PasskeyUsernameGeneratorOptions,
   passkeyWebAuthnUserId,
