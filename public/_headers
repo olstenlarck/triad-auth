@@ -1,5 +1,10 @@
+/*
+  Cross-Origin-Opener-Policy: same-origin
+
 /consent
+  ! Cross-Origin-Opener-Policy
   Cross-Origin-Opener-Policy: unsafe-none
 
 /consent/*
+  ! Cross-Origin-Opener-Policy
   Cross-Origin-Opener-Policy: unsafe-none
