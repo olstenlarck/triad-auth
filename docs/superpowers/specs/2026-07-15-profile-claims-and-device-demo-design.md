@@ -22,13 +22,13 @@ Fix optional profile claim issuance and restore the v1 two-flow device demo comp
 - Poll `POST /api/auth/device/token` at the server-provided interval and handle pending, slow-down, denial, expiry, cancellation, and success states.
 - Reuse the existing `/device/verify/` approval page and Better Auth device plugin. Do not restore the removed custom device broker routes.
 
-## Schema and Staging
+## Schema and Deployment
 
-- Keep `migrations/0001_better-auth.sql` immutable and apply `migrations/0002-profile-data.sql` as the forward schema change.
-- Have the forward migration rebuild the user table without the five legacy provider-profile columns, sanitize Better
-  Auth's required profile values, add `profileData`, and create the rate-limit table.
-- Destroy and recreate the isolated staging D1 database, update its binding ID, apply the ordered migration set, and redeploy the staging Worker.
-- Preserve Worker secrets and all production resources.
+- Generate one fresh `migrations/0001-initial.sql` migration from the finalized Better Auth configuration.
+- Include encrypted `profileData` and the rate-limit table without the five legacy provider-profile columns or any
+  transitional data-copy path.
+- Use `triad-auth` for production resources and `triad-auth-staging` for staging resources.
+- Preserve Worker secrets through dashboard renames and replace only the D1 databases.
 
 ## Verification
 

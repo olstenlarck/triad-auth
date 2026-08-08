@@ -1,4 +1,4 @@
-# Triad Better Auth
+# Triad Auth
 
 This branch rebuilds Triad as a Better Auth OAuth/OIDC authorization server. The existing custom implementation remains preserved on `main` and continues to use its original Worker and D1 database.
 
@@ -15,9 +15,10 @@ vp run check
 vp run build
 ```
 
-## Deployment isolation
+## Deployment
 
-This branch targets the `triad-better-auth` Worker. Its Better Auth D1 database and migrations will be created separately during implementation. Never point this branch at the existing `triad-auth-broker` Worker or `triad-auth` D1 database.
+Production uses the `triad-auth` Worker and D1 database. Staging uses `triad-auth-staging` for both resources.
+See [`DEPLOY.md`](./DEPLOY.md) for first-time setup, required secrets, manual deployment, and pull-request staging deployment.
 
 ## Data and identity boundaries
 

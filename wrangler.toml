@@ -1,4 +1,4 @@
-name = "triad-auth-broker"
+name = "triad-auth"
 main = "src/index.ts"
 compatibility_date = "2026-07-09"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
@@ -16,16 +16,16 @@ run_worker_first = false
 
 [[d1_databases]]
 binding = "DB"
-database_name = "triad-better-auth"
-database_id = "399fd461-e15b-4175-8424-e268ad1dad89"
+database_name = "triad-auth"
+database_id = "61519699-e934-41ec-93f4-b337a2d3e328"
 migrations_dir = "migrations"
 
 [env.staging]
-name = "triad-better-auth-staging"
+name = "triad-auth-staging"
 workers_dev = true
 
 [env.staging.vars]
-AUTH_ORIGIN = "https://triad-better-auth-staging.equator-owl-studio.workers.dev"
+AUTH_ORIGIN = "https://triad-auth-staging.equator-owl-studio.workers.dev"
 
 [env.staging.assets]
 directory = "./dist"
@@ -36,6 +36,6 @@ run_worker_first = false
 
 [[env.staging.d1_databases]]
 binding = "DB"
-database_name = "triad-better-auth-staging"
-database_id = "e49cee8d-f960-4839-948f-9abefdf82a15"
+database_name = "triad-auth-staging"
+database_id = "3792d6b7-2b91-4eab-b8c7-02bd63e582bf"
 migrations_dir = "migrations"
