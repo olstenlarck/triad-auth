@@ -27,6 +27,11 @@ export const prerender = true;
         authorization flows. An application receives only the scopes and resource permissions you approve, subject
         to the protocol response and the application’s own terms.
       </p>
+      <p>
+        Triad's application records do not retain request IP addresses, authentication paths, or browser user-agent
+        strings. Session records keep only the data needed to authenticate the session. Rate-limit records keep an
+        opaque keyed bucket, a request count, and a timestamp.
+      </p>
     </section>
 
     <section class="legal-section" aria-labelledby="terms-responsibilities">

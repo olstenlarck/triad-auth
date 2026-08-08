@@ -41,8 +41,9 @@ export const prerender = true;
         <div>
           <dt>SESSION METADATA</dt>
           <dd>
-            Browser sessions include a session credential, expiry, and may include the request IP address and user
-            agent. Sessions are used to keep the account page and approval flow authenticated.
+            Browser sessions include a session credential and expiry. Triad clears the request IP address and user
+            agent before every session record is created or updated, so those generated database fields remain
+            empty. Sessions are used to keep the account page and approval flow authenticated.
           </dd>
         </div>
         <div>
@@ -62,6 +63,11 @@ export const prerender = true;
         Triad does not retain upstream provider access tokens, refresh tokens, or ID tokens after provider sign-in.
         Triad also does not receive a provider password. The provider remains responsible for data it keeps about
         your provider account.
+      </p>
+      <p>
+        Triad's application database does not store request IP addresses, authentication paths, or browser user-agent
+        strings. For rate limiting, Triad derives an opaque keyed bucket from normalized request input in memory and
+        stores only that bucket, its request count, and a timestamp.
       </p>
     </section>
 
