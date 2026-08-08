@@ -43,6 +43,21 @@ const profileDisclosures: Record<string, Disclosure> = {
     claim: "picture",
     description: "Share the profile image from your provider account.",
   },
+  wallet: {
+    label: "EVM WALLET",
+    claim: "wallet",
+    description: "Share the wallet address used for this Ethereum identity.",
+  },
+  cred: {
+    label: "PASSKEY CREDENTIAL",
+    claim: "cred",
+    description: "Share the credential ID for this passkey account.",
+  },
+  pubkey: {
+    label: "PASSKEY PUBLIC KEY",
+    claim: "pubkey",
+    description: "Share the canonical P-256 public key as hexadecimal.",
+  },
 };
 
 function disclosureText(disclosure: Disclosure): DocumentFragment {

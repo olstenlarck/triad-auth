@@ -30,8 +30,18 @@ OIDC discovery document advertises pairwise subjects only. Provider accounts rem
 emails match.
 
 The optional provider profile fields (`email`, `email_verified`, `handle`, `name`, and `avatar_url`) are stored only
-inside the versioned, encrypted `PROFILE_DATA_KEYRING` envelope. Better Auth-managed session, OAuth, and JWKS records
-remain protocol state; upstream provider access, refresh, and ID tokens are removed before account persistence.
+inside the versioned user `encryptedData` envelope. `ENCRYPTION_SECRETS` supplies its encryption. Better Auth-managed
+wallet, passkey, session, OAuth, and JWKS records remain protocol state; upstream provider access, refresh, and ID
+tokens are removed before account persistence.
+
+Ethereum identities use the SHA-256 digest of the lowercased address as their immutable upstream input, producing
+`pid_ethereum_*` and `acc_*` subjects without exposing the address by default. A client can request the explicit
+`wallet` scope to receive it. Passkey identities require a PRF-capable, user-verified ES256/P-256 credential; the
+SHA-256 digest of its canonical public key produces `pid_passkey_*` and `acc_*`. The credential ID and public key are
+available to clients only through the consented `cred` and `pubkey` claims. Better Auth retains wallet addresses,
+credential IDs, and public keys in the credential tables it uses to authenticate them. Every passkey credential is
+its own account, and credential linking is disabled.
+
 The physical `user` table keeps Better Auth's required structural columns, but the user create hook replaces the core
 `name`, `email`, `emailVerified`, and `image` values with an empty name, an account-subject placeholder email, `false`,
 and an empty image before persistence. No provider profile value is written to those columns.

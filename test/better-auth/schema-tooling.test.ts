@@ -93,7 +93,10 @@ describe("Better Auth schema tooling", () => {
   it("keeps one finalized initial migration", () => {
     expect(migrationFiles).toEqual(["0001-initial.sql"]);
     expect(initialMigration).toContain('create table "user"');
-    expect(initialMigration).toContain('"profileData" text');
+    expect(initialMigration).toContain('"encryptedData" text');
+    expect(initialMigration).toContain('create table "walletAddress"');
+    expect(initialMigration).toContain('create table "passkey"');
+    expect(initialMigration).toContain('"credentialID" text not null');
     expect(initialMigration).toContain('"name" text not null');
     expect(initialMigration).toContain('"email" text not null unique');
     expect(initialMigration).toContain('"emailVerified" integer not null');

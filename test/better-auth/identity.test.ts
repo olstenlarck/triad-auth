@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   accountSubject,
   createIdentityConfiguration,
-  openProfileData,
+  openProfileEncryptedData,
   type IdentityProvider,
   pairwiseSubject,
   providerSubject,
@@ -19,8 +19,8 @@ function createEnv(): TriadEnv {
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
     IDENTIFIER_SECRET,
-    PROFILE_DATA_KEYRING:
-      '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
+    ENCRYPTION_SECRETS:
+      '{"active":"v1","secrets":{"v1":"test-encryption-secret-with-enough-entropy-123456"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -65,11 +65,11 @@ function profileMapper(
 }
 
 async function mappedProfile(mapped: Record<string, unknown>) {
-  if (typeof mapped.profileData !== "string") {
+  if (typeof mapped.encryptedData !== "string") {
     throw new Error("Expected encrypted profile data");
   }
 
-  return openProfileData(createEnv().PROFILE_DATA_KEYRING, mapped.profileData);
+  return openProfileEncryptedData(createEnv().ENCRYPTION_SECRETS, mapped.encryptedData);
 }
 
 describe("Triad deterministic identity", () => {
@@ -242,14 +242,14 @@ describe("Triad provider identity configuration", () => {
       picture: "javascript:alert(1)",
     });
 
-    expect(mapped).not.toHaveProperty("profileData");
+    expect(mapped).not.toHaveProperty("encryptedData");
   });
 
   it("declares captured profile data as optional user fields", () => {
     const configuration = createIdentityConfiguration(createEnv());
 
     expect(configuration.user.additionalFields).toMatchObject({
-      profileData: { type: "string", required: false, returned: false },
+      encryptedData: { type: "string", required: false, returned: false },
     });
   });
 
@@ -292,7 +292,7 @@ describe("Triad provider identity configuration", () => {
     const encryptedProfileData = "v1.k1.iv.ciphertext";
     const user = {
       ...createUserRecord(accountSub, "github", providerSub),
-      profileData: encryptedProfileData,
+      encryptedData: encryptedProfileData,
     };
 
     await expect(beforeCreate(user, null)).resolves.toMatchObject({
@@ -304,7 +304,7 @@ describe("Triad provider identity configuration", () => {
         image: "",
         provider: "github",
         providerSub,
-        profileData: encryptedProfileData,
+        encryptedData: encryptedProfileData,
       },
     });
   });
@@ -323,7 +323,7 @@ describe("Triad provider identity configuration", () => {
   it.each([
     { name: "Changed Name" },
     { image: "https://images.example.com/changed.png" },
-    { profileData: "v1.v1.invalid.invalid" },
+    { encryptedData: "v1.v1.invalid.invalid" },
   ])("rejects updates to durable identity and encrypted profile data", async (update) => {
     const configuration = createIdentityConfiguration(createEnv());
 

@@ -53,6 +53,21 @@ export const prerender = true;
               >AVATAR<small>picture</small></span
             ></label
           >
+          <label
+            ><input type="checkbox" name="demo-scope" value="wallet" /><span
+              >WALLET<small>wallet</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="cred" /><span
+              >CREDENTIAL<small>cred</small></span
+            ></label
+          >
+          <label
+            ><input type="checkbox" name="demo-scope" value="pubkey" /><span
+              >PUBLIC KEY<small>pubkey</small></span
+            ></label
+          >
         </div>
       </fieldset>
       <p id="provider-status" class="control-status" aria-live="polite">
@@ -462,6 +477,11 @@ export const prerender = true;
         inspected.clientId !== authorization.searchParams.get("client_id")
       ) {
         throw new Error("The authorization server returned an invalid login request.");
+      }
+
+      if (provider.id === "ethereum" || provider.id === "passkey") {
+        location.assign(signedAuthorization);
+        return;
       }
 
       const response = await fetch("/api/auth/sign-in/social", {

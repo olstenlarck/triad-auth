@@ -8,6 +8,8 @@ import { createTriadDeviceAuthorization } from "./device";
 import type { TriadEnv } from "./env";
 import {
   createIdentityConfiguration,
+  createEthereumAuthentication,
+  createPasskeyAuthentication,
   createProfileClaimResolver,
   pairwiseSubject,
 } from "./identity";
@@ -36,7 +38,7 @@ export function createTriadConfiguration(env: TriadEnv) {
         pairwiseSubject(env.IDENTIFIER_SECRET, accountSub, clientId),
       resolveProviderSubject: providerSubjectFromUser,
     },
-    profileClaims: createProfileClaimResolver(env.PROFILE_DATA_KEYRING),
+    profileClaims: createProfileClaimResolver(env.ENCRYPTION_SECRETS, env.DB),
     resource: resourceFragment,
   });
   const { extensions: admissionExtensions, ...admissionOptions } = admissionFragment.oauthProvider;
@@ -44,6 +46,8 @@ export function createTriadConfiguration(env: TriadEnv) {
   const plugins = preservePluginTuple([
     ...resourceFragment.betterAuthPlugins,
     createTriadDeviceAuthorization(env.AUTH_ORIGIN),
+    createEthereumAuthentication(env),
+    createPasskeyAuthentication(env),
     oauthProvider({
       ...tokenOptions,
       ...admissionOptions,
@@ -72,6 +76,12 @@ export function createTriadConfiguration(env: TriadEnv) {
       max: 60,
       customRules: {
         "/sign-in/social": { window: 60, max: 10 },
+        "/siwe/nonce": { window: 60, max: 10 },
+        "/siwe/verify": { window: 60, max: 10 },
+        "/passkey/generate-register-options": { window: 60, max: 10 },
+        "/passkey/verify-registration": { window: 60, max: 10 },
+        "/passkey/generate-authenticate-options": { window: 60, max: 20 },
+        "/passkey/verify-authentication": { window: 60, max: 20 },
         "/device/code": { window: 60, max: 10 },
         "/device": { window: 60, max: 30 },
         "/device/token": { window: 60, max: 30 },

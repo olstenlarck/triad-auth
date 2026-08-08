@@ -1,9 +1,26 @@
-export const DISCLOSURE_SCOPES = ["openid", "email", "handle", "name", "avatar"] as const;
-export const PROFILE_DISCLOSURE_SCOPES = ["email", "handle", "name", "avatar"] as const;
+export const DISCLOSURE_SCOPES = [
+  "openid",
+  "email",
+  "handle",
+  "name",
+  "avatar",
+  "wallet",
+  "cred",
+  "pubkey",
+] as const;
+export const PROFILE_DISCLOSURE_SCOPES = [
+  "email",
+  "handle",
+  "name",
+  "avatar",
+  "wallet",
+  "cred",
+  "pubkey",
+] as const;
 
 export type DisclosureScope = (typeof DISCLOSURE_SCOPES)[number];
 export type ProfileDisclosureScope = (typeof PROFILE_DISCLOSURE_SCOPES)[number];
-export type DisclosureProvider = "google" | "github" | "twitter";
+export type DisclosureProvider = "google" | "github" | "twitter" | "ethereum" | "passkey";
 
 export const DISCLOSURE_CLAIMS = {
   openid: ["pairwise_sub", "account_sub", "provider_sub"],
@@ -11,6 +28,9 @@ export const DISCLOSURE_CLAIMS = {
   handle: ["preferred_username"],
   name: ["name"],
   avatar: ["picture"],
+  wallet: ["wallet"],
+  cred: ["cred"],
+  pubkey: ["pubkey"],
 } as const satisfies Record<DisclosureScope, readonly string[]>;
 
 export type DisclosureClaim = (typeof DISCLOSURE_CLAIMS)[DisclosureScope][number];
@@ -23,6 +43,8 @@ export const PROVIDER_DISCLOSURE_SCOPES = {
   google: ["email", "name", "avatar"],
   github: ["email", "handle", "name", "avatar"],
   twitter: ["handle", "name", "avatar"],
+  ethereum: ["wallet"],
+  passkey: ["cred", "pubkey"],
 } as const satisfies Record<DisclosureProvider, readonly ProfileDisclosureScope[]>;
 
 export const PROVIDER_UPSTREAM_SCOPE_MAP = {
@@ -32,6 +54,9 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     handle: [],
     name: ["profile"],
     avatar: ["profile"],
+    wallet: [],
+    cred: [],
+    pubkey: [],
   },
   github: {
     openid: [],
@@ -39,6 +64,9 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     handle: [],
     name: [],
     avatar: [],
+    wallet: [],
+    cred: [],
+    pubkey: [],
   },
   twitter: {
     openid: ["tweet.read", "users.read"],
@@ -46,6 +74,29 @@ export const PROVIDER_UPSTREAM_SCOPE_MAP = {
     handle: [],
     name: [],
     avatar: [],
+    wallet: [],
+    cred: [],
+    pubkey: [],
+  },
+  ethereum: {
+    openid: [],
+    email: [],
+    handle: [],
+    name: [],
+    avatar: [],
+    wallet: [],
+    cred: [],
+    pubkey: [],
+  },
+  passkey: {
+    openid: [],
+    email: [],
+    handle: [],
+    name: [],
+    avatar: [],
+    wallet: [],
+    cred: [],
+    pubkey: [],
   },
 } as const satisfies Record<DisclosureProvider, Record<DisclosureScope, readonly string[]>>;
 

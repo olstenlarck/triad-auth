@@ -24,8 +24,8 @@ export interface VerifiedIdentity {
   providerSub: string;
 }
 
-export type ProviderName = "google" | "github" | "twitter";
-export type ProfileScope = "email" | "handle" | "name" | "avatar";
+export type ProviderName = "google" | "github" | "twitter" | "ethereum" | "passkey";
+export type ProfileScope = "email" | "handle" | "name" | "avatar" | "wallet" | "cred" | "pubkey";
 type DisclosureScope = "openid" | ProfileScope;
 
 export interface ProviderCapability {
@@ -39,6 +39,9 @@ export interface VerifiedProfile {
   emailVerified?: boolean;
   handle?: string;
   name?: string;
+  wallet?: string;
+  cred?: string;
+  pubkey?: string;
 }
 
 export interface DevicePollDecision {
@@ -65,13 +68,23 @@ interface TokenExchangeInput {
   verifier: string;
 }
 
-const profileScopeOrder: readonly ProfileScope[] = ["email", "handle", "name", "avatar"];
+const profileScopeOrder: readonly ProfileScope[] = [
+  "email",
+  "handle",
+  "name",
+  "avatar",
+  "wallet",
+  "cred",
+  "pubkey",
+];
 const disclosureScopeOrder: readonly DisclosureScope[] = ["openid", ...profileScopeOrder];
 
 export const demoProviderCapabilities: readonly ProviderCapability[] = [
   { id: "google", scopes: ["email", "name", "avatar"] },
   { id: "github", scopes: ["email", "handle", "name", "avatar"] },
   { id: "twitter", scopes: ["handle", "name", "avatar"] },
+  { id: "ethereum", scopes: ["wallet"] },
+  { id: "passkey", scopes: ["cred", "pubkey"] },
 ];
 
 function base64url(bytes: Uint8Array): string {
@@ -162,6 +175,9 @@ function verifiedProfile(payload: Record<string, unknown>): VerifiedProfile {
     ...optionalValue("handle", optionalString(payload, "preferred_username")),
     ...optionalValue("name", optionalString(payload, "name")),
     ...optionalValue("avatar", optionalString(payload, "picture")),
+    ...optionalValue("wallet", optionalString(payload, "wallet")),
+    ...optionalValue("cred", optionalString(payload, "cred")),
+    ...optionalValue("pubkey", optionalString(payload, "pubkey")),
   };
 }
 

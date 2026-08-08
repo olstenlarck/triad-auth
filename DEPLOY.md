@@ -37,13 +37,13 @@ Add the required secrets to `triad-auth`:
 ```sh
 vp exec wrangler secret put BETTER_AUTH_SECRET
 vp exec wrangler secret put IDENTIFIER_SECRET
-vp exec wrangler secret put PROFILE_DATA_KEYRING
+vp exec wrangler secret put ENCRYPTION_SECRETS
 ```
 
-`PROFILE_DATA_KEYRING` is a JSON keyring:
+`ENCRYPTION_SECRETS` is a versioned JSON secret set used for the encrypted user profile envelope:
 
 ```json
-{ "active": "v1", "keys": { "v1": "<independent high-entropy key material>" } }
+{ "active": "v1", "secrets": { "v1": "<independent high-entropy secret material>" } }
 ```
 
 Each enabled provider also needs its client ID and secret:

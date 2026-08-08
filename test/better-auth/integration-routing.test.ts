@@ -12,8 +12,8 @@ function createEnv(overrides: Partial<TriadEnv> = {}): TriadEnv {
     AUTH_ORIGIN: "https://auth.example.com",
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
     IDENTIFIER_SECRET: "identifier-secret-with-enough-entropy-1234567890",
-    PROFILE_DATA_KEYRING:
-      '{"active":"v1","keys":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
+    ENCRYPTION_SECRETS:
+      '{"active":"v1","secrets":{"v1":"test-encryption-secret-with-enough-entropy-123456"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -68,7 +68,7 @@ describe("Triad protected-resource metadata routing", () => {
       createEnv(),
       "https://auth.example.com/.well-known/oauth-protected-resource/demo",
       "https://auth.example.com/demo",
-      ["openid", "email", "handle", "name", "avatar"],
+      ["openid", "email", "handle", "name", "avatar", "wallet", "cred", "pubkey"],
     ],
   ])(
     "serves the configured HTTPS %s document before application routing",

@@ -35,6 +35,9 @@ export interface TokenProfileClaims {
   preferred_username?: string;
   name?: string;
   picture?: string;
+  wallet?: string;
+  cred?: string;
+  pubkey?: string;
 }
 
 export interface TokenProfileClaimResolver {
@@ -205,6 +208,9 @@ export function createTokenComposition({
       "preferred_username",
       "name",
       "picture",
+      "wallet",
+      "cred",
+      "pubkey",
     ],
   } as NonNullable<OAuthOptions<Scope[]>["advertisedMetadata"]> & {
     subject_types_supported: readonly ["pairwise"];
