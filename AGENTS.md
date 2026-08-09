@@ -1,4 +1,5 @@
-- always use `vp run check` and `vp run build`.
+- always run final PR verification in this exact order: `vp run check`, `vp test --run`, then `vp run build`.
+- run the three verification commands sequentially. stop on the first failure, fix it, and restart from `vp run check`.
 - do not touch vite.config.ts!
 - always use typescript v6, for now.
 - always read ~/skills/chatgpt_system_prompt.md and ~/skills/clean_code.md and if desiging ~/skills/product_design.md
