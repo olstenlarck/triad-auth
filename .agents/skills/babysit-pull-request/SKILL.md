@@ -146,6 +146,31 @@ Always end the pull request body with this footer:
 
 The harness and model footer must be the last content in the body.
 
+## Merge pull requests
+
+Always use squash merge. Never create a `Merge pull request ...` commit. Do not use a merge commit when GitHub can squash merge the pull request.
+
+## When a pull request is merged to `main` staging
+
+Treat `main` as staging. Do not deploy `main` to production.
+
+After the squash merge, use this sequence:
+
+1. Stop all work in the feature worktree.
+2. Run `git worktree list` and find the worktree that has `main` checked out.
+3. Change the working directory to the `main` worktree.
+4. Update that worktree to the merged `origin/main` commit.
+5. Confirm that the current branch is `main` and that `HEAD` matches `origin/main`.
+6. Keep the existing D1 database resource and database ID.
+7. Clear the D1 database in place. Remove its application data, schema, and migration records. Do not delete the D1 resource.
+8. Run `vp run db:generate`.
+9. Run `vp run db:migrate`.
+10. Deploy only staging with `vp run deploy:staging`.
+11. Wait for the Cloudflare checks and deployment to finish.
+12. Validate the staging origin.
+
+Never run a post-merge database, schema, deployment, or editing command from the merged feature worktree. Do not create a follow-up pull request for this post-merge sequence. Do not change the D1 database ID. Do not run `vp run deploy` unless the user explicitly requests a production deployment.
+
 ## Finish
 
 Do one final aggregate GitHub check. Include all reviewers, all review states, all unresolved threads, and all required checks. Do not trigger another automated review.
