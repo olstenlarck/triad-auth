@@ -5,10 +5,10 @@ import { describe, expect, it } from "vite-plus/test";
 const page = readFileSync(new URL("../../src/pages/device/verify.astro", import.meta.url), "utf8");
 
 describe("Better Auth device verification page", () => {
-  it("requires a Better Auth session and links signed-out users to account sign-in", () => {
+  it("requires a Triad session and links signed-out users to account sign-in", () => {
     expect(page).toContain("/api/auth/get-session");
     expect(page).toContain('href="/me"');
-    expect(page).toContain("A Better Auth session is required");
+    expect(page).toContain("A Triad session is required");
   });
 
   it("uses only Better Auth's stock verification and decision routes", () => {
@@ -26,15 +26,15 @@ describe("Better Auth device verification page", () => {
     expect(page).toMatch(/renderDisclosures[\s\S]+setDecisionAvailable\(true\)/);
   });
 
-  it("labels the result as Triad session authorization", () => {
-    expect(page).toContain("TRIAD SESSION AUTHORIZATION");
-    expect(page).toContain("TRIAD SESSION AUTHORIZED");
-    expect(page).toContain("Better Auth session bearer token");
-    expect(page).not.toMatch(/OAuth Provider (?:access|refresh|ID) token/);
+  it("labels both device authorization contracts", () => {
+    expect(page).toContain("DEVICE AUTHORIZATION");
+    expect(page).toContain("TRIAD SESSION");
+    expect(page).toContain("OAUTH TOKENS");
+    expect(page).toContain("registered OAuth client receives scoped OAuth tokens");
   });
 
   it("removes unsupported custom broker data and retains both decisions", () => {
-    expect(page).toContain("APPROVE SESSION");
+    expect(page).toContain("APPROVE REQUEST");
     expect(page).toContain("DENY REQUEST");
     expect(page).not.toMatch(/csrf_token|device-provider/i);
   });

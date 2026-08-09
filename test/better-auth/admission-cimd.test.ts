@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   CIMD_ORIGIN_BOUND_FIELDS,
-  CIMD_REFRESH_RATE_SECONDS,
+  CIMD_REVALIDATION_INTERVAL_SECONDS,
   createCimdAdmissionOptions,
   createCimdClientDiscovery,
   createDnsOverHttpsResolver,
@@ -54,12 +54,13 @@ describe("CIMD DNS resolution", () => {
 
 describe("CIMD admission options", () => {
   it("uses a fixed refresh bound and binds every accepted URL field to the client origin", () => {
-    const options = createCimdAdmissionOptions("https://auth.example.com", {
+    const options = createCimdAdmissionOptions({
       resolveHostname: async () => ["8.8.8.8"],
     });
 
-    expect(options.refreshRate).toBe(CIMD_REFRESH_RATE_SECONDS);
-    expect(CIMD_REFRESH_RATE_SECONDS).toBe(60 * 60);
+    expect(options.metadataProfile).toBe("mcp-2026-07-28");
+    expect(options.metadataRevalidationInterval).toBe(CIMD_REVALIDATION_INTERVAL_SECONDS);
+    expect(CIMD_REVALIDATION_INTERVAL_SECONDS).toBe(60 * 60);
     expect(options.originBoundFields).toEqual(CIMD_ORIGIN_BOUND_FIELDS);
     expect(CIMD_ORIGIN_BOUND_FIELDS).toEqual([
       "redirect_uris",
@@ -72,12 +73,31 @@ describe("CIMD admission options", () => {
     ]);
   });
 
+  it("uses Worker-safe manual redirect handling for metadata resources", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({}));
+    const options = createCimdAdmissionOptions({
+      fetch: fetcher,
+      resolveHostname: async () => ["8.8.8.8"],
+    });
+
+    await options.fetchClientMetadataResource("https://client.example.com/oauth/client.json", {
+      redirect: "error",
+    });
+
+    expect(fetcher).toHaveBeenCalledWith("https://client.example.com/oauth/client.json", {
+      redirect: "manual",
+    });
+  });
+
   it("allows a hostname only when every resolved address is public", async () => {
     const resolveHostname = vi.fn(async () => ["8.8.8.8", "2606:4700:4700::1111"]);
-    const options = createCimdAdmissionOptions("https://auth.example.com", { resolveHostname });
+    const options = createCimdAdmissionOptions({ resolveHostname });
 
     await expect(
-      options.allowFetch?.("https://client.example.com/oauth/client.json", {} as never),
+      options.isMetadataDocumentUrlAllowed?.(
+        "https://client.example.com/oauth/client.json",
+        {} as never,
+      ),
     ).resolves.toBe(true);
     expect(resolveHostname).toHaveBeenCalledWith("client.example.com");
   });
@@ -89,56 +109,48 @@ describe("CIMD admission options", () => {
     ["no addresses", []],
     ["non-address answer", ["internal.example.com"]],
   ])("rejects %s DNS answers", async (_label, addresses) => {
-    const options = createCimdAdmissionOptions("https://auth.example.com", {
+    const options = createCimdAdmissionOptions({
       resolveHostname: async () => addresses,
     });
 
     await expect(
-      options.allowFetch?.("https://client.example.com/oauth/client.json", {} as never),
+      options.isMetadataDocumentUrlAllowed?.(
+        "https://client.example.com/oauth/client.json",
+        {} as never,
+      ),
     ).resolves.toBe(false);
   });
 
   it("fails closed when DNS resolution throws", async () => {
-    const options = createCimdAdmissionOptions("https://auth.example.com", {
+    const options = createCimdAdmissionOptions({
       resolveHostname: async () => {
         throw new Error("resolver unavailable");
       },
     });
 
     await expect(
-      options.allowFetch?.("https://client.example.com/oauth/client.json", {} as never),
+      options.isMetadataDocumentUrlAllowed?.(
+        "https://client.example.com/oauth/client.json",
+        {} as never,
+      ),
     ).resolves.toBe(false);
   });
 
-  it.each(["http://localhost:8787", "http://127.0.0.1:8787", "http://[::1]:8787"])(
-    "enables loopback CIMD only for loopback AUTH_ORIGIN %s",
-    async (authOrigin) => {
-      const options = createCimdAdmissionOptions(authOrigin, {
-        resolveHostname: async () => {
-          throw new Error("loopback must not use DNS");
-        },
-      });
-
-      expect(options.allowLoopback).toBe(true);
-      await expect(
-        options.allowFetch?.("http://127.0.0.1:3000/oauth/client.json", {} as never),
-      ).resolves.toBe(true);
-    },
-  );
-
-  it("rejects loopback CIMD for a production AUTH_ORIGIN", async () => {
-    const options = createCimdAdmissionOptions("https://auth.example.com", {
+  it("rejects loopback CIMD", async () => {
+    const options = createCimdAdmissionOptions({
       resolveHostname: async () => ["127.0.0.1"],
     });
 
-    expect(options.allowLoopback).toBe(false);
     await expect(
-      options.allowFetch?.("http://127.0.0.1:3000/oauth/client.json", {} as never),
+      options.isMetadataDocumentUrlAllowed?.(
+        "http://127.0.0.1:3000/oauth/client.json",
+        {} as never,
+      ),
     ).resolves.toBe(false);
   });
 
-  it("exposes URL client IDs through RC.1 client discovery", () => {
-    const discovery = createCimdClientDiscovery("https://auth.example.com", {
+  it("exposes URL client IDs through RC.4 client discovery", () => {
+    const discovery = createCimdClientDiscovery({
       resolveHostname: async () => ["8.8.8.8"],
     });
 
@@ -155,7 +167,7 @@ describe("CIMD admission options", () => {
     "accepts exact-ID %s clients with code metadata",
     (tokenEndpointAuthMethod, authenticationMetadata) => {
       const clientId = "https://client.example.com/oauth/client.json";
-      const options = createCimdAdmissionOptions("https://auth.example.com", {
+      const options = createCimdAdmissionOptions({
         resolveHostname: async () => ["8.8.8.8"],
       });
       const result = validateCimdMetadata(
@@ -169,7 +181,10 @@ describe("CIMD admission options", () => {
           response_types: ["code"],
           ...authenticationMetadata,
         },
-        options.originBoundFields,
+        {
+          metadataProfile: options.metadataProfile,
+          originBoundFields: options.originBoundFields,
+        },
       );
 
       expect(result.valid).toBe(true);
@@ -178,7 +193,7 @@ describe("CIMD admission options", () => {
 
   it("rejects a cross-origin private_key_jwt key set", () => {
     const clientId = "https://client.example.com/oauth/client.json";
-    const options = createCimdAdmissionOptions("https://auth.example.com", {
+    const options = createCimdAdmissionOptions({
       resolveHostname: async () => ["8.8.8.8"],
     });
     const result = validateCimdMetadata(
@@ -190,7 +205,10 @@ describe("CIMD admission options", () => {
         token_endpoint_auth_method: "private_key_jwt",
         jwks_uri: "https://keys.example.net/jwks.json",
       },
-      options.originBoundFields,
+      {
+        metadataProfile: options.metadataProfile,
+        originBoundFields: options.originBoundFields,
+      },
     );
 
     expect(result).toMatchObject({ valid: false, error: expect.stringContaining("same origin") });

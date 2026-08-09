@@ -18,6 +18,23 @@ const schemaIntrospectionParameters = [
   "kysely_migration",
   "kysely_migration_lock",
 ];
+const indexIntrospectionQuery = `
+  SELECT
+    tables.name AS "tableName",
+    index_list.name AS "indexName",
+    index_info.name AS "columnName",
+    index_list."unique" AS "isUnique",
+    index_list.partial AS "isPartial",
+    index_info.seqno AS "columnPosition"
+  FROM sqlite_master AS tables
+  INNER JOIN pragma_index_list(tables.name) AS index_list
+  INNER JOIN pragma_index_info(index_list.name) AS index_info
+  WHERE tables.type = 'table'
+`;
+
+function normalizedQuery(query: string): string {
+  return query.replace(/\s+/g, " ").trim().toLowerCase();
+}
 
 const emptySchemaResult = {
   success: true,
@@ -33,7 +50,9 @@ const emptySchemaResult = {
   },
 };
 
-function createSchemaIntrospectionStatement(): D1PreparedStatement {
+function createSchemaIntrospectionStatement(
+  expectedParameters: readonly unknown[],
+): D1PreparedStatement {
   let boundParameters: unknown[] = [];
   const statement = {
     bind: (...values: unknown[]) => {
@@ -43,8 +62,8 @@ function createSchemaIntrospectionStatement(): D1PreparedStatement {
     },
     all: async () => {
       const hasExactParameters =
-        boundParameters.length === schemaIntrospectionParameters.length &&
-        boundParameters.every((value, index) => value === schemaIntrospectionParameters[index]);
+        boundParameters.length === expectedParameters.length &&
+        boundParameters.every((value, index) => value === expectedParameters[index]);
       if (!hasExactParameters) {
         return unsupportedIntrospection();
       }
@@ -61,11 +80,14 @@ function createSchemaIntrospectionStatement(): D1PreparedStatement {
 
 export const authSchemaDatabase = {
   prepare: (query: string) => {
-    if (query !== schemaIntrospectionQuery) {
-      return unsupportedIntrospection();
+    if (query === schemaIntrospectionQuery) {
+      return createSchemaIntrospectionStatement(schemaIntrospectionParameters);
+    }
+    if (normalizedQuery(query) === normalizedQuery(indexIntrospectionQuery)) {
+      return createSchemaIntrospectionStatement([]);
     }
 
-    return createSchemaIntrospectionStatement();
+    return unsupportedIntrospection();
   },
   batch: unsupportedQuery,
   exec: unsupportedQuery,

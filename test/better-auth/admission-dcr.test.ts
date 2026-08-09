@@ -1,11 +1,6 @@
 // @ts-expect-error Node types are intentionally absent from the Worker project.
 import { readFileSync } from "node:fs";
-import {
-  checkOAuthClient,
-  type OAuthClient,
-  type OAuthOptions,
-  type Scope,
-} from "@better-auth/oauth-provider";
+import { type OAuthOptions, type Scope } from "@better-auth/oauth-provider";
 import { describe, expect, expectTypeOf, it } from "vite-plus/test";
 
 import {
@@ -15,6 +10,10 @@ import {
 
 const entrySource = readFileSync(
   new URL(import.meta.resolve("@better-auth/oauth-provider")),
+  "utf8",
+);
+const registrationSource = readFileSync(
+  new URL("./register-BotzQoS8.mjs", import.meta.resolve("@better-auth/oauth-provider")),
   "utf8",
 );
 
@@ -34,33 +33,9 @@ describe("public DCR policy", () => {
     expect(options).not.toHaveProperty("generateClientId");
   });
 
-  it("allows only authorization_code clients", async () => {
-    const options: OAuthOptions<Scope[]> = {
-      ...createPublicDcrOptions(),
-      consentPage: "/consent",
-      loginPage: "/sign-in/",
-    };
-    const client: OAuthClient = {
-      client_id: "generated-client-id",
-      redirect_uris: ["https://client.example.com/callback"],
-      token_endpoint_auth_method: "none",
-      grant_types: ["authorization_code"],
-      response_types: ["code"],
-    };
-
-    await expect(checkOAuthClient(client, options, { isRegister: true })).resolves.toBeUndefined();
-    await expect(
-      checkOAuthClient({ ...client, grant_types: ["refresh_token"] }, options, {
-        isRegister: true,
-      }),
-    ).rejects.toMatchObject({
-      body: { error: "invalid_client_metadata" },
-    });
-  });
-
   it("uses the patched anonymous none guard and never creates a public client secret", () => {
-    expect(entrySource).toContain('body.token_endpoint_auth_method !== "none"');
-    expect(entrySource).toContain(
+    expect(registrationSource).toContain('body.token_endpoint_auth_method !== "none"');
+    expect(registrationSource).toContain(
       "const clientSecret = isPublic || isPrivateKeyJwt || isExtensionAuthMethod ? void 0",
     );
   });
@@ -76,19 +51,18 @@ describe("public DCR policy", () => {
     const options = createPublicDcrOptions();
 
     expect(options).not.toHaveProperty("generateClientId");
-    expect(entrySource).toContain(
-      "const clientId = opts.generateClientId?.() || generateRandomString",
+    expect(registrationSource).toContain(
+      "const clientId = input.clientId ?? opts.generateClientId?.() ?? generateRandomString",
     );
-    expect(entrySource).not.toContain('headers.get("origin")');
+    expect(registrationSource).not.toContain('headers.get("origin")');
   });
 });
 
 describe("client admission fragment", () => {
   it("composes CIMD discovery with public DCR options", () => {
-    const fragment = createClientAdmissionFragment(
-      { AUTH_ORIGIN: "https://auth.example.com" },
-      { resolveHostname: async () => ["8.8.8.8"] },
-    );
+    const fragment = createClientAdmissionFragment({
+      resolveHostname: async () => ["8.8.8.8"],
+    });
 
     expect(fragment.oauthProvider.allowDynamicClientRegistration).toBe(true);
     expect(fragment.oauthProvider.allowUnauthenticatedClientRegistration).toBe(true);

@@ -35,6 +35,9 @@ wallet, passkey, session, OAuth, and JWKS records remain protocol state. Better 
 its JWKS; Triad does not accept a separate signing key secret. Upstream provider access, refresh, and ID tokens are
 removed before account persistence.
 
+Social provider account records keep Better Auth's verified issuer and immutable upstream account ID so later sign-ins
+resolve the same account. Those values are not issued to downstream clients; Triad issues derived identity claims.
+
 Ethereum identities use the SHA-256 digest of the lowercased address as their immutable upstream input, producing
 `pid_ethereum_*` and `acc_*` subjects without exposing the address by default. A client can request the explicit
 `wallet` scope to receive it. Passkey identities require a PRF-capable, user-verified ES256/P-256 credential. Each
@@ -58,3 +61,11 @@ device records, consents, grants, and user-bound token records. Already issued s
 expiry, and deletion does not remove data held by an upstream provider.
 
 Terms and the current data inventory are available at [`/terms`](/terms) and [`/privacy`](/privacy).
+
+## Device authorization
+
+Triad supports two device contracts through Better Auth's shared device-code and approval routes:
+
+- First-party devices use Triad's origin as `client_id` and redeem `/device/token` for a Triad session.
+- Registered OAuth clients request approved scopes and resources, then redeem `/oauth2/token` with the RFC 8628
+  device-code grant for OAuth tokens.

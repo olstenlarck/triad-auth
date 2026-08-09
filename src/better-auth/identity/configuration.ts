@@ -80,7 +80,6 @@ async function mapIdentity(
   const encryptedData = await sealProfileEncryptedData(encryptionSecrets, accountSub, profile);
 
   return {
-    id: providerSub,
     name: accountSub,
     email: `${accountSub}@identity.invalid`,
     emailVerified: false,
@@ -202,7 +201,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
       disableIdTokenSignIn: true,
       includeGrantedScopes: false,
       scope: ["openid", "email", "profile"],
-      mapProfileToUser: (profile: unknown) =>
+      mapProfileToUser: (profile) =>
         mapIdentity(
           env.IDENTIFIER_SECRET,
           "google",
@@ -219,7 +218,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
       disableDefaultScope: true,
       disableIdTokenSignIn: true,
       scope: ["user:email"],
-      mapProfileToUser: (profile: unknown) =>
+      mapProfileToUser: (profile) =>
         mapIdentity(
           env.IDENTIFIER_SECRET,
           "github",
@@ -236,7 +235,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
       disableDefaultScope: true,
       disableIdTokenSignIn: true,
       scope: ["tweet.read", "users.read"],
-      mapProfileToUser: (profile: unknown) =>
+      mapProfileToUser: (profile) =>
         mapIdentity(
           env.IDENTIFIER_SECRET,
           "twitter",

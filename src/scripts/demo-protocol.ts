@@ -2,6 +2,7 @@ import { decodeProtectedHeader, importJWK, jwtVerify } from "jose";
 
 export interface AuthorizationServerMetadata {
   authorization_endpoint: string;
+  device_authorization_endpoint: string;
   issuer: string;
   jwks_uri: string;
   registration_endpoint: string;
@@ -79,6 +80,12 @@ interface TokenExchangeInput {
   verifier: string;
 }
 
+interface DeviceTokenRequestInput {
+  clientId: string;
+  deviceCode: string;
+  resource: string;
+}
+
 const profileScopeOrder: readonly ProfileScope[] = [
   "email",
   "handle",
@@ -91,6 +98,8 @@ const profileScopeOrder: readonly ProfileScope[] = [
   "pubkey",
 ];
 const disclosureScopeOrder: readonly DisclosureScope[] = ["openid", ...profileScopeOrder];
+
+export const DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
 
 export const demoProviderCapabilities: readonly ProviderCapability[] = [
   { id: "google", scopes: ["email", "name", "avatar"] },
@@ -123,6 +132,7 @@ function authorizationServerMetadata(value: unknown): AuthorizationServerMetadat
   const candidate = value as Record<string, unknown>;
   for (const field of [
     "authorization_endpoint",
+    "device_authorization_endpoint",
     "issuer",
     "jwks_uri",
     "registration_endpoint",
@@ -366,6 +376,15 @@ export function tokenExchangeRequest(input: TokenExchangeInput): URLSearchParams
     redirect_uri: input.callbackUrl,
     code: input.code,
     code_verifier: input.verifier,
+    resource: input.resource,
+  });
+}
+
+export function oauthDeviceTokenRequest(input: DeviceTokenRequestInput): URLSearchParams {
+  return new URLSearchParams({
+    grant_type: DEVICE_CODE_GRANT_TYPE,
+    device_code: input.deviceCode,
+    client_id: input.clientId,
     resource: input.resource,
   });
 }

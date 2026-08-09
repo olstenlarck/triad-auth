@@ -62,7 +62,7 @@ For an accepted finding:
 
 1. Inspect the relevant code and dependency behavior.
 2. Implement the fix.
-3. Run the repository-required checks.
+3. Run the complete verification sequence below.
 4. Commit and push the fix.
 5. Reply to the review comment in Simplified Technical English.
 6. Resolve the review thread.
@@ -90,6 +90,18 @@ Automated reviewers can produce new findings after every commit. Do not create a
 
 Stop automated review requests when the remaining work is only advisory discovery. Required checks and unresolved review state determine completion.
 
+## Run final verification in order
+
+Run these commands sequentially before every final push and after the last code or test change:
+
+1. `vp run check`
+2. `vp test --run`
+3. `vp run build`
+
+Do not run these commands in parallel. Stop when one command fails. Fix the failure, then restart the complete sequence from `vp run check`.
+
+Do not call a pull request clean or ready unless all three commands pass on the exact commit that will be pushed.
+
 ## Verify each pushed head
 
 Follow the repository instructions for local verification. Do not invent a test command that the repository forbids.
@@ -98,6 +110,7 @@ After the final push, confirm all of these conditions:
 
 - The local worktree is clean.
 - The remote head matches the local head.
+- `vp run check`, `vp test --run`, and `vp run build` passed sequentially on the pushed head.
 - Required checks are successful.
 - GitHub reports the pull request as mergeable and clean.
 - No review thread is unresolved.
@@ -119,7 +132,7 @@ Use this model:
 3. Explain what the change does in simple terms.
 4. Add grouped sections for the main behavior changes.
 5. Add intentional product constraints when they matter.
-6. Add the verification commands and required check result.
+6. Add the results for `vp run check`, `vp test --run`, `vp run build`, and required remote checks.
 7. Use Simplified Technical English in every section.
 
 Always end the pull request body with this footer:

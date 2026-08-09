@@ -2,7 +2,7 @@
 
 ## Scope
 
-Fix optional profile claim issuance and restore the v1 two-flow device demo composition. Do not change the landing page or introduce explanatory device-auth copy.
+Fix optional profile claim issuance, preserve the v1 browser/device composition, and add OAuth client device authorization beside the first-party session flow. Update the affected product and policy copy so the two device contracts remain explicit.
 
 ## Browser Flow
 
@@ -21,6 +21,11 @@ Fix optional profile claim issuance and restore the v1 two-flow device demo comp
 - Display the returned user code, verification URL, expiry, and polling state.
 - Poll `POST /api/auth/device/token` at the server-provided interval and handle pending, slow-down, denial, expiry, cancellation, and success states.
 - Reuse the existing `/device/verify/` approval page and Better Auth device plugin. Do not restore the removed custom device broker routes.
+- Keep this first-party session flow when adding OAuth Provider device authorization.
+- Register a separate public native OAuth client with the RFC 8628 grant, bind its scopes and resource at
+  `/device/code`, and poll `/oauth2/token` for OAuth tokens.
+- Present both device contracts as separate actions. Do not send a registered OAuth client to `/device/token` or
+  a first-party Triad client to `/oauth2/token`.
 
 ## Schema and Deployment
 

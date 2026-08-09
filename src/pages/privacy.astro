@@ -26,8 +26,9 @@ export const prerender = true;
         <div>
           <dt>IDENTITY VALUES</dt>
           <dd>
-            A pseudonymous account identifier, the provider identity family, and a provider-derived identifier.
-            These are not profile fields and remain readable to the service so it can issue stable claims.
+            A pseudonymous account identifier, the provider identity family, and pseudonymous provider-derived
+            claims. The provider account record also keeps the verified issuer and immutable upstream account ID
+            required to recognize the same sign-in again.
           </dd>
         </div>
         <div>
@@ -65,7 +66,9 @@ export const prerender = true;
           <dt>PROTOCOL RECORDS</dt>
           <dd>
             Triad stores OAuth client and resource metadata, consent records, authorization grants, access-token
-            records, refresh-token records, and device authorization records when those flows use them.
+            records, refresh-token records, and device authorization records when those flows use them. A device
+            record states whether the requester is Triad itself or a registered OAuth client, plus its requested
+            scopes and resource.
           </dd>
         </div>
       </dl>
