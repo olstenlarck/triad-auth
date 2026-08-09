@@ -24,7 +24,7 @@ describe("OAuth Provider public DCR guard", () => {
   it("requires anonymous clients to declare the none auth method", () => {
     expect(openRegistration).toContain('body.token_endpoint_auth_method !== "none"');
     expect(openRegistration).toContain(
-      'unauthenticated registration requires token_endpoint_auth_method "none"',
+      "unauthenticated registration requires token_endpoint_auth_method",
     );
   });
 

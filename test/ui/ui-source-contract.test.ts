@@ -16,28 +16,36 @@ const disclosures = source("../../src/scripts/disclosure-controls.ts");
 const staticHeaders = source("../../public/_headers");
 
 describe("preserved Better Auth UI wiring", () => {
-  it("restores the exact landing privacy promise and optional scope manifest", () => {
+  it("keeps the landing privacy promise and optional claim manifest", () => {
     expect(landing).toContain("ASK FOR LESS.<br />REVEAL LESS.");
     expect(landing).toContain(
       "A client chooses its request. Triad shows the complete list before approval, and shares nothing beyond",
     );
     expect(landing).toContain(
-      "No raw provider ID, email, handle, name, avatar, or provider access token.",
+      "No raw provider ID, wallet, authenticated chain data, passkey credential, public key, email, handle,",
     );
-    expect(landing).toContain("OPTIONAL PROFILE SCOPES");
+    expect(landing).toContain("name, avatar, or provider access token.");
+    expect(landing).toContain("OPTIONAL CLAIM SCOPES");
     expect(landing).toContain("email + email_verified");
     expect(landing).toContain("preferred_username");
     expect(landing).toContain("<dt>name</dt><dd>name</dd>");
     expect(landing).toContain("<dt>avatar</dt><dd>picture</dd>");
+    expect(landing).toContain("<dt>wallet</dt><dd>wallet</dd>");
+    expect(landing).toContain("<dt>cred</dt><dd>cred</dd>");
   });
 
   it("restores provider-aware optional request controls with every option off", () => {
     expect(demo).toContain('<select id="demo-provider"');
-    expect(demo.match(/<input type="checkbox" name="demo-scope"/g)).toHaveLength(4);
+    expect(demo.match(/<input type="checkbox" name="demo-scope"/g)).toHaveLength(9);
     expect(demo).toContain('value="email"');
     expect(demo).toContain('value="handle"');
     expect(demo).toContain('value="name"');
     expect(demo).toContain('value="avatar"');
+    expect(demo).toContain('value="wallet"');
+    expect(demo).toContain('value="chains"');
+    expect(demo).toContain('value="chain_id"');
+    expect(demo).toContain('value="cred"');
+    expect(demo).toContain('value="pubkey"');
     expect(demo).not.toMatch(/name="demo-scope"[^>]*checked/);
     expect(demo).toContain("canonicalScopeRequest");
     expect(demo).toContain("input.checked = false");
