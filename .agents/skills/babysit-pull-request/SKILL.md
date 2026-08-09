@@ -1,6 +1,6 @@
 ---
 name: babysit-pull-request
-description: Monitor and finish a GitHub pull request with product judgment. Use when a user asks to babysit, watch, finish, unblock, or prepare a pull request; inspect all human and automated reviews; fix meaningful findings; monitor required checks; update the pull request body; and stop when the pull request is clean and ready.
+description: Monitor and finish a GitHub pull request with product judgment. Use when a user asks to babysit, watch, finish, unblock a pull request
 ---
 
 # Babysit a pull request
