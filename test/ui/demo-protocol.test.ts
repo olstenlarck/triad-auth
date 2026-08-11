@@ -3,10 +3,12 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   authorizationRequest,
   canonicalScopeRequest,
+  DEVICE_CODE_GRANT_TYPE,
   demoProviderCapabilities,
   demoResourceFromIssuer,
   inspectOAuthQuery,
   isIdentitySigningKey,
+  oauthDeviceTokenRequest,
   tokenExchangeRequest,
 } from "../../src/scripts/demo-protocol";
 
@@ -69,6 +71,18 @@ describe("Better Auth demo protocol", () => {
     );
   });
 
+  it("binds an OAuth device exchange to its client, code, and resource", () => {
+    expect(
+      oauthDeviceTokenRequest({
+        clientId: "device-client",
+        deviceCode: "device-code",
+        resource: "https://resource.example/",
+      }).toString(),
+    ).toBe(
+      `grant_type=${encodeURIComponent(DEVICE_CODE_GRANT_TYPE)}&device_code=device-code&client_id=device-client&resource=https%3A%2F%2Fresource.example%2F`,
+    );
+  });
+
   it.each([
     { alg: "ES256", crv: "P-256", kid: "active", kty: "EC" },
     { alg: "ES256", crv: "P-256", kid: "active", kty: "EC", use: "sig" },
@@ -94,6 +108,8 @@ describe("demo disclosure scopes", () => {
       { id: "google", scopes: ["email", "name", "avatar"] },
       { id: "github", scopes: ["email", "handle", "name", "avatar"] },
       { id: "twitter", scopes: ["handle", "name", "avatar"] },
+      { id: "ethereum", scopes: ["wallet", "chains", "chain_id"] },
+      { id: "passkey", scopes: ["handle", "cred", "pubkey"] },
     ]);
   });
 

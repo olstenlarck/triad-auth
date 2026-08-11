@@ -10,9 +10,8 @@ import type { JwtOptions } from "better-auth/plugins";
 import {
   DISCLOSURE_CLAIMS,
   DISCLOSURE_SCOPES,
-  PROFILE_DISCLOSURE_SCOPES,
-  type ProfileDisclosureClaim,
-  type ProfileDisclosureScope,
+  OPTIONAL_DISCLOSURE_SCOPES,
+  type OptionalDisclosureScope,
 } from "../disclosures";
 
 export const ACCESS_TOKEN_TTL_SECONDS = 5 * 60;
@@ -35,12 +34,22 @@ export interface TokenProfileClaims {
   preferred_username?: string;
   name?: string;
   picture?: string;
+  wallet?: string;
+  cred?: string;
+  pubkey?: string;
+}
+
+export interface TokenSessionClaimResolver {
+  resolveAuthenticationChains(
+    sessionId: string,
+    userId: string,
+  ): { chainId?: number; chains: unknown[] } | Promise<{ chainId?: number; chains: unknown[] }>;
 }
 
 export interface TokenProfileClaimResolver {
   resolveProfileClaims(
     user: TokenIdentityUser,
-    scopes: readonly ProfileDisclosureScope[],
+    scopes: readonly OptionalDisclosureScope[],
   ): TokenProfileClaims | Promise<TokenProfileClaims>;
 }
 
@@ -65,6 +74,7 @@ export interface TokenResourceFragment {
 export interface TokenCompositionDependencies {
   identity: TokenIdentityResolver;
   profileClaims?: TokenProfileClaimResolver;
+  sessionClaims?: TokenSessionClaimResolver;
   resource: TokenResourceFragment;
 }
 
@@ -92,13 +102,9 @@ async function resolveTripleIdentityClaims(
   };
 }
 
-function requestedProfileScopes(scopes: readonly string[]): ProfileDisclosureScope[] {
-  return PROFILE_DISCLOSURE_SCOPES.filter((scope) => scopes.includes(scope));
-}
-
 function assignProfileClaim(
   claims: TokenProfileClaims,
-  claim: ProfileDisclosureClaim,
+  claim: keyof TokenProfileClaims,
   value: unknown,
 ): void {
   if (value === undefined) {
@@ -112,12 +118,49 @@ function assignProfileClaim(
   Object.assign(claims, { [claim]: value });
 }
 
+function validChainId(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+async function resolveSessionClaims(
+  resolver: TokenSessionClaimResolver | undefined,
+  scopes: readonly string[],
+  sessionId: string | undefined,
+  userId: string | undefined,
+): Promise<Record<string, unknown>> {
+  const includeChains = scopes.includes("chains");
+  const includeChainId = scopes.includes("chain_id");
+  if (!includeChains && !includeChainId) {
+    return {};
+  }
+  if (!resolver || !sessionId || !userId) {
+    throw new Error("Ethereum chain scopes require an authentication session");
+  }
+
+  const resolved = await resolver.resolveAuthenticationChains(sessionId, userId);
+  const chainId = resolved.chainId;
+  if (!validChainId(chainId)) {
+    throw new Error("The authentication session does not contain a valid chain_id claim");
+  }
+
+  const chains = [...new Set([...resolved.chains.filter(validChainId), chainId])].sort(
+    (left, right) => left - right,
+  );
+
+  return {
+    ...(includeChains ? { chains } : {}),
+    ...(includeChainId ? { chain_id: chainId } : {}),
+  };
+}
+
 async function resolveScopedProfileClaims(
   resolver: TokenProfileClaimResolver | undefined,
   user: TokenIdentityUser,
   scopes: readonly string[],
 ): Promise<TokenProfileClaims> {
-  const requestedScopes = requestedProfileScopes(scopes);
+  const requestedScopes = OPTIONAL_DISCLOSURE_SCOPES.filter(
+    (scope) => scope !== "chains" && scope !== "chain_id" && scopes.includes(scope),
+  );
   if (requestedScopes.length === 0) {
     return {};
   }
@@ -130,6 +173,9 @@ async function resolveScopedProfileClaims(
 
   for (const scope of requestedScopes) {
     for (const claim of DISCLOSURE_CLAIMS[scope]) {
+      if (claim === "chains" || claim === "chain_id") {
+        continue;
+      }
       assignProfileClaim(claims, claim, resolved[claim]);
     }
   }
@@ -152,15 +198,37 @@ function userInfoClientId(input: OAuthUserInfoExtensionInput): string {
   return clientId;
 }
 
-function createIdentityClaimsExtension(identity: TokenIdentityResolver): OAuthProviderExtension {
+function createIdentityClaimsExtension(
+  identity: TokenIdentityResolver,
+  sessionClaims: TokenSessionClaimResolver | undefined,
+): OAuthProviderExtension {
   return {
     claims: {
-      accessToken: (input: OAuthClaimExtensionInput) =>
-        input.user ? resolveTripleIdentityClaims(identity, input.user, input.client.clientId) : {},
-      idToken: (input: OAuthClaimExtensionInput) =>
-        input.user ? resolveTripleIdentityClaims(identity, input.user, input.client.clientId) : {},
-      userInfo: (input: OAuthUserInfoExtensionInput) =>
-        resolveTripleIdentityClaims(identity, input.user, userInfoClientId(input)),
+      accessToken: async (input: OAuthClaimExtensionInput) => ({
+        ...(input.user
+          ? await resolveTripleIdentityClaims(identity, input.user, input.client.clientId)
+          : {}),
+      }),
+      idToken: async (input: OAuthClaimExtensionInput) => ({
+        ...(input.user
+          ? await resolveTripleIdentityClaims(identity, input.user, input.client.clientId)
+          : {}),
+        ...(await resolveSessionClaims(
+          sessionClaims,
+          input.scopes,
+          input.sessionId,
+          input.user?.id,
+        )),
+      }),
+      userInfo: async (input: OAuthUserInfoExtensionInput) => ({
+        ...(await resolveTripleIdentityClaims(identity, input.user, userInfoClientId(input))),
+        ...(await resolveSessionClaims(
+          sessionClaims,
+          input.scopes,
+          typeof input.jwt.sid === "string" ? input.jwt.sid : undefined,
+          input.user.id,
+        )),
+      }),
     },
   };
 }
@@ -178,11 +246,12 @@ function tokenScopes(resourceScopes: readonly Scope[]): Scope[] {
 export function createTokenComposition({
   identity,
   profileClaims,
+  sessionClaims,
   resource,
 }: TokenCompositionDependencies) {
   const resolveSubjectIdentifier: NonNullable<OAuthOptions["resolveSubjectIdentifier"]> = (input) =>
     identity.resolvePairwiseSubject(input.userId, input.clientId);
-  const claimsExtension = createIdentityClaimsExtension(identity);
+  const claimsExtension = createIdentityClaimsExtension(identity, sessionClaims);
   const {
     resources,
     scopes: resourceScopes = [],
@@ -205,6 +274,11 @@ export function createTokenComposition({
       "preferred_username",
       "name",
       "picture",
+      "wallet",
+      "chains",
+      "chain_id",
+      "cred",
+      "pubkey",
     ],
   } as NonNullable<OAuthOptions<Scope[]>["advertisedMetadata"]> & {
     subject_types_supported: readonly ["pairwise"];

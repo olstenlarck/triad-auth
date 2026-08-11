@@ -1,6 +1,7 @@
-import { cimdClientDiscovery, validateClientIdUrl, type CimdOptions } from "@better-auth/cimd";
+import { createCimdClientDiscovery as createBetterAuthCimdDiscovery } from "@better-auth/cimd";
+import { validateClientIdUrl, type CimdOptions } from "@better-auth/cimd";
 
-export const CIMD_REFRESH_RATE_SECONDS = 60 * 60;
+export const CIMD_REVALIDATION_INTERVAL_SECONDS = 60 * 60;
 export const CIMD_ORIGIN_BOUND_FIELDS = [
   "redirect_uris",
   "post_logout_redirect_uris",
@@ -77,32 +78,6 @@ function normalizedHostname(hostname: string): string {
     .toLowerCase();
 }
 
-function isLoopbackHostname(hostname: string): boolean {
-  const normalized = normalizedHostname(hostname);
-
-  return (
-    normalized === "localhost" ||
-    normalized.endsWith(".localhost") ||
-    normalized === "::1" ||
-    /^127(?:\.\d{1,3}){3}$/.test(normalized)
-  );
-}
-
-function isLoopbackAuthOrigin(authOrigin: string): boolean {
-  let hostname: string;
-  try {
-    hostname = new URL(authOrigin).hostname;
-  } catch {
-    return false;
-  }
-
-  const normalized = normalizedHostname(hostname);
-
-  return (
-    normalized === "localhost" || normalized === "::1" || /^127(?:\.\d{1,3}){3}$/.test(normalized)
-  );
-}
-
 function isIpAddress(value: string): boolean {
   return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(value) || value.includes(":");
 }
@@ -119,28 +94,22 @@ function isPublicAddress(address: string): boolean {
 }
 
 export function createCimdAdmissionOptions(
-  authOrigin: string,
   dependencies: CimdAdmissionDependencies = {},
 ): CimdOptions {
-  const allowLoopback = isLoopbackAuthOrigin(authOrigin);
-  const resolveHostname =
-    dependencies.resolveHostname ??
-    createDnsOverHttpsResolver(dependencies.fetch ?? globalThis.fetch);
+  const fetcher = dependencies.fetch ?? globalThis.fetch;
+  const resolveHostname = dependencies.resolveHostname ?? createDnsOverHttpsResolver(fetcher);
 
   return {
-    refreshRate: CIMD_REFRESH_RATE_SECONDS,
+    fetchClientMetadataResource: (input, init) => fetcher(input, { ...init, redirect: "manual" }),
+    metadataProfile: "mcp-2026-07-28",
+    metadataRevalidationInterval: CIMD_REVALIDATION_INTERVAL_SECONDS,
     originBoundFields: [...CIMD_ORIGIN_BOUND_FIELDS],
-    allowLoopback,
-    async allowFetch(value) {
+    async isMetadataDocumentUrlAllowed(value) {
       let url: URL;
       try {
         url = new URL(value);
       } catch {
         return false;
-      }
-
-      if (isLoopbackHostname(url.hostname)) {
-        return allowLoopback;
       }
 
       const hostname = normalizedHostname(url.hostname);
@@ -163,9 +132,6 @@ export function createCimdAdmissionOptions(
   };
 }
 
-export function createCimdClientDiscovery(
-  authOrigin: string,
-  dependencies: CimdAdmissionDependencies = {},
-) {
-  return cimdClientDiscovery(createCimdAdmissionOptions(authOrigin, dependencies));
+export function createCimdClientDiscovery(dependencies: CimdAdmissionDependencies = {}) {
+  return createBetterAuthCimdDiscovery(createCimdAdmissionOptions(dependencies));
 }

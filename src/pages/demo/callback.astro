@@ -108,12 +108,17 @@ export const prerender = true;
 
     function renderProfileClaims(profile: VerifiedProfile) {
       const container = document.querySelector<HTMLElement>("#callback-profile-claims")!;
-      const claims: Array<[string, string | boolean | undefined]> = [
+      const claims: Array<[string, string | number | number[] | boolean | undefined]> = [
         ["email", profile.email],
         ["email_verified", profile.emailVerified],
         ["preferred_username", profile.handle],
         ["name", profile.name],
         ["picture", profile.avatar],
+        ["wallet", profile.wallet],
+        ["chains", profile.chains],
+        ["chain_id", profile.chainId],
+        ["cred", profile.cred],
+        ["pubkey", profile.pubkey],
       ];
 
       container.replaceChildren();
@@ -126,7 +131,7 @@ export const prerender = true;
         const term = document.createElement("dt");
         const description = document.createElement("dd");
         term.textContent = claim;
-        description.textContent = String(value);
+        description.textContent = Array.isArray(value) ? JSON.stringify(value) : String(value);
         row.append(term, description);
         container.append(row);
       }
@@ -142,7 +147,8 @@ export const prerender = true;
       try {
         const response = await fetch("/api/auth/sign-out", {
           method: "POST",
-          headers: { accept: "application/json" },
+          headers: { accept: "application/json", "content-type": "application/json" },
+          body: "{}",
         });
         if (!response.ok) {
           throw new Error("Sign out failed.");

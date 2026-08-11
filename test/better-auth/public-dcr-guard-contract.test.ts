@@ -11,8 +11,8 @@ const plugin = oauthProvider({
 });
 
 const entryUrl = new URL(import.meta.resolve("@better-auth/oauth-provider"));
-const entrySource = readFileSync(entryUrl, "utf8");
-const openRegistration = entrySource.match(
+const registrationSource = readFileSync(new URL("./register-BotzQoS8.mjs", entryUrl), "utf8");
+const openRegistration = registrationSource.match(
   /if \(!session && !isTokenAuthorized\) \{[\s\S]*?\n\t}/,
 )?.[0];
 
@@ -24,7 +24,7 @@ describe("OAuth Provider public DCR guard", () => {
   it("requires anonymous clients to declare the none auth method", () => {
     expect(openRegistration).toContain('body.token_endpoint_auth_method !== "none"');
     expect(openRegistration).toContain(
-      'unauthenticated registration requires token_endpoint_auth_method "none"',
+      "unauthenticated registration requires token_endpoint_auth_method",
     );
   });
 

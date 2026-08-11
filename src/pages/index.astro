@@ -25,9 +25,9 @@ export const prerender = true;
 
   <section class="provider-band" aria-label="Supported identity providers">
     <div class="shell provider-list">
-      <span>GOOGLE</span><span>GITHUB</span><span>TWITTER</span><span>CODE + PKCE</span><span
-        >DEVICE FLOW</span
-      >
+      <span>GOOGLE</span><span>GITHUB</span><span>TWITTER</span><span>ETHEREUM</span><span>PASSKEY</span><span
+        >CODE + PKCE</span
+      ><span>DEVICE FLOW</span>
     </div>
   </section>
 
@@ -71,15 +71,23 @@ export const prerender = true;
         <span>DEFAULT REQUEST</span>
         <h3>IDENTITY ONLY</h3>
         <code>scope=openid</code>
-        <p>No raw provider ID, email, handle, name, avatar, or provider access token.</p>
+        <p>
+          No raw provider ID, wallet, authenticated chain data, passkey credential, public key, email, handle,
+          name, avatar, or provider access token.
+        </p>
       </article>
       <div class="scope-manifest">
-        <p>OPTIONAL PROFILE SCOPES</p>
+        <p>OPTIONAL CLAIM SCOPES</p>
         <dl>
           <div><dt>email</dt><dd>email + email_verified</dd></div>
           <div><dt>handle</dt><dd>preferred_username</dd></div>
           <div><dt>name</dt><dd>name</dd></div>
           <div><dt>avatar</dt><dd>picture</dd></div>
+          <div><dt>wallet</dt><dd>wallet</dd></div>
+          <div><dt>chains</dt><dd>chains</dd></div>
+          <div><dt>chain_id</dt><dd>chain_id</dd></div>
+          <div><dt>cred</dt><dd>cred</dd></div>
+          <div><dt>pubkey</dt><dd>pubkey</dd></div>
         </dl>
       </div>
     </div>
@@ -123,8 +131,8 @@ export const prerender = true;
     <div>
       <h2 id="device-title">AUTHORIZE<br /><span>ANOTHER DEVICE.</span></h2>
       <p>
-        Show a short code on the device. The user opens Triad in a browser, reviews the connection, and
-        approves it.
+        Show a short code on the device. The user opens Triad in a browser and approves either a Triad session or
+        scoped OAuth tokens for a registered client.
       </p>
       <a class="text-link" href="/device/verify">OPEN DEVICE VERIFICATION →</a>
     </div>

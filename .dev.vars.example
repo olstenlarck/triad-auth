@@ -1,7 +1,7 @@
 BETTER_AUTH_SECRET=
 IDENTIFIER_SECRET=
 RATE_LIMIT_SECRET=
-PROFILE_DATA_SECRETS='{"active":"v1","secrets":{"v1":"replace-with-at-least-32-random-characters"}}'
+ENCRYPTION_SECRETS='{"active":"v1","secrets":{"v1":"replace-with-base64url-of-exactly-32-random-bytes"}}'
 
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=

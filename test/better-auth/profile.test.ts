@@ -2,12 +2,12 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   createProfileClaimResolver,
-  sealProfileData,
+  sealProfileEncryptedData,
   type CapturedProfile,
 } from "../../src/better-auth/identity";
 
-const PROFILE_DATA_SECRETS =
-  '{"active":"v1","secrets":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}';
+const ENCRYPTION_SECRETS =
+  '{"active":"v1","secrets":{"v1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"}}';
 const profile = {
   profileEmail: "person@example.com",
   profileEmailVerified: true,
@@ -16,15 +16,15 @@ const profile = {
   profileAvatar: "https://images.example.com/person.png",
 } satisfies CapturedProfile;
 
-async function profileUser(profileData: CapturedProfile = profile) {
+async function profileUser(profileInput: CapturedProfile = profile) {
   return {
     id: "acc_subject",
-    profileData: await sealProfileData(PROFILE_DATA_SECRETS, profileData),
+    encryptedData: await sealProfileEncryptedData(ENCRYPTION_SECRETS, "acc_subject", profileInput),
   };
 }
 
 describe("Triad profile claim resolver", () => {
-  const resolver = createProfileClaimResolver(PROFILE_DATA_SECRETS);
+  const resolver = createProfileClaimResolver(ENCRYPTION_SECRETS);
 
   it("returns only claims authorized by downstream profile scopes", async () => {
     await expect(
@@ -58,12 +58,21 @@ describe("Triad profile claim resolver", () => {
   });
 
   it("rejects malformed encrypted profile values instead of coercing them", async () => {
-    const malformed = await sealProfileData(PROFILE_DATA_SECRETS, {
+    const malformed = await sealProfileEncryptedData(ENCRYPTION_SECRETS, "acc_subject", {
       profileEmail: 42,
     } as unknown as CapturedProfile);
 
     await expect(
-      resolver.resolveProfileClaims({ id: "acc_subject", profileData: malformed }, ["email"]),
+      resolver.resolveProfileClaims({ id: "acc_subject", encryptedData: malformed }, ["email"]),
     ).rejects.toThrow("Invalid profile email payload");
+  });
+
+  it("rejects profile data copied to another account", async () => {
+    const encryptedData = await sealProfileEncryptedData(ENCRYPTION_SECRETS, "acc_a", profile);
+    const resolver = createProfileClaimResolver(ENCRYPTION_SECRETS);
+
+    await expect(
+      resolver.resolveProfileClaims({ id: "acc_b", encryptedData }, ["email"]),
+    ).rejects.toThrow("Unable to decrypt encrypted data");
   });
 });

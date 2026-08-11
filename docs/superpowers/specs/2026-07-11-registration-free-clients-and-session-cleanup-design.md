@@ -54,7 +54,7 @@ Documentation removes registration-first language and explains the device-flow s
 
 ## Mobile Typography
 
-The landing hero keeps `THAT WORKS.` as one phrase at narrow widths. The demo title keeps `ONE REQUEST.` and `TWO FLOWS.` as two intentional lines, never one word per line. Mobile-specific font sizes shrink enough for a 320px viewport, and phrase wrappers use non-wrapping behavior without causing horizontal overflow.
+The landing hero keeps `THAT WORKS.` as one phrase at narrow widths. The demo title keeps `ONE REQUEST.` and `THREE FLOWS.` as two intentional lines, never one word per line. Mobile-specific font sizes shrink enough for a 320px viewport, and phrase wrappers use non-wrapping behavior without causing horizontal overflow.
 
 Desktop composition and explicit line breaks remain unchanged.
 

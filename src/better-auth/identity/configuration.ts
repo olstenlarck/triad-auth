@@ -1,21 +1,29 @@
 import type { Account, BetterAuthOptions } from "better-auth";
 import type { TriadEnv } from "../env";
+import { captureProviderProfile, sealProfileEncryptedData, type CapturedProfile } from "./profile";
+import { validateEncryptionSecrets } from "./encryption";
 import {
-  captureProviderProfile,
-  sealProfileData,
-  type CapturedProfile,
-  validateProfileDataSecrets,
-} from "./profile";
-import { accountSubject, type IdentityProvider, providerSubject } from "./subjects";
+  accountSubject,
+  type AuthenticationProvider,
+  ethereumUpstreamId,
+  type IdentityProvider,
+  providerSubject,
+} from "./subjects";
 
 const ACCOUNT_SUB_PATTERN = /^acc_[0-9a-f]{64}$/;
 const GOOGLE_SUB_PATTERN = /^[\x21-\x7e]{1,255}$/;
 const DECIMAL_ID_PATTERN = /^[1-9][0-9]*$/;
-const IDENTITY_PROVIDERS: IdentityProvider[] = ["google", "github", "twitter"];
+const IDENTITY_PROVIDERS: AuthenticationProvider[] = [
+  "google",
+  "github",
+  "twitter",
+  "ethereum",
+  "passkey",
+];
 
 interface PendingIdentityUser {
   name: string;
-  provider: IdentityProvider;
+  provider: AuthenticationProvider;
   providerSub: string;
 }
 
@@ -63,25 +71,22 @@ async function mapIdentity(
   provider: IdentityProvider,
   upstreamId: string,
   profile: CapturedProfile,
-  profileDataSecrets: string,
+  encryptionSecrets: string,
 ) {
-  const [[providerSub, accountSub], profileData] = await Promise.all([
-    Promise.all([
-      providerSubject(secret, provider, upstreamId),
-      accountSubject(secret, provider, upstreamId),
-    ]),
-    sealProfileData(profileDataSecrets, profile),
+  const [providerSub, accountSub] = await Promise.all([
+    providerSubject(secret, provider, upstreamId),
+    accountSubject(secret, provider, upstreamId),
   ]);
+  const encryptedData = await sealProfileEncryptedData(encryptionSecrets, accountSub, profile);
 
   return {
-    id: providerSub,
     name: accountSub,
     email: `${accountSub}@identity.invalid`,
     emailVerified: false,
     image: "",
     provider,
     providerSub,
-    ...(profileData ? { profileData } : {}),
+    ...(encryptedData ? { encryptedData } : {}),
   };
 }
 
@@ -96,8 +101,34 @@ function sanitizedUserData(user: Record<string, unknown>): Record<string, unknow
     image: "",
     provider: user.provider,
     providerSub: user.providerSub,
-    profileData: user.profileData,
+    encryptedData: user.encryptedData,
   };
+}
+
+async function identityUserData(
+  secret: string,
+  user: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if ("provider" in user || "providerSub" in user) {
+    return sanitizedUserData(user);
+  }
+
+  if (typeof user.name !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(user.name)) {
+    throw new Error("Triad users require a coherent provider identity");
+  }
+
+  const upstreamId = await ethereumUpstreamId(user.name);
+  const [providerSub, accountSub] = await Promise.all([
+    providerSubject(secret, "ethereum", upstreamId),
+    accountSubject(secret, "ethereum", upstreamId),
+  ]);
+
+  return sanitizedUserData({
+    ...user,
+    name: accountSub,
+    provider: "ethereum",
+    providerSub,
+  });
 }
 
 function assertProviderIdentity(
@@ -108,7 +139,7 @@ function assertProviderIdentity(
     typeof user.name !== "string" ||
     !ACCOUNT_SUB_PATTERN.test(user.name) ||
     typeof provider !== "string" ||
-    !IDENTITY_PROVIDERS.includes(provider as IdentityProvider) ||
+    !IDENTITY_PROVIDERS.includes(provider as AuthenticationProvider) ||
     typeof user.providerSub !== "string" ||
     !new RegExp(`^pid_${provider}_[0-9a-f]{64}$`).test(user.providerSub)
   ) {
@@ -135,8 +166,20 @@ function clearSessionRequestMetadata(session: Record<string, unknown>) {
   };
 }
 
+function siweAuthenticationChainId(context: unknown): number | undefined {
+  if (!isRecord(context) || context.path !== "/siwe/verify" || !isRecord(context.body)) {
+    return undefined;
+  }
+
+  const chainId = context.body.chainId;
+
+  return typeof chainId === "number" && Number.isSafeInteger(chainId) && chainId > 0
+    ? chainId
+    : undefined;
+}
+
 export function createIdentityConfiguration(env: TriadEnv) {
-  validateProfileDataSecrets(env.PROFILE_DATA_SECRETS, [
+  validateEncryptionSecrets(env.ENCRYPTION_SECRETS, [
     env.IDENTIFIER_SECRET,
     env.RATE_LIMIT_SECRET,
     env.BETTER_AUTH_SECRET,
@@ -158,13 +201,13 @@ export function createIdentityConfiguration(env: TriadEnv) {
       disableIdTokenSignIn: true,
       includeGrantedScopes: false,
       scope: ["openid", "email", "profile"],
-      mapProfileToUser: (profile: unknown) =>
+      mapProfileToUser: (profile) =>
         mapIdentity(
           env.IDENTIFIER_SECRET,
           "google",
           googleUpstreamId(profile),
           captureProviderProfile("google", profile),
-          env.PROFILE_DATA_SECRETS,
+          env.ENCRYPTION_SECRETS,
         ),
     };
   }
@@ -175,13 +218,13 @@ export function createIdentityConfiguration(env: TriadEnv) {
       disableDefaultScope: true,
       disableIdTokenSignIn: true,
       scope: ["user:email"],
-      mapProfileToUser: (profile: unknown) =>
+      mapProfileToUser: (profile) =>
         mapIdentity(
           env.IDENTIFIER_SECRET,
           "github",
           githubUpstreamId(profile),
           captureProviderProfile("github", profile),
-          env.PROFILE_DATA_SECRETS,
+          env.ENCRYPTION_SECRETS,
         ),
     };
   }
@@ -192,13 +235,13 @@ export function createIdentityConfiguration(env: TriadEnv) {
       disableDefaultScope: true,
       disableIdTokenSignIn: true,
       scope: ["tweet.read", "users.read"],
-      mapProfileToUser: (profile: unknown) =>
+      mapProfileToUser: (profile) =>
         mapIdentity(
           env.IDENTIFIER_SECRET,
           "twitter",
           twitterUpstreamId(profile),
           captureProviderProfile("twitter", profile),
-          env.PROFILE_DATA_SECRETS,
+          env.ENCRYPTION_SECRETS,
         ),
     };
   }
@@ -216,7 +259,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
           required: true,
           unique: true,
         },
-        profileData: {
+        encryptedData: {
           type: "string",
           required: false,
           returned: false,
@@ -228,6 +271,13 @@ export function createIdentityConfiguration(env: TriadEnv) {
     },
     session: {
       freshAge: 0,
+      additionalFields: {
+        authenticationChainId: {
+          type: "number",
+          required: false,
+          returned: false,
+        },
+      },
     },
     account: {
       updateAccountOnSignIn: false,
@@ -241,9 +291,16 @@ export function createIdentityConfiguration(env: TriadEnv) {
     databaseHooks: {
       session: {
         create: {
-          before: async (session, _context) => ({
-            data: clearSessionRequestMetadata(session),
-          }),
+          before: async (session, context) => {
+            const authenticationChainId = siweAuthenticationChainId(context);
+
+            return {
+              data: {
+                ...clearSessionRequestMetadata(session),
+                ...(authenticationChainId ? { authenticationChainId } : {}),
+              },
+            };
+          },
         },
         update: {
           before: async (session, _context) => ({
@@ -253,7 +310,9 @@ export function createIdentityConfiguration(env: TriadEnv) {
       },
       user: {
         create: {
-          before: async (user, _context) => ({ data: sanitizedUserData(user) }),
+          before: async (user, _context) => ({
+            data: await identityUserData(env.IDENTIFIER_SECRET, user),
+          }),
         },
         update: {
           before: async (user, _context) => {
@@ -263,7 +322,7 @@ export function createIdentityConfiguration(env: TriadEnv) {
               "email" in user ||
               "name" in user ||
               "image" in user ||
-              "profileData" in user
+              "encryptedData" in user
             ) {
               return false;
             }

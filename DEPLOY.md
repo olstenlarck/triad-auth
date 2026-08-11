@@ -38,7 +38,7 @@ Add the ten required secrets to `triad-auth`:
 vp exec wrangler secret put BETTER_AUTH_SECRET
 vp exec wrangler secret put IDENTIFIER_SECRET
 vp exec wrangler secret put RATE_LIMIT_SECRET
-vp exec wrangler secret put PROFILE_DATA_SECRETS
+vp exec wrangler secret put ENCRYPTION_SECRETS
 vp exec wrangler secret put GOOGLE_CLIENT_ID
 vp exec wrangler secret put GOOGLE_CLIENT_SECRET
 vp exec wrangler secret put GITHUB_CLIENT_ID
@@ -47,10 +47,12 @@ vp exec wrangler secret put TWITTER_CLIENT_ID
 vp exec wrangler secret put TWITTER_CLIENT_SECRET
 ```
 
-`PROFILE_DATA_SECRETS` is versioned symmetric secret material:
+`ENCRYPTION_SECRETS` is versioned symmetric secret material for the encrypted user profile envelope. Each value must
+be 32 random bytes encoded as canonical base64url without padding. Generate each value from a cryptographically secure
+random source, such as `openssl rand -base64 32 | tr '+/' '-_' | tr -d '='`.
 
 ```json
-{ "active": "v1", "secrets": { "v1": "<independent high-entropy secret bytes>" } }
+{ "active": "v1", "secrets": { "v1": "<base64url of 32 independent random bytes>" } }
 ```
 
 The provider pairs are:

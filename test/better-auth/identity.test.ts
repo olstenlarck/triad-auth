@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   accountSubject,
   createIdentityConfiguration,
-  openProfileData,
+  openProfileEncryptedData,
   type IdentityProvider,
   pairwiseSubject,
   providerSubject,
@@ -20,8 +20,8 @@ function createEnv(): TriadEnv {
     BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
     IDENTIFIER_SECRET,
     RATE_LIMIT_SECRET: "test-rate-limit-secret-with-enough-entropy-1234567890",
-    PROFILE_DATA_SECRETS:
-      '{"active":"v1","secrets":{"v1":"test-profile-data-keyring-with-enough-entropy-123456"}}',
+    ENCRYPTION_SECRETS:
+      '{"active":"v1","secrets":{"v1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"}}',
     GOOGLE_CLIENT_ID: "google-client-id",
     GOOGLE_CLIENT_SECRET: "google-client-secret",
     GITHUB_CLIENT_ID: "github-client-id",
@@ -66,11 +66,15 @@ function profileMapper(
 }
 
 async function mappedProfile(mapped: Record<string, unknown>) {
-  if (typeof mapped.profileData !== "string") {
+  if (typeof mapped.name !== "string" || typeof mapped.encryptedData !== "string") {
     throw new Error("Expected encrypted profile data");
   }
 
-  return openProfileData(createEnv().PROFILE_DATA_SECRETS, mapped.profileData);
+  return openProfileEncryptedData(
+    createEnv().ENCRYPTION_SECRETS,
+    mapped.name,
+    mapped.encryptedData,
+  );
 }
 
 describe("Triad deterministic identity", () => {
@@ -149,6 +153,7 @@ describe("Triad provider identity configuration", () => {
       const configuration = createIdentityConfiguration(createEnv());
       const mapProfile = profileMapper(configuration, provider);
       const expectedAccountSub = await accountSubject(IDENTIFIER_SECRET, provider, upstreamId);
+      const expectedProviderSub = await providerSubject(IDENTIFIER_SECRET, provider, upstreamId);
       const mapped = await mapProfile(profile);
       const remapped = await mapProfile(profile);
 
@@ -156,13 +161,12 @@ describe("Triad provider identity configuration", () => {
         emailVerified: false,
         image: "",
         provider,
+        providerSub: expectedProviderSub,
       });
-      expect(mapped?.id).toMatch(new RegExp(`^pid_${provider}_[0-9a-f]{64}$`));
-      expect(mapped?.providerSub).toBe(mapped?.id);
+      expect(mapped).not.toHaveProperty("id");
       expect(mapped?.name).toBe(expectedAccountSub);
       expect(mapped?.email).toBe(`${expectedAccountSub}@identity.invalid`);
       expect(mapped?.email).not.toContain("same@example.com");
-      expect(remapped?.id).toBe(mapped?.id);
       expect(remapped?.providerSub).toBe(mapped?.providerSub);
       expect(remapped?.name).toBe(mapped?.name);
       expect(remapped?.email).toBe(mapped?.email);
@@ -243,14 +247,22 @@ describe("Triad provider identity configuration", () => {
       picture: "javascript:alert(1)",
     });
 
-    expect(mapped).not.toHaveProperty("profileData");
+    expect(mapped).not.toHaveProperty("encryptedData");
   });
 
   it("declares captured profile data as optional user fields", () => {
     const configuration = createIdentityConfiguration(createEnv());
 
     expect(configuration.user.additionalFields).toMatchObject({
-      profileData: { type: "string", required: false, returned: false },
+      encryptedData: { type: "string", required: false, returned: false },
+    });
+  });
+
+  it("keeps the SIWE authentication chain private on the session", () => {
+    const configuration = createIdentityConfiguration(createEnv());
+
+    expect(configuration.session.additionalFields).toEqual({
+      authenticationChainId: { type: "number", required: false, returned: false },
     });
   });
 
@@ -293,7 +305,7 @@ describe("Triad provider identity configuration", () => {
     const encryptedProfileData = "v1.k1.iv.ciphertext";
     const user = {
       ...createUserRecord(accountSub, "github", providerSub),
-      profileData: encryptedProfileData,
+      encryptedData: encryptedProfileData,
     };
 
     await expect(beforeCreate(user, null)).resolves.toMatchObject({
@@ -305,7 +317,7 @@ describe("Triad provider identity configuration", () => {
         image: "",
         provider: "github",
         providerSub,
-        profileData: encryptedProfileData,
+        encryptedData: encryptedProfileData,
       },
     });
   });
@@ -324,7 +336,7 @@ describe("Triad provider identity configuration", () => {
   it.each([
     { name: "Changed Name" },
     { image: "https://images.example.com/changed.png" },
-    { profileData: "v1.v1.invalid.invalid" },
+    { encryptedData: "v1.v1.invalid.invalid" },
   ])("rejects updates to durable identity and encrypted profile data", async (update) => {
     const configuration = createIdentityConfiguration(createEnv());
 
@@ -336,6 +348,7 @@ describe("Triad provider identity configuration", () => {
     const stripTokens = configuration.databaseHooks.account[operation].before;
     const account = {
       id: "account-row-id",
+      issuer: "github",
       providerId: "github",
       accountId: "pid_github_subject",
       userId: "acc_subject",
@@ -383,4 +396,23 @@ describe("Triad provider identity configuration", () => {
       });
     },
   );
+
+  it("records the chain used to create a SIWE session", async () => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const session = {
+      id: "session-id",
+      userId: "acc_subject",
+      token: "session-token",
+      expiresAt: new Date("2030-01-01T00:00:00Z"),
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+
+    await expect(
+      configuration.databaseHooks.session.create.before(session, {
+        path: "/siwe/verify",
+        body: { chainId: 1 },
+      } as never),
+    ).resolves.toMatchObject({ data: { authenticationChainId: 1 } });
+  });
 });

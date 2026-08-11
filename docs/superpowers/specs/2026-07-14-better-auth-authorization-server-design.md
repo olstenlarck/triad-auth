@@ -133,19 +133,21 @@ An HTTP `Origin` header is not a client identity and is not used to derive DCR c
 
 ### Device Authorization
 
-Triad supports RFC 8628 through a self-contained internal companion plugin built on Better Auth OAuth Provider's public extension APIs. Better Auth's stock `deviceAuthorization()` plugin is not mounted because it returns Better Auth session tokens rather than OAuth Provider access, refresh, and ID tokens.
+Triad mounts Better Auth's `deviceAuthorization()` and OAuth Provider's `deviceCodeGrant()` together. They share device-code issuance and browser approval while preserving two redemption contracts.
+
+- A first-party client uses Triad's origin as `client_id` and redeems `/device/token` for a Better Auth session.
+- A registered OAuth client binds scopes and resources, then redeems `/oauth2/token` for OAuth Provider tokens.
 
 ```text
-1. Client requests device and user codes from Triad's device authorization endpoint.
-2. Triad resolves the CIMD or DCR client and binds scopes and resource audiences.
+1. A first-party or registered client requests device and user codes from `/device/code`.
+2. Triad accepts its exact first-party client ID or resolves and authenticates the registered OAuth client.
 3. The user opens the verification page and authenticates through Better Auth.
-4. Consent identifies the client, resources, scopes, and user code.
-5. The client polls the OAuth token endpoint with the device-code grant.
-6. On approval, the companion grant calls OAuth Provider token issuance.
-7. Triad returns the same JWT access, refresh, and optional ID tokens as other grants.
+4. The approval page identifies the client, result type, resources, scopes, and user code.
+5. The first-party client polls `/device/token`; the registered client polls `/oauth2/token`.
+6. Approval returns either a Triad session or scoped OAuth tokens according to that client contract.
 ```
 
-The module stores only hashed device codes, normalized user codes, polling state, client, scopes, resources, expiry, approval identity, and authentication time. It authenticates confidential clients through their registered method, supports public clients, advertises the device endpoint and grant in authorization-server metadata, and implements the standard pending, slow-down, denial, expiry, and one-winner redemption behavior.
+The shared device record stores the generated device code, normalized user code, polling state, client, scopes, resources, expiry, and approval identity. The OAuth companion authenticates registered clients, advertises the device endpoint and grant, and issues tokens through OAuth Provider's existing policy. Unknown client IDs are rejected instead of falling through to first-party behavior.
 
 ## Protected Resource Flow
 
@@ -179,10 +181,9 @@ The initial patch surface should remain narrow:
 
 - Add a generic `resolveSubjectIdentifier({ userId, clientId, subjectType, defaultSubject })` OAuth Provider option.
 - Keep JWT access-token and introspection `sub` global while applying the resolver only to OIDC-facing subjects.
-- Require and validate CIMD `client_name` for the MCP profile.
-- Verify Worker-compatible no-redirect fetching and strengthen CIMD DNS/SSRF controls.
 - Constrain open DCR to public clients and reject anonymous client-secret issuance.
-- Add an isolated RFC 8628 companion plugin that delegates final token issuance to OAuth Provider.
+
+Better Auth RC.4 supplies the current CIMD transport, redirect, metadata-profile, and cache APIs. Triad configures those APIs directly and does not patch `@better-auth/cimd`. OAuth Provider's upstream `deviceCodeGrant()` supplies the registered-client RFC 8628 integration.
 
 These changes should be covered by Triad integration tests and proposed upstream rather than developed into a custom protocol layer.
 
@@ -192,8 +193,8 @@ Every workstream has one focused plan document, one feature branch, one worktree
 
 The serial foundation is:
 
-1. Package baseline: install the exact Better Auth packages and record the real `1.7.0-rc.1` public exports without adding application behavior.
-2. Compatibility hooks: add only verified upstream-shaped patches required for exact-client subjects, public DCR policy, and Worker-safe CIMD behavior.
+1. Package baseline: install the complete Better Auth family at `1.7.0-rc.4`.
+2. Compatibility hooks: patch only exact-client subjects and public DCR policy.
 3. Platform foundation: add the direct D1 binding, environment contract, minimal Better Auth factory, Worker routing, and schema-generation commands.
 
 After the platform foundation merges, these disjoint modules may run in parallel:
@@ -203,7 +204,7 @@ After the platform foundation merges, these disjoint modules may run in parallel
 3. CIMD client admission.
 4. Public DCR admission.
 5. MCP resources and audience policy.
-6. RFC 8628 companion device grant.
+6. First-party and registered-client device authorization.
 7. Better Auth integration for the preserved product and demo surfaces.
 
 Serial integration then composes the reviewed modules, generates the fresh migration, verifies the complete local protocol, creates only the new D1 database and bindings, and deploys only the `triad-better-auth` Worker.

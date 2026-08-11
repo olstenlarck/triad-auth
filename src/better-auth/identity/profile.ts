@@ -1,12 +1,18 @@
 import type { IdentityProvider } from "./subjects";
+import type { OptionalDisclosureScope } from "../disclosures";
+import {
+  base64UrlDecode,
+  base64UrlEncode,
+  openEncryptedData,
+  sealEncryptedData,
+  validateEncryptionSecrets,
+} from "./encryption";
+import { storedPasskeyPublicKeyHex } from "./passkey-public-key";
 
 const SYNTHETIC_EMAIL_SUFFIX = "@identity.invalid";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;
-const PROFILE_DATA_ENVELOPE_VERSION = "v1";
-const PROFILE_DATA_CONTEXT = "triad-profile-data:v1";
-const PROFILE_DATA_KEY_ID_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
-
-export type ProfileScope = "email" | "handle" | "name" | "avatar";
+const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+const MAX_CREDENTIAL_ID_BYTES = 1023;
 
 export interface CapturedProfile {
   profileEmail?: string;
@@ -14,11 +20,6 @@ export interface CapturedProfile {
   profileHandle?: string;
   profileDisplayName?: string;
   profileAvatar?: string;
-}
-
-interface ParsedProfileDataSecrets {
-  active: string;
-  secrets: Record<string, string>;
 }
 
 interface StoredProfileData {
@@ -40,6 +41,9 @@ export interface ProfileClaims {
   preferred_username?: string;
   name?: string;
   picture?: string;
+  wallet?: string;
+  cred?: string;
+  pubkey?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -76,108 +80,24 @@ function webUrl(value: unknown): string | undefined {
   }
 }
 
-function parseProfileDataSecrets(serialized: string): ParsedProfileDataSecrets {
-  if (typeof serialized !== "string" || serialized.length === 0) {
-    throw new Error("PROFILE_DATA_SECRETS must contain versioned JSON secrets");
+function credentialId(value: unknown): string | undefined {
+  if (typeof value !== "string" || !BASE64URL_PATTERN.test(value) || value.length % 4 === 1) {
+    return undefined;
   }
 
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(serialized);
-  } catch {
-    throw new Error("PROFILE_DATA_SECRETS must contain valid JSON");
-  }
-
-  if (!isRecord(parsed) || typeof parsed.active !== "string") {
-    throw new Error("PROFILE_DATA_SECRETS must define an active key ID");
-  }
-  if (!PROFILE_DATA_KEY_ID_PATTERN.test(parsed.active)) {
-    throw new Error("PROFILE_DATA_SECRETS contains an invalid active key ID");
-  }
-  if (!isRecord(parsed.secrets)) {
-    throw new Error("PROFILE_DATA_SECRETS must define versioned encryption material");
-  }
-
-  const secrets: Record<string, string> = {};
-  for (const [keyId, secret] of Object.entries(parsed.secrets)) {
-    if (!PROFILE_DATA_KEY_ID_PATTERN.test(keyId)) {
-      throw new Error("PROFILE_DATA_SECRETS contains an invalid key ID");
+    const decoded = base64UrlDecode(value);
+    if (decoded.byteLength === 0 || decoded.byteLength > MAX_CREDENTIAL_ID_BYTES) {
+      return undefined;
     }
-    if (typeof secret !== "string" || secret.length < 32 || secret.trim() !== secret) {
-      throw new Error("PROFILE_DATA_SECRETS values must contain at least 32 characters");
-    }
-    secrets[keyId] = secret;
-  }
 
-  if (Object.keys(secrets).length === 0 || !secrets[parsed.active]) {
-    throw new Error("PROFILE_DATA_SECRETS active secret is not configured");
-  }
-
-  return { active: parsed.active, secrets };
-}
-
-export function validateProfileDataSecrets(
-  serialized: string,
-  forbiddenSecrets: readonly string[] = [],
-): void {
-  const profileSecrets = parseProfileDataSecrets(serialized);
-  if (Object.values(profileSecrets.secrets).some((secret) => forbiddenSecrets.includes(secret))) {
-    throw new Error("PROFILE_DATA_SECRETS must not reuse another Worker secret");
-  }
-}
-
-function base64UrlEncode(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-}
-
-function base64UrlDecode(value: string): Uint8Array {
-  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
-    throw new Error("Invalid profile data encoding");
-  }
-
-  const padded = value
-    .replaceAll("-", "+")
-    .replaceAll("_", "/")
-    .padEnd(Math.ceil(value.length / 4) * 4, "=");
-  let binary: string;
-  try {
-    binary = atob(padded);
+    return base64UrlEncode(decoded) === value ? value : undefined;
   } catch {
-    throw new Error("Invalid profile data encoding");
+    return undefined;
   }
-
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
-async function profileEncryptionKey(keyMaterial: string, keyId: string, usages: KeyUsage[]) {
-  const material = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(keyMaterial),
-    { name: "HKDF" },
-    false,
-    ["deriveKey"],
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: "HKDF",
-      hash: "SHA-256",
-      salt: new TextEncoder().encode(PROFILE_DATA_CONTEXT),
-      info: new TextEncoder().encode(`${PROFILE_DATA_CONTEXT}:${keyId}`),
-    },
-    material,
-    { name: "AES-GCM", length: 256 },
-    false,
-    usages,
-  );
-}
-
-function profileDataFromCaptured(profile: CapturedProfile): StoredProfileData {
+function storedProfileFromCaptured(profile: CapturedProfile): StoredProfileData {
   const data: StoredProfileData = {};
   if (profile.profileEmail !== undefined) {
     data.email = profile.profileEmail;
@@ -243,90 +163,27 @@ function capturedFromProfileData(value: unknown): CapturedProfile {
   return profile;
 }
 
-function profileDataAdditionalData(keyId: string): Uint8Array {
-  return new TextEncoder().encode(`${PROFILE_DATA_ENVELOPE_VERSION}:${keyId}`);
-}
-
-export async function sealProfileData(
-  serializedSecrets: string,
+export async function sealProfileEncryptedData(
+  encryptionSecrets: string,
+  accountSub: string,
   profile: CapturedProfile,
 ): Promise<string | undefined> {
-  const profileSecrets = parseProfileDataSecrets(serializedSecrets);
-  const data = profileDataFromCaptured(profile);
+  const data = storedProfileFromCaptured(profile);
   if (Object.keys(data).length === 0) {
     return undefined;
   }
 
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await profileEncryptionKey(
-    profileSecrets.secrets[profileSecrets.active],
-    profileSecrets.active,
-    ["encrypt"],
-  );
-  const encrypted = await crypto.subtle.encrypt(
-    {
-      name: "AES-GCM",
-      iv: iv as unknown as BufferSource,
-      additionalData: profileDataAdditionalData(profileSecrets.active) as unknown as BufferSource,
-    },
-    key,
-    new TextEncoder().encode(JSON.stringify(data)),
-  );
-
-  return [
-    PROFILE_DATA_ENVELOPE_VERSION,
-    profileSecrets.active,
-    base64UrlEncode(iv),
-    base64UrlEncode(new Uint8Array(encrypted)),
-  ].join(".");
+  return sealEncryptedData(encryptionSecrets, "user", accountSub, data);
 }
 
-export async function openProfileData(
-  serializedSecrets: string,
+export async function openProfileEncryptedData(
+  encryptionSecrets: string,
+  accountSub: string,
   envelope: string,
 ): Promise<CapturedProfile> {
-  const profileSecrets = parseProfileDataSecrets(serializedSecrets);
-  const [version, keyId, encodedIv, encodedCiphertext] = envelope.split(".");
-  if (
-    version !== PROFILE_DATA_ENVELOPE_VERSION ||
-    !keyId ||
-    !encodedIv ||
-    !encodedCiphertext ||
-    !PROFILE_DATA_KEY_ID_PATTERN.test(keyId) ||
-    !profileSecrets.secrets[keyId]
-  ) {
-    throw new Error("Invalid profile data envelope");
-  }
-
-  const iv = base64UrlDecode(encodedIv);
-  if (iv.length !== 12) {
-    throw new Error("Invalid profile data envelope");
-  }
-
-  let decrypted: ArrayBuffer;
-  try {
-    const key = await profileEncryptionKey(profileSecrets.secrets[keyId], keyId, ["decrypt"]);
-    decrypted = await crypto.subtle.decrypt(
-      {
-        name: "AES-GCM",
-        iv: iv as unknown as BufferSource,
-        additionalData: profileDataAdditionalData(keyId) as unknown as BufferSource,
-      },
-      key,
-      base64UrlDecode(encodedCiphertext) as unknown as BufferSource,
-    );
-  } catch {
-    throw new Error("Unable to decrypt profile data");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(new TextDecoder().decode(decrypted));
-  } catch {
-    throw new Error("Invalid profile data payload");
-  }
-
-  return capturedFromProfileData(parsed);
+  return capturedFromProfileData(
+    await openEncryptedData(encryptionSecrets, "user", accountSub, envelope),
+  );
 }
 
 function googleProfile(profile: unknown): CapturedProfile {
@@ -427,7 +284,7 @@ export function captureProviderProfile(
 
 async function resolveProfileClaims(
   user: CapturedProfile,
-  scopes: readonly ProfileScope[],
+  scopes: readonly OptionalDisclosureScope[],
 ): Promise<ProfileClaims> {
   const claims: ProfileClaims = {};
 
@@ -465,21 +322,83 @@ async function resolveProfileClaims(
   return claims;
 }
 
-export function createProfileClaimResolver(serializedSecrets: string) {
-  validateProfileDataSecrets(serializedSecrets);
+async function walletClaim(database: D1Database, userId: string): Promise<string | undefined> {
+  const row = await database
+    .prepare(
+      'select "address" from "walletAddress" where "userId" = ? order by "createdAt" asc limit 1',
+    )
+    .bind(userId)
+    .first<{ address: unknown }>();
+  const address = row?.address;
+
+  return typeof address === "string" && /^0x[0-9a-fA-F]{40}$/.test(address) ? address : undefined;
+}
+
+async function passkeyClaims(
+  database: D1Database,
+  userId: string,
+): Promise<Pick<ProfileClaims, "cred" | "pubkey">> {
+  const row = await database
+    .prepare('select "credentialID", "publicKey" from "passkey" where "userId" = ? limit 1')
+    .bind(userId)
+    .first<{ credentialID: unknown; publicKey: unknown }>();
+  if (typeof row?.credentialID !== "string" || typeof row.publicKey !== "string") {
+    return {};
+  }
+  const cred = credentialId(row.credentialID);
+  const pubkey = storedPasskeyPublicKeyHex(row.publicKey);
 
   return {
-    resolveProfileClaims: async (user: ProfileIdentityUser, scopes: readonly ProfileScope[]) => {
+    ...(cred ? { cred } : {}),
+    ...(typeof pubkey === "string" && /^04[0-9a-f]{128}$/.test(pubkey) ? { pubkey } : {}),
+  };
+}
+
+export function createProfileClaimResolver(encryptionSecrets: string, database?: D1Database) {
+  validateEncryptionSecrets(encryptionSecrets);
+
+  return {
+    resolveProfileClaims: async (
+      user: ProfileIdentityUser,
+      scopes: readonly OptionalDisclosureScope[],
+    ) => {
       if (scopes.length === 0) {
         return {};
       }
 
-      const profile =
-        typeof user.profileData === "string"
-          ? await openProfileData(serializedSecrets, user.profileData)
-          : {};
+      const databaseScopes: readonly OptionalDisclosureScope[] = ["wallet", "cred", "pubkey"];
+      const requiresDatabaseClaims = scopes.some((scope) => databaseScopes.includes(scope));
+      if (requiresDatabaseClaims && !database) {
+        throw new Error("Credential claims require an identity database");
+      }
+      const walletPromise: Promise<string | undefined> =
+        scopes.includes("wallet") && database
+          ? walletClaim(database, user.id)
+          : Promise.resolve(undefined);
+      const passkeyPromise: Promise<Pick<ProfileClaims, "cred" | "pubkey">> =
+        (scopes.includes("cred") || scopes.includes("pubkey")) && database
+          ? passkeyClaims(database, user.id)
+          : Promise.resolve({});
 
-      return resolveProfileClaims(profile, scopes);
+      const [profile, wallet, passkey] = await Promise.all([
+        typeof user.encryptedData === "string"
+          ? openProfileEncryptedData(encryptionSecrets, user.id, user.encryptedData)
+          : {},
+        walletPromise,
+        passkeyPromise,
+      ]);
+      const claims = await resolveProfileClaims(profile, scopes);
+      if (wallet) {
+        claims.wallet = wallet;
+      }
+      if (scopes.includes("cred") && passkey.cred) {
+        claims.cred = passkey.cred;
+      }
+      if (scopes.includes("pubkey") && passkey.pubkey) {
+        claims.pubkey = passkey.pubkey;
+      }
+
+      return claims;
     },
   };
 }

@@ -16,28 +16,36 @@ const disclosures = source("../../src/scripts/disclosure-controls.ts");
 const staticHeaders = source("../../public/_headers");
 
 describe("preserved Better Auth UI wiring", () => {
-  it("restores the exact landing privacy promise and optional scope manifest", () => {
+  it("keeps the landing privacy promise and optional claim manifest", () => {
     expect(landing).toContain("ASK FOR LESS.<br />REVEAL LESS.");
     expect(landing).toContain(
       "A client chooses its request. Triad shows the complete list before approval, and shares nothing beyond",
     );
     expect(landing).toContain(
-      "No raw provider ID, email, handle, name, avatar, or provider access token.",
+      "No raw provider ID, wallet, authenticated chain data, passkey credential, public key, email, handle,",
     );
-    expect(landing).toContain("OPTIONAL PROFILE SCOPES");
+    expect(landing).toContain("name, avatar, or provider access token.");
+    expect(landing).toContain("OPTIONAL CLAIM SCOPES");
     expect(landing).toContain("email + email_verified");
     expect(landing).toContain("preferred_username");
     expect(landing).toContain("<dt>name</dt><dd>name</dd>");
     expect(landing).toContain("<dt>avatar</dt><dd>picture</dd>");
+    expect(landing).toContain("<dt>wallet</dt><dd>wallet</dd>");
+    expect(landing).toContain("<dt>cred</dt><dd>cred</dd>");
   });
 
   it("restores provider-aware optional request controls with every option off", () => {
     expect(demo).toContain('<select id="demo-provider"');
-    expect(demo.match(/<input type="checkbox" name="demo-scope"/g)).toHaveLength(4);
+    expect(demo.match(/<input type="checkbox" name="demo-scope"/g)).toHaveLength(9);
     expect(demo).toContain('value="email"');
     expect(demo).toContain('value="handle"');
     expect(demo).toContain('value="name"');
     expect(demo).toContain('value="avatar"');
+    expect(demo).toContain('value="wallet"');
+    expect(demo).toContain('value="chains"');
+    expect(demo).toContain('value="chain_id"');
+    expect(demo).toContain('value="cred"');
+    expect(demo).toContain('value="pubkey"');
     expect(demo).not.toMatch(/name="demo-scope"[^>]*checked/);
     expect(demo).toContain("canonicalScopeRequest");
     expect(demo).toContain("input.checked = false");
@@ -46,6 +54,7 @@ describe("preserved Better Auth UI wiring", () => {
   it("starts the selected provider through Better Auth DCR and social sign-in", () => {
     expect(demo).toContain("/api/auth/oauth2/register");
     expect(demo).toContain('token_endpoint_auth_method: "none"');
+    expect(demo).toContain('application_type: "web"');
     expect(demo).toContain("scope: requestedScope");
     expect(demo).toContain("authorizationRequest");
     expect(demo).toContain("/api/auth/sign-in/social");
@@ -57,16 +66,20 @@ describe("preserved Better Auth UI wiring", () => {
     expect(demo).not.toContain("/api/providers");
   });
 
-  it("restores the v1 device authorization bay through Better Auth", () => {
-    expect(demo).toContain("ONE REQUEST.<br /><span>TWO FLOWS.</span>");
+  it("keeps first-party device login and adds registered-client OAuth device authorization", () => {
+    expect(demo).toContain("ONE REQUEST.<br /><span>THREE FLOWS.</span>");
     expect(demo).toContain("02 / DEVICE");
-    expect(demo).toContain("DEVICE AUTHORIZATION");
+    expect(demo).toContain("TWO DEVICE CONTRACTS");
     expect(demo).toContain('id="device-instructions"');
     expect(demo).toContain('id="verification-link"');
-    expect(demo).toContain('id="device-start"');
-    expect(demo).toContain("/api/auth/device/code");
+    expect(demo).toContain('id="device-session-start"');
+    expect(demo).toContain('id="device-oauth-start"');
+    expect(demo).toContain("discovery.device_authorization_endpoint");
     expect(demo).toContain("/api/auth/device/token");
-    expect(demo).toContain("urn:ietf:params:oauth:grant-type:device_code");
+    expect(demo).toContain("discovery.token_endpoint");
+    expect(demo).toContain('application_type: "native"');
+    expect(demo).toContain("grant_types: [DEVICE_CODE_GRANT_TYPE]");
+    expect(protocol).toContain("urn:ietf:params:oauth:grant-type:device_code");
     expect(demo).toContain("devicePollDecision");
     expect(demo).toContain('window.addEventListener("pagehide", stopDeviceFlow)');
     expect(demo).toContain('window.addEventListener("pageshow"');
