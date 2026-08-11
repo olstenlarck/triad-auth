@@ -2,7 +2,14 @@
 - run the three verification commands sequentially. stop on the first failure, fix it, and restart from `vp run check`.
 - do not touch vite.config.ts!
 - always use typescript v6, for now.
-- always read ~/skills/chatgpt_system_prompt.md and ~/skills/clean_code.md and if desiging ~/skills/product_design.md
+- always read `~/skills/chatgpt_system_prompt.md`; when writing code `~/skills/clean_code.md`; and if designing website/page/webapp/product `~/skills/product_design.md`
+- always use conventional commits
+
+## Git and Github
+
+- git and gh are routed by `gitswitch`. Inspect the repository remote url: if it includes `tunnckoCore` use `gitswitch switch tunnckoCore` and if it includes `olstenlarck` use `gitswitch switch olstenlarck`.
+- Git transport is SSH-only - both auth and signing - and SSH commit/tag signing is required. Both GitHub accounts use distinct P-256 keys for authentication and signing.
+- For git/gh ops: never change a remote to HTTPS. Do NOT install/use an HTTPS credential helper, do NOT run `gh auth setup-git`; do NOT migrate/copy authentication state, or change GitHub authentication/protocol state unless explicitly requested.
 
 ## Merge pull requests
 

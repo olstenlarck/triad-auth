@@ -3,7 +3,6 @@ import { createTriadConfiguration } from "./better-auth/configuration";
 import { canonicalDisclosureScopes } from "./better-auth/disclosures";
 import type { TriadEnv } from "./better-auth/env";
 import { createTriadResourceFragment } from "./better-auth/resources";
-import { cspScriptHashes } from "./generated/csp-script-hashes";
 
 interface TriadAuthService {
   api: {
@@ -31,7 +30,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     "object-src 'none'",
     "frame-ancestors 'none'",
     "form-action 'self'",
-    `script-src 'self' ${cspScriptHashes.join(" ")}`.trim(),
+    "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self'",
