@@ -1,6 +1,6 @@
 # Triad Identity
 
-Triad mediates authentication and selective identity disclosure between an account holder and client applications. It also lets an account authorize deterministic wallets without exposing root or private key material.
+Triad mediates authentication and selective identity disclosure between an account holder and client applications. Social Provider accounts with Attached Passkeys and accounts with an Identity Passkey can also authorize deterministic wallets without exposing seed or private key material to anyone.
 
 ## People and accounts
 
@@ -13,16 +13,16 @@ An independent Triad identity anchored to one Identity Source. One Account Holde
 _Avoid_: User, profile, provider account
 
 **Identity Source**:
-The origin of a Triad Account: Google, GitHub, Twitter, Ethereum, or Passkey.
+The origin of a Triad Account: Google, GitHub, Twitter, EVM, or Passkey.
 _Avoid_: Provider when referring to all five sources
 
 **Social Provider**:
 An external identity provider used as an Identity Source. Triad supports Google, GitHub, and Twitter.
 _Avoid_: Identity Source
 
-**Ethereum Identity Source**:
-An existing Ethereum wallet that anchors a Triad Account through wallet signatures. It cannot contain Passkeys.
-_Avoid_: Ethereum Smart Account, Wallet Passkey
+**EVM Identity Source**:
+An externally user controlled EVM wallet that anchors a Triad Account through signatures. Its authentication network does not change the account identity, and it cannot contain Passkeys or derive a PRF wallet.
+_Avoid_: EVM Wallet Profile, Ethereum Identity Source, EVM Smart Account, Wallet Passkey
 
 **Source Identifier**:
 The immutable identifier supplied or proven by an Identity Source. It establishes continuity with that source.
@@ -120,8 +120,12 @@ _Avoid_: Identity Passkey, Wallet
 An Identity Passkey or Attached Passkey while it is selected to supply a Wallet Seed.
 _Avoid_: Wallet, Identity Source
 
+**PRF Wallet Authorization**:
+The capability through which a Social Provider account with an Attached Passkey or an account with an Identity Passkey derives and uses a wallet.
+_Avoid_: Ethereum wallet signing, OAuth authorization
+
 **Wallet Authorization Request**:
-A one-time request from a Client Application to derive a wallet and sign a bound message with a Wallet Passkey.
+A one-time PRF Wallet Authorization request from a Client Application to derive a wallet and sign a bound message with a Wallet Passkey.
 _Avoid_: OAuth authorization request
 
 **Wallet Namespace**:
@@ -148,6 +152,14 @@ _Avoid_: BIP-32 Root, Passkey, private key
 A required client-selected definition of the key derivation method, standard path template, address format, and signature format for a Derived Wallet.
 _Avoid_: Wallet Type, raw path
 
+**EVM Wallet Profile**:
+The PRF wallet profile that derives an EVM-compatible address and signing key for an account with an Attached Passkey or Identity Passkey. It is independent of the EVM Identity Source.
+_Avoid_: EVM Identity Source, Ethereum Wallet Profile
+
+**Chain ID**:
+The EVM network that the Client Application selects for a wallet signature. It defaults to Ethereum mainnet `1` and does not change the Wallet Seed, Derivation Path, private key, or address.
+_Avoid_: Wallet Profile, Account Index
+
 **Bitcoin Wallet Profile**:
 A Wallet Profile that explicitly selects the Bitcoin address type and network. Generic Bitcoin and default Bitcoin profiles do not exist.
 _Avoid_: Bitcoin wallet
@@ -165,9 +177,9 @@ The signing key and address derived from a Wallet Seed, Wallet Profile, and Acco
 _Avoid_: Wallet Seed, Wallet Passkey
 
 **Signing Envelope**:
-The exact statement that binds a wallet signature to its client, request, namespace, profile, account index, path, message, and lifetime.
+The exact statement that binds a wallet signature to its client, request, namespace, profile, account index, path, applicable Chain ID, message, and lifetime.
 _Avoid_: Client message
 
 **Wallet Authorization Result**:
-The verifiable address, signature, request identity, namespace, profile, account index, path, and Signing Envelope returned to the Client Application.
+The verifiable address, signature, request identity, namespace, profile, account index, path, applicable Chain ID, and Signing Envelope returned to the Client Application.
 _Avoid_: Wallet, OAuth token
