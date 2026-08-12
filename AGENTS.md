@@ -4,6 +4,7 @@
 - For code, follow `~/skills/clean_code.md`.
 - For UI work, follow `~/skills/product_design.md`.
 - Keep solutions small and direct.
+- Put generic reusable helpers in `src/utils.ts` and export them. Before adding a local helper, check the central utilities and existing exports so the same logic is not implemented twice.
 - Do not preserve superseded APIs or add regression tests for them during refactors.
 - Use TypeScript 7, pinned 7.0.2 is fine.
 - Do not edit `vite.config.ts` unless very necessary, ask the user to approve.
