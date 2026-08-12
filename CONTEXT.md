@@ -105,19 +105,19 @@ _Avoid_: First-Party Device Request
 ## Passkeys and wallets
 
 **Passkey**:
-A user-verified, PRF-capable WebAuthn credential used as an Identity Passkey or an Attached Passkey.
+A user-verified WebAuthn credential. A Passkey may or may not support PRF.
 _Avoid_: Wallet, Triad Account
 
 **Identity Passkey**:
-The sole Passkey of a Triad Account whose Identity Source is Passkey. It both authenticates the account and supplies wallet seeds.
+The original PRF-capable Passkey that is the Identity Source of a Triad Account. It authenticates the account and supplies wallet seeds.
 _Avoid_: Passkey Account, Attached Passkey
 
 **Attached Passkey**:
-A Passkey added to a Triad Account whose Identity Source is a Social Provider. It can authenticate the account and supply wallet seeds without changing the Identity Source.
+A Passkey added to an existing Triad Account. On a Social Provider account it must support PRF and can authenticate or supply wallet seeds; on an account with an Identity Passkey it can authenticate only, whether or not it supports PRF.
 _Avoid_: Identity Passkey, Wallet
 
 **Wallet Passkey**:
-An Identity Passkey or Attached Passkey while it is selected to supply a Wallet Seed.
+An Identity Passkey or a PRF-capable Attached Passkey on a Social Provider account while it is selected to supply a Wallet Seed.
 _Avoid_: Wallet, Identity Source
 
 **PRF Wallet Authorization**:
