@@ -13,7 +13,7 @@ import {
   passkeyDisplayName,
   type PasskeyUsernameGeneratorOptions,
 } from "./passkey-username";
-import { canonicalP256PublicKey, isIdentityPasskey } from "./passkey-public-key";
+import { canonicalPasskeyPublicKey, isIdentityPasskey } from "./passkey-public-key";
 import { sealProfileEncryptedData } from "./profile";
 import { isSocialProvider, passkeyUpstreamId, providerSubject } from "./subjects";
 
@@ -144,7 +144,7 @@ export function createPasskeyAuthentication(
         }
 
         const credential = verification.registrationInfo.credential;
-        const canonicalPublicKey = canonicalP256PublicKey(Uint8Array.from(credential.publicKey));
+        const canonicalPublicKey = canonicalPasskeyPublicKey(Uint8Array.from(credential.publicKey));
         const upstreamId = await passkeyUpstreamId(canonicalPublicKey);
         const providerSub = await providerSubject(env.IDENTIFIER_SECRET, "passkey", upstreamId);
         const [existingCredential, existingAccount, existingUsername] = await Promise.all([

@@ -27,8 +27,8 @@ export async function ethereumUpstreamId(address: string): Promise<string> {
 }
 
 export async function passkeyUpstreamId(publicKey: Uint8Array): Promise<string> {
-  if (publicKey.length !== 65 || publicKey[0] !== 0x04) {
-    throw new Error("Passkey must contain a canonical P-256 public key");
+  if (publicKey.length === 0) {
+    throw new Error("Passkey must contain a canonical COSE public key");
   }
 
   return sha256Hex(publicKey);

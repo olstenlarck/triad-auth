@@ -85,6 +85,7 @@ describe("Triad protected-resource metadata routing", () => {
         "chain_id",
         "cred",
         "pubkey",
+        "cosekey",
       ],
     ],
   ])(

@@ -98,6 +98,7 @@ describe("Triad Better Auth integration configuration", () => {
         "chain_id",
         "cred",
         "pubkey",
+        "cosekey",
       ],
     });
     expect(providerPlugin.options.extensions).toHaveLength(2);
@@ -127,6 +128,7 @@ describe("Triad Better Auth integration configuration", () => {
           "chain_id",
           "cred",
           "pubkey",
+          "cosekey",
         ],
         disabled: false,
         identifier: "https://auth.example.com/demo",
@@ -144,6 +146,7 @@ describe("Triad Better Auth integration configuration", () => {
       "chain_id",
       "cred",
       "pubkey",
+      "cosekey",
     ]);
   });
 });

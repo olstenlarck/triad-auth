@@ -33,6 +33,7 @@ describe("preserved Better Auth UI wiring", () => {
     expect(account).toContain("/api/wallet/capability/complete");
     expect(account).toContain("/api/wallet/passkeys");
     expect(account).toContain("accountSubjectWebAuthnUserId(activeAccountSub)");
+    expect(account).not.toContain("p256Algorithms");
   });
 
   it("claims each one-time wallet challenge before cryptographic verification", () => {
@@ -66,7 +67,7 @@ describe("preserved Better Auth UI wiring", () => {
 
   it("restores provider-aware optional request controls with every option off", () => {
     expect(demo).toContain('<select id="demo-provider"');
-    expect(demo.match(/<input type="checkbox" name="demo-scope"/g)).toHaveLength(9);
+    expect(demo.match(/<input type="checkbox" name="demo-scope"/g)).toHaveLength(10);
     expect(demo).toContain('value="email"');
     expect(demo).toContain('value="handle"');
     expect(demo).toContain('value="name"');
@@ -76,6 +77,7 @@ describe("preserved Better Auth UI wiring", () => {
     expect(demo).toContain('value="chain_id"');
     expect(demo).toContain('value="cred"');
     expect(demo).toContain('value="pubkey"');
+    expect(demo).toContain('value="cosekey"');
     expect(demo).not.toMatch(/name="demo-scope"[^>]*checked/);
     expect(demo).toContain("canonicalScopeRequest");
     expect(demo).toContain("input.checked = false");

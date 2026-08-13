@@ -1,3 +1,8 @@
+export type PublicJwk =
+  | { crv: "P-256" | "P-384" | "P-521"; kty: "EC"; x: string; y: string }
+  | { crv: "Ed25519"; kty: "OKP"; x: string }
+  | { e: string; kty: "RSA"; n: string };
+
 export function base64UrlEncode(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) {
@@ -35,6 +40,77 @@ export function base64UrlDecode(value: string): Uint8Array<ArrayBuffer> {
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function publicKeyParameter(value: unknown, expectedBytes?: number): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length % 4 === 1) {
+    return false;
+  }
+
+  try {
+    const decoded = base64UrlDecode(value);
+
+    return (
+      decoded.length > 0 &&
+      (expectedBytes === undefined || decoded.length === expectedBytes) &&
+      base64UrlEncode(decoded) === value
+    );
+  } catch {
+    return false;
+  }
+}
+
+function publicJwkEcCurve(
+  curve: unknown,
+): { coordinateBytes: number; name: "P-256" | "P-384" | "P-521" } | undefined {
+  if (curve === "P-256") {
+    return { coordinateBytes: 32, name: curve };
+  }
+  if (curve === "P-384") {
+    return { coordinateBytes: 48, name: curve };
+  }
+  if (curve === "P-521") {
+    return { coordinateBytes: 66, name: curve };
+  }
+
+  return undefined;
+}
+
+export function decodePublicJwk(value: unknown): PublicJwk {
+  if (!isRecord(value)) {
+    throw new Error("Public key claim must contain a public JWK");
+  }
+
+  if (value.kty === "EC") {
+    const curve = publicJwkEcCurve(value.crv);
+    if (
+      !curve ||
+      !publicKeyParameter(value.x, curve.coordinateBytes) ||
+      !publicKeyParameter(value.y, curve.coordinateBytes)
+    ) {
+      throw new Error("Public key claim contains an invalid EC public JWK");
+    }
+
+    return { crv: curve.name, kty: "EC", x: value.x, y: value.y };
+  }
+
+  if (value.kty === "OKP") {
+    if (value.crv !== "Ed25519" || !publicKeyParameter(value.x, 32)) {
+      throw new Error("Public key claim contains an invalid OKP public JWK");
+    }
+
+    return { crv: value.crv, kty: "OKP", x: value.x };
+  }
+
+  if (value.kty === "RSA") {
+    if (!publicKeyParameter(value.n) || !publicKeyParameter(value.e)) {
+      throw new Error("Public key claim contains an invalid RSA public JWK");
+    }
+
+    return { e: value.e, kty: "RSA", n: value.n };
+  }
+
+  throw new Error("Public key claim contains an unsupported public JWK");
 }
 
 export function boundedString(

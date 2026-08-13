@@ -25,7 +25,7 @@ An externally user controlled EVM wallet that anchors a Triad Account through si
 _Avoid_: EVM Wallet Profile, Ethereum Identity Source, EVM Smart Account, Wallet Passkey
 
 **Source Identifier**:
-The immutable identifier supplied or proven by an Identity Source. It establishes continuity with that source.
+The immutable identifier supplied or proven by an Identity Source. It establishes continuity with that source. For a Passkey Identity Source, it is the SHA-256 digest of the Identity Passkey's canonical COSE public key. The canonical encoding includes the key type, algorithm, curve when applicable, and public-key components. It supports EC2, OKP, and RSA Passkeys.
 _Avoid_: Username, email
 
 **Profile Data**:
@@ -109,7 +109,7 @@ A user-verified WebAuthn credential. A Passkey may or may not support PRF.
 _Avoid_: Wallet, Triad Account
 
 **Identity Passkey**:
-The original Passkey that is the Identity Source of a Triad Account. It authenticates the account and may establish Wallet Capability.
+The original Passkey that is the Identity Source of a Triad Account. It may use any WebAuthn public-key algorithm that Triad's verification library supports. It authenticates the account and may establish Wallet Capability.
 _Avoid_: Passkey Account, Attached Passkey
 
 **Attached Passkey**:

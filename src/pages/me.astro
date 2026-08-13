@@ -386,7 +386,7 @@ export const prerender = true;
         github: ["openid", "email", "handle", "name", "avatar"],
         twitter: ["openid", "handle", "name", "avatar"],
         ethereum: ["openid", "wallet", "chains", "chain_id"],
-        passkey: ["openid", "handle", "cred", "pubkey"],
+        passkey: ["openid", "handle", "cred", "pubkey", "cosekey"],
       };
 
       return requestedScopes().every((scope) => capabilities[provider]?.includes(scope));
@@ -605,16 +605,11 @@ export const prerender = true;
           "Triad could not issue a passkey registration challenge.",
           decodeRegistrationOptions,
         );
-        const p256Algorithms = options.pubKeyCredParams.filter((parameter) => parameter.alg === -7);
-        if (p256Algorithms.length === 0) {
-          throw new Error("Triad did not offer the required ES256 passkey algorithm.");
-        }
         const userId = await passkeyWebAuthnUserId(options.user.name);
         const response = await startRegistration({
           optionsJSON: {
             ...options,
             user: { ...options.user, id: userId },
-            pubKeyCredParams: p256Algorithms,
           },
         });
         const verifyResponse = await fetch("/api/auth/passkey/verify-registration", {
