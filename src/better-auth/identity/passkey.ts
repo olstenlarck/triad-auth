@@ -125,7 +125,6 @@ export function createPasskeyAuthentication(
         if (session?.user.id) {
           validateAttachmentProvider(session);
           const credential = verification.registrationInfo.credential;
-          canonicalP256PublicKey(Uint8Array.from(credential.publicKey));
 
           const existingCredential = await ctx.context.adapter.findOne({
             model: "passkey",

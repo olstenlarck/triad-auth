@@ -45,7 +45,12 @@ export async function isIdentityPasskey(
   providerSub: string,
   storedPublicKey: string,
 ): Promise<boolean> {
-  const canonicalPublicKey = canonicalP256PublicKey(storedPasskeyPublicKeyBytes(storedPublicKey));
+  let canonicalPublicKey: Uint8Array<ArrayBuffer>;
+  try {
+    canonicalPublicKey = canonicalP256PublicKey(storedPasskeyPublicKeyBytes(storedPublicKey));
+  } catch {
+    return false;
+  }
   const upstreamId = await passkeyUpstreamId(canonicalPublicKey);
 
   return providerSub === (await providerSubject(identifierSecret, "passkey", upstreamId));
