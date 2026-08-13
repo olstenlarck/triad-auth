@@ -27,9 +27,11 @@ export {
   accountSubject,
   type AuthenticationProvider,
   ethereumUpstreamId,
-  type IdentityProvider,
+  isSocialProvider,
   pairwiseSubject,
   passkeyUpstreamId,
   providerSubject,
   sha256Hex,
+  SOCIAL_PROVIDERS,
+  type SocialProvider,
 } from "./subjects";

@@ -4,7 +4,11 @@ import {
   parseWalletAuthorizationInput,
   signPrfWallet,
   verifyPrfWalletSignature,
+  WALLET_CAPABILITY_ACCOUNT_INDEX,
+  WALLET_CAPABILITY_PROFILE,
   WALLET_PROFILE_IDS,
+  walletCapabilityPrfSaltBase64Url,
+  walletCapabilitySigningMessage,
   walletDerivationPath,
   walletPrfSalt,
   walletProfile,
@@ -85,6 +89,24 @@ describe("PRF wallet derivation protocol", () => {
     ).toHaveLength(3);
   });
 
+  it("binds a dedicated Wallet Capability proof to the exact stored Passkey", async () => {
+    const salt = await walletCapabilityPrfSaltBase64Url("acc_abc", "passkey_123");
+    const otherSalt = await walletCapabilityPrfSaltBase64Url("acc_abc", "passkey_456");
+    const message = walletCapabilitySigningMessage({
+      origin: "https://triad.wgw.lol",
+      accountSubject: "acc_abc",
+      credentialId: "passkey_123",
+      requestId: "00000000-0000-4000-8000-000000000000",
+      issuedAt: "2026-08-12T00:00:00.000Z",
+      expiresAt: "2026-08-12T00:05:00.000Z",
+    });
+
+    expect(salt).not.toBe(otherSalt);
+    expect(message).toContain('"credential_id":"passkey_123"');
+    expect(message).toContain(`"wallet_profile":"${WALLET_CAPABILITY_PROFILE}"`);
+    expect(message).toContain(`"account_index":${WALLET_CAPABILITY_ACCOUNT_INDEX}`);
+  });
+
   it.each(WALLET_PROFILE_IDS)("derives and verifies a %s wallet signature", async (profileId) => {
     const prfRoot = Uint8Array.from({ length: 32 }, (_, index) => index + 1);
     const message = "Triad wallet profile signature fixture";
@@ -133,6 +155,7 @@ describe("PRF wallet derivation protocol", () => {
       path: "m/44'/60'/0'/0/0",
       chainId: 1,
       message: "Triad Wallet Authorization v2\n{}",
+      receipt: "signed-triad-receipt",
     });
     const target = new URL(redirect);
     const fragment = new URLSearchParams(target.hash.slice(1));
@@ -142,5 +165,6 @@ describe("PRF wallet derivation protocol", () => {
     expect(fragment.get("triad_wallet_profile")).toBe("evm");
     expect(fragment.get("triad_namespace")).toBe("account");
     expect(fragment.get("triad_chain_id")).toBe("1");
+    expect(fragment.get("triad_receipt")).toBe("signed-triad-receipt");
   });
 });

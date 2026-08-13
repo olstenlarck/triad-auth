@@ -12,6 +12,7 @@ function createServices() {
 
   const authHandler = vi.fn(() => new Response("auth"));
   const getSession = vi.fn(async () => null);
+  const signJWT = vi.fn(async () => ({ token: "signed-receipt" }));
   const createTriadConfiguration = vi.fn(() => {
     calls.push("configuration");
 
@@ -21,7 +22,7 @@ function createServices() {
     calls.push("auth");
     expect(receivedConfiguration).toBe(configuration);
 
-    return { api: { getSession }, handler: authHandler };
+    return { api: { getSession, signJWT }, handler: authHandler };
   });
   const handleWalletBroker = vi.fn(async () => {
     calls.push("wallet");
@@ -54,6 +55,7 @@ function createServices() {
       createTriadAuth,
       authHandler,
       getSession,
+      signJWT,
       handleWalletBroker,
       handleAstro,
       fetchAssets,

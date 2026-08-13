@@ -9,14 +9,27 @@ export const WALLET_PROFILE_IDS = [
 
 export type WalletProfileId = (typeof WALLET_PROFILE_IDS)[number];
 
-export interface WalletProfile {
+interface BaseWalletProfile {
   id: WalletProfileId;
   label: string;
   path: (accountIndex: number) => string;
-  chain: "evm" | "solana" | "bitcoin";
-  network?: "mainnet" | "testnet";
-  addressType?: "native-segwit" | "taproot";
 }
+
+interface EvmWalletProfile extends BaseWalletProfile {
+  chain: "evm";
+}
+
+interface SolanaWalletProfile extends BaseWalletProfile {
+  chain: "solana";
+}
+
+interface BitcoinWalletProfile extends BaseWalletProfile {
+  chain: "bitcoin";
+  network: "mainnet" | "testnet";
+  addressType: "native-segwit" | "taproot";
+}
+
+export type WalletProfile = EvmWalletProfile | SolanaWalletProfile | BitcoinWalletProfile;
 
 const profiles: Record<WalletProfileId, WalletProfile> = {
   evm: {

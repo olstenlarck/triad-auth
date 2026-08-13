@@ -18,6 +18,7 @@ import {
   createPasskeyAuthentication,
   createProfileClaimResolver,
   createSessionClaimResolver,
+  isSocialProvider,
   pairwiseSubject,
 } from "./identity";
 import { createD1RateLimitStorage, RATE_LIMIT_WINDOW_SECONDS } from "./rate-limit";
@@ -42,13 +43,7 @@ function validateProviderAuthorization(
   scopes: readonly string[],
 ): void {
   const provider = user.provider;
-  if (
-    provider !== "google" &&
-    provider !== "github" &&
-    provider !== "twitter" &&
-    provider !== "ethereum" &&
-    provider !== "passkey"
-  ) {
+  if (!isSocialProvider(provider) && provider !== "ethereum" && provider !== "passkey") {
     throw new APIError("BAD_REQUEST", { message: "Identity provider is invalid" });
   }
 
@@ -74,11 +69,11 @@ export function createTriadConfiguration(env: TriadEnv) {
         pairwiseSubject(env.IDENTIFIER_SECRET, accountSub, clientId),
       resolveProviderSubject: providerSubjectFromUser,
     },
-    profileClaims: createProfileClaimResolver(
-      env.ENCRYPTION_SECRETS,
-      env.DB,
-      env.IDENTIFIER_SECRET,
-    ),
+    profileClaims: createProfileClaimResolver({
+      encryptionSecrets: env.ENCRYPTION_SECRETS,
+      database: env.DB,
+      identifierSecret: env.IDENTIFIER_SECRET,
+    }),
     sessionClaims: createSessionClaimResolver(env.DB),
     resource: resourceFragment,
   });

@@ -88,10 +88,15 @@ const migrationFiles = readdirSync("migrations")
   .sort();
 const initialMigration = readSource("migrations/0001-initial.sql");
 const walletMigration = readSource("migrations/0002-prf-wallet.sql");
+const walletCapabilityMigration = readSource("migrations/0003-wallet-capability.sql");
 
 describe("Better Auth schema tooling", () => {
   it("keeps the finalized initial migration and adds schema changes separately", () => {
-    expect(migrationFiles).toEqual(["0001-initial.sql", "0002-prf-wallet.sql"]);
+    expect(migrationFiles).toEqual([
+      "0001-initial.sql",
+      "0002-prf-wallet.sql",
+      "0003-wallet-capability.sql",
+    ]);
     expect(createHash("sha256").update(initialMigration).digest("hex")).toBe(
       "23f86de32d73f5cac58147983fe07b68890000174fd916f39039083d22aa9e00",
     );
@@ -123,6 +128,13 @@ describe("Better Auth schema tooling", () => {
     expect(walletMigration).toContain('"signingMessage" text not null');
     expect(walletMigration).toContain('"consumedAt" date');
     expect(walletMigration).toContain('create index "walletRequest_expiresAt_idx"');
+    expect(walletCapabilityMigration).toContain(
+      'alter table "passkey" add column "walletCapable" integer not null default 0',
+    );
+    expect(walletCapabilityMigration).toContain('create table "walletCapabilityRequest"');
+    expect(walletCapabilityMigration).toContain(
+      'create index "walletCapabilityRequest_expiresAt_idx"',
+    );
   });
 
   it("configures one canonical Worker and D1 database with preview URLs", () => {

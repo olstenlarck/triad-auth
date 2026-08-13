@@ -107,7 +107,7 @@ function signBitcoin(
   message: string,
 ): WalletSignature {
   const profile = walletProfile(profileId);
-  if (profile.chain !== "bitcoin" || !profile.network || !profile.addressType) {
+  if (profile.chain !== "bitcoin") {
     throw new Error("Bitcoin wallet profile is invalid");
   }
 
@@ -139,7 +139,7 @@ function verifyBitcoin(
 ): boolean {
   try {
     const profile = walletProfile(profileId);
-    if (profile.chain !== "bitcoin" || !profile.network || !profile.addressType) {
+    if (profile.chain !== "bitcoin") {
       return false;
     }
     const network = bitcoinNetwork(profile.network);

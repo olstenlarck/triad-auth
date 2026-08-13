@@ -1,6 +1,6 @@
 # Triad Identity
 
-Triad mediates authentication and selective identity disclosure between an account holder and client applications. Social Provider accounts with Attached Passkeys and accounts with an Identity Passkey can also authorize deterministic wallets without exposing seed or private key material to anyone.
+Triad mediates authentication and selective identity disclosure between an Account Holder and Client Applications. Triad Accounts with a Wallet Passkey can also authorize deterministic wallets without exposing seed or private key material to anyone.
 
 ## People and accounts
 
@@ -109,23 +109,27 @@ A user-verified WebAuthn credential. A Passkey may or may not support PRF.
 _Avoid_: Wallet, Triad Account
 
 **Identity Passkey**:
-The original PRF-capable Passkey that is the Identity Source of a Triad Account. It authenticates the account and supplies wallet seeds.
+The original Passkey that is the Identity Source of a Triad Account. It authenticates the account and may establish Wallet Capability.
 _Avoid_: Passkey Account, Attached Passkey
 
 **Attached Passkey**:
-A Passkey added to an existing Triad Account. On a Social Provider account it must support PRF and can authenticate or supply wallet seeds; on an account with an Identity Passkey it can authenticate only, whether or not it supports PRF.
+A Passkey added to a Triad Account whose Identity Source is a Social Provider or Passkey. It authenticates the same Triad Account and may establish Wallet Capability.
 _Avoid_: Identity Passkey, Wallet
 
-**Wallet Passkey**:
-An Identity Passkey or a PRF-capable Attached Passkey on a Social Provider account while it is selected to supply a Wallet Seed.
-_Avoid_: Wallet, Identity Source
+**Wallet Capability**:
+The persisted state established after an exact stored Passkey produces a user-verified assertion with PRF output and the resulting Derived Wallet signs the bound capability envelope. Wallet Capability filters which Passkeys Triad offers for Wallet Authorization; it never replaces proof during a Wallet Authorization Request.
+_Avoid_: Verified Passkey, PRF-capable registration, wallet candidate
 
-**PRF Wallet Authorization**:
-The capability through which a Social Provider account with an Attached Passkey or an account with an Identity Passkey derives and uses a wallet.
+**Wallet Passkey**:
+An Identity Passkey or Attached Passkey with Wallet Capability.
+_Avoid_: Wallet, Identity Source, login Passkey
+
+**Wallet Authorization**:
+The operation through which a Wallet Passkey supplies fresh PRF output, derives a wallet, and signs a bound request.
 _Avoid_: Ethereum wallet signing, OAuth authorization
 
 **Wallet Authorization Request**:
-A one-time PRF Wallet Authorization request from a Client Application to derive a wallet and sign a bound message with a Wallet Passkey.
+A one-time Wallet Authorization request from a Client Application to derive a wallet and sign a bound message with a Wallet Passkey.
 _Avoid_: OAuth authorization request
 
 **Wallet Namespace**:
@@ -153,7 +157,7 @@ A required client-selected definition of the key derivation method, standard pat
 _Avoid_: Wallet Type, raw path
 
 **EVM Wallet Profile**:
-The PRF wallet profile that derives an EVM-compatible address and signing key for an account with an Attached Passkey or Identity Passkey. It is independent of the EVM Identity Source.
+The Wallet Profile that derives an EVM-compatible address and signing key from a Wallet Seed. It is independent of the EVM Identity Source.
 _Avoid_: EVM Identity Source, Ethereum Wallet Profile
 
 **Chain ID**:
@@ -163,6 +167,10 @@ _Avoid_: Wallet Profile, Account Index
 **Bitcoin Wallet Profile**:
 A Wallet Profile that explicitly selects the Bitcoin address type and network. Generic Bitcoin and default Bitcoin profiles do not exist.
 _Avoid_: Bitcoin wallet
+
+**Solana Wallet Profile**:
+The Wallet Profile that uses hardened SLIP-0010 Ed25519 derivation, a base58 public-key address, and an Ed25519 signature.
+_Avoid_: EVM Wallet Profile, generic Ed25519 wallet
 
 **Derivation Path**:
 The standard path resolved from a Wallet Profile and Account Index. A Client Application does not supply it directly.
@@ -180,6 +188,10 @@ _Avoid_: Wallet Seed, Wallet Passkey
 The exact statement that binds a wallet signature to its client, request, namespace, profile, account index, path, applicable Chain ID, message, and lifetime.
 _Avoid_: Client message
 
+**Wallet Authorization Receipt**:
+An ES256 JWT signed with Triad's published JWKS after Triad verifies the exact selected stored Passkey assertion and Derived Wallet signature. It binds the Client Application audience, Pairwise Subject, request, Derived Wallet address, Signing Envelope hash, wallet signature hash, namespace, profile, Account Index, path, applicable Chain ID, and lifetime.
+_Avoid_: Wallet signature, OAuth access token
+
 **Wallet Authorization Result**:
-The verifiable address, signature, request identity, namespace, profile, account index, path, applicable Chain ID, and Signing Envelope returned to the Client Application.
+The verifiable address, signature, request identity, namespace, profile, account index, path, applicable Chain ID, Signing Envelope, and Wallet Authorization Receipt returned to the Client Application.
 _Avoid_: Wallet, OAuth token

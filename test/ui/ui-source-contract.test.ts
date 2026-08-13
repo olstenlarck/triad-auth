@@ -12,6 +12,7 @@ const account = source("../../src/pages/me.astro");
 const walletAuthorization = source("../../src/pages/wallet/authorize.astro");
 const prfWallet = source("../../src/scripts/prf-wallet.ts");
 const walletSignatures = source("../../src/better-auth/wallet/signatures.ts");
+const walletBroker = source("../../src/better-auth/wallet/index.ts");
 const landing = source("../../src/pages/index.astro");
 const protocol = source("../../src/scripts/demo-protocol.ts");
 const disclosures = source("../../src/scripts/disclosure-controls.ts");
@@ -26,10 +27,23 @@ describe("preserved Better Auth UI wiring", () => {
     expect(walletAuthorization).toContain("signWithPrfWallet");
     expect(walletSignatures).toContain("prfRoot.fill(0)");
     expect(prfWallet).toContain("signPrfWallet");
-    expect(account).toContain("IDENTITY PASSKEY · WALLET ROOT");
-    expect(account).toContain("LOGIN ONLY");
+    expect(account).toContain("ENABLE WALLET");
+    expect(account).toContain('wallet.textContent = "WALLET"');
+    expect(account).toContain("/api/wallet/capability/options");
+    expect(account).toContain("/api/wallet/capability/complete");
     expect(account).toContain("/api/wallet/passkeys");
     expect(account).toContain("accountSubjectWebAuthnUserId(activeAccountSub)");
+  });
+
+  it("claims each one-time wallet challenge before cryptographic verification", () => {
+    const claim = walletBroker.indexOf('update "walletRequest" set "consumedAt"');
+    const verification = walletBroker.indexOf("verifyStoredPasskeyAssertion", claim);
+
+    expect(claim).toBeGreaterThan(-1);
+    expect(verification).toBeGreaterThan(claim);
+    expect(walletBroker).toContain(
+      "Claim the challenge before expensive cryptographic work so every request has one attempt.",
+    );
   });
 
   it("keeps the landing privacy promise and optional claim manifest", () => {

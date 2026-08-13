@@ -1,7 +1,4 @@
-import type {
-  AuthenticationExtensionsClientInputs,
-  RegistrationResponseJSON,
-} from "@simplewebauthn/server";
+import type { AuthenticationExtensionsClientInputs } from "@simplewebauthn/server";
 import { passkey } from "@better-auth/passkey";
 import type { BetterAuthPlugin, HookEndpointContext } from "better-auth";
 import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
@@ -18,11 +15,7 @@ import {
 } from "./passkey-username";
 import { canonicalP256PublicKey, isIdentityPasskey } from "./passkey-public-key";
 import { sealProfileEncryptedData } from "./profile";
-import { passkeyUpstreamId, providerSubject } from "./subjects";
-
-interface PrfRegistrationExtensions extends AuthenticationExtensionsClientInputs {
-  prf: Record<string, never>;
-}
+import { isSocialProvider, passkeyUpstreamId, providerSubject } from "./subjects";
 
 const PASSKEY_ATTACHMENT_FRESHNESS_MS = 5 * 60 * 1_000;
 
@@ -45,34 +38,16 @@ function rejectPasskey(message: string): never {
   throw new APIError("BAD_REQUEST", { message });
 }
 
-function requiresPrfRegistration(clientData: RegistrationResponseJSON): void {
-  const prf = Reflect.get(clientData.clientExtensionResults, "prf");
-  if (typeof prf !== "object" || prf === null || Reflect.get(prf, "enabled") !== true) {
-    rejectPasskey("This passkey does not support the required PRF extension");
-  }
-}
-
 function sessionProvider(session: Awaited<ReturnType<typeof getSessionFromCtx>>): unknown {
   return session?.user.provider;
 }
 
-function validateAttachmentProvider(
-  session: Awaited<ReturnType<typeof getSessionFromCtx>>,
-  clientData: RegistrationResponseJSON,
-): void {
+function validateAttachmentProvider(session: Awaited<ReturnType<typeof getSessionFromCtx>>): void {
   const provider = sessionProvider(session);
   if (provider === "ethereum") {
     rejectPasskey("EVM Identity Sources cannot attach passkeys");
   }
-  if (provider === "google" || provider === "github" || provider === "twitter") {
-    requiresPrfRegistration(clientData);
-  }
-  if (
-    provider !== "passkey" &&
-    provider !== "google" &&
-    provider !== "github" &&
-    provider !== "twitter"
-  ) {
+  if (provider !== "passkey" && !isSocialProvider(provider)) {
     rejectPasskey("Triad account identity source is invalid");
   }
 }
@@ -96,7 +71,7 @@ export function createPasskeyAuthentication(
   usernameOptions: PasskeyUsernameGeneratorOptions = {},
 ) {
   const origin = new URL(env.AUTH_ORIGIN);
-  const registrationExtensions: PrfRegistrationExtensions = { credProps: true, prf: {} };
+  const registrationExtensions: AuthenticationExtensionsClientInputs = { credProps: true };
   const createUsername = createPasskeyUsernameGenerator(usernameOptions);
 
   const passkeyPlugin = passkey({
@@ -142,13 +117,13 @@ export function createPasskeyAuthentication(
 
         return registrationExtensions;
       },
-      afterVerification: async ({ ctx, verification, user: registrationUser, clientData }) => {
+      afterVerification: async ({ ctx, verification, user: registrationUser }) => {
         if (!verification.registrationInfo?.userVerified) {
           rejectPasskey("Passkey registration requires user verification");
         }
         const session = await requireFreshAttachmentSession(ctx);
         if (session?.user.id) {
-          validateAttachmentProvider(session, clientData);
+          validateAttachmentProvider(session);
           const credential = verification.registrationInfo.credential;
           canonicalP256PublicKey(Uint8Array.from(credential.publicKey));
 
@@ -162,8 +137,6 @@ export function createPasskeyAuthentication(
 
           return { userId: session.user.id };
         }
-
-        requiresPrfRegistration(clientData);
 
         const username = canonicalPasskeyUsername(registrationUser.name);
         const accountSub = await passkeyAccountSubject(username);
@@ -269,6 +242,13 @@ export function createPasskeyAuthentication(
     ...passkeyPlugin,
     schema: {
       ...passkeyPlugin.schema,
+      passkey: {
+        ...passkeyPlugin.schema?.passkey,
+        fields: {
+          ...passkeyPlugin.schema?.passkey?.fields,
+          walletCapable: { type: "boolean" as const, required: true, defaultValue: false },
+        },
+      },
       ...passkeyUsernameSchema,
     },
     hooks: {

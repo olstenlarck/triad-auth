@@ -9,6 +9,8 @@ import {
 
 export const WALLET_REQUEST_TTL_MS = 5 * 60 * 1_000;
 export const WALLET_REQUEST_BODY_LIMIT = 16 * 1_024;
+export const WALLET_CAPABILITY_PROFILE = "evm" satisfies WalletProfileId;
+export const WALLET_CAPABILITY_ACCOUNT_INDEX = 0;
 
 export type WalletNamespace = "account" | "client" | "source";
 
@@ -47,6 +49,15 @@ interface WalletMessageInput {
   path: string;
   chainId?: number;
   message: string;
+  issuedAt: string;
+  expiresAt: string;
+}
+
+interface WalletCapabilityMessageInput {
+  origin: string;
+  accountSubject: string;
+  credentialId: string;
+  requestId: string;
   issuedAt: string;
   expiresAt: string;
 }
@@ -108,6 +119,34 @@ export async function walletPrfSaltBase64Url(
   return base64UrlEncode(await walletPrfSalt(namespace, namespaceSubject));
 }
 
+export async function walletCapabilityPrfSaltBase64Url(
+  accountSubject: string,
+  credentialId: string,
+): Promise<string> {
+  const input = new TextEncoder().encode(
+    `triad-wallet-capability-prf-v1\0${accountSubject}\0${credentialId}`,
+  );
+  const digest = await crypto.subtle.digest("SHA-256", input);
+
+  return base64UrlEncode(new Uint8Array(digest));
+}
+
+export function walletCapabilitySigningMessage(input: WalletCapabilityMessageInput): string {
+  return [
+    "Triad Wallet Capability v1",
+    JSON.stringify({
+      origin: input.origin,
+      account_subject: input.accountSubject,
+      credential_id: input.credentialId,
+      request_id: input.requestId,
+      wallet_profile: WALLET_CAPABILITY_PROFILE,
+      account_index: WALLET_CAPABILITY_ACCOUNT_INDEX,
+      issued_at: input.issuedAt,
+      expires_at: input.expiresAt,
+    }),
+  ].join("\n");
+}
+
 export function walletSigningMessage(input: WalletMessageInput): string {
   return [
     "Triad Wallet Authorization v2",
@@ -142,6 +181,7 @@ export function walletRedirectUri(
     path: string;
     chainId?: number;
     message: string;
+    receipt: string;
   },
 ): string {
   const target = new URL(redirectUri);
@@ -157,6 +197,7 @@ export function walletRedirectUri(
     triad_path: result.path,
     ...(result.chainId ? { triad_chain_id: String(result.chainId) } : {}),
     triad_message: base64UrlEncode(new TextEncoder().encode(result.message)),
+    triad_receipt: result.receipt,
   });
   target.hash = fragment.toString();
 

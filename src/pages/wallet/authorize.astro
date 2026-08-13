@@ -7,7 +7,7 @@ export const prerender = true;
 <Shell title="Authorize wallet | Triad" mode="product">
   <main class="wallet-authorization shell" aria-labelledby="wallet-title">
     <header class="wallet-heading">
-      <p>PRF WALLET REQUEST</p>
+      <p>WALLET REQUEST</p>
       <h1 id="wallet-title">AUTHORIZE<br /><span>WALLET.</span></h1>
       <p class="lede">A registered app is asking one of your passkeys to derive and use a scoped wallet.</p>
     </header>
@@ -26,7 +26,7 @@ export const prerender = true;
       </dl>
       <form id="wallet-form" class="wallet-passkey-form">
         <fieldset>
-          <legend>SELECT PRF PASSKEY</legend>
+          <legend>SELECT WALLET PASSKEY</legend>
           <div id="wallet-passkeys"></div>
         </fieldset>
         <p class="fine-print">The PRF result, BIP-32 root, and derived private key remain in this page. Triad receives only the passkey assertion, wallet address, and signature.</p>
@@ -55,8 +55,12 @@ export const prerender = true;
       type AuthenticationResponseJSON,
       type PublicKeyCredentialRequestOptionsJSON,
     } from "@simplewebauthn/browser";
+    import {
+      WALLET_PROFILE_IDS,
+      type WalletProfileId,
+    } from "../../better-auth/wallet/profiles";
     import { passkeyPrfResult, signWithPrfWallet, walletPrfExtension } from "../../scripts/prf-wallet";
-    import { isoDate, jsonResponse } from "../../utils";
+    import { isRecord, isoDate, jsonResponse } from "../../utils";
 
     interface WalletInspection {
       client: { id: string; name: string };
@@ -64,7 +68,7 @@ export const prerender = true;
         message: string;
         namespace: string;
         namespace_subject: string;
-        wallet_profile: import("../../better-auth/wallet").WalletProfileId;
+        wallet_profile: WalletProfileId;
         account_index: number;
         derivation_path: string;
         chain_id?: number;
@@ -99,6 +103,90 @@ export const prerender = true;
     const retry = document.querySelector<HTMLButtonElement>("#wallet-retry")!;
     let requestBody: Record<string, unknown> | undefined;
     let inspection: WalletInspection | undefined;
+
+    function decodeWalletInspection(value: unknown): WalletInspection {
+      if (!isRecord(value) || !isRecord(value.client) || !isRecord(value.request) || !Array.isArray(value.passkeys)) {
+        throw new Error("Triad returned an invalid wallet inspection.");
+      }
+      const client = value.client;
+      const walletRequest = value.request;
+      const passkeys = value.passkeys.map((passkey) => {
+        if (!isRecord(passkey) || typeof passkey.id !== "string" || typeof passkey.name !== "string" || typeof passkey.backed_up !== "boolean") {
+          throw new Error("Triad returned an invalid Wallet Passkey.");
+        }
+
+        return {
+          id: passkey.id,
+          name: passkey.name,
+          backed_up: passkey.backed_up,
+          created_at:
+            typeof passkey.created_at === "number" || typeof passkey.created_at === "string"
+              ? passkey.created_at
+              : null,
+        };
+      });
+      if (
+        typeof client.id !== "string" ||
+        typeof client.name !== "string" ||
+        typeof walletRequest.message !== "string" ||
+        typeof walletRequest.namespace !== "string" ||
+        typeof walletRequest.namespace_subject !== "string" ||
+        typeof walletRequest.wallet_profile !== "string" ||
+        !WALLET_PROFILE_IDS.includes(walletRequest.wallet_profile as WalletProfileId) ||
+        typeof walletRequest.account_index !== "number" ||
+        typeof walletRequest.derivation_path !== "string" ||
+        typeof value.identity_source !== "string" ||
+        typeof value.cancel_uri !== "string"
+      ) {
+        throw new Error("Triad returned an invalid wallet inspection.");
+      }
+
+      return {
+        client: { id: client.id, name: client.name },
+        request: {
+          message: walletRequest.message,
+          namespace: walletRequest.namespace,
+          namespace_subject: walletRequest.namespace_subject,
+          wallet_profile: walletRequest.wallet_profile as WalletInspection["request"]["wallet_profile"],
+          account_index: walletRequest.account_index,
+          derivation_path: walletRequest.derivation_path,
+          ...(typeof walletRequest.chain_id === "number" ? { chain_id: walletRequest.chain_id } : {}),
+        },
+        identity_source: value.identity_source,
+        cancel_uri: value.cancel_uri,
+        passkeys,
+      };
+    }
+
+    function decodeWalletOptions(value: unknown): WalletOptions {
+      if (
+        !isRecord(value) ||
+        typeof value.request_id !== "string" ||
+        !isRecord(value.options) ||
+        typeof value.options.challenge !== "string" ||
+        typeof value.prf_salt !== "string" ||
+        typeof value.signing_message !== "string" ||
+        typeof value.expires_at !== "string"
+      ) {
+        throw new Error("Triad returned invalid wallet options.");
+      }
+
+      return {
+        request_id: value.request_id,
+        options: value.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+        prf_salt: value.prf_salt,
+        signing_message: value.signing_message,
+        expires_at: value.expires_at,
+      };
+    }
+
+    function decodeRedirect(value: unknown): { redirect_uri?: string } {
+      if (!isRecord(value) || (value.redirect_uri !== undefined && typeof value.redirect_uri !== "string")) {
+        throw new Error("Triad returned an invalid application redirect.");
+      }
+
+      return typeof value.redirect_uri === "string" ? { redirect_uri: value.redirect_uri } : {};
+    }
 
     function authorizationRequest(): Record<string, unknown> {
       const query = new URLSearchParams(location.search);
@@ -198,7 +286,7 @@ export const prerender = true;
           return;
         }
 
-        inspection = await jsonResponse<WalletInspection>(response, "Triad could not inspect this wallet request.");
+        inspection = await jsonResponse(response, "Triad could not inspect this wallet request.", decodeWalletInspection);
         renderInspection(inspection);
         signedOut.hidden = true;
         requestPanel.hidden = false;
@@ -232,9 +320,10 @@ export const prerender = true;
           headers: { accept: "application/json", "content-type": "application/json" },
           body: JSON.stringify({ ...requestBody, credential_id: credential }),
         });
-        const walletOptions = await jsonResponse<WalletOptions>(
+        const walletOptions = await jsonResponse(
           optionsResponse,
           "Triad could not issue the wallet challenge.",
+          decodeWalletOptions,
         );
         const assertion = await startAuthentication({
           optionsJSON: {
@@ -267,9 +356,10 @@ export const prerender = true;
             signature: wallet.signature,
           }),
         });
-        const completed = await jsonResponse<{ redirect_uri?: string }>(
+        const completed = await jsonResponse(
           completeResponse,
           "Triad rejected the wallet signature.",
+          decodeRedirect,
         );
         if (!completed.redirect_uri) {
           throw new Error("Triad did not return the registered application redirect.");

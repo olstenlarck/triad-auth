@@ -1,4 +1,4 @@
-import type { IdentityProvider } from "./subjects";
+import type { SocialProvider } from "./subjects";
 import type { OptionalDisclosureScope } from "../disclosures";
 import { base64UrlDecode, base64UrlEncode, isRecord } from "../../utils";
 import { openEncryptedData, sealEncryptedData, validateEncryptionSecrets } from "./encryption";
@@ -260,7 +260,7 @@ function twitterProfile(profile: unknown): CapturedProfile {
 }
 
 export function captureProviderProfile(
-  provider: IdentityProvider,
+  provider: SocialProvider,
   profile: unknown,
 ): CapturedProfile {
   if (provider === "google") {
@@ -359,11 +359,14 @@ async function passkeyClaims(
   };
 }
 
-export function createProfileClaimResolver(
-  encryptionSecrets: string,
-  database?: D1Database,
-  identifierSecret?: string,
-) {
+interface ProfileClaimResolverOptions {
+  encryptionSecrets: string;
+  database?: D1Database;
+  identifierSecret?: string;
+}
+
+export function createProfileClaimResolver(options: ProfileClaimResolverOptions) {
+  const { database, encryptionSecrets, identifierSecret } = options;
   validateEncryptionSecrets(encryptionSecrets);
 
   return {
@@ -387,10 +390,10 @@ export function createProfileClaimResolver(
         scopes.includes("wallet") && database
           ? walletClaim(database, user.id)
           : Promise.resolve(undefined);
-      const passkeyPromise: Promise<Pick<ProfileClaims, "cred" | "pubkey">> =
-        (scopes.includes("cred") || scopes.includes("pubkey")) && database
-          ? passkeyClaims(database, user, identifierSecret!)
-          : Promise.resolve({});
+      let passkeyPromise: Promise<Pick<ProfileClaims, "cred" | "pubkey">> = Promise.resolve({});
+      if ((scopes.includes("cred") || scopes.includes("pubkey")) && database && identifierSecret) {
+        passkeyPromise = passkeyClaims(database, user, identifierSecret);
+      }
 
       const [profile, wallet, passkey] = await Promise.all([
         typeof user.encryptedData === "string"

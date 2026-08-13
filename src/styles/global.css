@@ -1245,6 +1245,16 @@ h3 {
 .account-passkey small {
   color: var(--muted);
 }
+.passkey-badges,
+.passkey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.passkey-badges {
+  margin-block: 0.35rem;
+}
 .account-passkey-registration {
   margin: 0;
   padding: 1.25rem;

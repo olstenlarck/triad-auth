@@ -34,7 +34,7 @@ export function base64UrlDecode(value: string): Uint8Array<ArrayBuffer> {
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function boundedString(
@@ -82,13 +82,21 @@ export function responseError(body: unknown, fallback: string): Error {
   return new Error(typeof message === "string" ? message : fallback);
 }
 
-export async function jsonResponse<Value>(response: Response, fallback: string): Promise<Value> {
-  const body = (await response.json().catch(() => undefined)) as Value | undefined;
+export async function jsonResponse<Value>(
+  response: Response,
+  fallback: string,
+  decode: (value: unknown) => Value,
+): Promise<Value> {
+  const body: unknown = await response.json().catch(() => undefined);
   if (!response.ok || body === undefined) {
     throw responseError(body, fallback);
   }
 
-  return body;
+  try {
+    return decode(body);
+  } catch (reason) {
+    throw reason instanceof Error ? reason : new Error(fallback);
+  }
 }
 
 export function isoDate(value: string | number | null | undefined, fallback: string): string {

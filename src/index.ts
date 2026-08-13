@@ -8,6 +8,7 @@ import { handleWalletBrokerRequest } from "./better-auth/wallet";
 interface TriadAuthService {
   api: {
     getSession(input: { headers: Headers }): Promise<{ user: { id: string } } | null>;
+    signJWT(input: { body: { payload: Record<string, unknown> } }): Promise<{ token: string }>;
   };
   handler(request: Request): Response | Promise<Response>;
 }

@@ -6,15 +6,20 @@ import {
 } from "@simplewebauthn/server";
 import type { BetterAuthPlugin } from "better-auth";
 
+import { boundedString, concatenateBytes, hexEncode, isRecord } from "../../utils";
 import type { TriadEnv } from "../env";
 import { isIdentityPasskey, storedPasskeyPublicKeyBytes } from "../identity/passkey-public-key";
-import { pairwiseSubject } from "../identity/subjects";
+import { isSocialProvider, pairwiseSubject } from "../identity/subjects";
 import {
   parseWalletAuthorizationInput,
+  WALLET_CAPABILITY_ACCOUNT_INDEX,
+  WALLET_CAPABILITY_PROFILE,
   WALLET_REQUEST_BODY_LIMIT,
   WALLET_REQUEST_TTL_MS,
   type WalletAuthorizationInput,
   type WalletAuthorizationRequestBody,
+  walletCapabilityPrfSaltBase64Url,
+  walletCapabilitySigningMessage,
   walletErrorRedirectUri,
   walletNamespaceSubject,
   walletPrfSaltBase64Url,
@@ -56,6 +61,22 @@ const walletBrokerSchema = {
       createdAt: { type: "date", required: true },
     },
   },
+  walletCapabilityRequest: {
+    fields: {
+      userId: {
+        type: "string",
+        required: true,
+        references: { model: "user", field: "id", onDelete: "cascade" },
+        index: true,
+      },
+      credentialId: { type: "string", required: true },
+      challenge: { type: "string", required: true },
+      signingMessage: { type: "string", required: true },
+      expiresAt: { type: "date", required: true, index: true },
+      consumedAt: { type: "date", required: false },
+      createdAt: { type: "date", required: true },
+    },
+  },
 } satisfies NonNullable<BetterAuthPlugin["schema"]>;
 
 export const walletBrokerPlugin = {
@@ -66,6 +87,7 @@ export const walletBrokerPlugin = {
 interface WalletAuthService {
   api: {
     getSession(input: { headers: Headers }): Promise<{ user: { id: string } } | null>;
+    signJWT(input: { body: { payload: Record<string, unknown> } }): Promise<{ token: string }>;
   };
 }
 
@@ -90,6 +112,17 @@ interface PasskeyRecord {
   transports: string | null;
   backedUp: number;
   createdAt: number | string | null;
+  walletCapable: number;
+}
+
+interface WalletCapabilityRequestRecord {
+  id: string;
+  userId: string;
+  credentialId: string;
+  challenge: string;
+  signingMessage: string;
+  expiresAt: number;
+  consumedAt: number | null;
 }
 
 interface WalletRequestRecord {
@@ -205,12 +238,7 @@ async function readBoundedJson(request: Request): Promise<Record<string, unknown
     chunks.push(value);
   }
 
-  const bytes = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
+  const bytes = concatenateBytes(...chunks);
 
   let parsed: unknown;
   try {
@@ -225,6 +253,36 @@ async function readBoundedJson(request: Request): Promise<Record<string, unknown
   return parsed as Record<string, unknown>;
 }
 
+const passkeySelection =
+  'select "id", "name", "credentialID", "publicKey", "counter", "transports", "backedUp", "createdAt", "walletCapable" from "passkey"';
+
+async function accountById(database: D1Database, userId: string): Promise<IdentityRecord | null> {
+  return database
+    .prepare('select "id", "provider", "providerSub" from "user" where "id" = ? limit 1')
+    .bind(userId)
+    .first<IdentityRecord>();
+}
+
+async function passkeysByAccount(database: D1Database, userId: string): Promise<PasskeyRecord[]> {
+  const result = await database
+    .prepare(`${passkeySelection} where "userId" = ? order by "createdAt" asc`)
+    .bind(userId)
+    .all<PasskeyRecord>();
+
+  return result.results;
+}
+
+async function passkeyById(
+  database: D1Database,
+  userId: string,
+  passkeyId: string,
+): Promise<PasskeyRecord | null> {
+  return database
+    .prepare(`${passkeySelection} where "id" = ? and "userId" = ? limit 1`)
+    .bind(passkeyId, userId)
+    .first<PasskeyRecord>();
+}
+
 function requireSameOrigin(request: Request, env: TriadEnv): void {
   let expectedOrigin: string;
   try {
@@ -237,29 +295,28 @@ function requireSameOrigin(request: Request, env: TriadEnv): void {
   }
 }
 
-async function walletPasskeys(
-  env: TriadEnv,
-  user: IdentityRecord,
-  passkeys: PasskeyRecord[],
-): Promise<PasskeyRecord[]> {
+async function authenticatedAccountId(
+  request: Request,
+  auth: WalletAuthService,
+  message: string,
+): Promise<string> {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user.id) {
+    throw new WalletBrokerError(401, "authentication_required", message);
+  }
+
+  return session.user.id;
+}
+
+function walletPasskeys(user: IdentityRecord, passkeys: PasskeyRecord[]): PasskeyRecord[] {
   if (user.provider === "ethereum") {
-    invalid("EVM Identity Sources do not provide PRF wallets");
+    invalid("EVM Identity Sources do not provide Wallet Passkeys");
   }
-  if (user.provider === "google" || user.provider === "github" || user.provider === "twitter") {
-    return passkeys;
-  }
-  if (user.provider !== "passkey") {
-    invalid("Identity Source does not support PRF wallets");
+  if (user.provider !== "passkey" && !isSocialProvider(user.provider)) {
+    invalid("Identity Source does not support Wallet Passkeys");
   }
 
-  const identityPasskeys = await Promise.all(
-    passkeys.map(async (passkey) => ({
-      passkey,
-      identity: await isIdentityPasskey(env.IDENTIFIER_SECRET, user.providerSub, passkey.publicKey),
-    })),
-  );
-
-  return identityPasskeys.filter(({ identity }) => identity).map(({ passkey }) => passkey);
+  return passkeys.filter((passkey) => passkey.walletCapable === 1);
 }
 
 async function walletContext(
@@ -268,14 +325,11 @@ async function walletContext(
   env: TriadEnv,
   auth: WalletAuthService,
 ): Promise<WalletContext> {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user.id) {
-    throw new WalletBrokerError(
-      401,
-      "authentication_required",
-      "Sign in to authorize this wallet request",
-    );
-  }
+  const accountId = await authenticatedAccountId(
+    request,
+    auth,
+    "Sign in to authorize this wallet request",
+  );
 
   let authorization: WalletAuthorizationInput;
   try {
@@ -284,20 +338,14 @@ async function walletContext(
     invalid(reason instanceof Error ? reason.message : "Wallet authorization request is invalid");
   }
 
-  const [user, client, passkeyResult] = await Promise.all([
-    env.DB.prepare('select "id", "provider", "providerSub" from "user" where "id" = ? limit 1')
-      .bind(session.user.id)
-      .first<IdentityRecord>(),
+  const [user, client, passkeys] = await Promise.all([
+    accountById(env.DB, accountId),
     env.DB.prepare(
       'select "clientId", "name", "redirectUris" from "oauthClient" where "clientId" = ? and coalesce("disabled", 0) = 0 limit 1',
     )
       .bind(authorization.clientId)
       .first<OAuthClientRecord>(),
-    env.DB.prepare(
-      'select "id", "name", "credentialID", "publicKey", "counter", "transports", "backedUp", "createdAt" from "passkey" where "userId" = ? order by "createdAt" asc',
-    )
-      .bind(session.user.id)
-      .all<PasskeyRecord>(),
+    passkeysByAccount(env.DB, accountId),
   ]);
   if (!user) {
     throw new WalletBrokerError(401, "authentication_required", "Triad account is unavailable");
@@ -318,7 +366,7 @@ async function walletContext(
     client,
     request: authorization,
     namespaceSubject,
-    passkeys: await walletPasskeys(env, user, passkeyResult.results),
+    passkeys: walletPasskeys(user, passkeys),
   };
 }
 
@@ -361,42 +409,28 @@ async function inspectWalletRequest(request: Request, env: TriadEnv, auth: Walle
 
 async function inspectAccountPasskeys(request: Request, env: TriadEnv, auth: WalletAuthService) {
   await readBoundedJson(request);
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user.id) {
-    throw new WalletBrokerError(401, "authentication_required", "Sign in to manage passkeys");
-  }
+  const accountId = await authenticatedAccountId(request, auth, "Sign in to manage passkeys");
 
-  const [user, passkeyResult] = await Promise.all([
-    env.DB.prepare('select "id", "provider", "providerSub" from "user" where "id" = ? limit 1')
-      .bind(session.user.id)
-      .first<IdentityRecord>(),
-    env.DB.prepare(
-      'select "id", "name", "credentialID", "publicKey", "counter", "transports", "backedUp", "createdAt" from "passkey" where "userId" = ? order by "createdAt" asc',
-    )
-      .bind(session.user.id)
-      .all<PasskeyRecord>(),
+  const [user, storedPasskeys] = await Promise.all([
+    accountById(env.DB, accountId),
+    passkeysByAccount(env.DB, accountId),
   ]);
   if (!user) {
     throw new WalletBrokerError(401, "authentication_required", "Triad account is unavailable");
   }
 
   const passkeys = await Promise.all(
-    passkeyResult.results.map(async (passkey) => {
+    storedPasskeys.map(async (passkey) => {
       const identity =
         user.provider === "passkey" &&
         (await isIdentityPasskey(env.IDENTIFIER_SECRET, user.providerSub, passkey.publicKey));
-      const wallet =
-        identity ||
-        user.provider === "google" ||
-        user.provider === "github" ||
-        user.provider === "twitter";
-
       return {
         id: passkey.id,
         name: passkey.name,
         backedUp: passkey.backedUp === 1,
         createdAt: passkey.createdAt,
-        role: identity ? "identity" : wallet ? "wallet" : "login",
+        role: identity ? "identity" : "attached",
+        walletCapable: passkey.walletCapable === 1,
         removable: !identity,
       };
     }),
@@ -491,79 +525,135 @@ async function createWalletRequest(request: Request, env: TriadEnv, auth: Wallet
   });
 }
 
-function authenticationResponse(value: unknown): AuthenticationResponseJSON {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    invalid("Passkey assertion is required");
+async function createWalletCapabilityRequest(
+  request: Request,
+  env: TriadEnv,
+  auth: WalletAuthService,
+) {
+  const accountId = await authenticatedAccountId(request, auth, "Sign in to manage passkeys");
+  const body = await readBoundedJson(request);
+  const credentialId = body.credential_id;
+  if (typeof credentialId !== "string") {
+    invalid("Select a Passkey");
   }
 
-  return value as AuthenticationResponseJSON;
-}
-
-function signedString(value: unknown, name: string, maximum: number): string {
-  if (typeof value !== "string" || value.length === 0 || value.length > maximum) {
-    invalid(`${name} is invalid`);
+  const [account, passkey] = await Promise.all([
+    accountById(env.DB, accountId),
+    passkeyById(env.DB, accountId, credentialId),
+  ]);
+  if (!account || account.provider === "ethereum") {
+    invalid("This Identity Source cannot use Wallet Passkeys");
+  }
+  if (account.provider !== "passkey" && !isSocialProvider(account.provider)) {
+    invalid("Identity Source does not support Wallet Passkeys");
+  }
+  if (!passkey) {
+    invalid("Selected Passkey does not belong to this Triad Account");
+  }
+  if (passkey.walletCapable === 1) {
+    invalid("Selected Passkey already has Wallet Capability");
   }
 
-  return value;
-}
-
-async function completeWalletRequest(request: Request, env: TriadEnv, auth: WalletAuthService) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user.id) {
+  const now = Date.now();
+  await env.DB.prepare('delete from "walletCapabilityRequest" where "expiresAt" <= ?')
+    .bind(now)
+    .run();
+  const pending = await env.DB.prepare(
+    'select count(*) as "count" from "walletCapabilityRequest" where "userId" = ? and "consumedAt" is null and "expiresAt" > ?',
+  )
+    .bind(accountId, now)
+    .first<{ count: number }>();
+  if ((pending?.count ?? 0) >= 10) {
     throw new WalletBrokerError(
-      401,
-      "authentication_required",
-      "Sign in to authorize this wallet request",
+      429,
+      "too_many_requests",
+      "Complete an existing Wallet Capability request before starting another",
     );
   }
 
-  const body = await readBoundedJson(request);
-  const requestId = body.request_id;
-  if (typeof requestId !== "string" || !/^[0-9a-f-]{36}$/.test(requestId)) {
-    invalid("Wallet request ID is invalid");
-  }
-  const address = signedString(body.address, "Derived wallet address", 128);
-  const signature = signedString(body.signature, "Wallet signature", 2_048);
-  const response = authenticationResponse(body.response);
+  const origin = new URL(env.AUTH_ORIGIN);
+  const options = await generateAuthenticationOptions({
+    rpID: origin.hostname,
+    userVerification: "required",
+    allowCredentials: [
+      { id: passkey.credentialID, transports: webAuthnTransports(passkey.transports) },
+    ],
+  });
+  const requestId = crypto.randomUUID();
+  const issuedAt = new Date(now);
+  const expiresAt = new Date(now + WALLET_REQUEST_TTL_MS);
+  const signingMessage = walletCapabilitySigningMessage({
+    origin: origin.origin,
+    accountSubject: accountId,
+    credentialId: passkey.id,
+    requestId,
+    issuedAt: issuedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  });
 
-  const walletRequest = await env.DB.prepare(
-    'select "id", "userId", "clientId", "credentialId", "redirectUri", "state", "message", "namespace", "namespaceSubject", "walletProfile", "accountIndex", "chainId", "derivationPath", "challenge", "signingMessage", "expiresAt", "consumedAt" from "walletRequest" where "id" = ? and "userId" = ? limit 1',
+  await env.DB.prepare(
+    'insert into "walletCapabilityRequest" ("id", "userId", "credentialId", "challenge", "signingMessage", "expiresAt", "consumedAt", "createdAt") values (?, ?, ?, ?, ?, ?, null, ?)',
   )
-    .bind(requestId, session.user.id)
-    .first<WalletRequestRecord>();
-  if (
-    !walletRequest ||
-    walletRequest.consumedAt !== null ||
-    walletRequest.expiresAt <= Date.now()
-  ) {
-    invalid("Wallet request is missing, expired, or already used");
-  }
-
-  const passkey = await env.DB.prepare(
-    'select "id", "name", "credentialID", "publicKey", "counter", "transports", "backedUp", "createdAt" from "passkey" where "id" = ? and "userId" = ? limit 1',
-  )
-    .bind(walletRequest.credentialId, session.user.id)
-    .first<PasskeyRecord>();
-  if (!passkey || response.id !== passkey.credentialID) {
-    invalid("Wallet request passkey does not match the assertion");
-  }
-
-  const consumedAt = Date.now();
-  const consumed = await env.DB.prepare(
-    'update "walletRequest" set "consumedAt" = ? where "id" = ? and "userId" = ? and "consumedAt" is null and "expiresAt" > ?',
-  )
-    .bind(consumedAt, requestId, session.user.id, consumedAt)
+    .bind(
+      requestId,
+      accountId,
+      passkey.id,
+      options.challenge,
+      signingMessage,
+      expiresAt.getTime(),
+      issuedAt.getTime(),
+    )
     .run();
-  if (consumed.meta.changes !== 1) {
-    invalid("Wallet request is missing, expired, or already used");
+
+  return json({
+    request_id: requestId,
+    options,
+    prf_salt: await walletCapabilityPrfSaltBase64Url(accountId, passkey.id),
+    signing_message: signingMessage,
+    wallet_profile: WALLET_CAPABILITY_PROFILE,
+    account_index: WALLET_CAPABILITY_ACCOUNT_INDEX,
+    expires_at: expiresAt.toISOString(),
+  });
+}
+
+function authenticationResponse(value: unknown): AuthenticationResponseJSON {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.rawId !== "string" ||
+    value.type !== "public-key" ||
+    !isRecord(value.response) ||
+    typeof value.response.clientDataJSON !== "string" ||
+    typeof value.response.authenticatorData !== "string" ||
+    typeof value.response.signature !== "string" ||
+    !isRecord(value.clientExtensionResults)
+  ) {
+    invalid("Passkey assertion is required");
   }
 
+  return value as unknown as AuthenticationResponseJSON;
+}
+
+function walletString(value: unknown, name: string, maximum: number): string {
+  try {
+    return boundedString(value, name, 1, maximum);
+  } catch {
+    invalid(`${name} is invalid`);
+  }
+}
+
+async function verifyStoredPasskeyAssertion(
+  env: TriadEnv,
+  passkey: PasskeyRecord,
+  response: AuthenticationResponseJSON,
+  challenge: string,
+): Promise<number> {
   let verification;
   try {
     const origin = new URL(env.AUTH_ORIGIN);
     verification = await verifyAuthenticationResponse({
       response,
-      expectedChallenge: walletRequest.challenge,
+      expectedChallenge: challenge,
       expectedOrigin: origin.origin,
       expectedRPID: origin.hostname,
       credential: {
@@ -581,6 +671,67 @@ async function completeWalletRequest(request: Request, env: TriadEnv, auth: Wall
     invalid("Wallet authorization requires passkey user verification");
   }
 
+  return verification.authenticationInfo.newCounter;
+}
+
+async function walletReceiptDigest(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+
+  return hexEncode(digest);
+}
+
+async function completeWalletRequest(request: Request, env: TriadEnv, auth: WalletAuthService) {
+  const accountId = await authenticatedAccountId(
+    request,
+    auth,
+    "Sign in to authorize this wallet request",
+  );
+
+  const body = await readBoundedJson(request);
+  const requestId = body.request_id;
+  if (typeof requestId !== "string" || !/^[0-9a-f-]{36}$/.test(requestId)) {
+    invalid("Wallet request ID is invalid");
+  }
+  const address = walletString(body.address, "Derived wallet address", 128);
+  const signature = walletString(body.signature, "Wallet signature", 2_048);
+  const response = authenticationResponse(body.response);
+
+  const walletRequest = await env.DB.prepare(
+    'select "id", "userId", "clientId", "credentialId", "redirectUri", "state", "message", "namespace", "namespaceSubject", "walletProfile", "accountIndex", "chainId", "derivationPath", "challenge", "signingMessage", "expiresAt", "consumedAt" from "walletRequest" where "id" = ? and "userId" = ? limit 1',
+  )
+    .bind(requestId, accountId)
+    .first<WalletRequestRecord>();
+  if (
+    !walletRequest ||
+    walletRequest.consumedAt !== null ||
+    walletRequest.expiresAt <= Date.now()
+  ) {
+    invalid("Wallet request is missing, expired, or already used");
+  }
+
+  const passkey = await passkeyById(env.DB, accountId, walletRequest.credentialId);
+  if (!passkey || passkey.walletCapable !== 1 || response.id !== passkey.credentialID) {
+    invalid("Wallet request passkey does not match the assertion");
+  }
+
+  // Claim the challenge before expensive cryptographic work so every request has one attempt.
+  const consumedAt = Date.now();
+  const consumed = await env.DB.prepare(
+    'update "walletRequest" set "consumedAt" = ? where "id" = ? and "userId" = ? and "consumedAt" is null and "expiresAt" > ?',
+  )
+    .bind(consumedAt, requestId, accountId, consumedAt)
+    .run();
+  if (consumed.meta.changes !== 1) {
+    invalid("Wallet request is missing, expired, or already used");
+  }
+
+  const newCounter = await verifyStoredPasskeyAssertion(
+    env,
+    passkey,
+    response,
+    walletRequest.challenge,
+  );
+
   if (
     !(await verifyPrfWalletSignature(
       walletRequest.walletProfile,
@@ -593,8 +744,38 @@ async function completeWalletRequest(request: Request, env: TriadEnv, auth: Wall
   }
 
   await env.DB.prepare('update "passkey" set "counter" = ? where "id" = ? and "userId" = ?')
-    .bind(verification.authenticationInfo.newCounter, passkey.id, session.user.id)
+    .bind(newCounter, passkey.id, accountId)
     .run();
+
+  const pairwiseSub = await pairwiseSubject(
+    env.IDENTIFIER_SECRET,
+    accountId,
+    walletRequest.clientId,
+  );
+  const nowSeconds = Math.floor(Date.now() / 1_000);
+  const { token: receipt } = await auth.api.signJWT({
+    body: {
+      payload: {
+        sub: pairwiseSub,
+        aud: walletRequest.clientId,
+        jti: walletRequest.id,
+        iat: nowSeconds,
+        exp: nowSeconds + 5 * 60,
+        triad_wallet_authorization: {
+          request_id: walletRequest.id,
+          address,
+          signing_envelope_sha256: await walletReceiptDigest(walletRequest.signingMessage),
+          wallet_signature_sha256: await walletReceiptDigest(signature),
+          namespace: walletRequest.namespace,
+          namespace_subject: walletRequest.namespaceSubject,
+          wallet_profile: walletRequest.walletProfile,
+          account_index: walletRequest.accountIndex,
+          derivation_path: walletRequest.derivationPath,
+          ...(walletRequest.chainId ? { chain_id: walletRequest.chainId } : {}),
+        },
+      },
+    },
+  });
 
   return json({
     redirect_uri: walletRedirectUri(walletRequest.redirectUri, {
@@ -609,8 +790,82 @@ async function completeWalletRequest(request: Request, env: TriadEnv, auth: Wall
       path: walletRequest.derivationPath,
       ...(walletRequest.chainId ? { chainId: walletRequest.chainId } : {}),
       message: walletRequest.signingMessage,
+      receipt,
     }),
   });
+}
+
+async function completeWalletCapabilityRequest(
+  request: Request,
+  env: TriadEnv,
+  auth: WalletAuthService,
+) {
+  const accountId = await authenticatedAccountId(request, auth, "Sign in to manage passkeys");
+  const body = await readBoundedJson(request);
+  const requestId = body.request_id;
+  if (typeof requestId !== "string" || !/^[0-9a-f-]{36}$/.test(requestId)) {
+    invalid("Wallet Capability request ID is invalid");
+  }
+  const address = walletString(body.address, "Derived wallet address", 128);
+  const signature = walletString(body.signature, "Wallet signature", 2_048);
+  const response = authenticationResponse(body.response);
+
+  const capabilityRequest = await env.DB.prepare(
+    'select "id", "userId", "credentialId", "challenge", "signingMessage", "expiresAt", "consumedAt" from "walletCapabilityRequest" where "id" = ? and "userId" = ? limit 1',
+  )
+    .bind(requestId, accountId)
+    .first<WalletCapabilityRequestRecord>();
+  if (
+    !capabilityRequest ||
+    capabilityRequest.consumedAt !== null ||
+    capabilityRequest.expiresAt <= Date.now()
+  ) {
+    invalid("Wallet Capability request is missing, expired, or already used");
+  }
+
+  const passkey = await passkeyById(env.DB, accountId, capabilityRequest.credentialId);
+  if (!passkey || response.id !== passkey.credentialID) {
+    invalid("Wallet Capability Passkey does not match the assertion");
+  }
+
+  // Claim the challenge before expensive cryptographic work so every request has one attempt.
+  const consumedAt = Date.now();
+  const consumed = await env.DB.prepare(
+    'update "walletCapabilityRequest" set "consumedAt" = ? where "id" = ? and "userId" = ? and "consumedAt" is null and "expiresAt" > ?',
+  )
+    .bind(consumedAt, requestId, accountId, consumedAt)
+    .run();
+  if (consumed.meta.changes !== 1) {
+    invalid("Wallet Capability request is missing, expired, or already used");
+  }
+
+  const newCounter = await verifyStoredPasskeyAssertion(
+    env,
+    passkey,
+    response,
+    capabilityRequest.challenge,
+  );
+  if (
+    !(await verifyPrfWalletSignature(
+      WALLET_CAPABILITY_PROFILE,
+      address,
+      signature,
+      capabilityRequest.signingMessage,
+    ))
+  ) {
+    invalid("Derived wallet signature does not prove Wallet Capability");
+  }
+
+  const updated = await env.DB.prepare(
+    'update "passkey" set "counter" = ?, "walletCapable" = 1 where "id" = ? and "userId" = ?',
+  )
+    .bind(newCounter, passkey.id, accountId)
+    .run();
+  if (updated.meta.changes !== 1) {
+    invalid("Wallet Capability Passkey is no longer available");
+  }
+
+  return json({ wallet_capable: true });
 }
 
 export async function handleWalletBrokerRequest(
@@ -627,6 +882,12 @@ export async function handleWalletBrokerRequest(
     const pathname = new URL(request.url).pathname;
     if (pathname === "/api/wallet/passkeys") {
       return await inspectAccountPasskeys(request, env, auth);
+    }
+    if (pathname === "/api/wallet/capability/options") {
+      return await createWalletCapabilityRequest(request, env, auth);
+    }
+    if (pathname === "/api/wallet/capability/complete") {
+      return await completeWalletCapabilityRequest(request, env, auth);
     }
     if (pathname === "/api/wallet/inspect") {
       return await inspectWalletRequest(request, env, auth);
@@ -653,8 +914,12 @@ export async function handleWalletBrokerRequest(
 
 export {
   parseWalletAuthorizationInput,
+  WALLET_CAPABILITY_ACCOUNT_INDEX,
+  WALLET_CAPABILITY_PROFILE,
   type WalletAuthorizationInput,
   type WalletNamespace,
+  walletCapabilityPrfSaltBase64Url,
+  walletCapabilitySigningMessage,
   walletPrfSalt,
   walletRedirectUri,
   walletSigningMessage,

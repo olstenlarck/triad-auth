@@ -8,7 +8,7 @@ import {
   accountSubject,
   type AuthenticationProvider,
   ethereumUpstreamId,
-  type IdentityProvider,
+  type SocialProvider,
   providerSubject,
 } from "./subjects";
 
@@ -29,7 +29,7 @@ interface PendingIdentityUser {
   providerSub: string;
 }
 
-function invalidUpstreamId(provider: IdentityProvider): Error {
+function invalidUpstreamId(provider: SocialProvider): Error {
   return new Error(`Invalid ${provider} immutable upstream ID`);
 }
 
@@ -66,7 +66,7 @@ function twitterUpstreamId(profile: unknown): string {
 
 async function mapIdentity(
   secret: string,
-  provider: IdentityProvider,
+  provider: SocialProvider,
   upstreamId: string,
   profile: CapturedProfile,
   encryptionSecrets: string,

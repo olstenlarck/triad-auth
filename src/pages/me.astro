@@ -50,7 +50,7 @@ export const prerender = true;
             placeholder="Phone, security key, laptop"
             required
           />
-          <button id="attach-passkey" class="button secondary" type="submit">ATTACH PRF PASSKEY</button>
+          <button id="attach-passkey" class="button secondary" type="submit">ATTACH PASSKEY</button>
         </form>
       </section>
 
@@ -88,15 +88,18 @@ export const prerender = true;
     import {
       startAuthentication,
       startRegistration,
+      type AuthenticationResponseJSON,
       type PublicKeyCredentialCreationOptionsJSON,
       type PublicKeyCredentialRequestOptionsJSON,
     } from "@simplewebauthn/browser";
     import { inspectOAuthQuery } from "../scripts/demo-protocol";
-    import { isoDate, jsonResponse, responseError } from "../utils";
+    import { passkeyPrfResult, signWithPrfWallet, walletPrfExtension } from "../scripts/prf-wallet";
+    import { isRecord, isoDate, jsonResponse, responseError } from "../utils";
     import {
       accountSubjectWebAuthnUserId,
       passkeyWebAuthnUserId,
     } from "../better-auth/identity/passkey-username";
+    import { SOCIAL_PROVIDERS } from "../better-auth/identity/subjects";
 
     type LinkedAccount = { providerId?: string };
     type OAuthConsent = {
@@ -109,19 +112,182 @@ export const prerender = true;
     type PublicClient = { client_id?: string; client_name?: string };
     type SessionResult = { user?: { id?: string; provider?: string } } | null;
     type AccountPasskey = {
-      id?: string;
-      name?: string | null;
-      backedUp?: boolean;
-      createdAt?: string | number | null;
-      role?: "identity" | "wallet" | "login";
-      removable?: boolean;
+      id: string;
+      name: string | null;
+      backedUp: boolean;
+      createdAt: string | number | null;
+      role: "identity" | "attached";
+      walletCapable: boolean;
+      removable: boolean;
     };
+
+    interface WalletCapabilityOptions {
+      request_id: string;
+      options: PublicKeyCredentialRequestOptionsJSON;
+      prf_salt: string;
+      signing_message: string;
+      wallet_profile: import("../better-auth/wallet").WalletProfileId;
+      account_index: number;
+      expires_at: string;
+    }
 
     interface EthereumProvider {
       request(input: { method: string; params?: unknown[] }): Promise<unknown>;
     }
 
-    const providers = ["google", "github", "twitter"] as const;
+    const providers = SOCIAL_PROVIDERS;
+
+    function decodeNothing(_value: unknown): undefined {
+      return undefined;
+    }
+
+    function decodeOptionalString(value: unknown, property: string, message: string): Record<string, string | undefined> {
+      if (!isRecord(value) || (value[property] !== undefined && typeof value[property] !== "string")) {
+        throw new Error(message);
+      }
+
+      return { [property]: typeof value[property] === "string" ? value[property] : undefined };
+    }
+
+    function decodeAuthenticationOptions(value: unknown): PublicKeyCredentialRequestOptionsJSON {
+      if (!isRecord(value) || typeof value.challenge !== "string") {
+        throw new Error("Triad returned invalid passkey authentication options.");
+      }
+
+      return value as unknown as PublicKeyCredentialRequestOptionsJSON;
+    }
+
+    function decodeRegistrationOptions(value: unknown): PublicKeyCredentialCreationOptionsJSON {
+      if (!isRecord(value) || typeof value.challenge !== "string" || !isRecord(value.user) || !Array.isArray(value.pubKeyCredParams)) {
+        throw new Error("Triad returned invalid passkey registration options.");
+      }
+
+      return value as unknown as PublicKeyCredentialCreationOptionsJSON;
+    }
+
+    function decodeAccountPasskeys(value: unknown): AccountPasskey[] {
+      if (!Array.isArray(value)) {
+        throw new Error("Triad returned an invalid Passkey list.");
+      }
+
+      return value.map((passkey) => {
+        if (
+          !isRecord(passkey) ||
+          typeof passkey.id !== "string" ||
+          (passkey.name !== null && typeof passkey.name !== "string") ||
+          typeof passkey.backedUp !== "boolean" ||
+          (passkey.role !== "identity" && passkey.role !== "attached") ||
+          typeof passkey.walletCapable !== "boolean" ||
+          typeof passkey.removable !== "boolean"
+        ) {
+          throw new Error("Triad returned an invalid Passkey.");
+        }
+
+        return {
+          id: passkey.id,
+          name: passkey.name,
+          backedUp: passkey.backedUp,
+          createdAt:
+            typeof passkey.createdAt === "number" || typeof passkey.createdAt === "string"
+              ? passkey.createdAt
+              : null,
+          role: passkey.role,
+          walletCapable: passkey.walletCapable,
+          removable: passkey.removable,
+        };
+      });
+    }
+
+    function decodeWalletCapabilityOptions(value: unknown): WalletCapabilityOptions {
+      if (
+        !isRecord(value) ||
+        typeof value.request_id !== "string" ||
+        !isRecord(value.options) ||
+        typeof value.options.challenge !== "string" ||
+        typeof value.prf_salt !== "string" ||
+        typeof value.signing_message !== "string" ||
+        value.wallet_profile !== "evm" ||
+        value.account_index !== 0 ||
+        typeof value.expires_at !== "string"
+      ) {
+        throw new Error("Triad returned invalid Wallet Capability options.");
+      }
+
+      return {
+        request_id: value.request_id,
+        options: value.options as unknown as PublicKeyCredentialRequestOptionsJSON,
+        prf_salt: value.prf_salt,
+        signing_message: value.signing_message,
+        wallet_profile: value.wallet_profile,
+        account_index: value.account_index,
+        expires_at: value.expires_at,
+      };
+    }
+
+    function decodePublicClient(value: unknown): PublicClient {
+      if (!isRecord(value)) {
+        throw new Error("Triad returned invalid client metadata.");
+      }
+
+      return {
+        ...(typeof value.client_id === "string" ? { client_id: value.client_id } : {}),
+        ...(typeof value.client_name === "string" ? { client_name: value.client_name } : {}),
+      };
+    }
+
+    function decodeSession(value: unknown): SessionResult {
+      if (value === null) {
+        return null;
+      }
+      if (!isRecord(value) || !isRecord(value.user)) {
+        throw new Error("Triad returned an invalid session.");
+      }
+
+      return {
+        user: {
+          ...(typeof value.user.id === "string" ? { id: value.user.id } : {}),
+          ...(typeof value.user.provider === "string" ? { provider: value.user.provider } : {}),
+        },
+      };
+    }
+
+    function decodeLinkedAccounts(value: unknown): LinkedAccount[] {
+      if (!Array.isArray(value)) {
+        throw new Error("Triad returned invalid linked identities.");
+      }
+
+      return value.map((account) => {
+        if (!isRecord(account)) {
+          throw new Error("Triad returned an invalid linked identity.");
+        }
+
+        return typeof account.providerId === "string" ? { providerId: account.providerId } : {};
+      });
+    }
+
+    function decodeOAuthConsents(value: unknown): OAuthConsent[] {
+      if (!Array.isArray(value)) {
+        throw new Error("Triad returned invalid application consents.");
+      }
+
+      return value.map((consent) => {
+        if (!isRecord(consent)) {
+          throw new Error("Triad returned an invalid application consent.");
+        }
+
+        return {
+          ...(typeof consent.clientId === "string" ? { clientId: consent.clientId } : {}),
+          ...(typeof consent.id === "string" ? { id: consent.id } : {}),
+          ...(Array.isArray(consent.resources) && consent.resources.every((resource) => typeof resource === "string")
+            ? { resources: consent.resources }
+            : {}),
+          ...(Array.isArray(consent.scopes) && consent.scopes.every((scope) => typeof scope === "string")
+            ? { scopes: consent.scopes }
+            : {}),
+          ...(typeof consent.updatedAt === "string" ? { updatedAt: consent.updatedAt } : {}),
+        };
+      });
+    }
     const content = document.querySelector<HTMLElement>("#account-content")!;
     const signedOut = document.querySelector<HTMLElement>("#signed-out")!;
     const error = document.querySelector<HTMLElement>("#me-error")!;
@@ -260,7 +426,9 @@ export const prerender = true;
                 }),
           }),
         });
-        const body = await jsonResponse<{ url?: string }>(response, "Provider sign-in could not start.");
+        const body = await jsonResponse(response, "Provider sign-in could not start.", (value) =>
+          decodeOptionalString(value, "url", "Provider sign-in returned an invalid destination."),
+        );
         if (!body.url) {
           throw new Error("Provider sign-in did not return a destination.");
         }
@@ -345,9 +513,10 @@ export const prerender = true;
           headers: { accept: "application/json", "content-type": "application/json" },
           body: JSON.stringify({ walletAddress: address, chainId }),
         });
-        const { nonce } = await jsonResponse<{ nonce?: string }>(
+        const { nonce } = await jsonResponse(
           nonceResponse,
           "Triad could not issue a wallet challenge.",
+          (value) => decodeOptionalString(value, "nonce", "Triad returned an invalid wallet challenge."),
         );
         if (!nonce || !/^[A-Za-z0-9]{8,}$/.test(nonce)) {
           throw new Error("Triad returned an invalid wallet challenge.");
@@ -368,7 +537,7 @@ export const prerender = true;
           headers: { accept: "application/json", "content-type": "application/json" },
           body: JSON.stringify({ message, signature, walletAddress: address, chainId }),
         });
-        await jsonResponse(verifyResponse, "Triad rejected the wallet signature.");
+        await jsonResponse(verifyResponse, "Triad rejected the wallet signature.", decodeNothing);
         resumeAuthorization();
       } catch (reason) {
         button.textContent = "RETRY ETHEREUM";
@@ -381,9 +550,10 @@ export const prerender = true;
       const optionsResponse = await fetch("/api/auth/passkey/generate-authenticate-options", {
         headers: { accept: "application/json" },
       });
-      const options = await jsonResponse<PublicKeyCredentialRequestOptionsJSON>(
+      const options = await jsonResponse(
         optionsResponse,
         "Triad could not issue a passkey challenge.",
+        decodeAuthenticationOptions,
       );
       const response = await startAuthentication({ optionsJSON: options });
       const serializedResponse = {
@@ -395,7 +565,7 @@ export const prerender = true;
         headers: { accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify({ response: serializedResponse }),
       });
-      await jsonResponse(verifyResponse, "Triad rejected the passkey assertion.");
+      await jsonResponse(verifyResponse, "Triad rejected the passkey assertion.", decodeNothing);
     }
 
     async function signInWithPasskey(button: HTMLButtonElement) {
@@ -430,9 +600,10 @@ export const prerender = true;
         const optionsResponse = await fetch(endpoint, {
           headers: { accept: "application/json" },
         });
-        const options = await jsonResponse<PublicKeyCredentialCreationOptionsJSON>(
+        const options = await jsonResponse(
           optionsResponse,
           "Triad could not issue a passkey registration challenge.",
+          decodeRegistrationOptions,
         );
         const p256Algorithms = options.pubKeyCredParams.filter((parameter) => parameter.alg === -7);
         if (p256Algorithms.length === 0) {
@@ -446,19 +617,12 @@ export const prerender = true;
             pubKeyCredParams: p256Algorithms,
           },
         });
-        const extensionResults = response.clientExtensionResults as unknown as {
-          prf?: { enabled?: boolean };
-        };
-        if (extensionResults.prf?.enabled !== true) {
-          throw new Error("This passkey does not support the required PRF extension.");
-        }
-
         const verifyResponse = await fetch("/api/auth/passkey/verify-registration", {
           method: "POST",
           headers: { accept: "application/json", "content-type": "application/json" },
           body: JSON.stringify({ response, createSession: true }),
         });
-        await jsonResponse(verifyResponse, "Triad rejected the passkey registration.");
+        await jsonResponse(verifyResponse, "Triad rejected the passkey registration.", decodeNothing);
 
         resumeAuthorization();
       } catch (reason) {
@@ -476,13 +640,10 @@ export const prerender = true;
         signal,
       });
 
-      return jsonResponse(response, "Could not load account passkeys.");
+      return jsonResponse(response, "Could not load account passkeys.", decodeAccountPasskeys);
     }
 
     async function removePasskey(passkey: AccountPasskey, button: HTMLButtonElement) {
-      if (!passkey.id) {
-        return;
-      }
       if (!window.confirm(`Remove ${passkey.name?.trim() || "this passkey"} from this Triad account?`)) {
         return;
       }
@@ -498,11 +659,78 @@ export const prerender = true;
           headers: { accept: "application/json", "content-type": "application/json" },
           body: JSON.stringify({ id: passkey.id }),
         });
-        await jsonResponse(response, "Could not remove this passkey.");
+        await jsonResponse(response, "Could not remove this passkey.", decodeNothing);
         renderAccountPasskeys(await accountPasskeys());
       } catch (reason) {
         button.textContent = "RETRY REMOVE";
         showError(reason, "Could not remove this passkey.");
+      } finally {
+        setMutationControls(false);
+      }
+    }
+
+    async function enableWalletCapability(passkey: AccountPasskey, button: HTMLButtonElement) {
+      setMutationControls(true);
+      error.hidden = true;
+      retry.hidden = true;
+      button.textContent = "CHECKING PASSKEY";
+
+      try {
+        const optionsResponse = await fetch("/api/wallet/capability/options", {
+          method: "POST",
+          headers: { accept: "application/json", "content-type": "application/json" },
+          body: JSON.stringify({ credential_id: passkey.id }),
+        });
+        const capability = await jsonResponse(
+          optionsResponse,
+          "Triad could not issue the Wallet Capability challenge.",
+          decodeWalletCapabilityOptions,
+        );
+        const assertion = await startAuthentication({
+          optionsJSON: {
+            ...capability.options,
+            extensions: walletPrfExtension(capability.prf_salt),
+          },
+        });
+        let prfRoot: Uint8Array<ArrayBuffer>;
+        try {
+          prfRoot = passkeyPrfResult(assertion.clientExtensionResults);
+        } catch {
+          throw new Error("This Passkey is not Wallet capable.");
+        }
+        button.textContent = "PROVING WALLET";
+        const wallet = await signWithPrfWallet(
+          prfRoot,
+          capability.wallet_profile,
+          capability.account_index,
+          capability.signing_message,
+        );
+        const { clientExtensionResults: _privatePrfOutput, ...assertionWithoutExtensions } = assertion;
+        const serverAssertion: AuthenticationResponseJSON = {
+          ...assertionWithoutExtensions,
+          clientExtensionResults: {},
+        };
+        const completeResponse = await fetch("/api/wallet/capability/complete", {
+          method: "POST",
+          headers: { accept: "application/json", "content-type": "application/json" },
+          body: JSON.stringify({
+            request_id: capability.request_id,
+            response: serverAssertion,
+            address: wallet.address,
+            signature: wallet.signature,
+          }),
+        });
+        await jsonResponse(completeResponse, "Triad rejected the Wallet Capability proof.", (value) => {
+          if (!isRecord(value) || value.wallet_capable !== true) {
+            throw new Error("Triad did not record Wallet Capability.");
+          }
+
+          return true;
+        });
+        renderAccountPasskeys(await accountPasskeys());
+      } catch (reason) {
+        button.textContent = "RETRY ENABLE WALLET";
+        showError(reason, "Wallet Capability could not be established.");
       } finally {
         setMutationControls(false);
       }
@@ -526,21 +754,34 @@ export const prerender = true;
         const title = document.createElement("h3");
         title.textContent = passkey.name?.trim() || "Unnamed passkey";
         const detail = document.createElement("small");
-        const role =
-          passkey.role === "identity"
-            ? "IDENTITY PASSKEY · WALLET ROOT"
-            : passkey.role === "wallet"
-              ? "LOGIN · WALLET ROOT"
-              : "LOGIN ONLY";
-        detail.textContent = `${role} · ${passkey.backedUp ? "SYNCED" : "DEVICE-BOUND"} · ${isoDate(passkey.createdAt, "DATE UNAVAILABLE")}`;
-        copy.append(title, detail);
+        detail.textContent = `${passkey.backedUp ? "SYNCED" : "DEVICE-BOUND"} · ${isoDate(passkey.createdAt, "DATE UNAVAILABLE")}`;
+        const badges = document.createElement("div");
+        badges.className = "passkey-badges";
+        const role = document.createElement("span");
+        role.className = "passkey-required";
+        role.textContent = passkey.role === "identity" ? "IDENTITY" : "ATTACHED";
+        badges.append(role);
+        if (passkey.walletCapable) {
+          const wallet = document.createElement("span");
+          wallet.className = "passkey-required";
+          wallet.textContent = "WALLET";
+          badges.append(wallet);
+        }
+        copy.append(title, badges, detail);
 
-        if (passkey.removable === false) {
-          const required = document.createElement("span");
-          required.className = "passkey-required";
-          required.textContent = "IDENTITY PASSKEY";
-          row.append(copy, required);
-        } else {
+        const actions = document.createElement("div");
+        actions.className = "passkey-actions";
+        if (!passkey.walletCapable) {
+          const enableWallet = document.createElement("button");
+          enableWallet.className = "button secondary";
+          enableWallet.type = "button";
+          enableWallet.textContent = "ENABLE WALLET";
+          enableWallet.addEventListener("click", () => {
+            void enableWalletCapability(passkey, enableWallet);
+          });
+          actions.append(enableWallet);
+        }
+        if (passkey.removable) {
           const remove = document.createElement("button");
           remove.className = "button danger";
           remove.type = "button";
@@ -548,8 +789,9 @@ export const prerender = true;
           remove.addEventListener("click", () => {
             void removePasskey(passkey, remove);
           });
-          row.append(copy, remove);
+          actions.append(remove);
         }
+        row.append(copy, actions);
         passkeyList.append(row);
       }
     }
@@ -569,9 +811,10 @@ export const prerender = true;
         const endpoint = new URL("/api/auth/passkey/generate-register-options", location.origin);
         endpoint.searchParams.set("name", name);
         const optionsResponse = await fetch(endpoint, { headers: { accept: "application/json" } });
-        const options = await jsonResponse<PublicKeyCredentialCreationOptionsJSON>(
+        const options = await jsonResponse(
           optionsResponse,
           "Triad could not issue a passkey registration challenge.",
+          decodeRegistrationOptions,
         );
         const p256Algorithms = options.pubKeyCredParams.filter((parameter) => parameter.alg === -7);
         if (p256Algorithms.length === 0) {
@@ -585,22 +828,16 @@ export const prerender = true;
             pubKeyCredParams: p256Algorithms,
           },
         });
-        const extensionResults = response.clientExtensionResults as unknown as { prf?: { enabled?: boolean } };
-        const requiresPrf = activeProvider === "google" || activeProvider === "github" || activeProvider === "twitter";
-        if (requiresPrf && extensionResults.prf?.enabled !== true) {
-          throw new Error("This passkey does not support the required PRF extension.");
-        }
-
         const verifyResponse = await fetch("/api/auth/passkey/verify-registration", {
           method: "POST",
           headers: { accept: "application/json", "content-type": "application/json" },
           body: JSON.stringify({ response, name }),
         });
-        await jsonResponse(verifyResponse, "Triad rejected the passkey registration.");
+        await jsonResponse(verifyResponse, "Triad rejected the passkey registration.", decodeNothing);
 
         attachedPasskeyName.value = "";
         renderAccountPasskeys(await accountPasskeys());
-        attachPasskeyButton.textContent = requiresPrf ? "ATTACH PRF PASSKEY" : "ATTACH PASSKEY";
+        attachPasskeyButton.textContent = "ATTACH PASSKEY";
       } catch (reason) {
         attachPasskeyButton.textContent = "RETRY ATTACH PASSKEY";
         showError(reason, "Passkey attachment could not be completed.");
@@ -696,7 +933,7 @@ export const prerender = true;
         signal,
       });
 
-      return jsonResponse(response, `Could not load client ${clientId}.`);
+      return jsonResponse(response, `Could not load client ${clientId}.`, decodePublicClient);
     }
 
     async function removeConsent(consentId: string, row: HTMLElement) {
@@ -856,7 +1093,7 @@ export const prerender = true;
           headers: { accept: "application/json" },
           signal: controller.signal,
         });
-        const session = await jsonResponse<SessionResult>(sessionResponse, "Could not load your session.");
+        const session = await jsonResponse(sessionResponse, "Could not load your session.", decodeSession);
         if (!session?.user?.id) {
           activeAccountSub = undefined;
           activeProvider = undefined;
@@ -870,15 +1107,12 @@ export const prerender = true;
 
         activeAccountSub = session.user.id;
         activeProvider = session.user.provider;
-        const isSocialProvider = activeProvider === "google" || activeProvider === "github" || activeProvider === "twitter";
         attachPasskeyForm.hidden = activeProvider === "ethereum";
-        attachPasskeyButton.textContent = isSocialProvider ? "ATTACH PRF PASSKEY" : "ATTACH PASSKEY";
+        attachPasskeyButton.textContent = "ATTACH PASSKEY";
         passkeyCopy.textContent =
           activeProvider === "ethereum"
             ? "An EVM Identity Source uses its external wallet and cannot attach passkeys."
-            : activeProvider === "passkey"
-              ? "The Identity Passkey supplies wallet seeds. Attached passkeys are for login only, with or without PRF."
-              : "Attach multiple PRF passkeys. Each passkey can log in and supplies an independent wallet root.";
+            : "Identity and Attached Passkeys can authenticate this Triad Account. Enable Wallet Capability on any Passkey that supports PRF.";
         const [accountsResponse, consentsResponse, passkeys] = await Promise.all([
           fetch("/api/auth/list-accounts", {
             headers: { accept: "application/json" },
@@ -890,13 +1124,15 @@ export const prerender = true;
           }),
           accountPasskeys(controller.signal),
         ]);
-        const accounts = await jsonResponse<LinkedAccount[]>(
+        const accounts = await jsonResponse(
           accountsResponse,
           "Could not load linked identities.",
+          decodeLinkedAccounts,
         );
-        const consents = await jsonResponse<OAuthConsent[]>(
+        const consents = await jsonResponse(
           consentsResponse,
           "Could not load authorized applications.",
+          decodeOAuthConsents,
         );
 
         document.querySelector("#account-summary")!.textContent =
