@@ -1,5 +1,7 @@
 import { decodeProtectedHeader, importJWK, jwtVerify } from "jose";
 
+import { base64UrlEncode } from "../utils";
+
 export interface AuthorizationServerMetadata {
   authorization_endpoint: string;
   device_authorization_endpoint: string;
@@ -108,13 +110,6 @@ export const demoProviderCapabilities: readonly ProviderCapability[] = [
   { id: "ethereum", scopes: ["wallet", "chains", "chain_id"] },
   { id: "passkey", scopes: ["handle", "cred", "pubkey"] },
 ];
-
-function base64url(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
 
 async function json(response: Response): Promise<unknown> {
   if (!response.ok) {
@@ -250,11 +245,11 @@ export async function createPkce(): Promise<{
   state: string;
   verifier: string;
 }> {
-  const verifier = base64url(crypto.getRandomValues(new Uint8Array(64)));
-  const challenge = base64url(
+  const verifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(64)));
+  const challenge = base64UrlEncode(
     new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))),
   );
-  const state = base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
 
   return { challenge, state, verifier };
 }

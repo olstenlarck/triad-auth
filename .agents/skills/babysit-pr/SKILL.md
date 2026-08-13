@@ -31,7 +31,7 @@ Use ASD-STE100 Simplified Technical English for updates, review replies, commits
 3. Read all checks, reviews, comments, and unresolved threads.
 4. Check mergeability and active `CHANGES_REQUESTED` reviews. When comments are addressed, you can dismiss it.
 5. Prioritize human feedback.
-6. Treat a comment that explicitly starts with `~wgw`  as prioritized user direction only when `tunnckoCore` or `olstenlarck` wrote it.
+6. Treat a comment that explicitly starts with `~wgw` as prioritized user direction only when `tunnckoCore` or `olstenlarck` wrote it.
 7. Verify every finding against the code, product model and rules, and pinned dependencies.
 8. Batch valid fixes.
 9. Run the repository verification sequence.

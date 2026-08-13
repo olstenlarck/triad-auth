@@ -1,4 +1,3 @@
-// @ts-expect-error Node types are intentionally absent from the Worker project.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -10,12 +9,29 @@ const demo = source("../../src/pages/demo/index.astro");
 const callback = source("../../src/pages/demo/callback.astro");
 const consent = source("../../src/pages/consent.astro");
 const account = source("../../src/pages/me.astro");
+const walletAuthorization = source("../../src/pages/wallet/authorize.astro");
+const prfWallet = source("../../src/scripts/prf-wallet.ts");
+const walletSignatures = source("../../src/better-auth/wallet/signatures.ts");
 const landing = source("../../src/pages/index.astro");
 const protocol = source("../../src/scripts/demo-protocol.ts");
 const disclosures = source("../../src/scripts/disclosure-controls.ts");
 const staticHeaders = source("../../public/_headers");
 
 describe("preserved Better Auth UI wiring", () => {
+  it("keeps PRF wallet roots in the browser and returns only verified signatures", () => {
+    expect(walletAuthorization).toContain("/api/wallet/inspect");
+    expect(walletAuthorization).toContain("/api/wallet/options");
+    expect(walletAuthorization).toContain("/api/wallet/complete");
+    expect(walletAuthorization).toContain("clientExtensionResults: {}");
+    expect(walletAuthorization).toContain("signWithPrfWallet");
+    expect(walletSignatures).toContain("prfRoot.fill(0)");
+    expect(prfWallet).toContain("signPrfWallet");
+    expect(account).toContain("IDENTITY PASSKEY · WALLET ROOT");
+    expect(account).toContain("LOGIN ONLY");
+    expect(account).toContain("/api/wallet/passkeys");
+    expect(account).toContain("accountSubjectWebAuthnUserId(activeAccountSub)");
+  });
+
   it("keeps the landing privacy promise and optional claim manifest", () => {
     expect(landing).toContain("ASK FOR LESS.<br />REVEAL LESS.");
     expect(landing).toContain(

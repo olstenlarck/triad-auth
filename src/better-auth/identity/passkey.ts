@@ -3,12 +3,12 @@ import type {
   RegistrationResponseJSON,
 } from "@simplewebauthn/server";
 import { passkey } from "@better-auth/passkey";
-import type { BetterAuthPlugin } from "better-auth";
-import { APIError, getSessionFromCtx } from "better-auth/api";
+import type { BetterAuthPlugin, HookEndpointContext } from "better-auth";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { toHex } from "viem";
 
+import { base64UrlDecode, base64UrlEncode } from "../../utils";
 import type { TriadEnv } from "../env";
-import { base64UrlDecode, base64UrlEncode } from "./encryption";
 import {
   canonicalPasskeyUsername,
   createPasskeyUsernameGenerator,
@@ -16,13 +16,15 @@ import {
   passkeyDisplayName,
   type PasskeyUsernameGeneratorOptions,
 } from "./passkey-username";
-import { canonicalP256PublicKey } from "./passkey-public-key";
+import { canonicalP256PublicKey, isIdentityPasskey } from "./passkey-public-key";
 import { sealProfileEncryptedData } from "./profile";
 import { passkeyUpstreamId, providerSubject } from "./subjects";
 
 interface PrfRegistrationExtensions extends AuthenticationExtensionsClientInputs {
   prf: Record<string, never>;
 }
+
+const PASSKEY_ATTACHMENT_FRESHNESS_MS = 5 * 60 * 1_000;
 
 const passkeyUsernameSchema = {
   passkeyUsername: {
@@ -50,22 +52,43 @@ function requiresPrfRegistration(clientData: RegistrationResponseJSON): void {
   }
 }
 
-function requiresPrfAuthentication(clientData: unknown): void {
-  if (typeof clientData !== "object" || clientData === null) {
-    rejectPasskey("Passkey authentication did not return extension results");
+function sessionProvider(session: Awaited<ReturnType<typeof getSessionFromCtx>>): unknown {
+  return session?.user.provider;
+}
+
+function validateAttachmentProvider(
+  session: Awaited<ReturnType<typeof getSessionFromCtx>>,
+  clientData: RegistrationResponseJSON,
+): void {
+  const provider = sessionProvider(session);
+  if (provider === "ethereum") {
+    rejectPasskey("EVM Identity Sources cannot attach passkeys");
+  }
+  if (provider === "google" || provider === "github" || provider === "twitter") {
+    requiresPrfRegistration(clientData);
+  }
+  if (
+    provider !== "passkey" &&
+    provider !== "google" &&
+    provider !== "github" &&
+    provider !== "twitter"
+  ) {
+    rejectPasskey("Triad account identity source is invalid");
+  }
+}
+
+async function requireFreshAttachmentSession(ctx: Parameters<typeof getSessionFromCtx>[0]) {
+  const session = await getSessionFromCtx(ctx);
+  if (!session) {
+    return undefined;
   }
 
-  const extensionResults = Reflect.get(clientData, "clientExtensionResults");
-  const prf =
-    typeof extensionResults === "object" && extensionResults !== null
-      ? Reflect.get(extensionResults, "prf")
-      : undefined;
-  const results = typeof prf === "object" && prf !== null ? Reflect.get(prf, "results") : undefined;
-  const first =
-    typeof results === "object" && results !== null ? Reflect.get(results, "first") : undefined;
-  if (typeof first !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(first)) {
-    rejectPasskey("This passkey did not produce the required PRF result");
+  const createdAt = new Date(session.session.createdAt).getTime();
+  if (!Number.isFinite(createdAt) || Date.now() - createdAt > PASSKEY_ATTACHMENT_FRESHNESS_MS) {
+    rejectPasskey("Sign in again before attaching a passkey");
   }
+
+  return session;
 }
 
 export function createPasskeyAuthentication(
@@ -115,19 +138,31 @@ export function createPasskeyAuthentication(
         rejectPasskey("Triad could not create a unique passkey username; try again");
       },
       extensions: async ({ ctx }) => {
-        if (await getSessionFromCtx(ctx)) {
-          rejectPasskey("Passkeys cannot be linked to an existing Triad account");
-        }
+        await requireFreshAttachmentSession(ctx);
 
         return registrationExtensions;
       },
       afterVerification: async ({ ctx, verification, user: registrationUser, clientData }) => {
-        if (await getSessionFromCtx(ctx)) {
-          rejectPasskey("Passkeys cannot be linked to an existing Triad account");
-        }
         if (!verification.registrationInfo?.userVerified) {
           rejectPasskey("Passkey registration requires user verification");
         }
+        const session = await requireFreshAttachmentSession(ctx);
+        if (session?.user.id) {
+          validateAttachmentProvider(session, clientData);
+          const credential = verification.registrationInfo.credential;
+          canonicalP256PublicKey(Uint8Array.from(credential.publicKey));
+
+          const existingCredential = await ctx.context.adapter.findOne({
+            model: "passkey",
+            where: [{ field: "credentialID", value: credential.id }],
+          });
+          if (existingCredential) {
+            rejectPasskey("This passkey is already registered");
+          }
+
+          return { userId: session.user.id };
+        }
+
         requiresPrfRegistration(clientData);
 
         const username = canonicalPasskeyUsername(registrationUser.name);
@@ -197,7 +232,6 @@ export function createPasskeyAuthentication(
         if (!verification.authenticationInfo.userVerified) {
           rejectPasskey("Passkey authentication requires user verification");
         }
-        requiresPrfAuthentication(clientData);
 
         const userHandle = clientData.response.userHandle;
         if (userHandle) {
@@ -236,6 +270,40 @@ export function createPasskeyAuthentication(
     schema: {
       ...passkeyPlugin.schema,
       ...passkeyUsernameSchema,
+    },
+    hooks: {
+      before: [
+        {
+          matcher: (context: HookEndpointContext) => context.path === "/passkey/delete-passkey",
+          handler: createAuthMiddleware(async (ctx) => {
+            const session = await getSessionFromCtx(ctx);
+            if (
+              !session ||
+              sessionProvider(session) !== "passkey" ||
+              typeof ctx.body.id !== "string"
+            ) {
+              return;
+            }
+
+            const storedPasskey = await ctx.context.adapter.findOne({
+              model: "passkey",
+              where: [
+                { field: "id", value: ctx.body.id },
+                { field: "userId", value: session.user.id },
+              ],
+            });
+            const publicKey = Reflect.get(storedPasskey ?? {}, "publicKey");
+            const providerSub = Reflect.get(session.user, "providerSub");
+            if (
+              typeof publicKey === "string" &&
+              typeof providerSub === "string" &&
+              (await isIdentityPasskey(env.IDENTIFIER_SECRET, providerSub, publicKey))
+            ) {
+              rejectPasskey("The Identity Passkey cannot be removed");
+            }
+          }),
+        },
+      ],
     },
   };
 }

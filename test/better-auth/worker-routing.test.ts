@@ -23,6 +23,11 @@ function createServices() {
 
     return { api: { getSession }, handler: authHandler };
   });
+  const handleWalletBroker = vi.fn(async () => {
+    calls.push("wallet");
+
+    return new Response("wallet");
+  });
   const handleAstro = vi.fn(async () => {
     calls.push("astro");
 
@@ -40,6 +45,7 @@ function createServices() {
     services: {
       createTriadConfiguration,
       createTriadAuth,
+      handleWalletBroker,
       handleAstro,
       fetchAssets,
     },
@@ -48,6 +54,7 @@ function createServices() {
       createTriadAuth,
       authHandler,
       getSession,
+      handleWalletBroker,
       handleAstro,
       fetchAssets,
     },
@@ -104,6 +111,23 @@ describe("Triad Worker routing", () => {
     expect(spies.createTriadAuth).not.toHaveBeenCalled();
     expect(spies.authHandler).not.toHaveBeenCalled();
     expect(spies.handleAstro).not.toHaveBeenCalled();
+  });
+
+  it("routes wallet broker endpoints through authenticated configuration", async () => {
+    const { calls, configuration, services, spies } = createServices();
+    const worker = createWorker(services);
+    const request = new Request("https://auth.example.com/api/wallet/inspect", {
+      method: "POST",
+    }) as Parameters<typeof worker.fetch>[0];
+
+    const response = await worker.fetch(request, env, context);
+
+    expect(await response.text()).toBe("wallet");
+    expect(calls).toEqual(["configuration", "auth", "wallet"]);
+    expect(spies.createTriadAuth).toHaveBeenCalledWith(env, configuration);
+    expect(spies.handleWalletBroker).toHaveBeenCalledWith(request, env, expect.any(Object));
+    expect(spies.authHandler).not.toHaveBeenCalled();
+    expect(spies.fetchAssets).not.toHaveBeenCalled();
   });
 
   it("routes Astro internals through Astro only", async () => {

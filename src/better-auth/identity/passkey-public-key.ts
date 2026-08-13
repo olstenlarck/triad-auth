@@ -1,7 +1,9 @@
 import { convertCOSEtoPKCS, cose, decodeCredentialPublicKey } from "@simplewebauthn/server/helpers";
 import { toHex } from "viem";
 
-function storedPublicKeyBytes(value: string): Uint8Array<ArrayBuffer> {
+import { passkeyUpstreamId, providerSubject } from "./subjects";
+
+export function storedPasskeyPublicKeyBytes(value: string): Uint8Array<ArrayBuffer> {
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value)) {
     throw new Error("Stored passkey public key is invalid");
   }
@@ -35,5 +37,16 @@ export function canonicalP256PublicKey(
 }
 
 export function storedPasskeyPublicKeyHex(publicKey: string): string {
-  return toHex(canonicalP256PublicKey(storedPublicKeyBytes(publicKey))).slice(2);
+  return toHex(canonicalP256PublicKey(storedPasskeyPublicKeyBytes(publicKey))).slice(2);
+}
+
+export async function isIdentityPasskey(
+  identifierSecret: string,
+  providerSub: string,
+  storedPublicKey: string,
+): Promise<boolean> {
+  const canonicalPublicKey = canonicalP256PublicKey(storedPasskeyPublicKeyBytes(storedPublicKey));
+  const upstreamId = await passkeyUpstreamId(canonicalPublicKey);
+
+  return providerSub === (await providerSubject(identifierSecret, "passkey", upstreamId));
 }

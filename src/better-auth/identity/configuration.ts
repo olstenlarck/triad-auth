@@ -1,4 +1,6 @@
 import type { Account, BetterAuthOptions } from "better-auth";
+
+import { isRecord } from "../../utils";
 import type { TriadEnv } from "../env";
 import { captureProviderProfile, sealProfileEncryptedData, type CapturedProfile } from "./profile";
 import { validateEncryptionSecrets } from "./encryption";
@@ -29,10 +31,6 @@ interface PendingIdentityUser {
 
 function invalidUpstreamId(provider: IdentityProvider): Error {
   return new Error(`Invalid ${provider} immutable upstream ID`);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function googleUpstreamId(profile: unknown): string {

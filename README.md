@@ -6,6 +6,8 @@ The visual application is retained as the product baseline: the landing page, de
 
 The authorization-server design is documented in `docs/superpowers/specs/2026-07-14-better-auth-authorization-server-design.md`. Numbered implementation plans under `docs/superpowers/plans/` define one focused worktree each.
 
+The canonical domain language is defined in [`CONTEXT.md`](./CONTEXT.md). Architectural decisions are recorded in [`docs/adr/`](./docs/adr/).
+
 ## Local commands
 
 ```sh
@@ -40,14 +42,7 @@ resolve the same account. Those values are not issued to downstream clients; Tri
 
 Ethereum identities use the SHA-256 digest of the lowercased address as their immutable upstream input, producing
 `pid_ethereum_*` and `acc_*` subjects without exposing the address by default. A client can request the explicit
-`wallet` scope to receive it. Passkey identities require a PRF-capable, user-verified ES256/P-256 credential. Each
-registration combines a user-selected name with a six-character CUID2 suffix. The SHA-256 digest of that immutable
-canonical username produces the `acc_*` subject and WebAuthn user handle, while the canonical public key remains the
-input for `pid_passkey_*`. Triad stores the canonical username as the encrypted profile handle and makes it available
-as `preferred_username` only through the consented `handle` scope. The credential ID and public key are available only
-through the consented `cred` and `pubkey` claims. Better Auth retains wallet addresses, credential IDs, and public keys
-in the credential tables it uses to authenticate them. Triad also retains the canonical passkey username and its
-account mapping for uniqueness. Every passkey credential is its own account, and credential linking is disabled.
+`wallet` scope to receive it. Passkey identities require a PRF-capable, user-verified ES256/P-256 Identity Passkey. Their first registration combines a user-selected name with a six-character CUID2 suffix. The SHA-256 digest of that immutable canonical username produces the `acc_*` subject and WebAuthn user handle, while the canonical public key remains the input for `pid_passkey_*`. Triad stores the canonical username as the encrypted profile handle and makes it available as `preferred_username` only through the consented `handle` scope. The credential ID and public key are available only through the consented `cred` and `pubkey` claims. Better Auth retains wallet addresses, credential IDs, and public keys in the credential tables it uses to authenticate them. Triad also retains the canonical passkey username and its account mapping for uniqueness. Google, GitHub, and Twitter Identity Sources may attach multiple PRF-capable passkeys for login and wallet derivation. A Passkey Identity Source may attach PRF-capable or non-PRF passkeys for login only; only its Identity Passkey derives wallets. An EVM Identity Source cannot attach passkeys or derive a PRF wallet.
 The physical `user` table keeps Better Auth's required structural columns, but the user create hook replaces the core
 `name`, `email`, `emailVerified`, and `image` values with an empty name, an account-subject placeholder email, `false`,
 and an empty image before persistence. No provider profile value is written to those columns.
@@ -57,8 +52,22 @@ only the opaque digest, request count, and timestamp. Session rows retain Better
 columns, but create and update hooks always persist `NULL` for `ipAddress` and `userAgent`.
 
 The signed-in account page can delete the account. Deletion removes the profile envelope, sessions, provider account,
-device records, consents, grants, and user-bound token records. Already issued short-lived JWTs may remain valid until
+device and PRF wallet request records, consents, grants, and user-bound token records. Already issued short-lived JWTs may remain valid until
 expiry, and deletion does not remove data held by an upstream provider.
+
+## PRF wallet authorization
+
+A registered client starts a wallet request at `/wallet/authorize` with `client_id`, its exact registered `redirect_uri`, a state value of at least 16 characters, the message to approve, and a required `wallet_profile`. `namespace` defaults to `client` and accepts `account`, `client`, or `source`. `account_index` defaults to `0`. Raw derivation paths are not accepted. The supported profiles are `evm`, `solana`, `bitcoin-native-segwit-mainnet`, `bitcoin-native-segwit-testnet`, `bitcoin-taproot-mainnet`, and `bitcoin-taproot-testnet`. Bitcoin therefore always has an explicit address type and network.
+
+Triad validates the client and redirect, requires an authenticated account, and lets the user choose a Wallet Passkey allowed by its Identity Source. The selected namespace uses the Account Subject, the exact client's Pairwise Subject, or the Source Subject as the domain-separated PRF salt context. The PRF result becomes the wallet seed in the browser. The profile and account index resolve the standard derivation path. EVM uses EIP-191, Solana uses Ed25519, and Bitcoin uses BIP-322 Simple. EVM `chain_id` defaults to `1`, is bound into the Signing Envelope, and does not change the path, key, or address. The Worker consumes the five-minute challenge once, verifies the passkey assertion and wallet signature, then returns the result in the registered redirect URI fragment.
+
+Example request:
+
+```text
+https://triad.wgw.lol/wallet/authorize?client_id=https%3A%2F%2Fclient.example%2Foauth.json&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&state=client-generated-state-1234&namespace=client&wallet_profile=evm&account_index=0&chain_id=1&message=Sign%20the%20client%20challenge
+```
+
+The callback fragment contains `state`, `triad_request_id`, `triad_address`, `triad_signature`, `triad_namespace`, `triad_namespace_subject`, `triad_wallet_profile`, `triad_account_index`, `triad_path`, an applicable `triad_chain_id`, and the base64url-encoded `triad_message`. Clients must compare `state`, decode and verify the exact returned message with the returned profile, and reject replayed request IDs.
 
 Terms and the current data inventory are available at [`/terms`](/terms) and [`/privacy`](/privacy).
 

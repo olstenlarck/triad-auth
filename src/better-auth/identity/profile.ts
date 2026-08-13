@@ -1,13 +1,8 @@
 import type { IdentityProvider } from "./subjects";
 import type { OptionalDisclosureScope } from "../disclosures";
-import {
-  base64UrlDecode,
-  base64UrlEncode,
-  openEncryptedData,
-  sealEncryptedData,
-  validateEncryptionSecrets,
-} from "./encryption";
-import { storedPasskeyPublicKeyHex } from "./passkey-public-key";
+import { base64UrlDecode, base64UrlEncode, isRecord } from "../../utils";
+import { openEncryptedData, sealEncryptedData, validateEncryptionSecrets } from "./encryption";
+import { isIdentityPasskey, storedPasskeyPublicKeyHex } from "./passkey-public-key";
 
 const SYNTHETIC_EMAIL_SUFFIX = "@identity.invalid";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;
@@ -44,10 +39,6 @@ export interface ProfileClaims {
   wallet?: string;
   cred?: string;
   pubkey?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function nonEmptyString(value: unknown): string | undefined {
@@ -336,12 +327,26 @@ async function walletClaim(database: D1Database, userId: string): Promise<string
 
 async function passkeyClaims(
   database: D1Database,
-  userId: string,
+  user: ProfileIdentityUser,
+  identifierSecret: string,
 ): Promise<Pick<ProfileClaims, "cred" | "pubkey">> {
-  const row = await database
-    .prepare('select "credentialID", "publicKey" from "passkey" where "userId" = ? limit 1')
-    .bind(userId)
-    .first<{ credentialID: unknown; publicKey: unknown }>();
+  if (user.provider !== "passkey" || typeof user.providerSub !== "string") {
+    return {};
+  }
+  const providerSub = user.providerSub;
+  const result = await database
+    .prepare('select "credentialID", "publicKey" from "passkey" where "userId" = ?')
+    .bind(user.id)
+    .all<{ credentialID: unknown; publicKey: unknown }>();
+  const candidates = await Promise.all(
+    result.results.map(async (candidate) => ({
+      candidate,
+      identity:
+        typeof candidate.publicKey === "string" &&
+        (await isIdentityPasskey(identifierSecret, providerSub, candidate.publicKey)),
+    })),
+  );
+  const row = candidates.find(({ identity }) => identity)?.candidate;
   if (typeof row?.credentialID !== "string" || typeof row.publicKey !== "string") {
     return {};
   }
@@ -354,7 +359,11 @@ async function passkeyClaims(
   };
 }
 
-export function createProfileClaimResolver(encryptionSecrets: string, database?: D1Database) {
+export function createProfileClaimResolver(
+  encryptionSecrets: string,
+  database?: D1Database,
+  identifierSecret?: string,
+) {
   validateEncryptionSecrets(encryptionSecrets);
 
   return {
@@ -371,13 +380,16 @@ export function createProfileClaimResolver(encryptionSecrets: string, database?:
       if (requiresDatabaseClaims && !database) {
         throw new Error("Credential claims require an identity database");
       }
+      if ((scopes.includes("cred") || scopes.includes("pubkey")) && !identifierSecret) {
+        throw new Error("Identity Passkey claims require the identifier secret");
+      }
       const walletPromise: Promise<string | undefined> =
         scopes.includes("wallet") && database
           ? walletClaim(database, user.id)
           : Promise.resolve(undefined);
       const passkeyPromise: Promise<Pick<ProfileClaims, "cred" | "pubkey">> =
         (scopes.includes("cred") || scopes.includes("pubkey")) && database
-          ? passkeyClaims(database, user.id)
+          ? passkeyClaims(database, user, identifierSecret!)
           : Promise.resolve({});
 
       const [profile, wallet, passkey] = await Promise.all([

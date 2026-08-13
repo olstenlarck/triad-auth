@@ -31,6 +31,29 @@ export const prerender = true;
         </dl>
       </section>
 
+      <section id="account-passkey-panel" class="account-panel" aria-labelledby="wallet-passkeys-title">
+        <div class="panel-heading">
+          <h2 id="wallet-passkeys-title">PASSKEYS</h2>
+          <span id="passkey-count">0</span>
+        </div>
+        <p id="account-passkey-copy" class="account-panel-copy">Loading passkey roles...</p>
+        <div id="account-passkeys" class="account-passkeys"></div>
+        <form id="attach-passkey-form" class="passkey-registration account-passkey-registration">
+          <label for="attached-passkey-name">PASSKEY NAME</label>
+          <input
+            id="attached-passkey-name"
+            name="attached-passkey-name"
+            type="text"
+            autocomplete="off"
+            minlength="1"
+            maxlength="64"
+            placeholder="Phone, security key, laptop"
+            required
+          />
+          <button id="attach-passkey" class="button secondary" type="submit">ATTACH PRF PASSKEY</button>
+        </form>
+      </section>
+
       <section class="account-panel" aria-labelledby="apps-title">
         <div class="panel-heading"><h2 id="apps-title">AUTHORIZED APPS</h2><span id="app-count">0</span></div>
         <p class="fine-print">
@@ -69,7 +92,11 @@ export const prerender = true;
       type PublicKeyCredentialRequestOptionsJSON,
     } from "@simplewebauthn/browser";
     import { inspectOAuthQuery } from "../scripts/demo-protocol";
-    import { passkeyWebAuthnUserId } from "../better-auth/identity/passkey-username";
+    import { isoDate, jsonResponse, responseError } from "../utils";
+    import {
+      accountSubjectWebAuthnUserId,
+      passkeyWebAuthnUserId,
+    } from "../better-auth/identity/passkey-username";
 
     type LinkedAccount = { providerId?: string };
     type OAuthConsent = {
@@ -81,6 +108,14 @@ export const prerender = true;
     };
     type PublicClient = { client_id?: string; client_name?: string };
     type SessionResult = { user?: { id?: string; provider?: string } } | null;
+    type AccountPasskey = {
+      id?: string;
+      name?: string | null;
+      backedUp?: boolean;
+      createdAt?: string | number | null;
+      role?: "identity" | "wallet" | "login";
+      removable?: boolean;
+    };
 
     interface EthereumProvider {
       request(input: { method: string; params?: unknown[] }): Promise<unknown>;
@@ -96,17 +131,16 @@ export const prerender = true;
     const appCount = document.querySelector<HTMLElement>("#app-count")!;
     const list = document.querySelector<HTMLElement>("#authorized-apps")!;
     const providerActions = document.querySelector<HTMLElement>("#account-provider-actions")!;
+    const passkeyList = document.querySelector<HTMLElement>("#account-passkeys")!;
+    const passkeyCount = document.querySelector<HTMLElement>("#passkey-count")!;
+    const passkeyCopy = document.querySelector<HTMLElement>("#account-passkey-copy")!;
+    const attachPasskeyForm = document.querySelector<HTMLFormElement>("#attach-passkey-form")!;
+    const attachPasskeyButton = document.querySelector<HTMLButtonElement>("#attach-passkey")!;
+    const attachedPasskeyName = document.querySelector<HTMLInputElement>("#attached-passkey-name")!;
     let loadController: AbortController | null = null;
     let loading = false;
-
-    function responseError(body: unknown, fallback: string): Error {
-      if (body && typeof body === "object") {
-        const candidate = body as { error?: string; message?: string };
-        return new Error(candidate.message ?? candidate.error ?? fallback);
-      }
-
-      return new Error(fallback);
-    }
+    let activeAccountSub: string | undefined;
+    let activeProvider: string | undefined;
 
     function showError(reason: unknown, fallback: string) {
       error.textContent = reason instanceof Error ? reason.message : fallback;
@@ -118,6 +152,9 @@ export const prerender = true;
     function setMutationControls(disabled: boolean) {
       logout.disabled = disabled;
       deleteAccountButton.disabled = disabled;
+      attachPasskeyForm.querySelectorAll<HTMLButtonElement | HTMLInputElement>("button, input").forEach((control) => {
+        control.disabled = disabled;
+      });
       providerActions.querySelectorAll<HTMLButtonElement | HTMLInputElement>("button, input").forEach((control) => {
         control.disabled = disabled;
       });
@@ -126,25 +163,37 @@ export const prerender = true;
       });
     }
 
-    async function jsonResponse<T>(response: Response, fallback: string): Promise<T> {
-      const body = (await response.json()) as T;
-      if (!response.ok) {
-        throw responseError(body, fallback);
-      }
-
-      return body;
-    }
-
     function currentOAuthQuery(): string | undefined {
-      if (!location.search) {
+      if (!location.search || returnDestination()) {
         return undefined;
       }
 
       return inspectOAuthQuery(location.search).oauthQuery;
     }
 
+    function returnDestination(): string | undefined {
+      const query = new URLSearchParams(location.search);
+      const values = query.getAll("return_to");
+      if (values.length !== 1) {
+        return undefined;
+      }
+
+      try {
+        const target = new URL(values[0]!, location.origin);
+        if (target.origin !== location.origin || target.pathname !== "/wallet/authorize") {
+          return undefined;
+        }
+
+        return `${target.pathname}${target.search}${target.hash}`;
+      } catch {
+        return undefined;
+      }
+    }
+
     function requestedScopes(): readonly string[] {
-      return location.search ? inspectOAuthQuery(location.search).scopes : ["openid"];
+      return location.search && !returnDestination()
+        ? inspectOAuthQuery(location.search).scopes
+        : ["openid"];
     }
 
     function requestedProvider(): "ethereum" | "passkey" | undefined {
@@ -178,6 +227,12 @@ export const prerender = true;
     }
 
     function resumeAuthorization() {
+      const destination = returnDestination();
+      if (destination) {
+        location.assign(destination);
+        return;
+      }
+
       const oauthQuery = currentOAuthQuery();
       location.assign(oauthQuery ? `/api/auth/oauth2/authorize?${oauthQuery}` : "/me");
     }
@@ -200,7 +255,9 @@ export const prerender = true;
             provider,
             ...(oauthQuery
               ? { oauth_query: oauthQuery }
-              : { callbackURL: new URL("/me", location.origin).href }),
+              : {
+                  callbackURL: new URL(returnDestination() ?? "/me", location.origin).href,
+                }),
           }),
         });
         const body = await jsonResponse<{ url?: string }>(response, "Provider sign-in could not start.");
@@ -269,28 +326,6 @@ export const prerender = true;
       ].join("\n");
     }
 
-    function base64Url(bytes: Uint8Array): string {
-      return btoa(String.fromCharCode(...bytes))
-        .replaceAll("+", "-")
-        .replaceAll("/", "_")
-        .replace(/=+$/, "");
-    }
-
-    function passkeyPrfResult(extensionResults: unknown): Uint8Array {
-      const prf =
-        typeof extensionResults === "object" && extensionResults !== null
-          ? Reflect.get(extensionResults, "prf")
-          : undefined;
-      const results = typeof prf === "object" && prf !== null ? Reflect.get(prf, "results") : undefined;
-      const first =
-        typeof results === "object" && results !== null ? Reflect.get(results, "first") : undefined;
-      if (!(first instanceof ArrayBuffer) || first.byteLength !== 32) {
-        throw new Error("This passkey did not produce the required PRF result.");
-      }
-
-      return new Uint8Array(first);
-    }
-
     async function signInWithEthereum(button: HTMLButtonElement) {
       setMutationControls(true);
       error.hidden = true;
@@ -350,18 +385,10 @@ export const prerender = true;
         optionsResponse,
         "Triad could not issue a passkey challenge.",
       );
-      const prfOptions = {
-        ...options,
-        extensions: {
-          ...options.extensions,
-          prf: { eval: { first: crypto.getRandomValues(new Uint8Array(32)) } },
-        },
-      } as unknown as PublicKeyCredentialRequestOptionsJSON;
-      const response = await startAuthentication({ optionsJSON: prfOptions });
-      const first = passkeyPrfResult(response.clientExtensionResults);
+      const response = await startAuthentication({ optionsJSON: options });
       const serializedResponse = {
         ...response,
-        clientExtensionResults: { prf: { results: { first: base64Url(first) } } },
+        clientExtensionResults: {},
       };
       const verifyResponse = await fetch("/api/auth/passkey/verify-authentication", {
         method: "POST",
@@ -438,6 +465,147 @@ export const prerender = true;
         button.textContent = "RETRY REGISTER PASSKEY";
         setMutationControls(false);
         showError(reason, "Passkey registration could not be completed.");
+      }
+    }
+
+    async function accountPasskeys(signal?: AbortSignal): Promise<AccountPasskey[]> {
+      const response = await fetch("/api/wallet/passkeys", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({}),
+        signal,
+      });
+
+      return jsonResponse(response, "Could not load account passkeys.");
+    }
+
+    async function removePasskey(passkey: AccountPasskey, button: HTMLButtonElement) {
+      if (!passkey.id) {
+        return;
+      }
+      if (!window.confirm(`Remove ${passkey.name?.trim() || "this passkey"} from this Triad account?`)) {
+        return;
+      }
+
+      setMutationControls(true);
+      error.hidden = true;
+      retry.hidden = true;
+      button.textContent = "REMOVING PASSKEY";
+
+      try {
+        const response = await fetch("/api/auth/passkey/delete-passkey", {
+          method: "POST",
+          headers: { accept: "application/json", "content-type": "application/json" },
+          body: JSON.stringify({ id: passkey.id }),
+        });
+        await jsonResponse(response, "Could not remove this passkey.");
+        renderAccountPasskeys(await accountPasskeys());
+      } catch (reason) {
+        button.textContent = "RETRY REMOVE";
+        showError(reason, "Could not remove this passkey.");
+      } finally {
+        setMutationControls(false);
+      }
+    }
+
+    function renderAccountPasskeys(passkeys: AccountPasskey[]) {
+      passkeyList.replaceChildren();
+      passkeyCount.textContent = String(passkeys.length);
+      if (passkeys.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "empty-state";
+        empty.textContent = "No passkey is attached to this account.";
+        passkeyList.append(empty);
+        return;
+      }
+
+      for (const passkey of passkeys) {
+        const row = document.createElement("article");
+        row.className = "account-passkey";
+        const copy = document.createElement("div");
+        const title = document.createElement("h3");
+        title.textContent = passkey.name?.trim() || "Unnamed passkey";
+        const detail = document.createElement("small");
+        const role =
+          passkey.role === "identity"
+            ? "IDENTITY PASSKEY · WALLET ROOT"
+            : passkey.role === "wallet"
+              ? "LOGIN · WALLET ROOT"
+              : "LOGIN ONLY";
+        detail.textContent = `${role} · ${passkey.backedUp ? "SYNCED" : "DEVICE-BOUND"} · ${isoDate(passkey.createdAt, "DATE UNAVAILABLE")}`;
+        copy.append(title, detail);
+
+        if (passkey.removable === false) {
+          const required = document.createElement("span");
+          required.className = "passkey-required";
+          required.textContent = "IDENTITY PASSKEY";
+          row.append(copy, required);
+        } else {
+          const remove = document.createElement("button");
+          remove.className = "button danger";
+          remove.type = "button";
+          remove.textContent = "REMOVE PASSKEY";
+          remove.addEventListener("click", () => {
+            void removePasskey(passkey, remove);
+          });
+          row.append(copy, remove);
+        }
+        passkeyList.append(row);
+      }
+    }
+
+    async function attachPasskey() {
+      if (!activeAccountSub || !attachPasskeyForm.reportValidity()) {
+        return;
+      }
+
+      const name = attachedPasskeyName.value.trim();
+      setMutationControls(true);
+      error.hidden = true;
+      retry.hidden = true;
+      attachPasskeyButton.textContent = "CREATING PASSKEY";
+
+      try {
+        const endpoint = new URL("/api/auth/passkey/generate-register-options", location.origin);
+        endpoint.searchParams.set("name", name);
+        const optionsResponse = await fetch(endpoint, { headers: { accept: "application/json" } });
+        const options = await jsonResponse<PublicKeyCredentialCreationOptionsJSON>(
+          optionsResponse,
+          "Triad could not issue a passkey registration challenge.",
+        );
+        const p256Algorithms = options.pubKeyCredParams.filter((parameter) => parameter.alg === -7);
+        if (p256Algorithms.length === 0) {
+          throw new Error("Triad did not offer the required ES256 passkey algorithm.");
+        }
+
+        const response = await startRegistration({
+          optionsJSON: {
+            ...options,
+            user: { ...options.user, id: accountSubjectWebAuthnUserId(activeAccountSub) },
+            pubKeyCredParams: p256Algorithms,
+          },
+        });
+        const extensionResults = response.clientExtensionResults as unknown as { prf?: { enabled?: boolean } };
+        const requiresPrf = activeProvider === "google" || activeProvider === "github" || activeProvider === "twitter";
+        if (requiresPrf && extensionResults.prf?.enabled !== true) {
+          throw new Error("This passkey does not support the required PRF extension.");
+        }
+
+        const verifyResponse = await fetch("/api/auth/passkey/verify-registration", {
+          method: "POST",
+          headers: { accept: "application/json", "content-type": "application/json" },
+          body: JSON.stringify({ response, name }),
+        });
+        await jsonResponse(verifyResponse, "Triad rejected the passkey registration.");
+
+        attachedPasskeyName.value = "";
+        renderAccountPasskeys(await accountPasskeys());
+        attachPasskeyButton.textContent = requiresPrf ? "ATTACH PRF PASSKEY" : "ATTACH PASSKEY";
+      } catch (reason) {
+        attachPasskeyButton.textContent = "RETRY ATTACH PASSKEY";
+        showError(reason, "Passkey attachment could not be completed.");
+      } finally {
+        setMutationControls(false);
       }
     }
 
@@ -690,6 +858,8 @@ export const prerender = true;
         });
         const session = await jsonResponse<SessionResult>(sessionResponse, "Could not load your session.");
         if (!session?.user?.id) {
+          activeAccountSub = undefined;
+          activeProvider = undefined;
           document.querySelector("#account-summary")!.textContent =
             "No active authorization session on this browser.";
           content.hidden = true;
@@ -698,7 +868,18 @@ export const prerender = true;
           return;
         }
 
-        const [accountsResponse, consentsResponse] = await Promise.all([
+        activeAccountSub = session.user.id;
+        activeProvider = session.user.provider;
+        const isSocialProvider = activeProvider === "google" || activeProvider === "github" || activeProvider === "twitter";
+        attachPasskeyForm.hidden = activeProvider === "ethereum";
+        attachPasskeyButton.textContent = isSocialProvider ? "ATTACH PRF PASSKEY" : "ATTACH PASSKEY";
+        passkeyCopy.textContent =
+          activeProvider === "ethereum"
+            ? "An EVM Identity Source uses its external wallet and cannot attach passkeys."
+            : activeProvider === "passkey"
+              ? "The Identity Passkey supplies wallet seeds. Attached passkeys are for login only, with or without PRF."
+              : "Attach multiple PRF passkeys. Each passkey can log in and supplies an independent wallet root.";
+        const [accountsResponse, consentsResponse, passkeys] = await Promise.all([
           fetch("/api/auth/list-accounts", {
             headers: { accept: "application/json" },
             signal: controller.signal,
@@ -707,6 +888,7 @@ export const prerender = true;
             headers: { accept: "application/json" },
             signal: controller.signal,
           }),
+          accountPasskeys(controller.signal),
         ]);
         const accounts = await jsonResponse<LinkedAccount[]>(
           accountsResponse,
@@ -726,6 +908,7 @@ export const prerender = true;
             .map((provider) => (provider === "siwe" ? "ethereum" : provider).toUpperCase()),
         );
         document.querySelector("#identity-list")!.textContent = [...identities].join(" · ") || "NONE";
+        renderAccountPasskeys(passkeys);
         await renderConsents(consents, controller.signal);
         signedOut.hidden = true;
         content.hidden = false;
@@ -749,6 +932,10 @@ export const prerender = true;
     });
     deleteAccountButton.addEventListener("click", () => {
       void deleteAccount();
+    });
+    attachPasskeyForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void attachPasskey();
     });
     retry.addEventListener("click", () => {
       void load();

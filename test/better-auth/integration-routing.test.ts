@@ -30,6 +30,7 @@ function createServices() {
   const getSession = vi.fn(async () => ({ user: { id: "acc_session" } }));
   const createTriadConfiguration = vi.fn(() => ({ application: "triad" }));
   const createTriadAuth = vi.fn(() => ({ api: { getSession }, handler: authHandler }));
+  const handleWalletBroker = vi.fn(async () => new Response("wallet"));
   const handleAstro = vi.fn(async () => new Response("astro"));
   const fetchAssets = vi.fn(async () => new Response("assets"));
 
@@ -37,6 +38,7 @@ function createServices() {
     services: {
       createTriadConfiguration,
       createTriadAuth,
+      handleWalletBroker,
       handleAstro,
       fetchAssets,
     },
@@ -45,6 +47,7 @@ function createServices() {
       getSession,
       createTriadConfiguration,
       createTriadAuth,
+      handleWalletBroker,
       handleAstro,
       fetchAssets,
     },

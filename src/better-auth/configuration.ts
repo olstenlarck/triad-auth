@@ -23,6 +23,7 @@ import {
 import { createD1RateLimitStorage, RATE_LIMIT_WINDOW_SECONDS } from "./rate-limit";
 import { createTriadResourceFragment } from "./resources";
 import { createTokenComposition, type TokenIdentityUser } from "./tokens";
+import { walletBrokerPlugin } from "./wallet";
 
 function providerSubjectFromUser(user: TokenIdentityUser): string {
   if (typeof user.providerSub !== "string") {
@@ -73,7 +74,11 @@ export function createTriadConfiguration(env: TriadEnv) {
         pairwiseSubject(env.IDENTIFIER_SECRET, accountSub, clientId),
       resolveProviderSubject: providerSubjectFromUser,
     },
-    profileClaims: createProfileClaimResolver(env.ENCRYPTION_SECRETS, env.DB),
+    profileClaims: createProfileClaimResolver(
+      env.ENCRYPTION_SECRETS,
+      env.DB,
+      env.IDENTIFIER_SECRET,
+    ),
     sessionClaims: createSessionClaimResolver(env.DB),
     resource: resourceFragment,
   });
@@ -84,6 +89,7 @@ export function createTriadConfiguration(env: TriadEnv) {
     createTriadDeviceAuthorization(env),
     createEthereumAuthentication(env),
     createPasskeyAuthentication(env),
+    walletBrokerPlugin,
     oauthProvider({
       ...tokenOptions,
       ...admissionOptions,
