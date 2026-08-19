@@ -5,4 +5,4 @@
 - Always use `CONTEXT.md` when discussing the protocol or writing code comments and documentation.
 - When using the code-review skill, always consider the current worktree, including uncommitted changes, rather than reviewing only `HEAD`.
 - always consider the `./CONTEXT.md`, `./docs/spec.md`, and `./docs/adr/`
- if these files and folders exist!
+  if these files and folders exist!

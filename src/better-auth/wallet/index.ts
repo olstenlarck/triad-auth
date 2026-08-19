@@ -7,6 +7,12 @@ import {
 import type { BetterAuthPlugin } from "better-auth";
 
 import { boundedString, concatenateBytes, hexEncode, isRecord } from "../../utils";
+import {
+  derivedWalletAddressKey,
+  openDerivedWalletAddresses,
+  sealDerivedWalletAddresses,
+  WALLET_CAPABILITY_ADDRESS_KEY,
+} from "./addresses";
 import type { TriadEnv } from "../env";
 import { isIdentityPasskey, storedPasskeyPublicKeyBytes } from "../identity/passkey-public-key";
 import { isSocialProvider, pairwiseSubject } from "../identity/subjects";
@@ -113,6 +119,7 @@ interface PasskeyRecord {
   backedUp: number;
   createdAt: number | string | null;
   walletCapable: number;
+  encryptedData: string | null;
 }
 
 interface WalletCapabilityRequestRecord {
@@ -254,7 +261,7 @@ async function readBoundedJson(request: Request): Promise<Record<string, unknown
 }
 
 const passkeySelection =
-  'select "id", "name", "credentialID", "publicKey", "counter", "transports", "backedUp", "createdAt", "walletCapable" from "passkey"';
+  'select "id", "name", "credentialID", "publicKey", "counter", "transports", "backedUp", "createdAt", "walletCapable", "encryptedData" from "passkey"';
 
 async function accountById(database: D1Database, userId: string): Promise<IdentityRecord | null> {
   return database
@@ -743,8 +750,27 @@ async function completeWalletRequest(request: Request, env: TriadEnv, auth: Wall
     invalid("Derived wallet signature does not match this request");
   }
 
-  await env.DB.prepare('update "passkey" set "counter" = ? where "id" = ? and "userId" = ?')
-    .bind(newCounter, passkey.id, accountId)
+  const addresses = await openDerivedWalletAddresses(
+    env.ENCRYPTION_SECRETS,
+    accountId,
+    passkey.id,
+    passkey.encryptedData,
+  );
+  const addressKey = derivedWalletAddressKey(walletRequest);
+  const recordedAddress = addresses[addressKey];
+  if (recordedAddress !== undefined && recordedAddress !== address) {
+    invalid("Derived wallet address does not match the recorded address for this wallet");
+  }
+
+  // Resealing on every completion also moves the record to the active encryption secret.
+  const envelope = await sealDerivedWalletAddresses(env.ENCRYPTION_SECRETS, accountId, passkey.id, {
+    ...addresses,
+    [addressKey]: address,
+  });
+  await env.DB.prepare(
+    'update "passkey" set "counter" = ?, "encryptedData" = ? where "id" = ? and "userId" = ?',
+  )
+    .bind(newCounter, envelope, passkey.id, accountId)
     .run();
 
   const pairwiseSub = await pairwiseSubject(
@@ -856,10 +882,25 @@ async function completeWalletCapabilityRequest(
     invalid("Derived wallet signature does not prove Wallet Capability");
   }
 
+  const addresses = await openDerivedWalletAddresses(
+    env.ENCRYPTION_SECRETS,
+    accountId,
+    passkey.id,
+    passkey.encryptedData,
+  );
+  const recordedAddress = addresses[WALLET_CAPABILITY_ADDRESS_KEY];
+  if (recordedAddress !== undefined && recordedAddress !== address) {
+    invalid("Derived wallet address does not match the recorded Wallet Capability proof");
+  }
+
+  const envelope = await sealDerivedWalletAddresses(env.ENCRYPTION_SECRETS, accountId, passkey.id, {
+    ...addresses,
+    [WALLET_CAPABILITY_ADDRESS_KEY]: address,
+  });
   const updated = await env.DB.prepare(
-    'update "passkey" set "counter" = ?, "walletCapable" = 1 where "id" = ? and "userId" = ?',
+    'update "passkey" set "counter" = ?, "walletCapable" = 1, "encryptedData" = ? where "id" = ? and "userId" = ?',
   )
-    .bind(newCounter, passkey.id, accountId)
+    .bind(newCounter, envelope, passkey.id, accountId)
     .run();
   if (updated.meta.changes !== 1) {
     invalid("Wallet Capability Passkey is no longer available");
@@ -924,6 +965,12 @@ export {
   walletRedirectUri,
   walletSigningMessage,
 } from "./protocol";
+export {
+  derivedWalletAddressKey,
+  openDerivedWalletAddresses,
+  sealDerivedWalletAddresses,
+  WALLET_CAPABILITY_ADDRESS_KEY,
+} from "./addresses";
 export {
   WALLET_PROFILE_IDS,
   type WalletProfileId,

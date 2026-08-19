@@ -1,4 +1,3 @@
-import type { AuthenticationExtensionsClientInputs } from "@simplewebauthn/server";
 import { passkey } from "@better-auth/passkey";
 import type { BetterAuthPlugin, HookEndpointContext } from "better-auth";
 import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
@@ -71,7 +70,13 @@ export function createPasskeyAuthentication(
   usernameOptions: PasskeyUsernameGeneratorOptions = {},
 ) {
   const origin = new URL(env.AUTH_ORIGIN);
-  const registrationExtensions: AuthenticationExtensionsClientInputs = { credProps: true };
+  // prf here is a provisioning hint, never a requirement: authenticators without
+  // PRF ignore it, while hmac-secret must be enabled at creation time to allow
+  // Wallet Capability later. Do not enforce PRF at registration.
+  const registrationExtensions: AuthenticationExtensionsClientInputs = {
+    credProps: true,
+    prf: {},
+  };
   const createUsername = createPasskeyUsernameGenerator(usernameOptions);
 
   const passkeyPlugin = passkey({
@@ -246,6 +251,7 @@ export function createPasskeyAuthentication(
         fields: {
           ...passkeyPlugin.schema?.passkey?.fields,
           walletCapable: { type: "boolean" as const, required: true, defaultValue: false },
+          encryptedData: { type: "string" as const, required: false },
         },
       },
       ...passkeyUsernameSchema,

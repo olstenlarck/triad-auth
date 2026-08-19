@@ -89,6 +89,7 @@ const migrationFiles = readdirSync("migrations")
 const initialMigration = readSource("migrations/0001-initial.sql");
 const walletMigration = readSource("migrations/0002-prf-wallet.sql");
 const walletCapabilityMigration = readSource("migrations/0003-wallet-capability.sql");
+const walletAddressesMigration = readSource("migrations/0004-wallet-addresses.sql");
 
 describe("Better Auth schema tooling", () => {
   it("keeps the finalized initial migration and adds schema changes separately", () => {
@@ -96,6 +97,7 @@ describe("Better Auth schema tooling", () => {
       "0001-initial.sql",
       "0002-prf-wallet.sql",
       "0003-wallet-capability.sql",
+      "0004-wallet-addresses.sql",
     ]);
     expect(createHash("sha256").update(initialMigration).digest("hex")).toBe(
       "23f86de32d73f5cac58147983fe07b68890000174fd916f39039083d22aa9e00",
@@ -134,6 +136,9 @@ describe("Better Auth schema tooling", () => {
     expect(walletCapabilityMigration).toContain('create table "walletCapabilityRequest"');
     expect(walletCapabilityMigration).toContain(
       'create index "walletCapabilityRequest_expiresAt_idx"',
+    );
+    expect(walletAddressesMigration).toContain(
+      'alter table "passkey" add column "encryptedData" text',
     );
   });
 
