@@ -55,11 +55,13 @@ function passkeyKeyMaterial(credentialPublicKey: Uint8Array<ArrayBuffer>): Passk
     const curve = key.get(cose.COSEKEYS.crv);
     const x = key.get(cose.COSEKEYS.x);
     const y = key.get(cose.COSEKEYS.y);
-    if (
-      (curve !== cose.COSECRV.P256 && curve !== cose.COSECRV.P384 && curve !== cose.COSECRV.P521) ||
-      !x?.length ||
-      !y?.length
-    ) {
+    if (curve !== cose.COSECRV.P256 && curve !== cose.COSECRV.P384 && curve !== cose.COSECRV.P521) {
+      throw new Error("Passkey EC2 public key is invalid");
+    }
+    // Pinned coordinate lengths keep the canonical encoding a pure function of the key.
+    const coordinateBytes =
+      curve === cose.COSECRV.P256 ? 32 : curve === cose.COSECRV.P384 ? 48 : 66;
+    if (x?.length !== coordinateBytes || y?.length !== coordinateBytes) {
       throw new Error("Passkey EC2 public key is invalid");
     }
 
@@ -69,7 +71,7 @@ function passkeyKeyMaterial(credentialPublicKey: Uint8Array<ArrayBuffer>): Passk
   if (cose.isCOSEPublicKeyOKP(key)) {
     const curve = key.get(cose.COSEKEYS.crv);
     const x = key.get(cose.COSEKEYS.x);
-    if (curve !== cose.COSECRV.ED25519 || !x?.length) {
+    if (curve !== cose.COSECRV.ED25519 || x?.length !== 32) {
       throw new Error("Passkey OKP public key is invalid");
     }
 

@@ -638,6 +638,21 @@ export const prerender = true;
       return jsonResponse(response, "Could not load account passkeys.", decodeAccountPasskeys);
     }
 
+    // A wallet-broker failure must not hide sign-out and consent controls.
+    async function loadableAccountPasskeys(
+      signal: AbortSignal,
+    ): Promise<AccountPasskey[] | undefined> {
+      try {
+        return await accountPasskeys(signal);
+      } catch (reason) {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          throw reason;
+        }
+
+        return undefined;
+      }
+    }
+
     async function removePasskey(passkey: AccountPasskey, button: HTMLButtonElement) {
       if (!window.confirm(`Remove ${passkey.name?.trim() || "this passkey"} from this Triad account?`)) {
         return;
@@ -789,6 +804,15 @@ export const prerender = true;
         row.append(copy, actions);
         passkeyList.append(row);
       }
+    }
+
+    function renderPasskeysUnavailable() {
+      passkeyList.replaceChildren();
+      passkeyCount.textContent = "—";
+      const notice = document.createElement("p");
+      notice.className = "empty-state";
+      notice.textContent = "Passkeys are unavailable right now. Reload the page to try again.";
+      passkeyList.append(notice);
     }
 
     async function attachPasskey() {
@@ -1111,7 +1135,7 @@ export const prerender = true;
             headers: { accept: "application/json" },
             signal: controller.signal,
           }),
-          accountPasskeys(controller.signal),
+          loadableAccountPasskeys(controller.signal),
         ]);
         const accounts = await jsonResponse(
           accountsResponse,
@@ -1133,7 +1157,11 @@ export const prerender = true;
             .map((provider) => (provider === "siwe" ? "ethereum" : provider).toUpperCase()),
         );
         document.querySelector("#identity-list")!.textContent = [...identities].join(" · ") || "NONE";
-        renderAccountPasskeys(passkeys);
+        if (passkeys) {
+          renderAccountPasskeys(passkeys);
+        } else {
+          renderPasskeysUnavailable();
+        }
         await renderConsents(consents, controller.signal);
         signedOut.hidden = true;
         content.hidden = false;

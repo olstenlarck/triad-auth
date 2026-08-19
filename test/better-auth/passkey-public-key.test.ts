@@ -83,4 +83,40 @@ describe("Passkey identity detection", () => {
       y: base64UrlEncode(y),
     });
   });
+
+  it.each([
+    ["a short P-256 x coordinate", cose.COSECRV.P256, 31, 32],
+    ["a long P-256 y coordinate", cose.COSECRV.P256, 32, 33],
+    ["a short P-384 x coordinate", cose.COSECRV.P384, 47, 48],
+    ["a short P-521 y coordinate", cose.COSECRV.P521, 66, 65],
+  ] as const)("rejects %s", (_name, curve, xBytes, yBytes) => {
+    const ec2PublicKey = isoCBOR.encode(
+      new Map<number, number | Uint8Array>([
+        [cose.COSEKEYS.kty, cose.COSEKTY.EC2],
+        [cose.COSEKEYS.alg, cose.COSEALG.ES256],
+        [cose.COSEKEYS.crv, curve],
+        [cose.COSEKEYS.x, new Uint8Array(xBytes).fill(13)],
+        [cose.COSEKEYS.y, new Uint8Array(yBytes).fill(17)],
+      ]),
+    );
+
+    expect(() => canonicalPasskeyPublicKey(Uint8Array.from(ec2PublicKey))).toThrow(
+      "Passkey EC2 public key is invalid",
+    );
+  });
+
+  it("rejects an Ed25519 public key that is not exactly 32 bytes", () => {
+    const ed25519PublicKey = isoCBOR.encode(
+      new Map<number, number | Uint8Array>([
+        [cose.COSEKEYS.kty, cose.COSEKTY.OKP],
+        [cose.COSEKEYS.alg, cose.COSEALG.EdDSA],
+        [cose.COSEKEYS.crv, cose.COSECRV.ED25519],
+        [cose.COSEKEYS.x, new Uint8Array(31).fill(7)],
+      ]),
+    );
+
+    expect(() => canonicalPasskeyPublicKey(Uint8Array.from(ed25519PublicKey))).toThrow(
+      "Passkey OKP public key is invalid",
+    );
+  });
 });

@@ -3,7 +3,7 @@ import type { BetterAuthPlugin, HookEndpointContext } from "better-auth";
 import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { toHex } from "viem";
 
-import { base64UrlDecode, base64UrlEncode } from "../../utils";
+import { base64UrlDecode, base64UrlEncode, isRecord } from "../../utils";
 import type { TriadEnv } from "../env";
 import {
   canonicalPasskeyUsername,
@@ -265,6 +265,7 @@ export function createPasskeyAuthentication(
             if (
               !session ||
               sessionProvider(session) !== "passkey" ||
+              !isRecord(ctx.body) ||
               typeof ctx.body.id !== "string"
             ) {
               return;
