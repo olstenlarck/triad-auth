@@ -8,7 +8,10 @@ const app = new Hono<{ Bindings: Env }>();
 // Registry paths never start with "/-/health", so this cannot shadow a package.
 app.get("/-/health", (c) => {
   const sha = c.env.COMMIT_SHA;
-  const link = `https://github.com/tunnckoCoreHQ/monarch/commit/${sha}`;
+  const link =
+    sha === "local"
+      ? "https://github.com/tunnckoCoreHQ/monarch"
+      : `https://github.com/tunnckoCoreHQ/monarch/commit/${sha}`;
 
   return c.json({ ok: true, link, commit: sha });
 });
