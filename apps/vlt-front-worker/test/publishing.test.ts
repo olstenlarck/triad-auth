@@ -18,7 +18,8 @@ const claims: JWTPayload = {
   repository_id: "1299813376",
   repository_owner_id: "51462759",
   ref: "refs/heads/master",
-  event_name: "push",
+  workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/nightly.yml@refs/heads/master",
+  event_name: "workflow_run",
 };
 const exchangeUrl = "https://npm.wgw.lol/-/npm/v1/oidc/token/exchange/package/@tunnckocore%2fcalc";
 let privateKey: CryptoKey;
@@ -56,6 +57,12 @@ async function token(overrides: JWTPayload = {}, key = privateKey) {
     .setIssuedAt()
     .setExpirationTime(overrides.exp ?? "5m")
     .sign(key);
+}
+
+function latestToken() {
+  return token({
+    workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/publish.yml@refs/heads/master",
+  });
 }
 
 function exchange(bearer: string | undefined, url = exchangeUrl) {
@@ -99,6 +106,11 @@ function setDistTag(bearer: string, tag: string, version: string) {
 }
 
 const invalidClaims: JWTPayload[] = [
+  { workflow_ref: undefined },
+  { workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/ci.yml@refs/heads/master" },
+  { workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/release.yml@refs/heads/master" },
+  { workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/nightly.yml@refs/heads/feature" },
+  { workflow_ref: "attacker/monarch/.depot/workflows/nightly.yml@refs/heads/master" },
   { repository: "attacker/monarch" },
   { repository_id: "123" },
   { repository_owner_id: "123" },
@@ -192,15 +204,23 @@ describe("CI publishing authorization", () => {
     );
   });
 
-  it("allows a master token to publish stable versions as latest", async () => {
-    expect((await publish(await token(), "latest", "0.1.3")).status).toBe(201);
+  it("lets publish.yml publish stable versions as latest", async () => {
+    expect((await publish(await latestToken(), "latest", "0.1.3")).status).toBe(201);
+    expect((await setDistTag(await latestToken(), "latest", "0.1.3")).status).toBe(201);
   });
 
-  it("allows a master token to move the latest and nightly dist-tags", async () => {
-    expect((await setDistTag(await token(), "latest", "0.1.3")).status).toBe(201);
-    expect(
-      (await setDistTag(await token(), "nightly", "0.1.4-nightly.20260904234045.abcdef0")).status,
-    ).toBe(201);
+  it("accepts the short workflow_ref form from the Depot docs", async () => {
+    const short = await token({
+      workflow_ref: "tunnckoCoreHQ/monarch/nightly.yml@refs/heads/master",
+    });
+    expect((await publish(short)).status).toBe(201);
+  });
+
+  it("keeps nightly.yml away from latest and publish.yml away from nightly", async () => {
+    expect((await publish(await token(), "latest", "0.1.3")).status).toBe(403);
+    expect((await setDistTag(await token(), "latest", "0.1.3")).status).toBe(403);
+    expect((await publish(await latestToken())).status).toBe(403);
+    expect(upstream).not.toHaveBeenCalled();
   });
 
   it.each(invalidClaims)("rejects invalid identity claims %j", async (overrides) => {
@@ -214,17 +234,15 @@ describe("CI publishing authorization", () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 
-  it("does not depend on the triggering event or workflow file", async () => {
-    const bearer = await token({
-      event_name: "workflow_dispatch",
-      workflow: ".depot/workflows/anything.yml",
-    });
-    expect((await publish(bearer)).status).toBe(201);
+  it("does not depend on the triggering event", async () => {
+    expect((await publish(await token({ event_name: "workflow_dispatch" }))).status).toBe(201);
   });
 
   it("prevents a prerelease from reaching latest", async () => {
-    expect((await publish(await token(), "latest")).status).toBe(403);
-    expect((await setDistTag(await token(), "latest", "0.1.3-nightly.1.abcdef0")).status).toBe(403);
+    expect((await publish(await latestToken(), "latest")).status).toBe(403);
+    expect(
+      (await setDistTag(await latestToken(), "latest", "0.1.3-nightly.1.abcdef0")).status,
+    ).toBe(403);
     expect(upstream).not.toHaveBeenCalled();
   });
 
@@ -234,8 +252,8 @@ describe("CI publishing authorization", () => {
   });
 
   it("prevents CI tokens from writing other dist-tags", async () => {
-    expect((await publish(await token(), "beta", "0.1.3")).status).toBe(403);
-    expect((await setDistTag(await token(), "beta", "0.1.3")).status).toBe(403);
+    expect((await publish(await latestToken(), "beta", "0.1.3")).status).toBe(403);
+    expect((await setDistTag(await latestToken(), "beta", "0.1.3")).status).toBe(403);
     expect(upstream).not.toHaveBeenCalled();
   });
 

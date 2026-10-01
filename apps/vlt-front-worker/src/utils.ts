@@ -11,22 +11,28 @@ const subjectPrefix = `spiffe://identity.depot.dev/org/${depotOrgId}/ci/github/$
 // exchange it at the registry; see the exchange route in index.ts.
 export const publishAudience = "npm:npm.wgw.lol";
 
-type PublishTag = "nightly" | "latest";
+export type PublishTag = "nightly" | "latest";
+
+// Depot CI tokens have no environment claim, so the workflow file decides the dist-tag:
+// nightly.yml may write nightly and publish.yml may write latest. GitHub formats workflow_ref as
+// owner/repo/.github/workflows/file.yml@ref; Depot's documented example omits the directory, so
+// both forms are accepted.
+const workflowTags: Record<string, PublishTag> = { nightly: "nightly", publish: "latest" };
+const workflowRef = new RegExp(
+  `^${repository}/(?:\\.depot/workflows/)?(nightly|publish)\\.yml@refs/heads/master$`,
+);
 
 const versionPatterns: Record<PublishTag, RegExp> = {
   nightly: /^\d+\.\d+\.\d+-nightly\.[\da-z.-]+$/,
   latest: /^\d+\.\d+\.\d+$/,
 };
 
-// Depot CI issues one token shape for every job, so only the Depot organization, the repository, and
-// the master ref are trusted here. Which dist-tag a request may write follows from the version it
-// publishes.
-export async function verifyPublishToken(token: string): Promise<void> {
+export async function verifyPublishToken(token: string): Promise<PublishTag> {
   const { payload } = await jwtVerify(token, depotKeys, {
     issuer: "https://identity.depot.dev",
     audience: publishAudience,
     algorithms: ["ES256", "ES384", "RS256"],
-    requiredClaims: ["exp", "iat", "sub"],
+    requiredClaims: ["exp", "iat", "sub", "workflow_ref"],
     maxTokenAge: "10m",
   });
 
@@ -41,27 +47,32 @@ export async function verifyPublishToken(token: string): Promise<void> {
   ) {
     throw new Error("Untrusted publishing organization, repository, or ref");
   }
+
+  const workflow =
+    typeof payload.workflow_ref === "string" ? workflowRef.exec(payload.workflow_ref)?.[1] : null;
+  if (!workflow) {
+    throw new Error("Untrusted publishing workflow");
+  }
+  return workflowTags[workflow];
 }
 
-function isTaggedVersion(tag: unknown, version: unknown): boolean {
-  return (
-    (tag === "nightly" || tag === "latest") &&
-    typeof version === "string" &&
-    versionPatterns[tag].test(version)
-  );
-}
-
-export async function validatePublishRequest(request: Request, path: string): Promise<boolean> {
+export async function validatePublishRequest(
+  request: Request,
+  path: string,
+  tag: PublishTag,
+): Promise<boolean> {
   if (request.method !== "PUT") {
     return false;
   }
 
+  const versionPattern = versionPatterns[tag];
   const body: unknown = await request.clone().json();
   if (path.startsWith("/-/package/")) {
-    const tag = /^\/-\/package\/@tunnckocore\/[a-z0-9][a-z0-9._-]*\/dist-tags\/([a-z]+)$/.exec(
-      path,
-    )?.[1];
-    return isTaggedVersion(tag, body);
+    return (
+      new RegExp(`^/-/package/@tunnckocore/[a-z0-9][a-z0-9._-]*/dist-tags/${tag}$`).test(path) &&
+      typeof body === "string" &&
+      versionPattern.test(body)
+    );
   }
 
   if (!/^\/@tunnckocore\/[a-z0-9][a-z0-9._-]*$/.test(path)) {
@@ -90,7 +101,9 @@ export async function validatePublishRequest(request: Request, path: string): Pr
   const entries = Object.entries(tags);
   return (
     entries.length === 1 &&
-    isTaggedVersion(entries[0][0], entries[0][1]) &&
+    entries[0][0] === tag &&
+    typeof entries[0][1] === "string" &&
+    versionPattern.test(entries[0][1]) &&
     Object.keys(versions).length === 1 &&
     Object.keys(versions)[0] === entries[0][1]
   );
