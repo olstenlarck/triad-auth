@@ -40,8 +40,19 @@ jobs:
           cache: true
           run-install: true
           node-version: "lts"
+      # Runs can finish out of order. Only the run for the current master head may touch the release
+      # PR; an older run would version a tree that lacks the newer push's changesets.
+      - id: head
+        run: |
+          git fetch origin master
+          if [ "$(git rev-parse origin/master)" = "$(git rev-parse HEAD)" ]; then
+            echo current=true >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipped: master moved past this commit; the newer run maintains the release PR" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
       # No publish-script, so the action only versions and maintains the release PR.
-      - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+      - if: steps.head.outputs.current == 'true'
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           github-token: ${{ secrets.OLSTENLARCK_HQ_PAT }}
           version-script: vp run packages:version
