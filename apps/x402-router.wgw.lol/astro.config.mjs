@@ -7,7 +7,9 @@ const noAdapter = process.env.WGW_ASTRO_NO_ADAPTER === "1";
 
 // https://astro.build/config
 export default defineConfig({
-  ...(noAdapter ? {} : { adapter: cloudflare() }),
+  // Starlight prerenders through satteri, whose workerd build needs a WASM package pnpm does not
+  // install on this platform, so prerendering runs in Node. The deployed Worker is unaffected.
+  ...(noAdapter ? {} : { adapter: cloudflare({ prerenderEnvironment: "node" }) }),
   integrations: [
     starlight({
       customCss: ["./src/styles.css"],
