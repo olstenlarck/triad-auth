@@ -36,7 +36,7 @@ Fill `.dev.vars` with local values. `vp run dev` uses `wrangler.jsonc` bindings 
    vp run --filter triad-auth build
    ```
 
-4. Open a pull request into `master`. The `ci` GitHub Actions workflow runs `vp run check` and `vp run test`; the `solidity` workflow runs when Solidity or shared dependency files change. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
+4. Open a pull request into `master`. The Depot CI `ci` workflow runs `vp run check` and `vp run test`; its `solidity` workflow runs when Solidity or shared dependency files change. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
 5. Squash-merge. Builds deploys the merge commit to nightly. The build command targets the nightly config, and the deploy command applies pending migrations first, then uploads the Worker.
 
 ## Releasing to production
@@ -122,4 +122,4 @@ In the Cloudflare dashboard, connect the GitHub repository to both Workers:
 
 The auto-generated Builds API token lacks D1 permission. Under My Profile, API Tokens, add D1 Edit to it. Migrations fail without it.
 
-No secrets live in GitHub. GitHub Actions only runs checks.
+No secrets live in GitHub. Depot CI runs the checks; GitHub Actions only automates Dependabot merges and Socket Optimize.
