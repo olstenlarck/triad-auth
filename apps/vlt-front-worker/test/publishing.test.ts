@@ -12,8 +12,8 @@ const env: Env = {
 const claims: JWTPayload = {
   iss: "https://identity.depot.dev",
   aud: "npm:npm.wgw.lol",
-  sub: "spiffe://identity.depot.dev/org/org_test/ci/github/tunnckoCoreHQ/monarch/ref/refs/heads/master/sandbox/snd_test",
-  org_id: "org_test",
+  sub: "spiffe://identity.depot.dev/org/pcnr2v598s/ci/github/tunnckoCoreHQ/monarch/ref/refs/heads/master/sandbox/snd_test",
+  org_id: "pcnr2v598s",
   repository: "tunnckoCoreHQ/monarch",
   repository_id: "1299813376",
   repository_owner_id: "51462759",
@@ -104,6 +104,13 @@ const invalidClaims: JWTPayload[] = [
   { repository_owner_id: "123" },
   { ref: "refs/heads/feature" },
   { ref: "refs/pull/1/merge" },
+  { org_id: "org_other" },
+  {
+    sub: "spiffe://identity.depot.dev/org/org_other/ci/github/tunnckoCoreHQ/monarch/ref/refs/heads/master/sandbox/snd_test",
+  },
+  {
+    sub: "spiffe://identity.depot.dev/org/pcnr2v598s/ci/github/tunnckoCoreHQ/monarch/ref/refs/heads/feature/sandbox/snd_test",
+  },
   { iss: "https://token.actions.githubusercontent.com" },
   { iss: "https://attacker.example" },
   { aud: "https://npm.wgw.lol" },

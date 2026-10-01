@@ -4,6 +4,8 @@ const depotKeys = createRemoteJWKSet(new URL("https://identity.depot.dev/keys"))
 const repository = "tunnckoCoreHQ/monarch";
 const repositoryId = "1299813376";
 const repositoryOwnerId = "51462759";
+const depotOrgId = "pcnr2v598s";
+const subjectPrefix = `spiffe://identity.depot.dev/org/${depotOrgId}/ci/github/${repository}/ref/refs/heads/master/sandbox/`;
 
 // Package managers request the Depot CI OIDC token with audience `npm:<registry host>` and
 // exchange it at the registry; see the exchange route in index.ts.
@@ -16,8 +18,9 @@ const versionPatterns: Record<PublishTag, RegExp> = {
   latest: /^\d+\.\d+\.\d+$/,
 };
 
-// Depot CI issues one token shape for every job, so only the repository and the master ref are
-// trusted here. Which dist-tag a request may write follows from the version it publishes.
+// Depot CI issues one token shape for every job, so only the Depot organization, the repository, and
+// the master ref are trusted here. Which dist-tag a request may write follows from the version it
+// publishes.
 export async function verifyPublishToken(token: string): Promise<void> {
   const { payload } = await jwtVerify(token, depotKeys, {
     issuer: "https://identity.depot.dev",
@@ -31,9 +34,12 @@ export async function verifyPublishToken(token: string): Promise<void> {
     payload.repository !== repository ||
     payload.repository_id !== repositoryId ||
     payload.repository_owner_id !== repositoryOwnerId ||
-    payload.ref !== "refs/heads/master"
+    payload.ref !== "refs/heads/master" ||
+    payload.org_id !== depotOrgId ||
+    typeof payload.sub !== "string" ||
+    !payload.sub.startsWith(subjectPrefix)
   ) {
-    throw new Error("Untrusted publishing repository or ref");
+    throw new Error("Untrusted publishing organization, repository, or ref");
   }
 }
 
