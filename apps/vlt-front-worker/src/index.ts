@@ -14,9 +14,9 @@ app.get("/-/health", (c) => {
   return c.json({ ok: true, link, commit: sha ?? "unknwon" });
 });
 
-// Trusted publishing: npm-compatible clients POST the GitHub OIDC token here and use the
+// Trusted publishing: npm-compatible clients POST the Depot CI OIDC token here and use the
 // returned token as the bearer for the publish itself. VLT has no OIDC support, so this worker
-// is the exchange endpoint. The verified GitHub token is returned as-is; the write handler
+// is the exchange endpoint. The verified Depot token is returned as-is; the write handler
 // below verifies it again on every request.
 app.post("/-/npm/v1/oidc/token/exchange/package/*", async (c) => {
   let name: string;
