@@ -52,7 +52,7 @@ jobs:
           path: node_modules/.vite/task-cache
           key: ${{ steps.task-cache.outputs.cache-primary-key }}
 
-  # The master ruleset requires this job. Keep its name.
+  # The master ruleset requires ci / check and ci / test from Depot. Keep the job names.
   test:
     needs: check
     permissions:
