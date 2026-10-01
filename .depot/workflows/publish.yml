@@ -52,6 +52,9 @@ jobs:
       # The action does not use a shell for publish-script, so it must be one command;
       # packages:publish chains the build and the publish.
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        # @changesets/changelog-github reads commit and PR data through the GitHub API.
+        env:
+          GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
         with:
           github-token: ${{ secrets.OLSTENLARCK_HQ_PAT }}
           version-script: vp run packages:version
