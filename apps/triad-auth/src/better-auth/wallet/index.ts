@@ -1,6 +1,7 @@
 import {
   generateAuthenticationOptions,
   type AuthenticationResponseJSON,
+  type AuthenticatorTransport,
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
 import type { BetterAuthPlugin } from "better-auth";
@@ -193,20 +194,14 @@ function parseRedirectUris(value: string): string[] {
   return [];
 }
 
-function webAuthnTransports(value: string | null): string[] | undefined {
+function webAuthnTransports(value: string | null): AuthenticatorTransport[] | undefined {
   if (!value) {
     return undefined;
   }
-  const supported = new Set<string>([
-    "ble",
-    "cable",
-    "hybrid",
-    "internal",
-    "nfc",
-    "smart-card",
-    "usb",
-  ]);
-  const transports = value.split(",").filter((transport) => supported.has(transport));
+  const supported = new Set<string>(["ble", "hybrid", "internal", "nfc", "usb"]);
+  const transports = value
+    .split(",")
+    .filter((transport): transport is AuthenticatorTransport => supported.has(transport));
 
   return transports.length > 0 ? transports : undefined;
 }
