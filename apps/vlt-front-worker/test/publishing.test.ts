@@ -10,14 +10,14 @@ const env: Env = {
   UPSTREAM_URL: "https://registry.vlt.io/tunnckocore/main/",
 };
 const claims: JWTPayload = {
-  iss: "https://token.actions.githubusercontent.com",
+  iss: "https://identity.depot.dev",
   aud: "npm:npm.wgw.lol",
-  sub: "repo:tunnckoCoreHQ@51462759/monarch@1299813376:environment:nightly",
+  sub: "spiffe://identity.depot.dev/org/org_test/ci/github/tunnckoCoreHQ/monarch/ref/refs/heads/master/sandbox/snd_test",
+  org_id: "org_test",
   repository: "tunnckoCoreHQ/monarch",
   repository_id: "1299813376",
   repository_owner_id: "51462759",
   ref: "refs/heads/master",
-  environment: "nightly",
   event_name: "push",
 };
 const exchangeUrl = "https://npm.wgw.lol/-/npm/v1/oidc/token/exchange/package/@tunnckocore%2fcalc";
@@ -26,9 +26,9 @@ let jwks: { keys: object[] };
 const upstream = vi.fn();
 
 beforeAll(async () => {
-  const pair = await generateKeyPair("RS256");
+  const pair = await generateKeyPair("ES256");
   privateKey = pair.privateKey;
-  jwks = { keys: [{ ...(await exportJWK(pair.publicKey)), kid: "github-test", alg: "RS256" }] };
+  jwks = { keys: [{ ...(await exportJWK(pair.publicKey)), kid: "depot-test", alg: "ES256" }] };
 });
 
 beforeEach(() => {
@@ -37,7 +37,7 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input) === "https://token.actions.githubusercontent.com/.well-known/jwks") {
+      if (String(input) === "https://identity.depot.dev/keys") {
         return Response.json(jwks);
       }
       if (String(input) === "https://api.github.com/user") {
@@ -52,9 +52,8 @@ afterEach(() => vi.unstubAllGlobals());
 
 async function token(overrides: JWTPayload = {}, key = privateKey) {
   return new SignJWT({ ...claims, ...overrides })
-    .setProtectedHeader({ alg: "RS256", kid: "github-test" })
+    .setProtectedHeader({ alg: "ES256", kid: "depot-test" })
     .setIssuedAt()
-    .setNotBefore("0s")
     .setExpirationTime(overrides.exp ?? "5m")
     .sign(key);
 }
@@ -87,13 +86,25 @@ function publish(
   );
 }
 
+function setDistTag(bearer: string, tag: string, version: string) {
+  return app.request(
+    `https://npm.wgw.lol/-/package/@tunnckocore%2fcalc/dist-tags/${tag}`,
+    {
+      method: "PUT",
+      headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+      body: JSON.stringify(version),
+    },
+    env,
+  );
+}
+
 const invalidClaims: JWTPayload[] = [
   { repository: "attacker/monarch" },
   { repository_id: "123" },
   { repository_owner_id: "123" },
   { ref: "refs/heads/feature" },
-  { environment: undefined },
-  { environment: "staging" },
+  { ref: "refs/pull/1/merge" },
+  { iss: "https://token.actions.githubusercontent.com" },
   { iss: "https://attacker.example" },
   { aud: "https://npm.wgw.lol" },
   { aud: "npm:registry.npmjs.org" },
@@ -101,7 +112,7 @@ const invalidClaims: JWTPayload[] = [
 ];
 
 describe("OIDC token exchange", () => {
-  it("returns the verified GitHub token for a scoped package", async () => {
+  it("returns the verified Depot token for a scoped package", async () => {
     const bearer = await token();
     const response = await exchange(bearer);
     expect(response.status).toBe(200);
@@ -125,7 +136,7 @@ describe("OIDC token exchange", () => {
 
   it("rejects a missing bearer and a forged signature", async () => {
     expect((await exchange(undefined)).status).toBe(401);
-    const forged = await generateKeyPair("RS256");
+    const forged = await generateKeyPair("ES256");
     expect((await exchange(await token({}, forged.privateKey))).status).toBe(401);
   });
 
@@ -174,12 +185,15 @@ describe("CI publishing authorization", () => {
     );
   });
 
-  it("allows the latest environment to publish stable versions", async () => {
-    const bearer = await token({
-      environment: "latest",
-      sub: "repo:tunnckoCoreHQ@51462759/monarch@1299813376:environment:latest",
-    });
-    expect((await publish(bearer, "latest", "0.1.3")).status).toBe(201);
+  it("allows a master token to publish stable versions as latest", async () => {
+    expect((await publish(await token(), "latest", "0.1.3")).status).toBe(201);
+  });
+
+  it("allows a master token to move the latest and nightly dist-tags", async () => {
+    expect((await setDistTag(await token(), "latest", "0.1.3")).status).toBe(201);
+    expect(
+      (await setDistTag(await token(), "nightly", "0.1.4-nightly.20260904234045.abcdef0")).status,
+    ).toBe(201);
   });
 
   it.each(invalidClaims)("rejects invalid identity claims %j", async (overrides) => {
@@ -188,7 +202,7 @@ describe("CI publishing authorization", () => {
   });
 
   it("rejects a forged signature", async () => {
-    const forged = await generateKeyPair("RS256");
+    const forged = await generateKeyPair("ES256");
     expect((await publish(await token({}, forged.privateKey))).status).toBe(401);
     expect(upstream).not.toHaveBeenCalled();
   });
@@ -196,19 +210,25 @@ describe("CI publishing authorization", () => {
   it("does not depend on the triggering event or workflow file", async () => {
     const bearer = await token({
       event_name: "workflow_dispatch",
-      workflow_ref: "tunnckoCoreHQ/monarch/.github/workflows/anything.yml@refs/heads/master",
+      workflow: ".depot/workflows/anything.yml",
     });
     expect((await publish(bearer)).status).toBe(201);
   });
 
-  it("prevents a nightly token from modifying latest", async () => {
-    expect((await publish(await token(), "latest", "0.1.3")).status).toBe(403);
+  it("prevents a prerelease from reaching latest", async () => {
+    expect((await publish(await token(), "latest")).status).toBe(403);
+    expect((await setDistTag(await token(), "latest", "0.1.3-nightly.1.abcdef0")).status).toBe(403);
     expect(upstream).not.toHaveBeenCalled();
   });
 
-  it("prevents the latest environment from publishing a prerelease as latest", async () => {
-    const bearer = await token({ environment: "latest" });
-    expect((await publish(bearer, "latest")).status).toBe(403);
+  it("prevents a stable version from reaching nightly", async () => {
+    expect((await publish(await token(), "nightly", "0.1.3")).status).toBe(403);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("prevents CI tokens from writing other dist-tags", async () => {
+    expect((await publish(await token(), "beta", "0.1.3")).status).toBe(403);
+    expect((await setDistTag(await token(), "beta", "0.1.3")).status).toBe(403);
     expect(upstream).not.toHaveBeenCalled();
   });
 

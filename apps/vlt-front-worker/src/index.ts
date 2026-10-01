@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { validatePublishRequest, verifyPublishToken } from "./utils";
-import type { PublishTag } from "./utils";
 
 // COMMIT_SHA arrives as a deploy-time var, see the deploy script.
 const app = new Hono<{ Bindings: Env & { COMMIT_SHA?: string } }>();
@@ -14,9 +13,9 @@ app.get("/-/health", (c) => {
   return c.json({ ok: true, link, commit: sha ?? "unknwon" });
 });
 
-// Trusted publishing: npm-compatible clients POST the GitHub OIDC token here and use the
+// Trusted publishing: npm-compatible clients POST the Depot CI OIDC token here and use the
 // returned token as the bearer for the publish itself. VLT has no OIDC support, so this worker
-// is the exchange endpoint. The verified GitHub token is returned as-is; the write handler
+// is the exchange endpoint. The verified Depot token is returned as-is; the write handler
 // below verifies it again on every request.
 app.post("/-/npm/v1/oidc/token/exchange/package/*", async (c) => {
   let name: string;
@@ -96,14 +95,13 @@ app.all("*", async (c) => {
     }
 
     if (bearer.split(".").length === 3) {
-      let tag: PublishTag;
       try {
-        tag = await verifyPublishToken(bearer);
+        await verifyPublishToken(bearer);
       } catch {
         return c.text("Unauthorized", 401);
       }
       try {
-        if (!(await validatePublishRequest(request, path, tag))) {
+        if (!(await validatePublishRequest(request, path))) {
           return c.text("Forbidden", 403);
         }
       } catch {
