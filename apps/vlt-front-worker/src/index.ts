@@ -1,17 +1,16 @@
 import { Hono } from "hono";
 import { validatePublishRequest, verifyPublishToken } from "./utils";
 import type { PublishTag } from "./utils";
+import type { Env } from "./env";
 
-// COMMIT_SHA arrives as a deploy-time var, see the deploy script.
-const app = new Hono<{ Bindings: Env & { COMMIT_SHA?: string } }>();
+const app = new Hono<{ Bindings: Env }>();
 
 // Registry paths never start with "/-/health", so this cannot shadow a package.
 app.get("/-/health", (c) => {
-  const sha = c.env.COMMIT_SHA ?? "";
-  const label = sha ? `/commit/${sha}` : "";
-  const link = `https://github.com/tunnckoCoreHQ/monarch${label}`;
+  const sha = c.env.COMMIT_SHA;
+  const link = `https://github.com/tunnckoCoreHQ/monarch/commit/${sha}`;
 
-  return c.json({ ok: true, link, commit: sha ?? "unknwon" });
+  return c.json({ ok: true, link, commit: sha });
 });
 
 // Trusted publishing: npm-compatible clients POST the Depot CI OIDC token here and use the

@@ -1,10 +1,12 @@
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import type { JWTPayload } from "jose";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import type { Env } from "../src/env";
 import app from "../src/index";
 
 const env: Env = {
   ALLOWED_GITHUB_LOGIN: "tunnckoCore",
+  COMMIT_SHA: "local",
   READ_TOKEN: "read-service-token",
   WRITE_TOKEN: "write-service-token",
   UPSTREAM_URL: "https://registry.vlt.io/tunnckocore/main/",

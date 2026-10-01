@@ -15,6 +15,9 @@ minimumReleaseAgeExclude:
   - "@changesets/cli@3.0.2"
   - "@changesets/git@4.0.1"
   - "@changesets/read@1.0.1"
+  - "@astrojs/cloudflare@15.0.0-beta.0"
+  - astro@7.4.0-beta.0
+  - cf@1.0.0-beta.10
 
 catalogMode: prefer
 
@@ -30,8 +33,10 @@ catalogs:
     vite: npm:@voidzero-dev/vite-plus-core@0.2.8
     vite-plus: 0.2.8
     "@vitest/coverage-v8": 4.1.10
-    astro: ^7.3.3
-    wrangler: 4.135.0
+    astro: 7.4.0-beta.0
+    "@astrojs/cloudflare": 15.0.0-beta.0
+    cf: 1.0.0-beta.10
+    "@cloudflare/vite-plugin": 2.0.0-beta.sha-238e489d5
     "@openzeppelin/contracts": 5.6.1
     solady: 0.1.26
     erc721a: 4.3.0

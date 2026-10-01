@@ -38,7 +38,9 @@ Filter Patterns:
 
 ## Apps and deployments
 
-- Every app lives in `apps/<name>` with its own `package.json`, `wrangler.jsonc`, and a `tsconfig.json` that extends the root one. Cloudflare Workers Builds deploys apps; GitHub Actions only checks them.
+- Every app lives in `apps/<name>` with its own `package.json`, `cloudflare.config.ts`, and a `tsconfig.json` that extends the root one. Cloudflare Workers Builds deploys apps; GitHub Actions only checks them.
+- Apps build and deploy with the Cloudflare CLI `cf` (open beta), never Wrangler. `cloudflare.config.ts` imports `bindings`, `triggers`, and `defineConfig` from `cf/config`; it is TypeScript, so a Worker type can derive its `Env` from it. Environments are modes: the config is a function of `mode`, and `cf build --mode nightly` selects the nightly Worker. `cf build` writes Build Output to `.cloudflare/output/v0/` (gitignored), and the `deploy` scripts run `cf deploy --prebuilt --mode <mode>` so Builds ships exactly what its build step produced. `cf d1 migrations apply <database-id>` takes the D1 ID and applies to the remote database unless `--local`. `cf` cannot stream logs or set one secret yet; use `npx wrangler tail <worker>` and `npx wrangler secret put <NAME> --name <worker>` for those.
+- Astro apps use `@astrojs/cloudflare` 15 (beta), which reads `cloudflare.config.ts` through the Cloudflare Vite plugin 2 and has no `configPath` option. Plain Workers use `@cloudflare/vite-plugin` from a `vite.config.ts`.
 - `master` is nightly for every app. Each nightly Worker has branch control on `master`, root directory `apps/<name>`, and build watch paths `apps/<name>/**`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, and `patches/**` when the app uses a patched dependency.
 - Production is a branch per app named `release/<name>`. Each production Worker has branch control on that branch and the same root directory and watch paths as its nightly Worker.
 - The app's `promote` script fast-forwards only its own branch: `git fetch origin && git push origin origin/master:release/<name>`. Run it only when the user asks. Promoting one app never builds another app's Worker.
