@@ -37,6 +37,10 @@ export default defineConfig({
   },
   site: "https://x402-router.wgw.lol",
   vite: {
+    define: {
+      // Workers Builds injects the commit being built; local builds get "local".
+      "import.meta.env.COMMIT_SHA": JSON.stringify(process.env.WORKERS_CI_COMMIT_SHA ?? "local"),
+    },
     plugins: [tailwindcss()],
   },
 });
