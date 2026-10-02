@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vite-plus/test";
+
+import { describe, expect, it } from "vitest";
 
 import cloudflareConfig from "../../cloudflare.config";
 import { authSchemaDatabase } from "../../scripts/auth-schema-database";
@@ -201,18 +202,18 @@ describe("Better Auth schema tooling", () => {
 
   it("exposes generated schema, migration, and deployment commands", () => {
     expect(packageJson.scripts["db:generate"]).toBe(
-      "vp exec auth generate --config src/better-auth/schema.ts --output .ignore/auth-schema.sql --yes",
+      "pnpm exec auth generate --config src/better-auth/schema.ts --output .ignore/auth-schema.sql --yes",
     );
     expect(packageJson.scripts["db:migrate:local"]).toBe(
-      `vp exec cf d1 migrations apply ${productionDatabaseId} --local --persist-to .cloudflare/state`,
+      `pnpm exec cf d1 migrations apply ${productionDatabaseId} --local --persist-to .cloudflare/state`,
     );
-    expect(packageJson.scripts.build).toBe("vp exec cf build");
-    expect(packageJson.scripts["build:nightly"]).toBe("vp exec cf build --mode nightly");
+    expect(packageJson.scripts.build).toBe("pnpm exec cf build");
+    expect(packageJson.scripts["build:nightly"]).toBe("pnpm exec cf build --mode nightly");
     expect(packageJson.scripts.deploy).toBe(
-      `vp exec cf d1 migrations apply ${productionDatabaseId} && vp exec cf deploy --prebuilt --mode production`,
+      `pnpm exec cf d1 migrations apply ${productionDatabaseId} && pnpm exec cf deploy --prebuilt --mode production`,
     );
     expect(packageJson.scripts["deploy:nightly"]).toBe(
-      `vp exec cf d1 migrations apply ${nightlyDatabaseId} && vp exec cf deploy --prebuilt --mode nightly`,
+      `pnpm exec cf d1 migrations apply ${nightlyDatabaseId} && pnpm exec cf deploy --prebuilt --mode nightly`,
     );
     expect(packageJson.scripts.promote).toBe(
       "git fetch origin && git push origin origin/master:release/triad-auth",

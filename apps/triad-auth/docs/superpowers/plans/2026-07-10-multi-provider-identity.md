@@ -66,8 +66,7 @@ Add route assertions that both authorization-code and device token responses ret
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
-Run: `pnpm vitest run test/identity.test.ts test/tokens.test.ts test/oauth.test.ts`
-Expected: FAIL because `providerSubject` is absent and token lifetime is 600 seconds.
+Run: `pnpm vitest run test/identity.test.ts test/tokens.test.ts test/oauth.test.ts` Expected: FAIL because `providerSubject` is absent and token lifetime is 600 seconds.
 
 - [ ] **Step 3: Implement keyed global provider subjects and five-minute expiry**
 
@@ -86,8 +85,7 @@ Derive this value immediately after resolving the raw upstream identity. Set JOS
 
 - [ ] **Step 4: Run focused tests and typecheck**
 
-Run: `pnpm vitest run test/identity.test.ts test/tokens.test.ts test/oauth.test.ts && pnpm typecheck`
-Expected: PASS.
+Run: `pnpm vitest run test/identity.test.ts test/tokens.test.ts test/oauth.test.ts && pnpm typecheck` Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -140,8 +138,7 @@ Mock Google token/JWKS verification, GitHub token/user lookup, and Twitter token
 
 - [ ] **Step 2: Run provider tests and verify RED**
 
-Run: `pnpm vitest run test/providers.test.ts`
-Expected: FAIL because provider-aware interfaces and Env fields do not exist.
+Run: `pnpm vitest run test/providers.test.ts` Expected: FAIL because provider-aware interfaces and Env fields do not exist.
 
 - [ ] **Step 3: Implement all adapters**
 
@@ -149,8 +146,7 @@ Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `TWITTER_CLIENT_ID`, and `TWITTE
 
 - [ ] **Step 4: Run provider tests and typecheck**
 
-Run: `pnpm vitest run test/providers.test.ts && pnpm typecheck`
-Expected: PASS with no diagnostics.
+Run: `pnpm vitest run test/providers.test.ts && pnpm typecheck` Expected: PASS with no diagnostics.
 
 - [ ] **Step 5: Commit**
 
@@ -220,8 +216,7 @@ Provider tests assert Google requests only mapped `email`/`profile`, GitHub requ
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
-Run: `pnpm vitest run test/claims.test.ts test/providers.test.ts test/tokens.test.ts`
-Expected: FAIL because claim interfaces, encryption, and scope-aware adapters are absent.
+Run: `pnpm vitest run test/claims.test.ts test/providers.test.ts test/tokens.test.ts` Expected: FAIL because claim interfaces, encryption, and scope-aware adapters are absent.
 
 - [ ] **Step 3: Implement canonical mandatory scopes and encrypted claims**
 
@@ -243,8 +238,7 @@ Update adapter scope mapping and reject a successful upstream response missing a
 
 - [ ] **Step 4: Run focused/full tests and typecheck**
 
-Run: `pnpm vitest run test/claims.test.ts test/providers.test.ts test/tokens.test.ts && pnpm test && pnpm typecheck`
-Expected: PASS.
+Run: `pnpm vitest run test/claims.test.ts test/providers.test.ts test/tokens.test.ts && pnpm test && pnpm typecheck` Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -313,8 +307,7 @@ Cover unconfigured-provider rejection before inserts, Google nonce persistence, 
 
 - [ ] **Step 2: Run route suites and verify RED**
 
-Run: `pnpm vitest run test/oauth.test.ts test/device.test.ts test/account.test.ts`
-Expected: FAIL on provider selection and missing migration column.
+Run: `pnpm vitest run test/oauth.test.ts test/device.test.ts test/account.test.ts` Expected: FAIL on provider selection and missing migration column.
 
 - [ ] **Step 3: Implement provider-aware routes and migration**
 
@@ -340,8 +333,7 @@ Keep `0001_init.sql` compatible with sequential fresh migration application. Add
 
 - [ ] **Step 4: Run route suites, migration, and typecheck**
 
-Run: `pnpm vitest run test/oauth.test.ts test/device.test.ts test/account.test.ts && pnpm typecheck`
-Expected: PASS.
+Run: `pnpm vitest run test/oauth.test.ts test/device.test.ts test/account.test.ts && pnpm typecheck` Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -393,8 +385,7 @@ Assert demo/account fetch `/api/providers`, demo sends selected optional scopes,
 
 - [ ] **Step 2: Run UI tests and verify RED**
 
-Run: `pnpm vitest run test/ui.test.ts`
-Expected: FAIL on GitHub-only copy and controls.
+Run: `pnpm vitest run test/ui.test.ts` Expected: FAIL on GitHub-only copy and controls.
 
 - [ ] **Step 3: Implement neutral copy and provider controls**
 
@@ -402,8 +393,7 @@ Keep the existing design system. Add one square ruled provider selector and clie
 
 - [ ] **Step 4: Build and run UI tests**
 
-Run: `pnpm build && pnpm vitest run test/ui.test.ts && pnpm typecheck`
-Expected: PASS and CSP hashes regenerate.
+Run: `pnpm build && pnpm vitest run test/ui.test.ts && pnpm typecheck` Expected: PASS and CSP hashes regenerate.
 
 - [ ] **Step 5: Commit**
 
@@ -447,8 +437,7 @@ it("documents exact provider setup links", async () => {
 
 - [ ] **Step 2: Run config tests and verify RED**
 
-Run: `pnpm vitest run test/config.test.ts`
-Expected: FAIL because new variables and links are absent.
+Run: `pnpm vitest run test/config.test.ts` Expected: FAIL because new variables and links are absent.
 
 - [ ] **Step 3: Update configuration and docs**
 
@@ -456,11 +445,9 @@ Add empty Google/Twitter fields to `.dev.vars.example`, all four names to Wrangl
 
 - [ ] **Step 4: Verify, migrate, deploy, and smoke test**
 
-Run: `pnpm check`
-Expected: typecheck, all Vitest tests, Astro build, and Wrangler dry-run PASS.
+Run: `pnpm check` Expected: typecheck, all Vitest tests, Astro build, and Wrangler dry-run PASS.
 
-Run: `pnpm wrangler d1 migrations apply triad-auth --remote && pnpm deploy`
-Expected: `0002_multi_provider.sql` applies and the Worker deploys at the existing issuer.
+Run: `pnpm wrangler d1 migrations apply triad-auth --remote && pnpm deploy` Expected: `0002_multi_provider.sql` applies and the Worker deploys at the existing issuer.
 
 Smoke checks:
 

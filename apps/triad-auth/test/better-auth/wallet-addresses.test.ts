@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
+import { sealEncryptedData } from "../../src/better-auth/identity/encryption";
 import {
   derivedWalletAddressKey,
   openDerivedWalletAddresses,
   sealDerivedWalletAddresses,
   WALLET_CAPABILITY_ADDRESS_KEY,
 } from "../../src/better-auth/wallet";
-import { sealEncryptedData } from "../../src/better-auth/identity/encryption";
 import { base64UrlEncode } from "../../src/utils";
 
 const encryptionSecrets = JSON.stringify({

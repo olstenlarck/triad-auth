@@ -1,5 +1,5 @@
 import { validateCimdMetadata } from "@better-auth/cimd";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   CIMD_ORIGIN_BOUND_FIELDS,

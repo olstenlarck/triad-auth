@@ -1,4 +1,5 @@
 import type { InferEnv, UnwrapConfig } from "cf/config";
+
 import type config from "../cloudflare.config";
 
 // Bindings are inferred from cloudflare.config.ts, so the config is the single source of truth.

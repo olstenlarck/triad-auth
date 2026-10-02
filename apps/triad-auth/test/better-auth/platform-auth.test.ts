@@ -1,6 +1,6 @@
-import { createAuthEndpoint } from "better-auth/api";
 import { env as ambientEnv, type BetterAuthPlugin } from "better-auth";
-import { afterEach, describe, expect, expectTypeOf, it } from "vite-plus/test";
+import { createAuthEndpoint } from "better-auth/api";
+import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   AUTH_BASE_PATH,

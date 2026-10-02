@@ -1,7 +1,7 @@
 import { oauthProvider } from "@better-auth/oauth-provider";
 import type { BetterAuthPlugin } from "better-auth";
 import { jwt } from "better-auth/plugins";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import { createTriadConfiguration } from "../../src/better-auth/configuration";
 import type { TriadEnv } from "../../src/better-auth/env";

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
+
 import { type OAuthOptions, type Scope } from "@better-auth/oauth-provider";
-import { describe, expect, expectTypeOf, it } from "vite-plus/test";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   createClientAdmissionFragment,

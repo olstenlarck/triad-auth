@@ -1,0 +1,56 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": [
+    "pnpm-workspace.yaml",
+    "tsconfig.json",
+    "oxlint.config.ts",
+    "oxfmt.config.ts",
+    "vitest.config.ts",
+    "patches/**"
+  ],
+  "tasks": {
+    "//#check": {
+      "inputs": [
+        "**/package.json",
+        "**/*.{ts,tsx,js,jsx,mjs,cjs,astro,css,toml,json,md,yml,yaml}",
+        "!solidity/**",
+        "!**/.cloudflare/**",
+        "!**/dist/**",
+        "!**/src/generated/**",
+        "!**/*generated*",
+        "!**/node_modules/**"
+      ],
+      "outputs": []
+    },
+    "//#test": {
+      "inputs": [
+        "**/package.json",
+        "**/*.{ts,tsx,js,jsx,mjs,cjs,astro,css,toml,json}",
+        "!solidity/**",
+        "!**/.cloudflare/**",
+        "!**/dist/**",
+        "!**/src/generated/**",
+        "!**/*generated*",
+        "!**/node_modules/**"
+      ],
+      "outputs": []
+    },
+    "check": {
+      "outputs": []
+    },
+    "test": {
+      "outputs": []
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "out/**", ".cloudflare/output/**"]
+    },
+    "fmt": {
+      "outputs": []
+    },
+    "lint": {
+      "outputs": []
+    }
+  },
+  "agentGuidance": false
+}

@@ -123,12 +123,12 @@ Create `docs/superpowers/research/2026-07-14-better-auth-rc1-package-baseline.md
 
 ## Installed Packages
 
-| Package                       | Version      | Role                                                     |
-| ----------------------------- | ------------ | -------------------------------------------------------- |
-| `better-auth`                 | `1.7.0-rc.1` | Core auth factory, built-in database support, JWT plugin |
-| `@better-auth/oauth-provider` | `1.7.0-rc.1` | OAuth/OIDC authorization server                          |
-| `@better-auth/cimd`           | `1.7.0-rc.1` | Client ID Metadata Documents                             |
-| `auth`                        | `1.7.0-rc.1` | `auth` and `better-auth` schema CLI binaries             |
+| Package | Version | Role |
+| --- | --- | --- |
+| `better-auth` | `1.7.0-rc.1` | Core auth factory, built-in database support, JWT plugin |
+| `@better-auth/oauth-provider` | `1.7.0-rc.1` | OAuth/OIDC authorization server |
+| `@better-auth/cimd` | `1.7.0-rc.1` | Client ID Metadata Documents |
+| `auth` | `1.7.0-rc.1` | `auth` and `better-auth` schema CLI binaries |
 
 ## Verified Public Imports
 

@@ -92,8 +92,7 @@ describe("protocol validation", () => {
 
 - [ ] **Step 2: Run the focused tests and confirm failure**
 
-Run: `pnpm install && pnpm vitest run test/identity.test.ts test/protocol.test.ts`
-Expected: FAIL because `src/protocol.ts` does not exist.
+Run: `pnpm install && pnpm vitest run test/identity.test.ts test/protocol.test.ts` Expected: FAIL because `src/protocol.ts` does not exist.
 
 - [ ] **Step 3: Implement strict GitHub-only types and protocol helpers**
 
@@ -114,8 +113,7 @@ Change `ProviderName` to `"github"`; reject malformed JSON arrays in `validateCl
 
 - [ ] **Step 4: Run tests and typecheck**
 
-Run: `pnpm vitest run test/identity.test.ts test/protocol.test.ts && pnpm typecheck`
-Expected: PASS with no TypeScript diagnostics.
+Run: `pnpm vitest run test/identity.test.ts test/protocol.test.ts && pnpm typecheck` Expected: PASS with no TypeScript diagnostics.
 
 - [ ] **Step 5: Commit**
 
@@ -170,8 +168,7 @@ it("issues a pairwise standard subject plus explicit global subjects", async () 
 
 - [ ] **Step 2: Run the token test and confirm the old global `sub` fails**
 
-Run: `pnpm vitest run test/tokens.test.ts`
-Expected: FAIL because current `sub` equals `provider_sub`.
+Run: `pnpm vitest run test/tokens.test.ts` Expected: FAIL because current `sub` equals `provider_sub`.
 
 - [ ] **Step 3: Set the JWT subject to the derived pairwise value**
 
@@ -192,8 +189,7 @@ Validate that `PAIRWISE_SECRET` is at least 32 characters before deriving a subj
 
 - [ ] **Step 4: Run token and identity tests**
 
-Run: `pnpm vitest run test/tokens.test.ts test/identity.test.ts && pnpm typecheck`
-Expected: PASS.
+Run: `pnpm vitest run test/tokens.test.ts test/identity.test.ts && pnpm typecheck` Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -250,8 +246,7 @@ Add a D1 fake test that creates a token, consumes it once successfully, and rece
 
 - [ ] **Step 2: Run the security test and confirm failure**
 
-Run: `pnpm vitest run test/security.test.ts`
-Expected: FAIL because `src/security.ts` does not exist.
+Run: `pnpm vitest run test/security.test.ts` Expected: FAIL because `src/security.ts` does not exist.
 
 - [ ] **Step 3: Implement safety primitives and CSRF storage**
 
@@ -273,8 +268,7 @@ The middleware sets CSP restricted to self plus required inline Astro styles/scr
 
 - [ ] **Step 4: Run security tests and migration locally**
 
-Run: `pnpm vitest run test/security.test.ts && pnpm db:local`
-Expected: PASS and migration applies cleanly to local D1.
+Run: `pnpm vitest run test/security.test.ts && pnpm db:local` Expected: PASS and migration applies cleanly to local D1.
 
 - [ ] **Step 5: Commit**
 
@@ -326,8 +320,7 @@ Route tests must assert invalid clients never redirect, malformed PKCE is reject
 
 - [ ] **Step 2: Run focused tests and confirm failure**
 
-Run: `pnpm vitest run test/providers.test.ts test/oauth.test.ts`
-Expected: FAIL because routes and GitHub-only signatures are absent.
+Run: `pnpm vitest run test/providers.test.ts test/oauth.test.ts` Expected: FAIL because routes and GitHub-only signatures are absent.
 
 - [ ] **Step 3: Implement GitHub-only provider and OAuth routes**
 
@@ -337,8 +330,7 @@ The authorization route validates all parameters before storing a hashed ticket.
 
 - [ ] **Step 4: Run route tests and full typecheck**
 
-Run: `pnpm vitest run test/providers.test.ts test/oauth.test.ts && pnpm typecheck`
-Expected: PASS.
+Run: `pnpm vitest run test/providers.test.ts test/oauth.test.ts && pnpm typecheck` Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -378,8 +370,7 @@ Also test invalid client, normalized code, expiry, interval slowdown, CSRF-prote
 
 - [ ] **Step 2: Run device tests and confirm failure**
 
-Run: `pnpm vitest run test/device.test.ts`
-Expected: FAIL because the route module does not exist.
+Run: `pnpm vitest run test/device.test.ts` Expected: FAIL because the route module does not exist.
 
 - [ ] **Step 3: Implement the device route module**
 
@@ -387,8 +378,7 @@ Issue 32-byte random device codes stored only by SHA-256 hash and eight-characte
 
 - [ ] **Step 4: Run device and OAuth suites**
 
-Run: `pnpm vitest run test/device.test.ts test/oauth.test.ts && pnpm typecheck`
-Expected: PASS.
+Run: `pnpm vitest run test/device.test.ts test/oauth.test.ts && pnpm typecheck` Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -430,8 +420,7 @@ it("builds both demo entry points", async () => {
 
 - [ ] **Step 2: Run build and assertion to confirm failure**
 
-Run: `pnpm build && pnpm vitest run test/ui.test.ts`
-Expected: FAIL because demo pages do not exist.
+Run: `pnpm build && pnpm vitest run test/ui.test.ts` Expected: FAIL because demo pages do not exist.
 
 - [ ] **Step 3: Implement browser PKCE and device demo pages**
 
@@ -441,8 +430,7 @@ The device demo starts a grant, renders user code and verification link, polls a
 
 - [ ] **Step 4: Build and run UI assertions**
 
-Run: `pnpm build && pnpm vitest run test/ui.test.ts && pnpm typecheck`
-Expected: PASS.
+Run: `pnpm build && pnpm vitest run test/ui.test.ts && pnpm typecheck` Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -486,8 +474,7 @@ Limiter tests exercise exactly `limit` accepted attempts, one rejection, and acc
 
 - [ ] **Step 2: Run focused tests and confirm failure**
 
-Run: `pnpm vitest run test/account.test.ts test/rate-limit.test.ts`
-Expected: FAIL because account routes and limiter are absent.
+Run: `pnpm vitest run test/account.test.ts test/rate-limit.test.ts` Expected: FAIL because account routes and limiter are absent.
 
 - [ ] **Step 3: Implement account routes and bounded D1 limiter**
 
@@ -495,8 +482,7 @@ Store only hashed session tokens. Rotate a session after GitHub callback, set `S
 
 - [ ] **Step 4: Run account, limiter, and full tests**
 
-Run: `pnpm vitest run test/account.test.ts test/rate-limit.test.ts && pnpm test && pnpm typecheck`
-Expected: PASS.
+Run: `pnpm vitest run test/account.test.ts test/rate-limit.test.ts && pnpm test && pnpm typecheck` Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -544,8 +530,7 @@ if (process.env.PAIRWISE_SECRET.length < 32)
 
 - [ ] **Step 2: Confirm missing local configuration is reported clearly**
 
-Run: `node scripts/check-config.mjs`
-Expected: exits 1 and lists the four missing names without printing values.
+Run: `node scripts/check-config.mjs` Expected: exits 1 and lists the four missing names without printing values.
 
 - [ ] **Step 3: Finalize config and operator documentation**
 
@@ -553,11 +538,9 @@ Use a real D1 binding ID only after creation; keep no `REPLACE_ME` in a deployed
 
 - [ ] **Step 4: Run docs/config scans and checks**
 
-Run: `rg -n "Google|GITHUB_CLIENT_SECRET=.+|X_CLIENT|REPLACE_ME" --glob '!pnpm-lock.yaml' .`
-Expected: no stale provider copy, committed secret values, or placeholders.
+Run: `rg -n "Google|GITHUB_CLIENT_SECRET=.+|X_CLIENT|REPLACE_ME" --glob '!pnpm-lock.yaml' .` Expected: no stale provider copy, committed secret values, or placeholders.
 
-Run: `pnpm check`
-Expected: all checks pass.
+Run: `pnpm check` Expected: all checks pass.
 
 - [ ] **Step 5: Commit**
 
@@ -580,8 +563,7 @@ git commit -m "docs: make GitHub broker deployable"
 
 - [ ] **Step 1: Start the full local Worker**
 
-Run: `pnpm db:local && pnpm build && pnpm wrangler dev --local`
-Expected: Worker serves static assets and APIs at `http://localhost:8787`.
+Run: `pnpm db:local && pnpm build && pnpm wrangler dev --local` Expected: Worker serves static assets and APIs at `http://localhost:8787`.
 
 - [ ] **Step 2: Inspect all public surfaces with agent-browser**
 
@@ -593,8 +575,7 @@ Keep square panels, near-black surfaces, oversized Archivo headings, JetBrains M
 
 - [ ] **Step 4: Re-run browser inspection and automated checks**
 
-Run: `pnpm check`
-Expected: PASS, and repeat screenshots show no remaining blocker documented in `docs/validation/visual-check.md`.
+Run: `pnpm check` Expected: PASS, and repeat screenshots show no remaining blocker documented in `docs/validation/visual-check.md`.
 
 - [ ] **Step 5: Commit**
 
@@ -617,42 +598,33 @@ git commit -m "fix: validate responsive broker UI"
 
 - [ ] **Step 1: Verify local credentials without exposing them**
 
-Run: `set -a && source .dev.vars && set +a && pnpm check:config`
-Expected: exits 0 and prints only `Configuration valid`.
+Run: `set -a && source .dev.vars && set +a && pnpm check:config` Expected: exits 0 and prints only `Configuration valid`.
 
 - [ ] **Step 2: Verify authenticated Cloudflare account and provision D1**
 
-Run: `pnpm wrangler whoami`
-Expected: authenticated account details.
+Run: `pnpm wrangler whoami` Expected: authenticated account details.
 
-Run: `pnpm wrangler d1 create triad-auth`
-Expected: a database UUID; place that exact ID in `wrangler.toml`.
+Run: `pnpm wrangler d1 create triad-auth` Expected: a database UUID; place that exact ID in `wrangler.toml`.
 
 - [ ] **Step 3: Apply schema and upload secrets**
 
-Run: `pnpm wrangler d1 migrations apply triad-auth --remote`
-Expected: migration `0001_init.sql` succeeds.
+Run: `pnpm wrangler d1 migrations apply triad-auth --remote` Expected: migration `0001_init.sql` succeeds.
 
-Run: `pnpm wrangler secret bulk .dev.vars`
-Expected: all four named secrets upload; output does not print values.
+Run: `pnpm wrangler secret bulk .dev.vars` Expected: all four named secrets upload; output does not print values.
 
 - [ ] **Step 4: Deploy, establish canonical issuer, and redeploy**
 
-Run: `pnpm deploy`
-Expected: a stable `https://triad-auth-broker.<subdomain>.workers.dev` URL.
+Run: `pnpm deploy` Expected: a stable `https://triad-auth-broker.<subdomain>.workers.dev` URL.
 
 Set `ISSUER` in `wrangler.toml` to that exact origin, register `<ISSUER>/callback/github` in the GitHub OAuth App, then run `pnpm deploy` again.
 
 - [ ] **Step 5: Run public smoke checks**
 
-Run: `curl --fail --silent --show-error "$ISSUER/.well-known/openid-configuration"`
-Expected: issuer and all endpoints use the canonical HTTPS origin.
+Run: `curl --fail --silent --show-error "$ISSUER/.well-known/openid-configuration"` Expected: issuer and all endpoints use the canonical HTTPS origin.
 
-Run: `curl --fail --silent --show-error "$ISSUER/.well-known/jwks.json"`
-Expected: one public ES256 JWK with no `d` member.
+Run: `curl --fail --silent --show-error "$ISSUER/.well-known/jwks.json"` Expected: one public ES256 JWK with no `d` member.
 
-Run: `curl --fail --silent --show-error --head "$ISSUER/"`
-Expected: 200 with CSP, frame, no-sniff, referrer, and permissions headers.
+Run: `curl --fail --silent --show-error --head "$ISSUER/"` Expected: 200 with CSP, frame, no-sniff, referrer, and permissions headers.
 
 Use agent-browser to complete the GitHub browser PKCE demo and device demo against the public URL; both must render a verified token whose `sub === pairwise_sub`, `provider_sub` begins `github:`, and `account_sub` begins `acct_`.
 
@@ -668,8 +640,6 @@ git commit -m "chore: configure production deployment"
 git push origin main
 ```
 
-Run: `gh --profile olstenlarck repo view olstenlarck/triad-auth --json url,defaultBranchRef`
-Expected: repository URL and `main` default branch.
+Run: `gh --profile olstenlarck repo view olstenlarck/triad-auth --json url,defaultBranchRef` Expected: repository URL and `main` default branch.
 
-Run: `git status --short --branch`
-Expected: clean `main` tracking `origin/main`.
+Run: `git status --short --branch` Expected: clean `main` tracking `origin/main`.

@@ -5,27 +5,33 @@
   "type": "module",
   "scripts": {
     "changeset": "changeset",
-    "packages:publish": "vp run build && changeset publish",
-    "packages:version": "GITHUB_TOKEN=\"${GITHUB_TOKEN:-$(gh auth token)}\" changeset version && vp install --lockfile-only --ignore-scripts --no-frozen-lockfile && vp run check && vp run test",
-    "prepare": "vp config --no-agent",
-    "solidity:build": "vp run --filter './solidity/*' build",
-    "solidity:fmt": "vp run --filter './solidity/*' fmt",
-    "solidity:lint": "vp run --filter './solidity/*' lint",
-    "solidity:testing": "vp run --filter './solidity/*' test"
+    "check": "ultracite fix --type-aware --type-check",
+    "packages:publish": "turbo run build --filter='./packages/*' && changeset publish",
+    "packages:version": "pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile && turbo run check test --filter=// && GITHUB_TOKEN=\"${GITHUB_TOKEN:-$(gh auth token)}\" changeset version",
+    "prepare": "git config core.hooksPath .githooks",
+    "solidity:build": "turbo run build --filter='./solidity/*'",
+    "solidity:check": "turbo run check --filter='./solidity/*'",
+    "solidity:fmt": "turbo run fmt --filter='./solidity/*'",
+    "solidity:lint": "turbo run lint --filter='./solidity/*'",
+    "solidity:test": "turbo run test --filter='./solidity/*'",
+    "solidity:testing": "turbo run test --filter='./solidity/*' --force",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "3.0.3",
     "@cloudflare/workers-types": "catalog:types",
-    "@oxlint/plugins": "catalog:",
     "@types/bun": "catalog:types",
     "@types/node": "catalog:types",
     "@vitest/coverage-v8": "catalog:",
     "cf": "catalog:",
+    "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "turbo": "catalog:",
     "typescript": "catalog:types",
-    "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "ultracite": "catalog:",
+    "vitest": "catalog:"
   },
   "packageManager": "pnpm@11.21.0"
 }

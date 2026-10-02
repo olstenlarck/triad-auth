@@ -2,8 +2,8 @@ import type { Account, BetterAuthOptions } from "better-auth";
 
 import { isRecord } from "../../utils";
 import type { TriadEnv } from "../env";
-import { captureProviderProfile, sealProfileEncryptedData, type CapturedProfile } from "./profile";
 import { validateEncryptionSecrets } from "./encryption";
+import { captureProviderProfile, sealProfileEncryptedData, type CapturedProfile } from "./profile";
 import {
   accountSubject,
   type AuthenticationProvider,

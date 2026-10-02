@@ -1,3 +1,0 @@
-#!/bin/sh
-# Format and lint whatever is staged. See the staged block in vite.config.ts.
-vp staged

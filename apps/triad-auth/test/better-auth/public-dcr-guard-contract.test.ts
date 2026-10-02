@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
+
 import { oauthProvider } from "@better-auth/oauth-provider";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 const plugin = oauthProvider({
   allowDynamicClientRegistration: true,

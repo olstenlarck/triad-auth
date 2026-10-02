@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 
 import type { TriadEnv } from "../../src/better-auth/env";
 import { createWorker, isAuthPath } from "../../src/index";

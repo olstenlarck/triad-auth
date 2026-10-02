@@ -1,5 +1,5 @@
 import { cose, isoCBOR } from "@simplewebauthn/server/helpers";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 import {
   canonicalPasskeyPublicKey,
