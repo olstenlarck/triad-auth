@@ -149,8 +149,7 @@ function highlight(source: string) {
   return html + escapeHtml(source.slice(last));
 }
 
-const sellerCode = `import { serve } from "@hono/node-server";
-import { BASE_MAINNET, ETHEREUM_MAINNET, SOLANA_MAINNET } from "@tunnckocore/x402-router";
+const sellerCode = `import { BASE_MAINNET, ETHEREUM_MAINNET, SOLANA_MAINNET } from "@tunnckocore/x402-router";
 import { createCdpAuthHeaders } from "@tunnckocore/x402-router/cdp";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
@@ -192,8 +191,7 @@ app.use(
 );
 
 app.get("/paid", (c) => c.json({ ok: true, message: "paid endpoint reached" }));
-
-serve({ fetch: app.fetch, port: Number(process.env.PORT ?? 4021) });`;
+`;
 
 const sellerLine = `const facilitator = new HTTPFacilitatorClient({ url: "${origin}" });`;
 
@@ -237,15 +235,20 @@ const installSteps = [
   { label: ".npmrc", line: "@tunnckocore:registry=https://npm.wgw.lol/" },
   {
     label: "Terminal",
-    line: "npm install @tunnckocore/x402-router @x402/core @x402/evm @x402/svm @x402/hono hono @hono/node-server",
+    line: "npm install @tunnckocore/x402-router",
   },
 ];
 
 const hostCode = `import { createX402Router } from "@tunnckocore/x402-router";
 
 // Pass { upstreams } to add or replace facilitators.
-// Workers, Bun and \`deno serve\` take it as is. On Node: serve({ fetch: router.fetch })
-export default createX402Router();`;
+const router = createX402Router();
+
+// export default { fetch: router.fetch };
+
+// Deno.serve({ fetch: router.fetch });
+
+// serve({ fetch: router.fetch })`;
 ---
 
 <html lang="en">
