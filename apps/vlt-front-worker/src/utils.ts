@@ -50,6 +50,18 @@ export async function verifyPublishToken(token: string): Promise<PublishTag> {
 
   const workflow =
     typeof payload.workflow_ref === "string" ? workflowRef.exec(payload.workflow_ref)?.[1] : null;
+  // Observability only. Depot token claims are new ground; this shows what a job really carries.
+  console.log(
+    JSON.stringify({
+      publishToken: {
+        sub: payload.sub,
+        event_name: payload.event_name,
+        workflow: payload.workflow,
+        workflow_ref: payload.workflow_ref,
+        tag: workflow ? workflowTags[workflow] : null,
+      },
+    }),
+  );
   if (!workflow) {
     throw new Error("Untrusted publishing workflow");
   }
