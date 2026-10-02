@@ -14,8 +14,10 @@ jobs:
   do-not-merge:
     runs-on: ubuntu-latest
     steps:
-      - if: contains(github.event.pull_request.labels.*.name, 'do-not-merge')
+      - name: Fail while the label is present
+        if: contains(github.event.pull_request.labels.*.name, 'do-not-merge')
         run: |
           echo "Held by the do-not-merge label" | tee -a "$GITHUB_STEP_SUMMARY"
           exit 1
-      - run: echo "No hold"
+      - name: Pass without the label
+        run: echo "No hold"
