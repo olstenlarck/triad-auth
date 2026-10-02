@@ -106,7 +106,6 @@ app.all("*", async (c) => {
       }
       try {
         if (!(await validatePublishRequest(request, path, tag))) {
-          console.log(JSON.stringify({ publishRejected: { path, tag } }));
           return c.text("Forbidden", 403);
         }
       } catch {
