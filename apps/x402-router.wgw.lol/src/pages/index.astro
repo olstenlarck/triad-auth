@@ -149,7 +149,8 @@ function highlight(source: string) {
   return html + escapeHtml(source.slice(last));
 }
 
-const sellerCode = `import { BASE_MAINNET, ETHEREUM_MAINNET, SOLANA_MAINNET } from "@tunnckocore/x402-router";
+const sellerCode = `import { serve } from "@hono/node-server";
+import { BASE_MAINNET, ETHEREUM_MAINNET, SOLANA_MAINNET } from "@tunnckocore/x402-router";
 import { createCdpAuthHeaders } from "@tunnckocore/x402-router/cdp";
 import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
@@ -188,7 +189,11 @@ app.use(
     },
     server,
   ),
-);`;
+);
+
+app.get("/paid", (c) => c.json({ ok: true, message: "paid endpoint reached" }));
+
+serve({ fetch: app.fetch, port: Number(process.env.PORT ?? 4021) });`;
 
 const sellerLine = `const facilitator = new HTTPFacilitatorClient({ url: "${origin}" });`;
 
@@ -230,12 +235,16 @@ const routerOptions: { name: string; fallback: string; does: Note[] }[] = [
 
 const installSteps = [
   { label: ".npmrc", line: "@tunnckocore:registry=https://npm.wgw.lol/" },
-  { label: "Terminal", line: "npm install @tunnckocore/x402-router" },
+  {
+    label: "Terminal",
+    line: "npm install @tunnckocore/x402-router @x402/core @x402/evm @x402/svm @x402/hono hono @hono/node-server",
+  },
 ];
 
 const hostCode = `import { createX402Router } from "@tunnckocore/x402-router";
 
 // Pass { upstreams } to add or replace facilitators.
+// Workers, Bun and \`deno serve\` take it as is. On Node: serve({ fetch: router.fetch })
 export default createX402Router();`;
 ---
 
@@ -425,14 +434,14 @@ export default createX402Router();`;
                       role="button"
                       tabindex="0"
                       data-copy={step.line}
-                      aria-label={`Copy ${step.label} line`}
+                      aria-label={`Copy: ${step.line}`}
                       class="mt-2 flex h-12 w-full cursor-pointer items-center gap-3 border border-line bg-code px-4 transition-colors duration-300 ease-out hover:border-secondary"
                     >
                       <input
                         readonly
                         tabindex="-1"
                         value={step.line}
-                        aria-hidden="true"
+                        aria-label={step.label}
                         class="mono min-w-0 flex-1 cursor-pointer bg-transparent text-xs text-code-text outline-none"
                       />
                       <span data-copy-icon class="shrink-0"><CopyIcons /></span>
@@ -576,12 +585,17 @@ export default createX402Router();`;
       // The install snippets are div role="button" around a read-only input, so they also copy on Enter and Space.
       document.querySelectorAll("[data-copy]").forEach((copy) => {
         let timer;
+        // data-copied shows the check icon; data-copy-failed turns the icon red when the clipboard refuses.
+        const flash = (state) => {
+          clearTimeout(timer);
+          copy.removeAttribute("data-copied");
+          copy.removeAttribute("data-copy-failed");
+          copy.setAttribute(state, "");
+          timer = setTimeout(() => copy.removeAttribute(state), 1600);
+        };
         const run = () => {
-          navigator.clipboard.writeText(copy.dataset.copy).then(() => {
-            clearTimeout(timer);
-            copy.setAttribute("data-copied", "");
-            timer = setTimeout(() => copy.removeAttribute("data-copied"), 1600);
-          });
+          const write = navigator.clipboard?.writeText(copy.dataset.copy) ?? Promise.reject();
+          write.then(() => flash("data-copied")).catch(() => flash("data-copy-failed"));
         };
         // On phones only the icon copies, so the field can be swiped to read the whole line.
         const phone = window.matchMedia("(max-width: 639px)");

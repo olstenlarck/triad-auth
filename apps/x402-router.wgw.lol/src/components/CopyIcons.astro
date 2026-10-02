@@ -36,6 +36,9 @@
   :global([data-copied]) .check-icon {
     display: block;
   }
+  :global([data-copy-failed]) .copy-icon {
+    color: var(--color-danger);
+  }
   @media (prefers-reduced-motion: no-preference) {
     :global([data-copied]) .check-icon {
       animation: copy-check 180ms cubic-bezier(0.23, 1, 0.32, 1);
