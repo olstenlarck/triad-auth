@@ -93,7 +93,7 @@ The [renderer](./src/MewsRenderer.sol) draws the cats. [MewsArt](./src/MewsArt.s
 From the monorepo root, with the workspace dependencies and Foundry installed:
 
 ```sh
-vp run --filter mews preview
+pnpm --filter mews run preview
 ```
 
 The command prints the path to a new gallery file. Open it in a browser. It also exports individual SVGs to `preview/rendered/`.
@@ -108,7 +108,7 @@ Copy `.env.example` to `.env` inside `solidity/mews` and set `PRIVATE_KEY` to th
 From the monorepo root, simulate with the existing renderer address:
 
 ```sh
-vp run --filter mews deploy --rpc-url https://mainnet.base.org \
+pnpm --filter mews run deploy --rpc-url https://mainnet.base.org \
   --sig "run(address)" 0xea012Da68Da3903D6FD081508239a6ECB4a51576
 ```
 

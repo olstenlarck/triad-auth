@@ -20,12 +20,12 @@ Managed by Pnpm, VitePlus, and Foundry.
 
 ```
 # from the monorepo root
-vp run solidity:check             # all projects
-vp run check                      # lints and formats package.json, markdowns and typescript files
-vp run --filter neko-pfp check    # this project only
+pnpm run solidity:check  # all projects
+turbo run check --filter=//              # lints and formats package.json and TypeScript files
+turbo run check --filter=neko-pfp        # this project only
 
 # from this folder
-vp run check
+pnpm run check
 ```
 
 Individual scripts: `fmt`, `lint`, `test`, `build`, `gas`, `snapshot`.
