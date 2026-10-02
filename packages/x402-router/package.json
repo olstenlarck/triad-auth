@@ -20,8 +20,7 @@
         "types": "./dist/cdp.d.ts",
         "default": "./dist/cdp.js"
       }
-    },
-    "access": "public"
+    }
   },
   "scripts": {
     "build": "vp pack src/index.ts --clean --dts --format esm --platform neutral && vp pack src/cdp.ts --no-clean --dts --format esm --platform neutral --deps.never-bundle @coinbase/cdp-sdk --on-success \"[ ! -f dist/index.mjs ] || mv dist/index.mjs dist/index.js; [ ! -f dist/index.d.mts ] || mv dist/index.d.mts dist/index.d.ts; [ ! -f dist/cdp.mjs ] || mv dist/cdp.mjs dist/cdp.js; [ ! -f dist/cdp.d.mts ] || mv dist/cdp.d.mts dist/cdp.d.ts\"",
