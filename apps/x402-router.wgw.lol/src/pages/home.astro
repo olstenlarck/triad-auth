@@ -9,6 +9,8 @@ const pageDescription =
   "One x402 v2 facilitator URL that routes each payment to PrimeV, CDP, or x402.org by network.";
 const origin = Astro.url.origin;
 const sourceUrl = "https://github.com/tunnckoCoreHQ/monarch/tree/master/packages/x402-router";
+const licenseUrl =
+  "https://github.com/tunnckoCoreHQ/monarch/blob/master/apps/x402-router.wgw.lol/LICENSE";
 const commit = import.meta.env.COMMIT_SHA;
 const commitHref =
   commit === "local"
@@ -44,12 +46,12 @@ const statements: { parts: Part[]; support: string }[] = [
   },
   {
     parts: [
-      { text: "Testnets", tone: "key" },
+      { text: "Base Sepolia and Solana Devnet", tone: "key" },
       { text: " go to " },
       { text: "x402.org.", tone: "key" },
     ],
     support:
-      "Base Sepolia and Solana Devnet, through x402.org/facilitator. No auth header needed.",
+      "Public test networks, through x402.org/facilitator. No auth header needed. World Chain Sepolia goes to CDP.",
   },
   {
     parts: [
@@ -62,7 +64,7 @@ const statements: { parts: Part[]; support: string }[] = [
   {
     parts: [{ text: "No accounts. No database. " }, { text: "Nothing stored.", tone: "key" }],
     support:
-      "The router reads x402Version, scheme and network, picks the upstream, and streams its response back unchanged.",
+      "The router reads x402Version, scheme and network, picks the upstream, and streams back its status and body.",
   },
 ];
 
@@ -92,7 +94,15 @@ function highlight(source: string) {
   return html + escapeHtml(source.slice(last));
 }
 
-const sellerCode = `import { createCdpAuthHeaders } from "@tunnckocore/x402-router/cdp";
+const sellerCode = `import { BASE_MAINNET, ETHEREUM_MAINNET, SOLANA_MAINNET } from "@tunnckocore/x402-router";
+import { createCdpAuthHeaders } from "@tunnckocore/x402-router/cdp";
+import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { paymentMiddleware } from "@x402/hono";
+import { ExactSvmScheme } from "@x402/svm/exact/server";
+import { Hono } from "hono";
+
+const app = new Hono();
 
 const facilitator = new HTTPFacilitatorClient({
   url: "${origin}",
@@ -258,7 +268,14 @@ app.use(
         <div
           class="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-sm text-secondary md:flex-row md:items-center md:justify-between md:px-8"
         >
-          <span>FSL-1.1-ALv2. Converts to Apache-2.0 after 2 years.</span>
+          <span
+            ><a
+              class="text-primary underline decoration-line underline-offset-4 hover:text-accent"
+              href={licenseUrl}
+              rel="noreferrer external"
+              target="_blank">FSL-1.1-ALv2</a
+            >. Converts to Apache-2.0 after 2 years.</span
+          >
           <nav class="flex flex-wrap items-center gap-x-6 gap-y-2">
             <a class="hover:text-primary" href="/docs/">Docs</a>
             <a class="hover:text-primary" href="/docs/license/">License</a>
