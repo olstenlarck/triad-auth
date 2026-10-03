@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
+import type { TriadEnv } from "../../src/better-auth/env";
 import {
   accountSubject,
   createIdentityConfiguration,
@@ -8,7 +9,6 @@ import {
   pairwiseSubject,
   providerSubject,
 } from "../../src/better-auth/identity";
-import type { TriadEnv } from "../../src/better-auth/env";
 
 const IDENTIFIER_SECRET = "test-identifier-secret";
 

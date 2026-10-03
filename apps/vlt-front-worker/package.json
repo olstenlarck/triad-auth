@@ -5,9 +5,10 @@
   "description": "Registry front worker for the vlt scope at npm.wgw.lol",
   "type": "module",
   "scripts": {
-    "check": "vp check --fix",
-    "deploy": "vp exec cf deploy",
-    "dev": "vp exec cf dev"
+    "check": "ultracite fix --type-aware --type-check",
+    "deploy": "pnpm exec cf deploy",
+    "dev": "pnpm exec cf dev",
+    "test": "vitest run"
   },
   "dependencies": {
     "effect": "4.0.0-rc.111",

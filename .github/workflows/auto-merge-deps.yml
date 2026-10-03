@@ -16,7 +16,7 @@ permissions: {}
 jobs:
   enable_auto_merge:
     if: github.actor == 'dependabot[bot]'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - env:
           GH_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}

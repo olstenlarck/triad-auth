@@ -1,0 +1,45 @@
+{
+  "remoteCache": {
+    "teamId": "pcnr2v598s",
+    "apiUrl": "https://cache.depot.dev"
+  },
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": [
+    "pnpm-workspace.yaml",
+    "tsconfig.json",
+    "oxlint.config.ts",
+    "oxfmt.config.ts",
+    "patches/**"
+  ],
+  "agentGuidance": false,
+  "concurrency": "4",
+  "tasks": {
+    "//#check": {
+      "inputs": ["*.md", "*.json", "*.ts", ".changeset/**", ".depot/**", ".github/**", ".zed/**"],
+      "outputs": []
+    },
+    "check": {
+      "outputs": []
+    },
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/*.{yml,yaml}"],
+      "outputs": []
+    },
+    "fmt": {
+      "outputs": []
+    },
+    "lint": {
+      "dependsOn": ["fmt"],
+      "outputs": []
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "out/**", ".cloudflare/output/**"],
+      "inputs": ["$TURBO_DEFAULT$", "!test/**"],
+      "env": ["WORKERS_CI_COMMIT_SHA"]
+    }
+  },
+  "futureFlags": {
+    "githubActionsRemoteBaseRefFallback": true
+  }
+}

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
+
 import { oauthProvider, type OAuthOptions } from "@better-auth/oauth-provider";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 const resolver: NonNullable<OAuthOptions["resolveSubjectIdentifier"]> = (input) =>
   `${input.use}:${input.clientId}:${input.userId}:${input.defaultSubject}`;

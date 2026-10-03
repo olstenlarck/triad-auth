@@ -69,11 +69,9 @@
 
 **Interfaces:**
 
-- Produces: one Better Auth-generated migration without the five nullable `profile*` user columns, with encrypted
-  `encryptedData` and the rate-limit table.
+- Produces: one Better Auth-generated migration without the five nullable `profile*` user columns, with encrypted `encryptedData` and the rate-limit table.
 
-- [ ] Add or update the migration contract test to require `deviceCode`, encrypted `encryptedData`, the rate-limit table,
-      no legacy profile columns, and exactly one migration file.
+- [ ] Add or update the migration contract test to require `deviceCode`, encrypted `encryptedData`, the rate-limit table, no legacy profile columns, and exactly one migration file.
 - [ ] Run the focused schema test and confirm it fails.
 - [ ] Generate `0001-initial.sql` directly from the finalized Better Auth configuration.
 - [ ] Run the focused schema test and confirm it passes.
@@ -92,8 +90,7 @@
 
 - [ ] Run `vp run check` and require zero formatting, lint, type, or test failures.
 - [ ] Run `vp run build` and require a successful Astro/Cloudflare build.
-- [ ] Delete the three obsolete Triad D1 databases, create `triad-auth` and `triad-auth-staging`, and replace both
-      `database_id` values in `wrangler.toml`.
+- [ ] Delete the three obsolete Triad D1 databases, create `triad-auth` and `triad-auth-staging`, and replace both `database_id` values in `wrangler.toml`.
 - [ ] Run `vp run db:migrate:staging` and verify the ordered migration set is applied.
 - [ ] Let Cloudflare Workers Builds deploy staging after checks pass and the Git repository is connected.
 - [ ] Verify discovery advertises `openid email handle name avatar`, DCR accepts those scopes, and device code issuance returns the configured verification URI.

@@ -1,5 +1,5 @@
 import { validateCimdMetadata } from "@better-auth/cimd";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 const clientId = "https://client.example/metadata.json";
 const validMetadata = {

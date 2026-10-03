@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 describe("Better Auth direct D1 runtime", () => {
   it("initializes from a D1 binding without an adapter", async () => {

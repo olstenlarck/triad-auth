@@ -1,5 +1,6 @@
 import { createCimdClientDiscovery as createBetterAuthCimdDiscovery } from "@better-auth/cimd";
 import { validateClientIdUrl, type CimdOptions } from "@better-auth/cimd";
+
 import { isRecord } from "../../utils";
 
 export const CIMD_REVALIDATION_INTERVAL_SECONDS = 60 * 60;

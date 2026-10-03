@@ -12,28 +12,28 @@ From the root of the monorepo:
 
 ```
 # solidity tool chain: fmt/lint/test/build/checks
-vp run solidity:check
+pnpm run solidity:check
 
 # run only glyph protocol
-vp run --filter glyph-protocol fmt
-vp run --filter glyph-protocol lint
-vp run --filter glyph-protocol test
-vp run --filter glyph-protocol build
+turbo run fmt --filter=glyph-protocol
+turbo run lint --filter=glyph-protocol
+turbo run test --filter=glyph-protocol
+turbo run build --filter=glyph-protocol
 
-# or just `check` it runs everything needed
-vp run --filter glyph-protocol check
+# or just `check`, which runs fmt and lint
+turbo run check --filter=glyph-protocol
 ```
 
 from this project's folder
 
 ```
-vp run fmt
-vp run lint
-vp run test
-vp run build
+pnpm run fmt
+pnpm run lint
+pnpm run test
+pnpm run build
 
 # or just
-vp run check
+pnpm run check
 ```
 
 ## License

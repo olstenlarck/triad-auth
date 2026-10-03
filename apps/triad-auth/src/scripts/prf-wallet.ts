@@ -1,6 +1,6 @@
-import { base64UrlDecode } from "../utils";
-import { signPrfWallet } from "../better-auth/wallet/signatures";
 import type { WalletProfileId } from "../better-auth/wallet/profiles";
+import { signPrfWallet } from "../better-auth/wallet/signatures";
+import { base64UrlDecode } from "../utils";
 
 export function passkeyPrfResult(extensionResults: unknown): Uint8Array<ArrayBuffer> {
   const prf =

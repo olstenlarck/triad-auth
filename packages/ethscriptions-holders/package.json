@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check": "ultracite fix --type-aware --type-check",
     "start": "bun run index.ts"
   }
 }

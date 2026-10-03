@@ -5,6 +5,7 @@ import { toHex } from "viem";
 
 import { base64UrlDecode, base64UrlEncode, isRecord } from "../../utils";
 import type { TriadEnv } from "../env";
+import { canonicalPasskeyPublicKey, isIdentityPasskey } from "./passkey-public-key";
 import {
   canonicalPasskeyUsername,
   createPasskeyUsernameGenerator,
@@ -12,7 +13,6 @@ import {
   passkeyDisplayName,
   type PasskeyUsernameGeneratorOptions,
 } from "./passkey-username";
-import { canonicalPasskeyPublicKey, isIdentityPasskey } from "./passkey-public-key";
 import { sealProfileEncryptedData } from "./profile";
 import { isSocialProvider, passkeyUpstreamId, providerSubject } from "./subjects";
 

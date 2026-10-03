@@ -59,9 +59,7 @@ user.provider     = google | github | twitter
 user.providerSub  = provider_sub
 ```
 
-The synthetic email satisfies Better Auth's required unique email field. It is derived from `account_sub`, but it is
-never exposed as a profile claim, used for email delivery, or used to derive identity. A real upstream email remains
-optional profile data and never participates in account lookup.
+The synthetic email satisfies Better Auth's required unique email field. It is derived from `account_sub`, but it is never exposed as a profile claim, used for email delivery, or used to derive identity. A real upstream email remains optional profile data and never participates in account lookup.
 
 Better Auth account linking is disabled, implicit linking is disabled, and trusted providers are empty. Provider profile mapping converts the raw upstream ID before persistence. Account create and update hooks remove upstream access tokens, refresh tokens, ID tokens, token expiry data, and account-cookie token material.
 
@@ -151,8 +149,7 @@ The shared device record stores the generated device code, normalized user code,
 
 ## Protected Resource Flow
 
-Triad publishes protected-resource metadata for its demo resource and issues tokens only for recognized resources.
-The resource is distinct from the client: the client requests authorization, while the resource receives the token.
+Triad publishes protected-resource metadata for its demo resource and issues tokens only for recognized resources. The resource is distinct from the client: the client requests authorization, while the resource receives the token.
 
 ```text
 1. A resource publishes RFC 9728 protected-resource metadata naming Triad.
