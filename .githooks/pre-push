@@ -1,9 +1,10 @@
 #!/bin/sh
-# Direct pushes to master skip the pull request workflows, so verify them here.
+# Direct pushes to master skip the pull request workflows, so verify them here: check and test
+# the packages the push changes, comparing the remote head with the local one.
 # Git feeds one line per ref: <local ref> <local sha> <remote ref> <remote sha>.
-while read -r _local_ref _local_sha remote_ref _remote_sha; do
+while read -r _local_ref local_sha remote_ref remote_sha; do
   if [ "$remote_ref" = "refs/heads/master" ]; then
-    exec pnpm exec turbo run check test
+    TURBO_SCM_BASE="$remote_sha" TURBO_SCM_HEAD="$local_sha" exec pnpm exec turbo run check test --affected
   fi
 done
 exit 0
