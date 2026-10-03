@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "catalog:",
-    "@astrojs/starlight": "0.42.2",
+    "@astrojs/starlight": "0.42.4",
     "@tailwindcss/vite": "4.3.3",
     "@tunnckocore/x402-router": "workspace:^",
     "astro": "catalog:",
