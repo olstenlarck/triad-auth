@@ -1,11 +1,11 @@
 # Depot CI. After ci succeeds for a master push, publishes nightly versions of the packages that
 # push changed. Only this workflow may write the nightly dist-tag: npm.wgw.lol reads the
-# workflow_ref claim of the Depot CI OIDC token and maps nightly.yml to nightly.
+# workflow_ref claim of the Depot CI OIDC token and maps publish-nightly.yml to nightly.
 #
 # SECURITY: the OIDC token here can publish nightly prereleases and nothing else. No repository
 # secrets; the read-only job token only lets the changelog writer read commits and pull requests.
 
-name: nightly
+name: publish-nightly
 
 on:
   workflow_run:
@@ -16,11 +16,11 @@ on:
 permissions: {}
 
 concurrency:
-  group: packages-nightly
+  group: packages-publish-nightly
   cancel-in-progress: false
 
 jobs:
-  nightly:
+  publish:
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     permissions:
       contents: read

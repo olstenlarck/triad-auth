@@ -1,6 +1,6 @@
 # Depot CI. Checks and tests every package, TypeScript and Solidity, on every pull request and every
-# push to master; turbo caches each package through Depot Cache. nightly.yml, release.yml,
-# and publish.yml run after this workflow succeeds on master; see each file.
+# push to master; turbo caches each package through Depot Cache. publish-nightly.yml,
+# prepare-publish.yml, and publish-prod.yml run after this workflow succeeds on master; see each file.
 #
 # SECURITY: both jobs run PR code with a read-only token, no secrets, and no OIDC token.
 

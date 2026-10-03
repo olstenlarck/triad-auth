@@ -1,13 +1,13 @@
 # Depot CI. Publishes stable versions with latest, package tags, and GitHub Releases. Runs after ci
 # succeeds for the merged release PR commit, or manually on master to publish whatever a failed
 # release left missing. Only this workflow may write the latest dist-tag: npm.wgw.lol reads the
-# workflow_ref claim of the Depot CI OIDC token and maps publish.yml to latest.
+# workflow_ref claim of the Depot CI OIDC token and maps publish-prod.yml to latest.
 #
 # SECURITY: the only job with a latest-capable OIDC token, and it runs only after a human merged the
 # release PR or started it by hand on master. The PAT is a Depot CI secret for changesets/action, which pushes
 # the package tags and creates the GitHub Releases.
 
-name: publish
+name: publish-prod
 
 on:
   workflow_dispatch:
@@ -22,7 +22,7 @@ env:
   TURBO_TELEMETRY_DISABLED: 1
 
 concurrency:
-  group: packages-publish
+  group: packages-publish-prod
   cancel-in-progress: false
 
 jobs:

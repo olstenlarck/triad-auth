@@ -21,7 +21,7 @@ const claims: JWTPayload = {
   repository_id: "1299813376",
   repository_owner_id: "51462759",
   ref: "refs/heads/master",
-  workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/nightly.yml@refs/heads/master",
+  workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/publish-nightly.yml@refs/heads/master",
   event_name: "workflow_run",
 };
 const exchangeUrl = "https://npm.wgw.lol/-/npm/v1/oidc/token/exchange/package/@tunnckocore%2fcalc";
@@ -64,7 +64,7 @@ async function token(overrides: JWTPayload = {}, key = privateKey) {
 
 function latestToken() {
   return token({
-    workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/publish.yml@refs/heads/master",
+    workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/publish-prod.yml@refs/heads/master",
   });
 }
 
@@ -111,9 +111,9 @@ function setDistTag(bearer: string, tag: string, version: string) {
 const invalidClaims: JWTPayload[] = [
   { workflow_ref: undefined },
   { workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/ci.yml@refs/heads/master" },
-  { workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/release.yml@refs/heads/master" },
-  { workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/nightly.yml@refs/heads/feature" },
-  { workflow_ref: "attacker/monarch/.depot/workflows/nightly.yml@refs/heads/master" },
+  { workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/prepare-publish.yml@refs/heads/master" },
+  { workflow_ref: "tunnckoCoreHQ/monarch/.depot/workflows/publish-nightly.yml@refs/heads/feature" },
+  { workflow_ref: "attacker/monarch/.depot/workflows/publish-nightly.yml@refs/heads/master" },
   { repository: "attacker/monarch" },
   { repository_id: "123" },
   { repository_owner_id: "123" },
@@ -207,19 +207,19 @@ describe("CI publishing authorization", () => {
     );
   });
 
-  it("lets publish.yml publish stable versions as latest", async () => {
+  it("lets publish-prod.yml publish stable versions as latest", async () => {
     expect((await publish(await latestToken(), "latest", "0.1.3")).status).toBe(201);
     expect((await setDistTag(await latestToken(), "latest", "0.1.3")).status).toBe(201);
   });
 
   it("accepts the short workflow_ref form from the Depot docs", async () => {
     const short = await token({
-      workflow_ref: "tunnckoCoreHQ/monarch/nightly.yml@refs/heads/master",
+      workflow_ref: "tunnckoCoreHQ/monarch/publish-nightly.yml@refs/heads/master",
     });
     expect((await publish(short)).status).toBe(201);
   });
 
-  it("keeps nightly.yml away from latest and publish.yml away from nightly", async () => {
+  it("keeps publish-nightly.yml away from latest and publish-prod.yml away from nightly", async () => {
     expect((await publish(await token(), "latest", "0.1.3")).status).toBe(403);
     expect((await setDistTag(await token(), "latest", "0.1.3")).status).toBe(403);
     expect((await publish(await latestToken())).status).toBe(403);
