@@ -12,7 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@astrojs/starlight": "0.42.4",
     "@tailwindcss/vite": "4.3.3",
     "@tunnckocore/x402-router": "workspace:^",
     "astro": "catalog:",
