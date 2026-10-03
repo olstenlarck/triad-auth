@@ -40,7 +40,7 @@ catalogs:
     astro: 7.4.0-beta.0
     "@astrojs/cloudflare": 15.0.0-beta.0
     cf: 1.0.0-beta.10
-    "@cloudflare/vite-plugin": 2.0.0-beta.sha-238e489d5
+    "@cloudflare/vite-plugin": 2.0.0-beta.sha-805ec1ff3
     "@openzeppelin/contracts": 5.6.1
     solady: 0.1.26
     erc721a: 4.3.0
