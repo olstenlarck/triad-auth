@@ -1,4 +1,4 @@
-import { createWriteStream, existsSync, statSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
@@ -57,6 +57,8 @@ async function flow(opts: FlowInput): Promise<void> {
   }
 
   function writeDownloads(format: DownloadFormat, chunks: AsyncIterable<string>) {
+    mkdirSync(path.dirname(getFilepath(format)), { recursive: true });
+
     return writeAsyncIterableToFile(getFilepath(format), chunks, (chunk = "") => {
       if (chunk === "downloads,day\n") {
         return;

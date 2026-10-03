@@ -50,6 +50,16 @@ test("decodeCSV reports the invalid row", async () => {
   );
 });
 
+test("decodeCSV reports the row of an invalid record with its cause", async () => {
+  const lines = fromArray(["downloads,day", "5,2026-02-30"]);
+
+  const error = await Array.fromAsync(formats.decodeCSV(lines)).catch((error: unknown) => error);
+
+  expect(error).toBeInstanceOf(SyntaxError);
+  expect(error).toHaveProperty("message", "Invalid CSV row 1");
+  expect(error).toHaveProperty("cause", new TypeError("Invalid date: 2026-02-30"));
+});
+
 test("decodeDownloadRecords picks the decoder by format", async () => {
   const json = formats.decodeDownloadRecords(fromArray([JSON.stringify(records[0])]), "json");
   const csv = formats.decodeDownloadRecords(fromArray(["downloads,day", "1,2026-01-01"]), "csv");

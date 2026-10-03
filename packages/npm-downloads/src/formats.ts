@@ -41,10 +41,14 @@ export async function* decodeCSV(
       throw new SyntaxError(`Invalid CSV row ${rowNumber}`);
     }
 
-    yield validateRecord({
-      downloads: Number(match[1]),
-      day: match[2],
-    });
+    try {
+      yield validateRecord({
+        downloads: Number(match[1]),
+        day: match[2],
+      });
+    } catch (cause) {
+      throw new SyntaxError(`Invalid CSV row ${rowNumber}`, { cause });
+    }
   }
 
   if (!headerRead) {

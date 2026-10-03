@@ -129,6 +129,30 @@ test("fetchLines yields lines split across chunks", async () => {
   expect(lines).toEqual(["a", "bc", "", "d"]);
 });
 
+test("fetchLines strips CRLF line endings", async () => {
+  vi.stubGlobal("fetch", async () => streamResponse(["downloads,day\r\n1,2026-01-01\r", "\n"]));
+
+  const lines = await Array.fromAsync(utils.fetchLines("https://example.com/lines"));
+
+  expect(lines).toEqual(["downloads,day", "1,2026-01-01"]);
+});
+
+test("fetchLines rejects a line longer than the limit", async () => {
+  const cancel = vi.fn();
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.enqueue(new TextEncoder().encode("x".repeat(utils.MAX_LINE_LENGTH)));
+    },
+    cancel,
+  });
+  vi.stubGlobal("fetch", async () => new Response(body));
+
+  await expect(Array.fromAsync(utils.fetchLines("https://example.com/lines"))).rejects.toThrow(
+    new SyntaxError(`Line is longer than ${utils.MAX_LINE_LENGTH} characters`),
+  );
+  expect(cancel).toHaveBeenCalledOnce();
+});
+
 test("fetchLines yields nothing for an empty body", async () => {
   vi.stubGlobal("fetch", async () => streamResponse([]));
 

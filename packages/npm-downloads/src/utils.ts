@@ -4,6 +4,9 @@ export const CYA_DAY_MS = 86_400_000;
 
 export const NPM_DOWNLOADS_START = "2015-01-10";
 
+// A download record line is about 50 characters; anything longer is not a record.
+export const MAX_LINE_LENGTH = 1_024;
+
 interface DateRange {
   from: string;
   to: string;
@@ -163,10 +166,14 @@ export async function* fetchLines(
       let newlineIndex: number;
 
       while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-        const line = buffer.slice(0, newlineIndex);
+        const line = buffer.slice(0, newlineIndex).replace(/\r$/, "");
         buffer = buffer.slice(newlineIndex + 1);
 
         yield line;
+      }
+
+      if (buffer.length > MAX_LINE_LENGTH) {
+        throw new SyntaxError(`Line is longer than ${MAX_LINE_LENGTH} characters`);
       }
     }
 
