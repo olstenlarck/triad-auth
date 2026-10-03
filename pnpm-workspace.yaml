@@ -30,12 +30,12 @@ catalogMode: prefer
 
 catalogs:
   default:
-    "@coinbase/cdp-sdk": ^1.56.0
+    "@coinbase/cdp-sdk": ^1.57.0
     "@hono/node-server": ^2.0.6
-    "@x402/core": ^2.26.0
-    "@x402/evm": ^2.26.0
-    "@x402/hono": ^2.26.0
-    "@x402/svm": ^2.26.0
+    "@x402/core": ^2.27.0
+    "@x402/evm": ^2.27.0
+    "@x402/hono": ^2.27.0
+    "@x402/svm": ^2.27.0
     hono: ^4.12.27
     astro: 7.4.0-beta.0
     "@astrojs/cloudflare": 15.0.0-beta.0
@@ -44,7 +44,7 @@ catalogs:
     "@openzeppelin/contracts": 5.6.1
     solady: 0.1.26
     erc721a: 4.3.0
-    viem: 2.56.8
+    viem: 2.56.9
     jose: ^6.2.12
     oxlint: 1.86.0
     oxfmt: 0.71.0
@@ -57,7 +57,7 @@ catalogs:
     vite: ^8
     socket: ^1.4.1
   types:
-    "@cloudflare/workers-types": 5.20260921.1
+    "@cloudflare/workers-types": 5.20260926.1
     "@types/bun": ^1.4.2
     "@types/node": ^24
     typescript: 7.0.2
