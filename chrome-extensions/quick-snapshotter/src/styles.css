@@ -1,0 +1,124 @@
+#screenshot-extension-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 2147483645;
+  background: transparent;
+  cursor: crosshair;
+}
+
+#screenshot-extension-highlight {
+  position: fixed;
+  z-index: 2147483646;
+  border: 2px dashed #ffffff;
+  background: transparent;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  box-sizing: border-box;
+  display: none;
+  transition:
+    border 0.1s,
+    background 0.1s,
+    box-shadow 0.1s;
+}
+
+.screenshot-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #ffffff;
+  border: 1px solid #000;
+  border-radius: 50%;
+  pointer-events: auto;
+  display: none;
+}
+
+#screenshot-extension-highlight.locked .screenshot-handle {
+  display: block;
+}
+
+.screenshot-handle.n {
+  top: -6px;
+  left: calc(50% - 5px);
+  cursor: ns-resize;
+}
+.screenshot-handle.s {
+  bottom: -6px;
+  left: calc(50% - 5px);
+  cursor: ns-resize;
+}
+.screenshot-handle.e {
+  top: calc(50% - 5px);
+  right: -6px;
+  cursor: ew-resize;
+}
+.screenshot-handle.w {
+  top: calc(50% - 5px);
+  left: -6px;
+  cursor: ew-resize;
+}
+.screenshot-handle.nw {
+  top: -6px;
+  left: -6px;
+  cursor: nwse-resize;
+}
+.screenshot-handle.ne {
+  top: -6px;
+  right: -6px;
+  cursor: nesw-resize;
+}
+.screenshot-handle.sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: nesw-resize;
+}
+.screenshot-handle.se {
+  bottom: -6px;
+  right: -6px;
+  cursor: nwse-resize;
+}
+
+#screenshot-extension-actions {
+  position: fixed;
+  z-index: 2147483647;
+  display: none; /* Flex when active */
+  gap: 8px;
+  background: #202124;
+  padding: 8px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+#screenshot-extension-actions button {
+  appearance: none;
+  border: none;
+  background: #3c4043;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  margin: 0;
+}
+
+#screenshot-extension-actions button:hover {
+  background: #4a4d51;
+}
+
+#screenshot-btn-download,
+#screenshot-btn-copy {
+  background: #8ab4f8 !important;
+  color: #202124 !important;
+}
+
+#screenshot-btn-download:hover,
+#screenshot-btn-copy:hover {
+  background: #aecbfa !important;
+}

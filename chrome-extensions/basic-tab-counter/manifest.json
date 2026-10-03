@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Basic Tab Counter",
+  "version": "1.0",
+  "description": "A simple Chrome/Chromium/Brave/Helium extension that counts the total number of open tabs and displays the count directly on the extension icon as a badge.",
+  "permissions": ["tabs"],
+  "action": {
+    "default_icon": "assets/icon.png"
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  }
+}

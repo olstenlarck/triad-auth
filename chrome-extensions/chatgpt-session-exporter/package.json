@@ -1,0 +1,9 @@
+{
+  "name": "chatgpt-session-exporter",
+  "private": true,
+  "description": "Copy the current ChatGPT session as JSON or Markdown.",
+  "type": "module",
+  "scripts": {
+    "check": "ultracite fix --type-aware --type-check"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "quick-snapshotter",
+  "private": true,
+  "description": "Right-click to select and screenshot an element.",
+  "type": "module",
+  "scripts": {
+    "check": "ultracite fix --type-aware --type-check"
+  }
+}
