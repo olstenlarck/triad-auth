@@ -24,7 +24,7 @@ This is a Solidity/TypeScript/Rust monorepo for multiple projects and languages.
 - Solidity projects' docs should be on their own `solidity/*/docs` folder.
 - The TypeScript toolchain is oxlint and oxfmt with the ultracite presets, type-aware linting and type checking through tsgolint, and Vitest. Every app and package has `check` (`ultracite fix`, which formats, lints, and type-checks) and `test` (Vitest) scripts that run from its own directory with the root configs, so turbo caches each package on its own. The root package has `check` for the root files only.
 - Solidity projects are formatted, linted, and built with Foundry, not pnpm or oxc.
-- Every `check`, `test`, `fmt`, `lint`, and `build` script is a turbo task: run them with `turbo run <task> --filter=<package>` across packages, never with pnpm filters, so they cache. Every other script runs with `pnpm run <script>` inside its package or `pnpm --filter <package> run <script>` from the root. Binaries run with `pnpm exec`.
+- Every `check`, `test`, `fmt`, `lint`, `build`, `deploy:nightly`, and `deploy:prod` script is a turbo task: run them with `turbo run <task> --filter=<package>` across packages, never with pnpm filters. The deploy tasks never cache. Every other script runs with `pnpm run <script>` inside its package or `pnpm --filter <package> run <script>` from the root. Binaries run with `pnpm exec`.
 - Solidity formatting, linting, tests, and builds run through the root scripts, each a filtered turbo run. `pnpm run solidity:check` runs fmt and lint for every Solidity project with caching, `pnpm run solidity:test` runs only the tests with caching, and `pnpm run solidity:test:fresh` runs all project test scripts in parallel without cache for a fresh fuzz. `pnpm run solidity:fmt`, `solidity:lint`, and `solidity:build` run that one script in every project. Prefer the per-project filter for day-to-day work.
 - For changes within one Solidity project, run `turbo run check --filter=<project>`; use the root `pnpm run solidity:check` when changes span Solidity projects, without repeating the filtered check.
 - `turbo run check test` runs everything, TypeScript and Solidity, and is what the pre-push hook runs; pre-commit runs `turbo run check`. `turbo run check --filter=<package>` does one package and `turbo run check --affected` does what the branch changed.
@@ -56,3 +56,15 @@ Filter Patterns:
 - An app without environments has one Worker with branch control on `master` and no `promote` script. Every merge that touches its paths deploys it. `apps/vlt-front-worker` is that shape.
 - One Depot CI pull request workflow in `.depot/workflows/` covers the whole workspace. `ci` runs `turbo run check` and `turbo run test` for every package on every pull request and on pushes to `master`, with `--affected` on pull requests; `nightly`, `release`, and `publish` follow it on `master`. `build` builds the npm packages and the Solidity projects in the same workflow. Turbo's remote cache on Depot CI is Depot Cache, so unchanged tasks replay across runs. A new app or package needs no workflow of its own. The master ruleset requires the Depot checks `ci / check`, `ci / test`, and `ci / build`. `auto-merge-deps` and `do-not-merge` stay on GitHub Actions; `socket-optimize` runs on Depot CI on a schedule.
 - Never run an app's `deploy` script locally unless the user explicitly asks. Builds runs it.
+
+## Alchemy apps
+
+- Alchemy apps deploy with the Alchemy CLI, not `cf` or Workers Builds. The stack is `alchemy.run.ts` in the app folder and replaces `cloudflare.config.ts`. Astro apps use `Cloudflare.Website.Astro`, which injects the adapter, so `astro.config.*` declares none.
+- State lives in the remote Cloudflare state store, `Cloudflare.state()`. Local deploys use the `cf-equator` Alchemy profile.
+- Alchemy apps deploy through `deploy:nightly` and `deploy:prod` scripts. Solidity projects keep `deploy`, and CI never runs it.
+- A prod-only app has only `deploy:nightly`, and it deploys the `prod` stage. `apps/x402-router` is that shape.
+- An app with both environments has both scripts and two Workers, for example `x402-router-nightly` and `x402-router`.
+- `deploy-nightly` runs after `ci` succeeds on a `master` push. It runs `turbo run deploy:nightly --affected` for what that push changed.
+- `deploy-prod` runs only by hand: `pnpm run apps:deploy:prod` from the root. It runs `deploy:prod` for every app that has it, or for one app with the `app` input.
+- Both workflows read the `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` Depot secrets and pass the deployed commit as `COMMIT_SHA`. The token is an account-owned Cloudflare API token, created in the dashboard, because Alchemy OAuth logins cannot mint tokens.
+- Never run a `deploy:nightly` or `deploy:prod` script locally unless the user explicitly asks.

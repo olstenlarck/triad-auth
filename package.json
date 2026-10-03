@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "apps:deploy:prod": "depot ci dispatch --repo tunnckoCoreHQ/monarch --workflow deploy-prod.yml --ref master",
     "changeset": "changeset",
     "check": "ultracite fix --type-aware --type-check AGENTS.md LICENSE.md package.json tsconfig.json turbo.json oxfmt.config.ts oxlint.config.ts .changeset .depot .github .zed",
     "packages:publish": "turbo run build --filter='./packages/*' && changeset publish",
@@ -20,6 +21,7 @@
     "@changesets/changelog-github": "1.0.1",
     "@changesets/cli": "3.0.3",
     "@cloudflare/workers-types": "catalog:types",
+    "@effect/platform-node": "catalog:",
     "@types/bun": "catalog:types",
     "@types/node": "catalog:types",
     "@vitest/coverage-v8": "catalog:",
