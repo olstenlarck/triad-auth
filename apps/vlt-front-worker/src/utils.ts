@@ -14,12 +14,15 @@ export const publishAudience = "npm:npm.wgw.lol";
 export type PublishTag = "nightly" | "latest";
 
 // Depot CI tokens have no environment claim, so the workflow file decides the dist-tag:
-// nightly.yml may write nightly and publish.yml may write latest. GitHub formats workflow_ref as
-// owner/repo/.github/workflows/file.yml@ref; Depot's documented example omits the directory, so
-// both forms are accepted.
-const workflowTags: Record<string, PublishTag> = { nightly: "nightly", publish: "latest" };
+// publish-nightly.yml may write nightly and publish-prod.yml may write latest. GitHub formats
+// workflow_ref as owner/repo/.github/workflows/file.yml@ref; Depot's documented example omits the
+// directory, so both forms are accepted.
+const workflowTags: Record<string, PublishTag> = {
+  "publish-nightly": "nightly",
+  "publish-prod": "latest",
+};
 const workflowRef = new RegExp(
-  `^${repository}/(?:\\.depot/workflows/)?(nightly|publish)\\.yml@refs/heads/master$`,
+  `^${repository}/(?:\\.depot/workflows/)?(publish-nightly|publish-prod)\\.yml@refs/heads/master$`,
 );
 
 const versionPatterns: Record<PublishTag, RegExp> = {
