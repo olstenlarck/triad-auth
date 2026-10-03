@@ -130,7 +130,7 @@ The package also exports the `DownloadFormat`, `DownloadRecord`, `DownloadSelect
 | --- | --- |
 | `RangeError` | `from` is after `to`. It is thrown before any request. |
 | `TypeError` | A day is not a valid `YYYY-MM-DD` day, a record is invalid, an npm response has no downloads array, or a file is not valid UTF-8. |
-| `SyntaxError` | A file has an invalid header or row, a line is too long, or the file does not end with a newline. Row errors have the row number in the message and the original error as `cause`. |
+| `SyntaxError` | A file has an invalid header or row, a line is too long, or the file does not end with a newline. Row errors have the row number in the message. When a row has the right shape but an invalid record, the error also has the original error as `cause`. |
 | `Error` | A request fails. The message has the HTTP status and up to 5,000 characters of the response body. |
 
 ## License

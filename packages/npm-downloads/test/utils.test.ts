@@ -153,6 +153,15 @@ test("fetchLines rejects a line longer than the limit", async () => {
   expect(cancel).toHaveBeenCalledOnce();
 });
 
+test("fetchLines accepts a line at the limit when its CRLF is split across chunks", async () => {
+  const line = "x".repeat(utils.MAX_LINE_LENGTH);
+  vi.stubGlobal("fetch", async () => streamResponse([`${line}\r`, "\n"]));
+
+  await expect(Array.fromAsync(utils.fetchLines("https://example.com/lines"))).resolves.toEqual([
+    line,
+  ]);
+});
+
 test("fetchLines rejects a complete line longer than the limit", async () => {
   vi.stubGlobal("fetch", async () =>
     streamResponse(["ok\n", `${"x".repeat(utils.MAX_LINE_LENGTH + 1)}\nok\n`]),

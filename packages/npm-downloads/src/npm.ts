@@ -76,7 +76,9 @@ export async function fetchPackageInfo(
  *
  * @example
  * ```ts
- * for await (const record of streamNpmDownloads({
+ * import { npm } from "@tunnckocore/npm-downloads";
+ *
+ * for await (const record of npm.streamNpmDownloads({
  *   pkg: "express",
  *   from: "2026-01-01",
  *   to: "2026-01-31",
@@ -159,8 +161,10 @@ export async function* streamNpmDownloads({
  *
  * @example
  * ```ts
- * const csv = await collectText(
- *   fetchNpmDownloads({ pkg: "express", from: "2026-01-01", to: "2026-01-31", output: "csv" }),
+ * import { npm, utils } from "@tunnckocore/npm-downloads";
+ *
+ * const csv = await utils.collectText(
+ *   npm.fetchNpmDownloads({ pkg: "express", from: "2026-01-01", to: "2026-01-31", output: "csv" }),
  * );
  * ```
  */

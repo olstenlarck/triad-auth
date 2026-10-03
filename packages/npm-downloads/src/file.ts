@@ -16,7 +16,9 @@ import { fetchLines, selectRecord, validateSelection } from "./utils";
  *
  * @example
  * ```ts
- * for await (const record of streamDownloadFile({
+ * import { file } from "@tunnckocore/npm-downloads";
+ *
+ * for await (const record of file.streamDownloadFile({
  *   url: "https://example.com/express-downloads.csv",
  *   input: "csv",
  *   from: "2026-01-01",
@@ -57,8 +59,10 @@ export async function* streamDownloadFile({
  *
  * @example
  * ```ts
- * const csv = await collectText(
- *   convertDownloadFile({
+ * import { file, utils } from "@tunnckocore/npm-downloads";
+ *
+ * const csv = await utils.collectText(
+ *   file.convertDownloadFile({
  *     url: "https://example.com/express-downloads.json",
  *     input: "json",
  *     output: "csv",
