@@ -6,18 +6,18 @@ It works in Chrome, Chromium, Brave, Helium, and other Chromium browsers.
 
 ## Features
 
-- The badge counts the tabs in all windows.
-- The count updates when you open or close a tab.
-- No popup, no settings. The whole extension is a 17-line service worker.
+- **Real-time Updates**: Automatically updates the tab count when you open or close tabs.
+- **All Windows**: Counts the tabs in every open window.
+- **Lightweight**: Uses a minimal background service worker and only requires the `tabs` permission.
+- **Unobtrusive**: Just a simple badge on your toolbar, with no popups or extra menus.
+- **Minimalist**: Just 17 lines of code.
 
 ## Install
 
-Copy the extension folder with [gitpick](https://github.com/nrjdalal/gitpick). Use the runner you have:
+Copy the extension folder with [gitpick](https://github.com/nrjdalal/gitpick):
 
 ```sh
 npx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/basic-tab-counter basic-tab-counter
-pnpx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/basic-tab-counter basic-tab-counter
-bunx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/basic-tab-counter basic-tab-counter
 ```
 
 Then load it in the browser:

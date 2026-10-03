@@ -6,20 +6,19 @@ It works in Chrome, Chromium, Brave, Helium, and other Chromium browsers.
 
 ## Features
 
-- Hover to highlight an element, then click to select it. Elements larger than the screen are cut to the visible part, so the capture is never blank.
-- Click and drag to select a free region instead.
-- Drag the corner and edge handles to adjust the selection.
-- Download the cropped image, or copy it to the clipboard.
-- Set a subfolder of `Downloads`, or ask for a save location each time.
+- **Precise Element Selection**: Hover over elements to see exactly what will be captured. Elements larger than the screen are bounded to the visible viewport, so captures never end up blank.
+- **Drag Selection**: Click and drag to capture a free-form region anywhere on the screen.
+- **Resizable Area**: Once a selection is locked, use the corner and edge handles to fine-tune your capture.
+- **Download**: Instantly download the cropped screenshot.
+- **Copy to Clipboard**: Copy the image directly to your clipboard for pasting anywhere.
+- **Customizable**: Set the shortcut and the download behavior from the extension's popup menu.
 
 ## Install
 
-Copy the extension folder with [gitpick](https://github.com/nrjdalal/gitpick). Use the runner you have:
+Copy the extension folder with [gitpick](https://github.com/nrjdalal/gitpick):
 
 ```sh
 npx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/quick-snapshotter quick-snapshotter
-pnpx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/quick-snapshotter quick-snapshotter
-bunx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/quick-snapshotter quick-snapshotter
 ```
 
 Then load it in the browser:
