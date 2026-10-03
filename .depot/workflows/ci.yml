@@ -74,6 +74,9 @@ jobs:
         with:
           # Pinned to the forge release used locally. 1.8 adds lint rules this code does not pass yet.
           version: v1.7.1
+      # Five forge runs start at once and race to install solc; compile one project first so the
+      # compiler is in place before turbo fans out.
+      - run: forge build --root solidity/template
       - run: pnpm exec turbo run test ${{ github.event_name == 'pull_request' && '--affected' || '' }}
 
   # Builds the npm packages and the Solidity projects. Workers Builds builds the apps.
@@ -101,4 +104,7 @@ jobs:
         with:
           # Pinned to the forge release used locally. 1.8 adds lint rules this code does not pass yet.
           version: v1.7.1
+      # Five forge runs start at once and race to install solc; compile one project first so the
+      # compiler is in place before turbo fans out.
+      - run: forge build --root solidity/template
       - run: pnpm exec turbo run build --filter='./packages/*' --filter='./solidity/*' ${{ github.event_name == 'pull_request' && '--affected' || '' }}
