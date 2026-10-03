@@ -169,6 +169,10 @@ export async function* fetchLines(
         const line = buffer.slice(0, newlineIndex).replace(/\r$/, "");
         buffer = buffer.slice(newlineIndex + 1);
 
+        if (line.length > MAX_LINE_LENGTH) {
+          throw new SyntaxError(`Line is longer than ${MAX_LINE_LENGTH} characters`);
+        }
+
         yield line;
       }
 

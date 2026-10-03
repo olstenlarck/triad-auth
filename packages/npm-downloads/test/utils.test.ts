@@ -153,6 +153,16 @@ test("fetchLines rejects a line longer than the limit", async () => {
   expect(cancel).toHaveBeenCalledOnce();
 });
 
+test("fetchLines rejects a complete line longer than the limit", async () => {
+  vi.stubGlobal("fetch", async () =>
+    streamResponse(["ok\n", `${"x".repeat(utils.MAX_LINE_LENGTH + 1)}\nok\n`]),
+  );
+
+  await expect(Array.fromAsync(utils.fetchLines("https://example.com/lines"))).rejects.toThrow(
+    new SyntaxError(`Line is longer than ${utils.MAX_LINE_LENGTH} characters`),
+  );
+});
+
 test("fetchLines yields nothing for an empty body", async () => {
   vi.stubGlobal("fetch", async () => streamResponse([]));
 
