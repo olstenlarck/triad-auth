@@ -1,43 +1,64 @@
 # Quick Snapshotter
 
-A Google Chrome extension that allows you to effortlessly select and capture screenshots of specific HTML elements or free-form regions on any webpage.
+Takes a screenshot of one element or a region you draw on a web page. You can download it or copy it to the clipboard.
+
+It works in Chrome, Chromium, Brave, Helium, and other Chromium browsers.
 
 ## Features
 
-- **Precise Element Selection**: Hover over elements to see exactly what will be captured. Elements larger than the screen are smartly bounded to your visible viewport so captures never end up blank.
-- **Drag Selection**: Click and drag to capture a free-form region anywhere on the screen.
-- **Resizable Area**: Once a selection is locked, use the corner and edge handles to fine-tune your capture.
-- **Action Menu**: Click to lock onto an element or finish dragging to reveal quick actions.
-- **Download**: Instantly download the cropped screenshot.
-- **Copy to Clipboard**: Copy the image directly to your clipboard for easy pasting anywhere.
-- **Customizable**: Set global shortcuts and configure your default download behavior via the extension's popup menu.
+- Hover to highlight an element, then click to select it. Elements larger than the screen are cut to the visible part, so the capture is never blank.
+- Click and drag to select a free region instead.
+- Drag the corner and edge handles to adjust the selection.
+- Download the cropped image, or copy it to the clipboard.
+- Set a subfolder of `Downloads`, or ask for a save location each time.
 
-## Installation
+## Install
 
-Currently, the extension is installed via Developer Mode in Chrome.
+Copy the extension folder with [gitpick](https://github.com/nrjdalal/gitpick). Use the runner you have:
 
-1. Clone or download this repository.
-2. Open Chrome/Brave/Helium and navigate to `chrome://extensions/` (yes it does work on any Chromium-based browser).
-3. Enable **Developer mode** in the top right corner.
-4. Click **Load unpacked** and select the `chrome-extensions/quick-snapshotter` folder.
+```sh
+npx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/quick-snapshotter quick-snapshotter
+pnpx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/quick-snapshotter quick-snapshotter
+bunx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/quick-snapshotter quick-snapshotter
+```
 
-## Usage
+Then load it in the browser:
 
-1. Trigger the extension by using the global shortcut (`Ctrl+Shift+F` by default), clicking the toolbar icon, or using the right-click context menu.
-2. Hover over the element you wish to capture, or click and drag to draw a custom region.
-3. Lock the selection (by clicking the element or releasing the drag).
-4. Choose **Download** or **Copy to Clipboard** from the floating menu. (Press **Cancel** or hit the `Escape` key to abort).
+1. Open `chrome://extensions`.
+2. Turn on **Developer mode**.
+3. Click **Load unpacked**.
+4. Select the `quick-snapshotter` folder.
 
-> **Note on Downloads:** For security reasons, Chrome Extensions can only silently download files into the default `Downloads` directory (or a subfolder of it). If you want to browse and choose a different folder for every screenshot, open the extension's popup menu and check "Always ask where to save (Browse...)".
+To update, run the same command with `-o` to overwrite the folder, then click the reload icon on the extension card in `chrome://extensions`.
 
-## Project Structure
+## Use
 
-- `manifest.json`: Configuration for Manifest V3.
-- `src/background.js`: Service worker handling capture, cropping, and clipboard/download orchestration.
-- `src/content.js`: Content script injected into the page to manage hover highlighting and user interaction.
-- `src/styles.css`: CSS for the highlight overlay and the floating action menu.
-- `src/popup.*`: Settings menu logic.
+1. Start a selection. Press `Ctrl+Shift+F` (`Cmd+Shift+F` on macOS), or right-click the page and choose **Screenshot Element**.
+2. Hover an element and click it, or click and drag to draw a region.
+3. Adjust the selection with the handles if you need to.
+4. Choose **Download** or **Copy to Clipboard** in the floating menu. Press **Cancel** or `Escape` to stop.
+
+Click the toolbar icon to open the settings. There you set the `Downloads` subfolder, turn on "Always ask where to save", and change the shortcut.
+
+> [!NOTE]
+>
+> Browsers let an extension save files without asking only inside the default `Downloads` folder. To save somewhere else, turn on "Always ask where to save".
+
+## Permissions
+
+- `activeTab` and `scripting`: to add the selection overlay to the current page and capture it.
+- `contextMenus`: for the **Screenshot Element** menu item.
+- `downloads`: to save the image.
+- `storage`: to keep your settings.
+
+## Files
+
+- `manifest.json`: the Manifest V3 config.
+- `src/background.js`: the service worker. It captures the tab, crops the image, and downloads it or sends it back to the page for copying.
+- `src/content.js`: the page script for the highlight, the selection, the floating menu, and the clipboard copy.
+- `src/styles.css`: the styles for the highlight and the floating menu.
+- `src/popup.html`, `src/popup.js`, `src/popup.css`: the settings popup.
 
 ## License
 
-Apache-2.0 License. See `LICENSE` for details.
+Apache-2.0. See [LICENSE](./LICENSE).

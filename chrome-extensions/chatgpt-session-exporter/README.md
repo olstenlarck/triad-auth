@@ -1,47 +1,53 @@
-# ChatGPT Session Exporter Chrome
+# ChatGPT Session Exporter
 
-Copy a ChatGPT conversation to your clipboard as JSON or Markdown.
+Copies the open ChatGPT conversation to the clipboard as JSON or Markdown.
 
-This is a small Manifest V3 extension for Chrome, Chromium, Brave, and Helium. It runs locally in the active tab after you click the extension button.
+It works in Chrome, Chromium, Brave, Helium, and other Chromium browsers.
 
 ## Features
 
-- Copy the current chat as JSON.
-- Copy the current chat as Markdown.
-- Preserve message roles, page title, URL, conversation id, and message order.
-- Preserve formatted Markdown and fenced code blocks in `content_markdown`.
-- Render Markdown from the same JSON-shaped export data.
-- No server, sync service, analytics, or external API calls.
+- Copy the current chat as JSON or Markdown.
+- Keep the message roles, the message order, the page title, the URL, and the conversation id.
+- Keep formatted Markdown and fenced code blocks.
+- Add the raw message HTML to the JSON if you need it.
+- Build the Markdown from the same data as the JSON.
+- Everything runs in the browser. There is no server, sync, analytics, or external API call.
 
 ## Install
 
-```bash
-git clone git@github.com:tunnckoCoreHQ/monarch.git
-cd monarch/chrome-extensions/chatgpt-session-exporter
+Copy the extension folder with [gitpick](https://github.com/nrjdalal/gitpick). Use the runner you have:
+
+```sh
+npx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/chatgpt-session-exporter chatgpt-session-exporter
+pnpx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/chatgpt-session-exporter chatgpt-session-exporter
+bunx gitpick https://github.com/tunnckoCoreHQ/monarch/tree/master/chrome-extensions/chatgpt-session-exporter chatgpt-session-exporter
 ```
 
-Then load it in your browser:
+Then load it in the browser:
 
 1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
+2. Turn on **Developer mode**.
 3. Click **Load unpacked**.
-4. Select the `chrome-extensions/chatgpt-session-exporter` folder.
+4. Select the `chatgpt-session-exporter` folder.
 
-If you change the extension files, reload the extension from `chrome://extensions`.
+To update, run the same command with `-o` to overwrite the folder, then click the reload icon on the extension card in `chrome://extensions`.
 
 ## Use
 
 1. Open a ChatGPT conversation.
-2. Click the extension icon.
-3. Choose `JSON` or `Markdown`.
-4. Click **Copy current chat**.
-5. Paste the result wherever you want to save or process it.
+2. Scroll to the top of the chat.
+3. Click the extension icon.
+4. Choose `JSON` or `Markdown`. For JSON, turn on **Include HTML in JSON** to add the message HTML.
+5. Click **Copy current chat**.
+6. Paste the result where you need it.
 
-**NOTE:** Make sure to scroll up, because it uses the DOM to get the session message history from the HTML, which sometimes can get hidden/removed if the session is too long.
+> [!NOTE]
+>
+> The extension reads the messages from the page HTML. ChatGPT can remove old messages from the page in long chats, so scroll up first to load them all.
 
 ## Output
 
-JSON exports use this shape:
+The JSON export has this shape:
 
 ```json
 {
@@ -67,14 +73,25 @@ JSON exports use this shape:
 }
 ```
 
-`content` is the readable plain-text version. `content_markdown` is the formatted version used for Markdown output.
+The `content` field has the plain text. The `content_markdown` field has the formatted text, and the Markdown export uses it. With **Include HTML in JSON** on, each message also has a `content_html` field.
 
 ## Supported pages
 
-ChatGPT is the primary target. The extractor uses ChatGPT message-role attributes when available.
+ChatGPT is the main target. The extension finds messages by the role attributes that ChatGPT puts on them.
 
-There are also best-effort adapters for Claude, Gemini, Copilot, and generic message-like pages. Those may break when the sites change their markup.
+It also tries Claude, Gemini, Copilot, and other pages that look like a chat. These can break when the sites change their HTML.
 
-## Privacy
+## Permissions
 
-The extension reads the active tab only when you click **Copy current chat**. It builds the export in the browser and writes it to your clipboard. Nothing is sent anywhere.
+- `activeTab` and `scripting`: to read the messages from the current tab, and only when you click **Copy current chat**.
+- `clipboardWrite`: to put the export on the clipboard.
+
+## Files
+
+- `manifest.json`: the Manifest V3 config.
+- `popup.html`, `popup.js`, `popup.css`: the popup and the export code.
+- `icons/`: the extension icons.
+
+## License
+
+MIT. See [LICENSE](./LICENSE).
