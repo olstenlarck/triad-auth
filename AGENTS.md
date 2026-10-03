@@ -66,5 +66,5 @@ Filter Patterns:
 - An app with both environments has both scripts and two Workers, for example `x402-router-nightly` and `x402-router`.
 - `deploy-nightly` runs after `ci` succeeds on a `master` push. It runs `turbo run deploy:nightly --affected` for what that push changed.
 - `deploy-prod` runs only by hand: `pnpm run apps:deploy:prod` from the root. It runs `deploy:prod` for every app that has it, or for one app with the `app` input.
-- Both workflows read the `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` Depot secrets and pass the deployed commit as `COMMIT_SHA`. `infra/ci-token/alchemy.run.ts` mints that token; it is a one-time stack.
+- Both workflows read the `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` Depot secrets and pass the deployed commit as `COMMIT_SHA`. The token is an account-owned Cloudflare API token, created in the dashboard, because Alchemy OAuth logins cannot mint tokens.
 - Never run a `deploy:nightly` or `deploy:prod` script locally unless the user explicitly asks.
