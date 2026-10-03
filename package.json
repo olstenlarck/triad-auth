@@ -8,7 +8,7 @@
     "check": "ultracite fix --type-aware --type-check AGENTS.md LICENSE.md package.json tsconfig.json turbo.json oxfmt.config.ts oxlint.config.ts .changeset .depot .github .zed",
     "packages:publish": "turbo run build --filter='./packages/*' && changeset publish",
     "packages:version": "pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile && turbo run check test --filter='!./solidity/*' && GITHUB_TOKEN=\"${GITHUB_TOKEN:-$(gh auth token)}\" changeset version",
-    "prepare": "git config core.hooksPath .githooks",
+    "prepare": "[ -n \"$CI\" ] || git config core.hooksPath .githooks",
     "solidity:build": "turbo run build --filter='./solidity/*'",
     "solidity:check": "turbo run check --filter='./solidity/*'",
     "solidity:fmt": "turbo run fmt --filter='./solidity/*'",
