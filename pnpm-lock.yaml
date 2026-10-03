@@ -326,6 +326,12 @@ importers:
 
   packages/ethscriptions-holders: {}
 
+  packages/npm-downloads:
+    devDependencies:
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.0(typescript@7.0.2)
+
   packages/x402-router:
     dependencies:
       '@coinbase/cdp-sdk':
@@ -7199,11 +7205,11 @@ snapshots:
       '@noble/hashes': 1.8.0
       apg-js: 4.4.0
 
-  '@signinwithethereum/siwe@4.2.0(viem@2.56.8(typescript@7.0.2)(zod@3.25.76))':
+  '@signinwithethereum/siwe@4.2.0(viem@2.56.9(typescript@7.0.2)(zod@3.25.76))':
     dependencies:
       '@signinwithethereum/siwe-parser': 4.2.0
     optionalDependencies:
-      viem: 2.56.8(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.56.9(typescript@7.0.2)(zod@3.25.76)
 
   '@simplewebauthn/browser@13.3.0': {}
 
@@ -8275,12 +8281,12 @@ snapshots:
     dependencies:
       '@noble/curves': 1.9.1
       '@scure/base': 1.2.6
-      '@signinwithethereum/siwe': 4.2.0(viem@2.56.8(typescript@7.0.2)(zod@3.25.76))
+      '@signinwithethereum/siwe': 4.2.0(viem@2.56.9(typescript@7.0.2)(zod@3.25.76))
       '@x402/core': 2.28.0
       ajv: 8.20.0
       jose: 5.10.0
       tweetnacl: 1.0.3
-      viem: 2.56.8(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.56.9(typescript@7.0.2)(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
       - bufferutil
@@ -10481,6 +10487,23 @@ snapshots:
       vfile-message: 4.0.3
 
   viem@2.56.8(typescript@7.0.2)(zod@3.25.76):
+    dependencies:
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.2.3(typescript@7.0.2)(zod@3.25.76)
+      isows: 1.0.7(ws@8.21.0)
+      ox: 0.14.45(typescript@7.0.2)(zod@3.25.76)
+      ws: 8.21.0
+    optionalDependencies:
+      typescript: 7.0.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+
+  viem@2.56.9(typescript@7.0.2)(zod@3.25.76):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0

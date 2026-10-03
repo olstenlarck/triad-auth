@@ -1,0 +1,30 @@
+{
+  "name": "@tunnckocore/npm-downloads",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check": "ultracite fix --type-aware --type-check",
+    "test": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}
