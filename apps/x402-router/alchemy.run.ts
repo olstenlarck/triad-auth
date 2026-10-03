@@ -18,9 +18,6 @@ export const Website = Cloudflare.Website.Astro("Website", {
   },
   // Sessions use the in-memory driver from astro.config.mjs, so no KV namespace is needed.
   sessionKVBindingName: false,
-  // Starlight prerenders through satteri, whose workerd build needs a WASM package pnpm does not
-  // install on this platform, so prerendering runs in Node. The deployed Worker is unaffected.
-  prerenderEnvironment: "node",
 });
 
 export default Alchemy.Stack(

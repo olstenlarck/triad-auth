@@ -6,6 +6,9 @@ import CopyIcons from "../components/CopyIcons.astro";
 
 import { CDP_FORWARD_TOKEN_HEADER } from "@tunnckocore/x402-router";
 
+// Built once and served as a static asset; only the API runs in the Worker. Astro.url comes from `site`.
+export const prerender = true;
+
 const pageTitle = "WGW x402 Router";
 const pageDescription =
   "One x402 v2 facilitator URL that routes each payment to PrimeV, CDP, or x402.org by network.";
