@@ -1,6 +1,12 @@
 import type { DownloadFormat, DownloadRecord } from "./types";
 import { validateRecord } from "./utils";
 
+/**
+ * Decodes JSON lines into records. Each line must be one `{"downloads":1,"day":"2026-01-01"}` object.
+ *
+ * @yields {DownloadRecord} One record per line.
+ * @throws {SyntaxError} When a line is not valid JSON or not a valid record. The message has the row number, and `cause` has the original error.
+ */
 export async function* decodeJSON(
   lines: AsyncIterable<string>,
 ): AsyncGenerator<DownloadRecord, void, void> {
@@ -17,6 +23,12 @@ export async function* decodeJSON(
   }
 }
 
+/**
+ * Decodes CSV lines into records. The first line must be the `downloads,day` header, and each next line one `1,2026-01-01` row.
+ *
+ * @yields {DownloadRecord} One record per row.
+ * @throws {SyntaxError} When the header is missing or invalid, or a row is invalid. Row numbers start at 1 on the first line after the header.
+ */
 export async function* decodeCSV(
   lines: AsyncIterable<string>,
 ): AsyncGenerator<DownloadRecord, void, void> {
@@ -56,6 +68,7 @@ export async function* decodeCSV(
   }
 }
 
+/** Decodes lines into records with the decoder for `format`. */
 export function decodeDownloadRecords(
   lines: AsyncIterable<string>,
   format: DownloadFormat,
@@ -67,6 +80,11 @@ export function decodeDownloadRecords(
   return decodeJSON(lines);
 }
 
+/**
+ * Encodes records as text in `format`.
+ *
+ * @yields {string} Text chunks that each end with a newline. The CSV output starts with the `downloads,day` header. The JSON output has one object per line.
+ */
 export async function* encodeDownloadRecords(
   records: AsyncIterable<DownloadRecord>,
   format: DownloadFormat,
