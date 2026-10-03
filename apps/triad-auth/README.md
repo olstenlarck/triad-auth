@@ -13,7 +13,7 @@ The canonical domain language is defined in [`CONTEXT.md`](./CONTEXT.md). Archit
 ```sh
 pnpm install
 pnpm run dev
-turbo run check --filter=//
+turbo run check --filter=triad-auth
 pnpm run build
 ```
 

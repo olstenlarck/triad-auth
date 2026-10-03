@@ -31,12 +31,12 @@ Fill `.dev.vars` with local values. `pnpm run dev` runs `cf dev`, which starts A
 3. Run the checks in this order and restart from the first after any fix:
 
    ```sh
-   turbo run check --filter=//
-   pnpm exec vitest run apps/triad-auth
+   turbo run check --filter=triad-auth
+   turbo run test --filter=triad-auth
    turbo run build --filter=triad-auth
    ```
 
-4. Open a pull request into `master`. The Depot CI `ci` workflow runs `turbo run check --filter=//` and `turbo run test --filter=//`; its `solidity` workflow runs when Solidity or shared dependency files change. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
+4. Open a pull request into `master`. The Depot CI `ci` workflow runs `turbo run check` and `turbo run test` for the affected packages Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
 5. Squash-merge. Builds deploys the merge commit to nightly. The build command targets the nightly mode, and the deploy command applies pending migrations first, then uploads the Worker.
 
 ## Releasing to production

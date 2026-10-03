@@ -6,8 +6,8 @@
 
 Before a PR, run these sequentially and restart from the first command after any fix:
 
-1. `turbo run check --filter=//`
-2. `pnpm exec vitest run`
+1. `turbo run check --filter=triad-auth`
+2. `turbo run test --filter=triad-auth`
 3. `pnpm run build`
 
 ## Branches and environments

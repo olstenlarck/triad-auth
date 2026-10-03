@@ -6,8 +6,8 @@
 
 Before a PR, run these sequentially and restart from the first command after any fix:
 
-1. `turbo run check --filter=//` - monorepo root
-2. `pnpm exec vitest run apps/triad-auth`
+1. `turbo run check --filter=triad-auth` - monorepo root
+2. `turbo run test --filter=triad-auth`
 3. `turbo run build --filter=triad-auth`
 
 ## Branches and environments

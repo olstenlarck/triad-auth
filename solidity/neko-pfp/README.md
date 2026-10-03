@@ -16,12 +16,12 @@ Dependencies are npm-only: `erc721a`, `solady`, and `viem` (allowlist tooling). 
 
 ## Build and test
 
-Managed by Pnpm, VitePlus, and Foundry.
+Managed by Pnpm, Turborepo, and Foundry.
 
 ```
 # from the monorepo root
 pnpm run solidity:check  # all projects
-turbo run check --filter=//              # lints and formats package.json and TypeScript files
+turbo run check --filter='!./solidity/*'   # the TypeScript packages and root files
 turbo run check --filter=neko-pfp        # this project only
 
 # from this folder

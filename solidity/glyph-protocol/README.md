@@ -544,7 +544,7 @@ turbo run lint --filter=glyph-protocol
 turbo run test --filter=glyph-protocol
 turbo run build --filter=glyph-protocol
 
-# or just `check` it runs everything needed
+# or just `check`, which runs fmt and lint
 turbo run check --filter=glyph-protocol
 ```
 
