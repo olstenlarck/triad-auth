@@ -51,8 +51,7 @@ const installNote: Note[] = [
 const statements: { parts: Part[]; support: Note[] }[] = [
   {
     parts: [
-      { text: "Ethereum Mainnet", tone: "key" },
-      { text: " goes to " },
+      { text: "Ethereum Mainnet goes to ", tone: "key" },
       { text: "PrimeV.", tone: "primev" },
     ],
     support: [
@@ -67,8 +66,7 @@ const statements: { parts: Part[]; support: Note[] }[] = [
   },
   {
     parts: [
-      { text: "Base, Polygon, Arbitrum, World Chain and Solana", tone: "key" },
-      { text: " go to " },
+      { text: "Base, Polygon, Arbitrum, World Chain and Solana go to ", tone: "key" },
       { text: "CDP.", tone: "info" },
     ],
     support: [
@@ -83,8 +81,7 @@ const statements: { parts: Part[]; support: Note[] }[] = [
   },
   {
     parts: [
-      { text: "Base Sepolia and Solana Devnet", tone: "key" },
-      { text: " go to " },
+      { text: "Base Sepolia and Solana Devnet go to ", tone: "key" },
       { text: "x402.org.", tone: "x402" },
     ],
     support: [
@@ -123,12 +120,13 @@ const statements: { parts: Part[]; support: Note[] }[] = [
   },
 ];
 
+// Every tone is a text gradient from its color to a deeper shade of it, top to bottom.
 const toneClass = {
   key: "bg-gradient-to-b from-primary to-secondary/93 bg-clip-text text-transparent",
-  accent: "text-accent",
-  info: "text-info",
-  primev: "text-primev",
-  x402: "text-x402",
+  accent: "bg-gradient-to-b from-accent to-accent/60 bg-clip-text text-transparent",
+  info: "bg-gradient-to-b from-info to-info/60 bg-clip-text text-transparent",
+  primev: "bg-gradient-to-b from-primev to-primev/60 bg-clip-text text-transparent",
+  x402: "bg-gradient-to-b from-x402 to-x402/60 bg-clip-text text-transparent",
 } as const;
 
 // Tiny tokenizer for the static snippet: comments, strings, keywords, x402 identifiers.
@@ -310,7 +308,7 @@ const router = createX402Router();
       <main>
         <section class="mx-auto max-w-7xl px-5 pb-24 pt-16 md:px-8 md:pb-32 md:pt-24">
           <h1
-            class="display text-[clamp(2rem,10.5vw,8.5rem)] font-extrabold leading-[0.92] tracking-[-0.035em]"
+            class="drop-shadow-2xl display text-[clamp(2rem,10.5vw,8.5rem)] font-extrabold leading-[0.92] tracking-[-0.035em]"
           >
             <span class="rise block" style="--i:0"><span class="bg-gradient-to-b from-primary to-secondary bg-clip-text text-transparent">Route every</span></span>
             <span class="rise block" style="--i:1"><span class="bg-gradient-to-b from-primary to-secondary bg-clip-text text-transparent">x402 payment.</span></span>
@@ -395,7 +393,7 @@ const router = createX402Router();
               <div class="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-32">
                 <h2
                   data-reveal
-                  class="reveal display max-w-[17ch] text-[clamp(2.5rem,7vw,7.5rem)] font-extrabold leading-[0.95] tracking-[-0.03em] text-secondary"
+                  class="reveal drop-shadow-2xl display max-w-[17ch] text-[clamp(2.5rem,7vw,7.5rem)] font-extrabold leading-[0.95] tracking-[-0.03em] text-secondary"
                 >
                   {statement.parts.map((part) =>
                     part.tone ? <span class={toneClass[part.tone]}>{part.text}</span> : part.text,
@@ -413,7 +411,7 @@ const router = createX402Router();
                         href={note.href}
                         rel="noreferrer external"
                         target="_blank"
-                        class={`underline decoration-line underline-offset-4 hover:decoration-current ${toneClass[note.tone ?? "key"]}`}
+                        class={`underline decoration-line underline-offset-4 hover:decoration-secondary ${toneClass[note.tone ?? "key"]}`}
                       >
                         <code class="mono text-[0.9em]">{note.code}</code>
                       </a>
@@ -432,7 +430,7 @@ const router = createX402Router();
           <!-- Each row is its own grid, so the sticky left column stays beside its own code. -->
           <div class="grid grid-cols-1 gap-10 lg:grid-cols-12">
             <div class="lg:sticky lg:top-12 lg:col-span-4 lg:self-start">
-              <h2 class="bg-gradient-to-b from-primary to-secondary bg-clip-text text-transparent display text-4xl font-bold leading-none tracking-[-0.02em] md:text-5xl">
+              <h2 class="bg-gradient-to-b from-primary to-secondary bg-clip-text text-transparent drop-shadow-2xl display pb-[0.12em] text-4xl font-bold leading-none tracking-[-0.02em] md:text-5xl">
                 The full seller setup.
               </h2>
               <p class="mt-6 max-w-[40ch] leading-relaxed text-secondary">
@@ -476,7 +474,7 @@ const router = createX402Router();
 
           <div class="mt-16 grid grid-cols-1 gap-10 lg:mt-24 lg:grid-cols-12">
             <div id="self-host" class="lg:col-span-4">
-              <h2 class="bg-gradient-to-b from-primary to-secondary bg-clip-text text-transparent display text-4xl font-bold leading-none tracking-[-0.02em] md:text-5xl">
+              <h2 class="bg-gradient-to-b from-primary to-secondary bg-clip-text text-transparent drop-shadow-2xl display pb-[0.12em] text-4xl font-bold leading-none tracking-[-0.02em] md:text-5xl">
                 Or run your own.
               </h2>
               <p class="mt-6 max-w-[40ch] leading-relaxed text-secondary">
