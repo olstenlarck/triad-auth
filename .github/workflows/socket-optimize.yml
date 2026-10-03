@@ -48,7 +48,7 @@ jobs:
           node-version: lts/*
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm dlx socket@1.1.167 optimize
+      - run: pnpm exec socket optimize
         env:
           SOCKET_SECURITY_API_TOKEN: ${{ secrets.SOCKET_SECURITY_API_TOKEN }}
       # Socket CLI 1.1.167 writes overrides to package.json, a field pnpm 11 no longer reads. Move

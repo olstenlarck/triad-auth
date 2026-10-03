@@ -55,6 +55,7 @@ catalogs:
     turbo: 2.11.7
     tsdown: 0.23.0
     vite: ^8
+    socket: ^1.4.1
   types:
     "@cloudflare/workers-types": 5.20260921.1
     "@types/bun": ^1.4.2
