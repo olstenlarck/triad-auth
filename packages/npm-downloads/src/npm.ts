@@ -28,6 +28,15 @@ interface NpmDownloadsResponse {
   downloads: unknown;
 }
 
+/**
+ * Reads the registry metadata of a package and returns its creation day.
+ *
+ * @param pkg - Package name, for example `express` or `@scope/name`.
+ * @param signal - Signal that aborts the request.
+ * @returns The creation day in `YYYY-MM-DD` form, and the raw registry metadata.
+ * @throws {Error} When the request fails or the metadata has no creation date.
+ * @throws {TypeError} When the creation date is not a valid day.
+ */
 export async function fetchPackageInfo(
   pkg: string,
   signal?: AbortSignal,
@@ -55,6 +64,27 @@ export async function fetchPackageInfo(
   return { creationDay, metadata };
 }
 
+/**
+ * Reads the daily download counts of a package from the npm API and yields them by ascending day.
+ *
+ * Reading starts at the latest of `from`, the package creation day, and `NPM_DOWNLOADS_START`. It sends one request per calendar year, one after the other, so a consumer that stops early does not cause more requests.
+ *
+ * @yields {DownloadRecord} The selected records, by ascending day.
+ * @throws {RangeError} When `from` is after `to`.
+ * @throws {TypeError} When a day or a downloads response is invalid.
+ * @throws {Error} When a request fails.
+ *
+ * @example
+ * ```ts
+ * for await (const record of streamNpmDownloads({
+ *   pkg: "express",
+ *   from: "2026-01-01",
+ *   to: "2026-01-31",
+ * })) {
+ *   console.log(record.day, record.downloads);
+ * }
+ * ```
+ */
 export async function* streamNpmDownloads({
   pkg,
   from,
@@ -120,6 +150,20 @@ export async function* streamNpmDownloads({
   }
 }
 
+/**
+ * Reads the daily download counts of a package from the npm API and yields them encoded in the `output` format.
+ *
+ * It accepts the same options and throws the same errors as `streamNpmDownloads`.
+ *
+ * @yields {string} Text chunks that each end with a newline. CSV output starts with the header.
+ *
+ * @example
+ * ```ts
+ * const csv = await collectText(
+ *   fetchNpmDownloads({ pkg: "express", from: "2026-01-01", to: "2026-01-31", output: "csv" }),
+ * );
+ * ```
+ */
 export async function* fetchNpmDownloads({
   output,
   ...options

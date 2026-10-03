@@ -1,10 +1,16 @@
 import type { DownloadRecord, DownloadSelection } from "./types";
 
+/** Milliseconds in one day. */
 export const CYA_DAY_MS = 86_400_000;
 
+/** First day that the npm downloads API has data for. */
 export const NPM_DOWNLOADS_START = "2015-01-10";
 
-// A download record line is about 50 characters; anything longer is not a record.
+/**
+ * Maximum length of one line in a remote file, in characters.
+ *
+ * A download record line is about 50 characters; anything longer is not a record.
+ */
 export const MAX_LINE_LENGTH = 1_024;
 
 interface DateRange {
@@ -12,10 +18,16 @@ interface DateRange {
   to: string;
 }
 
+/** Returns the UTC day of `date` in `YYYY-MM-DD` form. */
 export function formatDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * Parses a `YYYY-MM-DD` day into a `Date` at UTC midnight.
+ *
+ * @throws {TypeError} When the value has another form or is not a real day, for example `2026-02-30`.
+ */
 export function parseDay(value: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new TypeError(`Invalid date: ${value}`);
@@ -30,6 +42,11 @@ export function parseDay(value: string): Date {
   return date;
 }
 
+/**
+ * Splits the days from `from` to `to`, both included, into one range per calendar year.
+ *
+ * @returns The ranges as `YYYY-MM-DD` days, or an empty array when `from` is after `to`.
+ */
 export function splitByYear(from: Date, to: Date): DateRange[] {
   const ranges: DateRange[] = [];
   let cursor = new Date(from);
@@ -49,6 +66,12 @@ export function splitByYear(from: Date, to: Date): DateRange[] {
   return ranges;
 }
 
+/**
+ * Checks the `from` and `to` days of a selection.
+ *
+ * @throws {TypeError} When `from` or `to` is not a valid day.
+ * @throws {RangeError} When `from` is after `to`.
+ */
 export function validateSelection(options: DownloadSelection): void {
   if (options.from) {
     parseDay(options.from);
@@ -63,6 +86,12 @@ export function validateSelection(options: DownloadSelection): void {
   }
 }
 
+/**
+ * Checks that a value is a download record.
+ *
+ * @returns A new record with only the `downloads` and `day` fields.
+ * @throws {TypeError} When the value is not an object, `downloads` is not a non-negative safe integer, or `day` is not a valid day.
+ */
 export function validateRecord(value: unknown): DownloadRecord {
   if (typeof value !== "object" || value === null) {
     throw new TypeError("Download record must be an object");
@@ -86,6 +115,11 @@ export function validateRecord(value: unknown): DownloadRecord {
   return { downloads, day };
 }
 
+/**
+ * Decides what a source does with a record.
+ *
+ * @returns `"skip"` for a record before `from` or rejected by `filter`, `"stop"` for a record after `to`, and `"yield"` otherwise.
+ */
 export function selectRecord(
   record: DownloadRecord,
   options: DownloadSelection,
@@ -106,6 +140,11 @@ export function selectRecord(
   return "yield";
 }
 
+/**
+ * Fetches a URL and returns its JSON body. The body is not validated.
+ *
+ * @throws {Error} When the response status is not OK. The message has the status and up to 5,000 characters of the body.
+ */
 export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal });
 
@@ -122,6 +161,16 @@ export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T
   return response.json() as Promise<T>;
 }
 
+/**
+ * Fetches a URL and yields its UTF-8 body line by line, without the `\n` or `\r\n` line endings.
+ *
+ * When the consumer stops early, the response stream is cancelled.
+ *
+ * @yields {string} Each line of the body.
+ * @throws {Error} When the response status is not OK or the response has no body.
+ * @throws {TypeError} When the body is not valid UTF-8.
+ * @throws {SyntaxError} When a line is longer than `MAX_LINE_LENGTH` or the body does not end with a newline.
+ */
 export async function* fetchLines(
   url: string,
   signal?: AbortSignal,
@@ -197,6 +246,7 @@ export async function* fetchLines(
   }
 }
 
+/** Joins all text chunks into one string. */
 export async function collectText(chunks: AsyncIterable<string>): Promise<string> {
   const collected: string[] = [];
 
