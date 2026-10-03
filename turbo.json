@@ -35,7 +35,8 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", "out/**", ".cloudflare/output/**"],
-      "inputs": ["$TURBO_DEFAULT$", "!test/**"]
+      "inputs": ["$TURBO_DEFAULT$", "!test/**"],
+      "env": ["WORKERS_CI_COMMIT_SHA"]
     }
   },
   "futureFlags": {
