@@ -69,7 +69,7 @@ No. The deadline is fixed when the auction starts. A response window after late 
 Run the project checks from the monorepo root:
 
 ```shell
-vp run --filter everybody-wins-auction-house check
+turbo run check --filter=everybody-wins-auction-house
 ```
 
 ## License

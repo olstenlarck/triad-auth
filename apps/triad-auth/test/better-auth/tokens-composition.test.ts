@@ -6,7 +6,7 @@ import type {
 import { oauthProvider } from "@better-auth/oauth-provider";
 import type { User } from "better-auth";
 import { jwt } from "better-auth/plugins";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   ACCESS_TOKEN_TTL_SECONDS,

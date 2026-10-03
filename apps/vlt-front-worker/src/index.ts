@@ -1,7 +1,8 @@
 import { Hono } from "hono";
+
+import type { Env } from "./env";
 import { validatePublishRequest, verifyPublishToken } from "./utils";
 import type { PublishTag } from "./utils";
-import type { Env } from "./env";
 
 const app = new Hono<{ Bindings: Env }>();
 

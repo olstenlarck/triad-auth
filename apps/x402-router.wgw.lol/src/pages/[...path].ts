@@ -1,6 +1,6 @@
-import { routerApi } from "../router-api";
-
 import type { APIRoute } from "astro";
+
+import { routerApi } from "../router-api";
 
 export const prerender = false;
 

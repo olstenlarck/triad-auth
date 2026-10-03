@@ -18,6 +18,9 @@ on:
 
 permissions: {}
 
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
 concurrency:
   group: packages-publish
   cancel-in-progress: false
@@ -25,8 +28,7 @@ concurrency:
 jobs:
   publish:
     if: >-
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') ||
-      (github.event.workflow_run.conclusion == 'success' &&
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        startsWith(github.event.workflow_run.head_commit.message, 'chore: release packages'))
     permissions:
@@ -43,21 +45,20 @@ jobs:
       - uses: socketdev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         with:
           mode: firewall-free
-      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          sfw: true
-          cache: true
-          run-install: true
-          node-version: "lts"
-      # The action does not use a shell for publish-script, so it must be one command;
-      # packages:publish chains the build and the publish.
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The action does not use a shell for publish-script, so it must be one command.
       - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         # @changesets/changelog-github reads commit and PR data through the GitHub API.
         env:
           GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
         with:
           github-token: ${{ secrets.OLSTENLARCK_HQ_PAT }}
-          version-script: vp run packages:version
-          publish-script: vp run packages:publish
+          version-script: pnpm run packages:version
+          publish-script: pnpm run packages:publish
           commit-message: "chore: release packages"
           pr-title: "chore: release packages"

@@ -18,6 +18,13 @@ minimumReleaseAgeExclude:
   - "@astrojs/cloudflare@15.0.0-beta.0"
   - astro@7.4.0-beta.0
   - cf@1.0.0-beta.10
+  - "@turbo/darwin-64@2.11.7"
+  - "@turbo/darwin-arm64@2.11.7"
+  - "@turbo/linux-64@2.11.7"
+  - "@turbo/linux-arm64@2.11.7"
+  - "@turbo/windows-64@2.11.7"
+  - "@turbo/windows-arm64@2.11.7"
+  - turbo@2.11.7
 
 catalogMode: prefer
 
@@ -30,9 +37,6 @@ catalogs:
     "@x402/hono": ^2.26.0
     "@x402/svm": ^2.26.0
     hono: ^4.12.27
-    vite: npm:@voidzero-dev/vite-plus-core@0.2.8
-    vite-plus: 0.2.8
-    "@vitest/coverage-v8": 4.1.10
     astro: 7.4.0-beta.0
     "@astrojs/cloudflare": 15.0.0-beta.0
     cf: 1.0.0-beta.10
@@ -42,8 +46,15 @@ catalogs:
     erc721a: 4.3.0
     viem: 2.56.8
     jose: ^6.2.12
-    "@oxlint/plugins": 1.83.0
-    oxlint: 1.83.0
+    oxlint: 1.86.0
+    oxfmt: 0.71.0
+    oxlint-tsgolint: 7.0.2003
+    ultracite: 7.12.2
+    vitest: 5.0.3
+    "@vitest/coverage-v8": 5.0.3
+    turbo: 2.11.7
+    tsdown: 0.23.0
+    vite: ^8
   types:
     "@cloudflare/workers-types": 5.20260921.1
     "@types/bun": ^1.4.2
@@ -72,13 +83,6 @@ overrides:
   "function-bind": "npm:@socketregistry/function-bind@^1"
   "es-set-tostringtag": "npm:@socketregistry/es-set-tostringtag@^1"
   "es-define-property": "npm:@socketregistry/es-define-property@^1"
-  vite: "catalog:"
-
-peerDependencyRules:
-  allowAny:
-    - vite
-  allowedVersions:
-    vite: "*"
 
 patchedDependencies:
   "@better-auth/oauth-provider@1.7.0-rc.4": patches/@better-auth__oauth-provider@1.7.0-rc.4.patch

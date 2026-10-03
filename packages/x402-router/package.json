@@ -24,10 +24,9 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vp pack src/index.ts --clean --dts --format esm --platform neutral && vp pack src/cdp.ts --no-clean --dts --format esm --platform neutral --deps.never-bundle @coinbase/cdp-sdk --on-success \"[ ! -f dist/index.mjs ] || mv dist/index.mjs dist/index.js; [ ! -f dist/index.d.mts ] || mv dist/index.d.mts dist/index.d.ts; [ ! -f dist/cdp.mjs ] || mv dist/cdp.mjs dist/cdp.js; [ ! -f dist/cdp.d.mts ] || mv dist/cdp.d.mts dist/cdp.d.ts\"",
-    "check": "vp check --fix",
-    "prepublishOnly": "vp run build",
-    "test": "vp test --run"
+    "build": "tsdown",
+    "check": "ultracite fix --type-aware --type-check",
+    "test": "vitest run"
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "catalog:"
@@ -38,6 +37,7 @@
     "@x402/evm": "catalog:",
     "@x402/hono": "catalog:",
     "@x402/svm": "catalog:",
-    "hono": "catalog:"
+    "hono": "catalog:",
+    "tsdown": "catalog:"
   }
 }

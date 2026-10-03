@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
+
 import { cimd } from "@better-auth/cimd";
 import { deviceCodeGrant, oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { jwt } from "better-auth/plugins";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 
 const packageJson = JSON.parse(
   readFileSync(new URL("../../package.json", import.meta.url), "utf8"),

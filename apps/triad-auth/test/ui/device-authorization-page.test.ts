@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vite-plus/test";
+
+import { describe, expect, it } from "vitest";
 
 const page = readFileSync(new URL("../../src/pages/device/verify.astro", import.meta.url), "utf8");
 

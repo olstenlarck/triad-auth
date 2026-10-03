@@ -1,5 +1,4 @@
 import { authSchemaDatabase } from "../../scripts/auth-schema-database";
-
 import { createTriadAuth } from "./auth";
 import { createTriadConfiguration } from "./configuration";
 import type { TriadEnv } from "./env";

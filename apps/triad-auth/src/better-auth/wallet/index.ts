@@ -7,15 +7,16 @@ import {
 import type { BetterAuthPlugin } from "better-auth";
 
 import { boundedString, concatenateBytes, hexEncode, isRecord } from "../../utils";
+import type { TriadEnv } from "../env";
+import { isIdentityPasskey, storedPasskeyPublicKeyBytes } from "../identity/passkey-public-key";
+import { isSocialProvider, pairwiseSubject } from "../identity/subjects";
 import {
   derivedWalletAddressKey,
   openDerivedWalletAddresses,
   sealDerivedWalletAddresses,
   WALLET_CAPABILITY_ADDRESS_KEY,
 } from "./addresses";
-import type { TriadEnv } from "../env";
-import { isIdentityPasskey, storedPasskeyPublicKeyBytes } from "../identity/passkey-public-key";
-import { isSocialProvider, pairwiseSubject } from "../identity/subjects";
+import type { WalletProfileId } from "./profiles";
 import {
   parseWalletAuthorizationInput,
   WALLET_CAPABILITY_ACCOUNT_INDEX,
@@ -32,7 +33,6 @@ import {
   walletRedirectUri,
   walletSigningMessage,
 } from "./protocol";
-import type { WalletProfileId } from "./profiles";
 import { verifyPrfWalletSignature } from "./signatures";
 
 const walletBrokerSchema = {

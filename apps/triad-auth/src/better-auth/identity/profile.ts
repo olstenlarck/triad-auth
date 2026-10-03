@@ -1,12 +1,12 @@
-import type { SocialProvider } from "./subjects";
-import type { OptionalDisclosureScope } from "../disclosures";
 import { base64UrlDecode, base64UrlEncode, isRecord, type PublicJwk } from "../../utils";
+import type { OptionalDisclosureScope } from "../disclosures";
 import { openEncryptedData, sealEncryptedData, validateEncryptionSecrets } from "./encryption";
 import {
   isIdentityPasskey,
   storedPasskeyCoseKey,
   storedPasskeyPublicJwk,
 } from "./passkey-public-key";
+import type { SocialProvider } from "./subjects";
 
 const SYNTHETIC_EMAIL_SUFFIX = "@identity.invalid";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/;

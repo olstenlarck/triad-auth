@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
 import { absolute } from "@tunnckocore/calc";
+import { describe, expect, it } from "vitest";
 
 describe("absolute", () => {
   it.each([

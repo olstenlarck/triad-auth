@@ -1,0 +1,11 @@
+#!/bin/sh
+# Format, lint, and type-check every package, TypeScript and Solidity. The fixers may rewrite
+# files; the commit stops so the developer can review and stage those changes. Nothing is staged on
+# their behalf, so partially staged files keep their unstaged hunks out of the commit.
+before=$(git diff | git hash-object --stdin)
+pnpm exec turbo run check || exit 1
+after=$(git diff | git hash-object --stdin)
+if [ "$before" != "$after" ]; then
+  echo "pre-commit: the check changed files; review them, stage them, and commit again" >&2
+  exit 1
+fi

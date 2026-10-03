@@ -1,6 +1,7 @@
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import type { JWTPayload } from "jose";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { Env } from "../src/env";
 import app from "../src/index";
 

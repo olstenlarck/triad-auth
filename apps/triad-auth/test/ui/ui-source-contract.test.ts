@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vite-plus/test";
+
+import { describe, expect, it } from "vitest";
 
 function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), "utf8");
