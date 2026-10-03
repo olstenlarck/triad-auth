@@ -6,7 +6,7 @@ description: Use the hosted router or deploy your own.
 Use the hosted facilitator URL:
 
 ```txt
-https://x402-router.wgw.lol
+https://x402-router.equator-owl-studio.workers.dev
 ```
 
 The router supports x402 v2 only.

@@ -3,7 +3,7 @@ title: x402-router
 description: Standalone x402 v2 facilitator router for the normal x402 stack.
 ---
 
-`x402-router.wgw.lol` is a hosted x402 v2 facilitator router. It keeps the public surface boring on purpose:
+x402-router is a hosted x402 v2 facilitator router. It keeps the public surface boring on purpose:
 
 ```txt
 GET  /supported

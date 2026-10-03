@@ -123,7 +123,7 @@ const statements: { parts: Part[]; support: Note[] }[] = [
   },
 ];
 
-const toneClass = { key: "text-primary", accent: "text-accent", info: "text-info" } as const;
+const toneClass = { key: "title-gradient", accent: "text-accent", info: "text-info" } as const;
 
 // Tiny tokenizer for the static snippet: comments, strings, keywords, x402 identifiers.
 const tokenPattern =
@@ -304,7 +304,7 @@ const router = createX402Router();
       <main>
         <section class="mx-auto max-w-7xl px-5 pb-24 pt-16 md:px-8 md:pb-32 md:pt-24">
           <h1
-            class="display text-[clamp(2rem,10.5vw,8.5rem)] font-extrabold leading-[0.92] tracking-[-0.035em]"
+            class="title-gradient display text-[clamp(2rem,10.5vw,8.5rem)] font-extrabold leading-[0.92] tracking-[-0.035em]"
           >
             <span class="rise block" style="--i:0">Route every</span>
             <span class="rise block" style="--i:1">x402 payment.</span>
@@ -416,7 +416,7 @@ const router = createX402Router();
           <!-- Each row is its own grid, so the sticky left column stays beside its own code. -->
           <div class="grid grid-cols-1 gap-10 lg:grid-cols-12">
             <div class="lg:sticky lg:top-12 lg:col-span-4 lg:self-start">
-              <h2 class="display text-4xl font-bold leading-none tracking-[-0.02em] md:text-5xl">
+              <h2 class="title-gradient display text-4xl font-bold leading-none tracking-[-0.02em] md:text-5xl">
                 The full seller setup.
               </h2>
               <p class="mt-6 max-w-[40ch] leading-relaxed text-secondary">
@@ -460,7 +460,7 @@ const router = createX402Router();
 
           <div class="mt-16 grid grid-cols-1 gap-10 lg:mt-24 lg:grid-cols-12">
             <div id="self-host" class="lg:col-span-4">
-              <h2 class="display text-4xl font-bold leading-none tracking-[-0.02em] md:text-5xl">
+              <h2 class="title-gradient display text-4xl font-bold leading-none tracking-[-0.02em] md:text-5xl">
                 Or run your own.
               </h2>
               <p class="mt-6 max-w-[40ch] leading-relaxed text-secondary">

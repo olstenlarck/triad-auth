@@ -1,5 +1,5 @@
 /*
-  Link: </docs/>; rel="service-doc"; type="text/html", </llms.txt>; rel="describedby"; type="text/plain"
+  Link: </docs/index.md>; rel="service-doc"; type="text/markdown", </llms.txt>; rel="describedby"; type="text/plain"
   X-Content-Type-Options: nosniff
 
 /docs/*.md

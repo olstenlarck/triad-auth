@@ -9,7 +9,7 @@ The router is designed to fit the regular x402 server path. The important part i
 import { createCdpAuthHeaders } from "@tunnckocore/x402-router/cdp";
 
 const facilitator = new HTTPFacilitatorClient({
-  url: "https://x402-router.wgw.lol",
+  url: "https://x402-router.equator-owl-studio.workers.dev",
   createAuthHeaders: () =>
     createCdpAuthHeaders({
       apiKeyId: process.env.CDP_API_KEY_ID!,

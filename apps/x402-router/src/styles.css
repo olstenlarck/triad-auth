@@ -64,3 +64,11 @@ body {
   background: rgba(114, 242, 161, 0.25);
   color: var(--router-ink);
 }
+
+/* Section titles fade from the text color to a shade two steps deeper, top to bottom. */
+.title-gradient {
+  background-image: linear-gradient(to bottom, var(--color-primary), #ddd6ca);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
