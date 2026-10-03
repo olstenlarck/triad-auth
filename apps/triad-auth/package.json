@@ -8,13 +8,15 @@
   "scripts": {
     "build": "pnpm exec cf build",
     "build:nightly": "pnpm exec cf build --mode nightly",
+    "check": "ultracite fix --type-aware --type-check",
     "db:generate": "pnpm exec auth generate --config src/better-auth/schema.ts --output .ignore/auth-schema.sql --yes",
     "db:migrate:local": "pnpm exec cf d1 migrations apply 40220009-d502-4afd-ab7b-54495016720f --local --persist-to .cloudflare/state",
     "deploy": "pnpm exec cf d1 migrations apply 40220009-d502-4afd-ab7b-54495016720f && pnpm exec cf deploy --prebuilt --mode production",
     "deploy:nightly": "pnpm exec cf d1 migrations apply c4c8e874-a463-4c22-8389-8911627c055d && pnpm exec cf deploy --prebuilt --mode nightly",
     "dev": "pnpm exec cf dev",
     "preview": "pnpm run build && pnpm exec astro preview",
-    "promote": "git fetch origin && git push origin origin/master:release/triad-auth"
+    "promote": "git fetch origin && git push origin origin/master:release/triad-auth",
+    "test": "vitest run"
   },
   "dependencies": {
     "@astrojs/cloudflare": "catalog:",

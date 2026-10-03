@@ -3,7 +3,7 @@
   "version": "0.1.3",
   "license": "Apache-2.0",
   "files": [
-    "src"
+    "dist"
   ],
   "type": "module",
   "exports": {
@@ -11,7 +11,22 @@
     "./cdp": "./src/cdp.ts"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./cdp": {
+        "types": "./dist/cdp.d.ts",
+        "default": "./dist/cdp.js"
+      }
+    },
     "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check": "ultracite fix --type-aware --type-check",
+    "test": "vitest run"
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "catalog:"
@@ -22,6 +37,7 @@
     "@x402/evm": "catalog:",
     "@x402/hono": "catalog:",
     "@x402/svm": "catalog:",
-    "hono": "catalog:"
+    "hono": "catalog:",
+    "tsdown": "catalog:"
   }
 }

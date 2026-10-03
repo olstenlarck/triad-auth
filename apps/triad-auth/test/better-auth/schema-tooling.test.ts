@@ -219,7 +219,7 @@ describe("Better Auth schema tooling", () => {
       "git fetch origin && git push origin origin/master:release/triad-auth",
     );
     expect(packageJson.scripts["deploy:staging"]).toBeUndefined();
-    expect(packageJson.scripts.test).toBeUndefined();
+    expect(packageJson.scripts.test).toBe("vitest run");
   });
 
   it("does not add an adapter, emulator, SQLite driver, or legacy resource name", () => {

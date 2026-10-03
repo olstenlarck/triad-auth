@@ -1,56 +1,44 @@
 {
+  "remoteCache": {
+    "teamId": "pcnr2v598s",
+    "apiUrl": "https://cache.depot.dev"
+  },
   "$schema": "https://turborepo.dev/schema.json",
   "globalDependencies": [
     "pnpm-workspace.yaml",
     "tsconfig.json",
     "oxlint.config.ts",
     "oxfmt.config.ts",
-    "vitest.config.ts",
     "patches/**"
   ],
+  "agentGuidance": false,
+  "concurrency": "4",
   "tasks": {
     "//#check": {
-      "inputs": [
-        "**/package.json",
-        "**/*.{ts,tsx,js,jsx,mjs,cjs,astro,css,toml,json,md,yml,yaml}",
-        "!solidity/**",
-        "!**/.cloudflare/**",
-        "!**/dist/**",
-        "!**/src/generated/**",
-        "!**/*generated*",
-        "!**/node_modules/**"
-      ],
-      "outputs": []
-    },
-    "//#test": {
-      "inputs": [
-        "**/package.json",
-        "**/*.{ts,tsx,js,jsx,mjs,cjs,astro,css,toml,json}",
-        "!solidity/**",
-        "!**/.cloudflare/**",
-        "!**/dist/**",
-        "!**/src/generated/**",
-        "!**/*generated*",
-        "!**/node_modules/**"
-      ],
+      "inputs": ["*.md", "*.json", "*.ts", ".changeset/**", ".depot/**", ".github/**", ".zed/**"],
       "outputs": []
     },
     "check": {
       "outputs": []
     },
     "test": {
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/*.{yml,yaml}"],
       "outputs": []
-    },
-    "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", "out/**", ".cloudflare/output/**"]
     },
     "fmt": {
       "outputs": []
     },
     "lint": {
+      "dependsOn": ["fmt"],
       "outputs": []
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "out/**", ".cloudflare/output/**"],
+      "inputs": ["$TURBO_DEFAULT$", "!test/**"]
     }
   },
-  "agentGuidance": false
+  "futureFlags": {
+    "githubActionsRemoteBaseRefFallback": true
+  }
 }

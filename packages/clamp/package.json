@@ -16,5 +16,8 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "check": "ultracite fix --type-aware --type-check"
   }
 }

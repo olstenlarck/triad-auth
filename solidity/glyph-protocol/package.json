@@ -12,8 +12,7 @@
   },
   "scripts": {
     "build": "forge build",
-    "check": "pnpm run fmt && pnpm run lint && pnpm run test && pnpm run build && pnpm run check:extra",
-    "check:extra": "pnpm run selectors",
+    "check": "pnpm run fmt && pnpm run lint",
     "fmt": "forge fmt",
     "gas": "forge snapshot --no-match-test testFuzz",
     "lint": "forge lint --deny warnings",

@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import { CDP_FACILITATOR_URL, cdpRequestTarget, createCdpAuthHeaders } from "../src/cdp";
 import {
