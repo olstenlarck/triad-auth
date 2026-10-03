@@ -4,6 +4,9 @@ import * as Effect from "effect/Effect";
 
 export const Website = Cloudflare.Website.Astro("Website", {
   name: "x402-router",
+  // A zone route, not a custom domain: wgw.lol hosts many subdomains on routes.
+  domain: null,
+  routes: [{ pattern: "x402-router.wgw.lol/*", zoneName: "wgw.lol" }],
   compatibility: {
     date: "2026-06-19",
     flags: ["nodejs_compat", "global_fetch_strictly_public"],

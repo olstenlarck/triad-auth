@@ -9,7 +9,7 @@ export default defineConfig({
   security: {
     checkOrigin: false,
   },
-  site: "https://x402-router.equator-owl-studio.workers.dev",
+  site: "https://x402-router.wgw.lol",
   vite: {
     define: {
       // The deploy workflow passes the commit being deployed; local builds get "local".

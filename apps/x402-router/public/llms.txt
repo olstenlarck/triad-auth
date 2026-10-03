@@ -1,6 +1,6 @@
 # x402-router
 
-> Standalone x402 v2 facilitator router for any Fetch API runtime. One facilitator URL, https://x402-router.equator-owl-studio.workers.dev, routes each payment to PrimeV, CDP, or x402.org by network.
+> Standalone x402 v2 facilitator router for any Fetch API runtime. One facilitator URL, https://x402-router.wgw.lol, routes each payment to PrimeV, CDP, or x402.org by network.
 
 ## Docs
 

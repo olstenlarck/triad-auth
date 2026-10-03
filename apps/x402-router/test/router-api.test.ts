@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-// The deployed Worker. The hosted domain replaces it later.
-const origin = "https://x402-router.equator-owl-studio.workers.dev";
+// The deployed Worker.
+const origin = "https://x402-router.wgw.lol";
 
 describe("x402-router", () => {
   it.each(["/health", "/healthz", "/health/", "/healthz/"])(
