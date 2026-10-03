@@ -225,8 +225,8 @@ export async function* fetchLines(
         yield line;
       }
 
-      // Leave room for a `\r` whose `\n` comes in the next chunk.
-      if (buffer.length > MAX_LINE_LENGTH + 1) {
+      // Leave room for a final `\r` whose `\n` comes in the next chunk.
+      if (buffer.length > MAX_LINE_LENGTH + (buffer.endsWith("\r") ? 1 : 0)) {
         throw new SyntaxError(`Line is longer than ${MAX_LINE_LENGTH} characters`);
       }
     }
