@@ -4,7 +4,7 @@ This is a Solidity/TypeScript/Rust monorepo for multiple projects and languages.
 
 - Always read and follow `~/skills/instructions.md` and its referenced files.
 - Creating new solidity/foundry projects: copy `solidity/template/` as starting template, and edit the package.json fields, readme and etc.
-- pnpm manages the workspace and Turborepo runs the tasks defined in `turbo.json`. `pnpm install` points `core.hooksPath` at `.githooks` through the `prepare` script, which installs the Git hooks.
+- pnpm manages the workspace and Turborepo runs the tasks defined in `turbo.json`. `pnpm install` points `core.hooksPath` at `.githooks` through the `prepare` script, which installs the Git hooks; `prepare` skips that when `CI` is set to anything but empty, `0`, `false`, or `no`, and workflow commits pass `--no-verify`, so CI never runs the developer hooks. Both hooks run with `--affected`: pre-commit checks the packages with changes against HEAD, pre-push checks and tests what the push adds to master.
 - use conventional commits
 - Use turbo or pnpm filters to run commands inside a given project, package, or app.
 - Solidity dependencies are managed by Pnpm through Nodejs/node_modules.

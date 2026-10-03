@@ -81,7 +81,7 @@ jobs:
         run: |
           pnpm install --no-frozen-lockfile
           git add -A
-          git commit -m "chore(deps): apply socket optimize overrides"
+          git commit --no-verify -m "chore(deps): apply socket optimize overrides"
       - if: steps.diff.outputs.changed == 'true'
         run: pnpm exec turbo run check --filter='!./solidity/*'
       - if: steps.diff.outputs.changed == 'true'
@@ -100,7 +100,7 @@ jobs:
         run: |
           # Commit whatever exists if the run failed before the commit step.
           git add -A
-          git diff --cached --quiet || git commit -m "chore(deps): apply socket optimize overrides"
+          git diff --cached --quiet || git commit --no-verify -m "chore(deps): apply socket optimize overrides"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force origin "HEAD:refs/heads/$BRANCH"
           if gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" --json number >/dev/null 2>&1; then
