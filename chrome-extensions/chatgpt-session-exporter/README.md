@@ -16,8 +16,8 @@ This is a small Manifest V3 extension for Chrome, Chromium, Brave, and Helium. I
 ## Install
 
 ```bash
-git clone git@github.com:tunnckoCore/chatgpt-session-exporter-chrome.git
-cd chatgpt-session-exporter-chrome
+git clone git@github.com:tunnckoCoreHQ/monarch.git
+cd monarch/chrome-extensions/chatgpt-session-exporter
 ```
 
 Then load it in your browser:
@@ -25,7 +25,7 @@ Then load it in your browser:
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Click **Load unpacked**.
-4. Select the `chatgpt-session-exporter-chrome` folder.
+4. Select the `chrome-extensions/chatgpt-session-exporter` folder.
 
 If you change the extension files, reload the extension from `chrome://extensions`.
 

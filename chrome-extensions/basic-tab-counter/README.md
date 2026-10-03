@@ -17,7 +17,7 @@ Currently, the extension is installed via Developer Mode in Chrome.
 2. Open Google Chrome and navigate to `chrome://extensions/`.
 3. Enable **Developer mode** using the toggle switch in the top right corner.
 4. Click the **Load unpacked** button.
-5. Select the `basic-tab-counter-chrome` folder.
+5. Select the `chrome-extensions/basic-tab-counter` folder.
 
 ## Project Structure
 

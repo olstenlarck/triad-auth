@@ -19,7 +19,7 @@ Currently, the extension is installed via Developer Mode in Chrome.
 1. Clone or download this repository.
 2. Open Chrome/Brave/Helium and navigate to `chrome://extensions/` (yes it does work on any Chromium-based browser).
 3. Enable **Developer mode** in the top right corner.
-4. Click **Load unpacked** and select the folder containing this extension's code.
+4. Click **Load unpacked** and select the `chrome-extensions/quick-snapshotter` folder.
 
 ## Usage
 
