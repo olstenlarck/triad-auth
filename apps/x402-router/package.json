@@ -1,0 +1,27 @@
+{
+  "name": "x402-router",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "astro": "pnpm exec astro",
+    "check": "ultracite fix --type-aware --type-check",
+    "deploy:nightly": "pnpm exec alchemy deploy --stage prod",
+    "dev": "pnpm exec astro dev",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.42.4",
+    "@tailwindcss/vite": "4.3.3",
+    "@tunnckocore/x402-router": "workspace:^",
+    "astro": "catalog:",
+    "tailwindcss": "4.3.3"
+  },
+  "devDependencies": {
+    "@alchemy.run/frontend-frameworks": "catalog:",
+    "alchemy": "catalog:",
+    "effect": "catalog:",
+    "typescript": "catalog:types"
+  }
+}

@@ -1,0 +1,50 @@
+# Depot CI. Deploys apps to production through their deploy:prod scripts. It runs only by hand:
+# `pnpm run apps:deploy:prod` from the root, `depot ci dispatch`, or the Depot dashboard.
+# Without the app input it deploys every app that has a deploy:prod script.
+
+name: deploy-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Package name of the app to deploy. Empty deploys every app with deploy:prod.
+        required: false
+        default: ""
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+concurrency:
+  group: apps-deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    permissions:
+      contents: read
+    runs-on: depot-ubuntu-24.04-4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: socketdev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Deploy to production
+        env:
+          APP: ${{ inputs.app }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+        # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
+        run: pnpm exec turbo run deploy:prod ${APP:+--filter="$APP"} -- --yes

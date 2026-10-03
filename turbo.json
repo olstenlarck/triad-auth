@@ -37,6 +37,14 @@
       "outputs": ["dist/**", "out/**", ".cloudflare/output/**"],
       "inputs": ["$TURBO_DEFAULT$", "!test/**"],
       "env": ["WORKERS_CI_COMMIT_SHA"]
+    },
+    "deploy:nightly": {
+      "cache": false,
+      "passThroughEnv": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "COMMIT_SHA"]
+    },
+    "deploy:prod": {
+      "cache": false,
+      "passThroughEnv": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "COMMIT_SHA"]
     }
   },
   "futureFlags": {
