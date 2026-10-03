@@ -87,11 +87,9 @@ jobs:
           git add -A
           git commit -m "chore(deps): apply socket optimize overrides"
       - if: steps.diff.outputs.changed == 'true'
-        run: pnpm exec turbo run check --filter=//
+        run: pnpm exec turbo run check
       - if: steps.diff.outputs.changed == 'true'
-        run: pnpm exec turbo run test --filter=//
-      - if: steps.diff.outputs.changed == 'true'
-        run: pnpm exec turbo run check --filter='./solidity/*'
+        run: pnpm exec turbo run test
       - if: steps.diff.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
