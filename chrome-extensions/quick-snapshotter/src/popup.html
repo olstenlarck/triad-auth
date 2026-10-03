@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Quick Snapshotter Settings</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h2>Settings</h2>
+
+    <div class="form-group">
+      <label for="subfolder">Downloads Subfolder:</label>
+      <div class="input-row">
+        <span>Downloads/</span>
+        <input type="text" id="subfolder" placeholder="screenshots" />
+      </div>
+      <small
+        >Due to browser security, extensions can only save silently within the default Downloads
+        folder.</small
+      >
+    </div>
+
+    <div class="form-group checkbox-group">
+      <label>
+        <input type="checkbox" id="save-as" />
+        Always ask where to save (Browse...)
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label>Shortcut:</label>
+      <div class="shortcut-info">
+        <span id="current-shortcut">Ctrl+Shift+F</span>
+        <button id="btn-shortcuts">Change</button>
+      </div>
+    </div>
+
+    <button id="btn-save">Save Settings</button>
+    <span id="save-status">Saved!</span>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

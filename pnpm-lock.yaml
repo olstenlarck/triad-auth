@@ -320,6 +320,12 @@ importers:
         specifier: catalog:types
         version: 7.0.2
 
+  chrome-extensions/basic-tab-counter: {}
+
+  chrome-extensions/chatgpt-session-exporter: {}
+
+  chrome-extensions/quick-snapshotter: {}
+
   packages/calc: {}
 
   packages/clamp: {}

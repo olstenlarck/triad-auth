@@ -141,5 +141,32 @@ export default defineConfig({
       files: ["**/test/**", "**/*.test.*", "**/*.spec.*"],
       rules: { "anti-slop/require-safety-comment-for-type-assertion": "off" },
     },
+    {
+      // The extensions were migrated as they were. Functions passed to chrome.scripting.executeScript
+      // must stay self-contained, so the autofixes must not move or merge their code.
+      files: ["chrome-extensions/**"],
+      rules: {
+        "arrow-body-style": "off",
+        curly: "off",
+        "no-implicit-globals": "off",
+        "no-unused-vars": "off",
+        "no-useless-escape": "off",
+        "object-shorthand": "off",
+        "prefer-const": "off",
+        "typescript/no-floating-promises": "off",
+        "typescript/no-misused-promises": "off",
+        "typescript/prefer-includes": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/no-console-spaces": "off",
+        "unicorn/prefer-add-event-listener": "off",
+        "unicorn/prefer-dom-node-remove": "off",
+        "unicorn/prefer-dom-node-text-content": "off",
+        "unicorn/prefer-module": "off",
+        "unicorn/prefer-query-selector": "off",
+        "unicorn/prefer-regexp-test": "off",
+        "unicorn/prefer-single-call": "off",
+        "unicorn/prefer-spread": "off",
+      },
+    },
   ],
 });

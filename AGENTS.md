@@ -20,6 +20,7 @@ This is a Solidity/TypeScript/Rust monorepo for multiple projects and languages.
 - Push to `master` directly only when the user asks; the pre-push hook runs the checks. Everything else goes through a pull request.
 - Dependabot PRs are approved and auto-merged by `auto-merge-deps` with the `OLSTENLARCK_HQ_PAT` secret. Socket Optimize runs on Depot CI and pushes verified overrides straight to master with the same PAT, opens a `socket optimize: needs attention` PR when verification fails, and an issue when it fails before producing changes.
 - Apps and docs sites are at `apps/*`.
+- Chrome extensions are at `chrome-extensions/*`, one directory per extension, loaded unpacked in the browser. They have no build step and no tests, only a `check` script.
 - Solidity projects' docs should be on their own `solidity/*/docs` folder.
 - The TypeScript toolchain is oxlint and oxfmt with the ultracite presets, type-aware linting and type checking through tsgolint, and Vitest. Every app and package has `check` (`ultracite fix`, which formats, lints, and type-checks) and `test` (Vitest) scripts that run from its own directory with the root configs, so turbo caches each package on its own. The root package has `check` for the root files only.
 - Solidity projects are formatted, linted, and built with Foundry, not pnpm or oxc.

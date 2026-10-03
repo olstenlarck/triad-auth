@@ -1,5 +1,6 @@
 packages:
   - "apps/*"
+  - "chrome-extensions/*"
   - "packages/*"
   - "solidity/*"
 

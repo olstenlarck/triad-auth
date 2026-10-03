@@ -1,0 +1,119 @@
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  width: 250px;
+  padding: 16px;
+  margin: 0;
+  color: #202124;
+}
+
+h2 {
+  font-size: 16px;
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #202124;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.checkbox-group input {
+  margin: 0;
+  cursor: pointer;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+input[type="text"] {
+  flex: 1;
+  padding: 6px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 13px;
+  min-width: 0;
+}
+
+small {
+  display: block;
+  font-size: 11px;
+  color: #5f6368;
+  margin-top: 4px;
+}
+
+.shortcut-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f1f3f4;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+#current-shortcut {
+  font-weight: 600;
+  color: #1a73e8;
+}
+
+button {
+  appearance: none;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #1557b0;
+}
+
+#btn-shortcuts {
+  background: #fff;
+  color: #1a73e8;
+  border: 1px solid #dadce0;
+}
+
+#btn-shortcuts:hover {
+  background: #f8f9fa;
+}
+
+#btn-save {
+  width: 100%;
+  padding: 8px;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+#save-status {
+  display: none;
+  text-align: center;
+  font-size: 12px;
+  color: #0f9d58;
+  margin-top: 8px;
+}
