@@ -1,4 +1,4 @@
-# Runs Socket Optimize on Monday at 06:00 UTC or manually. Verified overrides are pushed straight
+# Depot CI. Runs Socket Optimize on Monday at 06:00 UTC or manually. Verified overrides are pushed straight
 # to master by the PAT owner, a repository admin, so the push is a real push that runs ci and
 # needs no pull request. When the overrides fail verification, the diff is opened as a pull
 # request that needs attention. When there is nothing to push, an issue links the failed run.
@@ -30,10 +30,9 @@ jobs:
   socket_optimize:
     permissions:
       contents: read
-      issues: write
     # Only the default branch may run this, including manual dispatches, so a modified branch cannot reach the secrets.
     if: github.ref == 'refs/heads/master'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: depot-ubuntu-24.04-4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -116,7 +115,8 @@ jobs:
           fi
       - if: failure() && steps.diff.outputs.changed != 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          # Depot CI tokens have no issues scope, so the PAT opens the issue.
+          GH_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           DISPATCH_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/socket-optimize.yml
         run: |
