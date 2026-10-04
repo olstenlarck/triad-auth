@@ -3,7 +3,7 @@ title: Self-hosting
 description: Deploy the router on any Fetch API runtime.
 ---
 
-The router is a Fetch handler. Cloudflare Workers is the default deployment target for `x402-router.wgw.lol`, but the package is not tied to Cloudflare.
+The router is a Fetch handler. Cloudflare Workers is the default deployment target for the hosted router, but the package is not tied to Cloudflare.
 
 ```ts
 import { createX402Router } from "@tunnckocore/x402-router";

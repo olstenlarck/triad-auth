@@ -40,7 +40,14 @@
     },
     "deploy:nightly": {
       "cache": false,
-      "passThroughEnv": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "COMMIT_SHA"]
+      "passThroughEnv": [
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CLOUDFLARE_API_TOKEN",
+        "COMMIT_SHA",
+        "VLT_READ_TOKEN",
+        "VLT_UPSTREAM_URL",
+        "VLT_WRITE_TOKEN"
+      ]
     },
     "deploy:prod": {
       "cache": false,

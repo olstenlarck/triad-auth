@@ -96,7 +96,7 @@ const handle = Effect.fn("VltProxy.handle")(function* (request: Request, env: En
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${bearer}`,
-        "user-agent": "vlt-front-worker-effect",
+        "user-agent": "vlt-npm-wgw-lol-effect",
         "x-github-api-version": "2026-03-10",
       },
     });

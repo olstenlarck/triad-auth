@@ -41,6 +41,10 @@ jobs:
           COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
           TURBO_SCM_BASE: ${{ github.event.workflow_run.head_sha }}^1
           TURBO_SCM_HEAD: ${{ github.event.workflow_run.head_sha }}
+          # The npm.wgw.lol Worker's VLT service tokens and upstream registry.
+          VLT_READ_TOKEN: ${{ secrets.VLT_READ_TOKEN }}
+          VLT_UPSTREAM_URL: ${{ secrets.VLT_UPSTREAM_URL }}
+          VLT_WRITE_TOKEN: ${{ secrets.VLT_WRITE_TOKEN }}
         # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
         # triad-auth has its own deploy:nightly, which Workers Builds runs.
         run: pnpm exec turbo run deploy:nightly --affected --filter='!triad-auth' -- --yes
