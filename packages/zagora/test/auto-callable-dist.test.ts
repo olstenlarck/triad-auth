@@ -1,9 +1,9 @@
 import { expectTypeOf, test } from "vitest";
 import z from "zod";
 
-import { zagora } from "../src/index";
+import { zagora } from "../dist/index";
 
-test("use `autoCallable: true` - single instance multiple procedures", () => {
+test("use `autoCallable: true` from dist - single instance multiple procedures", () => {
   const za = zagora({ autoCallable: true, disableOptions: true });
 
   const add = za
