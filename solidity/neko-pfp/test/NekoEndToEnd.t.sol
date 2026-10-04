@@ -51,6 +51,7 @@ contract NekoEndToEndTest is Test {
     address private constant SEA_DROP = address(0x5EA);
     address private constant ALICE = address(0xA11CE);
     uint256 private constant INTENDED_SUPPLY = 4663;
+    uint256 private constant TEAM_SUPPLY = 20;
     uint256 private constant PRIMARY_COLOR_QUOTA = 96;
     uint16 private constant ALL_PARTS_MASK = 0x1fff;
     uint16 private constant PARTIAL_MUTATION_MASK = 0x0aac;
@@ -68,7 +69,13 @@ contract NekoEndToEndTest is Test {
         neko = new NekoSeaDrop(commitment, generator, ISeaDrop(SEA_DROP));
 
         vm.prank(SEA_DROP);
-        neko.mintSeaDrop(ALICE, INTENDED_SUPPLY);
+        neko.mintSeaDrop(ALICE, INTENDED_SUPPLY - TEAM_SUPPLY);
+        // The fusion scenarios search the whole collection, so ALICE also holds the team cats.
+        for (uint256 tokenId = 1; tokenId <= TEAM_SUPPLY; ++tokenId) {
+            address teamOwner = neko.ownerOf(tokenId);
+            vm.prank(teamOwner);
+            neko.transferFrom(teamOwner, ALICE, tokenId);
+        }
         neko.reveal(GENESIS_SEED);
     }
 

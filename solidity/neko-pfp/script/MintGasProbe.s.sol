@@ -8,7 +8,7 @@ import {NekoSeaDrop} from "../src/NekoSeaDrop.sol";
 import {ISeaDrop, PublicDrop, MultiConfigureStruct} from "../src/seadrop/SeaDropInterfaces.sol";
 
 /// @notice Throwaway probe: measures real `mintPublic` gas against the deployed SeaDrop
-///         on a mainnet fork. Run with an RPC, never broadcast.
+///         on a fork. Run with an RPC, never broadcast.
 contract MintGasProbe is Script {
     address internal constant SEADROP = 0x00005EA00Ac477B1030CE78506496e8C2dE24bf5;
     address internal constant OPENSEA_FEE_RECIPIENT = 0x0000a26b00c1F0DF003000390027140000fAa719;

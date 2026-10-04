@@ -28,9 +28,9 @@ contract NekoMintTest is NekoTestBase {
     function testSeaDropMintUsesConfiguredRecipientAndQuantity() public {
         _mint(ALICE, 3);
 
-        assertEq(neko.totalSupply(), 3, "live supply mismatch");
+        assertEq(neko.totalSupply(), TEAM_SUPPLY + 3, "live supply mismatch");
         assertEq(neko.balanceOf(ALICE), 3, "recipient balance mismatch");
-        assertEq(neko.ownerOf(1), ALICE, "first token owner mismatch");
+        assertEq(neko.ownerOf(TEAM_SUPPLY + 1), ALICE, "first token owner mismatch");
     }
 
     function testMintRejectsCallersOutsideAllowedSeaDrop() public {
@@ -42,6 +42,6 @@ contract NekoMintTest is NekoTestBase {
     function testMintRejectsQuantityAboveMaxSupply() public {
         vm.prank(SEA_DROP);
         vm.expectRevert(NekoArt.SupplyExceeded.selector);
-        neko.mintSeaDrop(ALICE, INTENDED_SUPPLY + 1);
+        neko.mintSeaDrop(ALICE, INTENDED_SUPPLY - TEAM_SUPPLY + 1);
     }
 }

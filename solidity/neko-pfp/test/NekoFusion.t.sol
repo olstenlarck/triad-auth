@@ -15,16 +15,15 @@ contract NekoFusionTest is NekoTestBase {
     }
 
     function testMergeBurnsDuplicateAndCombinesMassAndAncestry() public {
-        _mint(ALICE, 2);
         NekoRenderer.Traits memory duplicate = _baseTraits(5, 1);
         generator.setRawTraits(neko.tokenSeed(1), duplicate);
         duplicate.toy = 2;
         generator.setRawTraits(neko.tokenSeed(2), duplicate);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.merge(1, 2);
 
-        assertEq(neko.totalSupply(), 1, "merge did not burn consumed token");
+        assertEq(neko.totalSupply(), TEAM_SUPPLY - 1, "merge did not burn consumed token");
         assertEq(neko.fusionMass(1), 2, "merge mass mismatch");
         assertEq(neko.duplicateMergeCount(1), 1, "merge count mismatch");
         assertEq(neko.currentRoot(1), 4665, "ancestry root mismatch");
@@ -33,40 +32,35 @@ contract NekoFusionTest is NekoTestBase {
     }
 
     function testMutationCopiesSelectedPartAndPersistsTraits() public {
-        _mint(ALICE, 2);
         generator.setRawTraits(neko.tokenSeed(1), _baseTraits(5, 1));
         generator.setRawTraits(neko.tokenSeed(2), _baseTraits(7, 2));
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.mutate(1, 2, 0x0008);
 
         NekoRenderer.TokenData memory data = neko.tokenData(1);
         assertEq(data.traits.body, 7, "consumed body was not copied");
         assertEq(data.fusionMass, 2, "mutation mass mismatch");
         assertEq(neko.mutationCount(1), 1, "mutation count mismatch");
-        assertEq(neko.totalSupply(), 1, "mutation did not burn consumed token");
+        assertEq(neko.totalSupply(), TEAM_SUPPLY - 1, "mutation did not burn consumed token");
     }
 
     function testRejectsSelfMergeAndSelfMutation() public {
-        _mint(ALICE, 1);
-
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         vm.expectRevert(NekoArt.CannotMergeTokenWithItself.selector);
         neko.merge(1, 1);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         vm.expectRevert(NekoArt.CannotMutateTokenWithItself.selector);
         neko.mutate(1, 1, 1);
     }
 
     function testRejectsEmptyAndOutOfRangeMutationMasks() public {
-        _mint(ALICE, 2);
-
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         vm.expectRevert(abi.encodeWithSelector(NekoArt.InvalidMutationSelectionMask.selector, 0));
         neko.mutate(1, 2, 0);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         vm.expectRevert(
             abi.encodeWithSelector(NekoArt.InvalidMutationSelectionMask.selector, 0x2000)
         );
@@ -74,7 +68,6 @@ contract NekoFusionTest is NekoTestBase {
     }
 
     function testChainedMutationAndMergesAccumulateMassCountsAndAncestry() public {
-        _mint(ALICE, 4);
         NekoRenderer.Traits memory survivor = _baseTraits(5, 1);
         NekoRenderer.Traits memory donor = _baseTraits(7, 2);
         NekoRenderer.Traits memory mutated = generator.combine(donor, survivor, 0x0008);
@@ -87,14 +80,14 @@ contract NekoFusionTest is NekoTestBase {
         generator.setRawTraits(neko.tokenSeed(3), firstDuplicate);
         generator.setRawTraits(neko.tokenSeed(4), secondDuplicate);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.mutate(1, 2, 0x0008);
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.merge(1, 3);
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.merge(1, 4);
 
-        assertEq(neko.totalSupply(), 1, "chain did not burn every consumed token");
+        assertEq(neko.totalSupply(), TEAM_SUPPLY - 3, "chain did not burn every consumed token");
         assertEq(neko.fusionMass(1), 4, "chained fusion mass mismatch");
         assertEq(neko.mutationCount(1), 1, "chained mutation count mismatch");
         assertEq(neko.duplicateMergeCount(1), 2, "chained duplicate count mismatch");
@@ -113,7 +106,6 @@ contract NekoFusionTest is NekoTestBase {
     }
 
     function testCombiningPreviouslyFusedTreesPreservesBothHistories() public {
-        _mint(ALICE, 4);
         NekoRenderer.Traits memory first = _baseTraits(5, 1);
         NekoRenderer.Traits memory firstDonor = _baseTraits(7, 2);
         NekoRenderer.Traits memory second = _baseTraits(9, 3);
@@ -124,14 +116,14 @@ contract NekoFusionTest is NekoTestBase {
         generator.setRawTraits(neko.tokenSeed(3), second);
         generator.setRawTraits(neko.tokenSeed(4), secondDuplicate);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.mutate(1, 2, 0x0008);
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.merge(3, 4);
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.mutate(1, 3, 0x0002);
 
-        assertEq(neko.totalSupply(), 1, "tree combination live supply mismatch");
+        assertEq(neko.totalSupply(), TEAM_SUPPLY - 3, "tree combination live supply mismatch");
         assertEq(neko.fusionMass(1), 4, "tree combination mass mismatch");
         assertEq(neko.mutationCount(1), 2, "tree mutation history was not aggregated");
         assertEq(neko.duplicateMergeCount(1), 1, "tree merge history was not aggregated");
@@ -143,7 +135,6 @@ contract NekoFusionTest is NekoTestBase {
     }
 
     function testPerTokenApprovalsMustCoverBothMergeParticipants() public {
-        _mint(ALICE, 2);
         NekoRenderer.Traits memory duplicate = _baseTraits(5, 1);
         generator.setRawTraits(neko.tokenSeed(1), duplicate);
         generator.setRawTraits(neko.tokenSeed(2), duplicate);
@@ -152,37 +143,35 @@ contract NekoFusionTest is NekoTestBase {
         vm.expectRevert(abi.encodeWithSelector(NekoArt.MergeCallerNotOwnerNorApproved.selector, 1));
         neko.merge(1, 2);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.approve(BOB, 1);
         vm.prank(BOB);
         vm.expectRevert(abi.encodeWithSelector(NekoArt.MergeCallerNotOwnerNorApproved.selector, 2));
         neko.merge(1, 2);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.approve(BOB, 2);
         vm.prank(BOB);
         neko.merge(1, 2);
 
-        assertEq(neko.ownerOf(1), ALICE, "approved merge changed survivor owner");
+        assertEq(neko.ownerOf(1), COLLABORATOR, "approved merge changed survivor owner");
         assertEq(neko.fusionMass(1), 2, "approved merge mass mismatch");
     }
 
     function testOperatorApprovalCanMutateBothTokens() public {
-        _mint(ALICE, 2);
         generator.setRawTraits(neko.tokenSeed(1), _baseTraits(5, 1));
         generator.setRawTraits(neko.tokenSeed(2), _baseTraits(7, 2));
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.setApprovalForAll(BOB, true);
 
         vm.prank(BOB);
         neko.mutate(1, 2, 0x0008);
 
-        assertEq(neko.ownerOf(1), ALICE, "operator mutation changed survivor owner");
+        assertEq(neko.ownerOf(1), COLLABORATOR, "operator mutation changed survivor owner");
         assertEq(neko.fusionMass(1), 2, "operator mutation mass mismatch");
     }
 
     function testPerTokenApprovalsMustCoverBothMutationParticipants() public {
-        _mint(ALICE, 2);
         generator.setRawTraits(neko.tokenSeed(1), _baseTraits(5, 1));
         generator.setRawTraits(neko.tokenSeed(2), _baseTraits(7, 2));
 
@@ -192,7 +181,7 @@ contract NekoFusionTest is NekoTestBase {
         );
         neko.mutate(1, 2, 0x0008);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.approve(BOB, 1);
         vm.prank(BOB);
         vm.expectRevert(
@@ -202,7 +191,6 @@ contract NekoFusionTest is NekoTestBase {
     }
 
     function testMergeRejectsDifferentSignatures() public {
-        _mint(ALICE, 2);
         NekoRenderer.Traits memory survivor = _baseTraits(5, 1);
         NekoRenderer.Traits memory consumed = _baseTraits(7, 2);
         generator.setRawTraits(neko.tokenSeed(1), survivor);
@@ -210,7 +198,7 @@ contract NekoFusionTest is NekoTestBase {
         bytes32 survivorSignature = generator.visualHash(survivor);
         bytes32 consumedSignature = generator.visualHash(consumed);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         vm.expectRevert(
             abi.encodeWithSelector(
                 NekoArt.CatSignatureMismatch.selector, survivorSignature, consumedSignature
@@ -220,26 +208,24 @@ contract NekoFusionTest is NekoTestBase {
     }
 
     function testMutationRejectsMatchingSignaturesEvenWhenToysDiffer() public {
-        _mint(ALICE, 2);
         NekoRenderer.Traits memory duplicate = _baseTraits(5, 1);
         generator.setRawTraits(neko.tokenSeed(1), duplicate);
         duplicate.toy = 2;
         generator.setRawTraits(neko.tokenSeed(2), duplicate);
         bytes32 signature = generator.visualHash(duplicate);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         vm.expectRevert(abi.encodeWithSelector(NekoArt.CatSignatureMatch.selector, signature));
         neko.mutate(1, 2, 0x1000);
     }
 
     function testMutationRejectsSelectionThatDoesNotChangeSurvivor() public {
-        _mint(ALICE, 2);
         NekoRenderer.Traits memory survivor = _baseTraits(5, 1);
         NekoRenderer.Traits memory consumed = _baseTraits(7, 1);
         generator.setRawTraits(neko.tokenSeed(1), survivor);
         generator.setRawTraits(neko.tokenSeed(2), consumed);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         vm.expectRevert(NekoArt.MutationHasNoEffect.selector);
         neko.mutate(1, 2, 0x1000);
     }
@@ -247,33 +233,30 @@ contract NekoFusionTest is NekoTestBase {
     function testFusionIsDisabledBeforeReveal() public {
         TestableNekoSeaDrop unrevealed =
             _deploy(NekoRenderer(address(generator)), _commitment(GENESIS_SEED));
-        vm.prank(SEA_DROP);
-        unrevealed.mintSeaDrop(ALICE, 2);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         vm.expectRevert(NekoArt.GenesisSeedNotRevealed.selector);
         unrevealed.merge(1, 1);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         vm.expectRevert(NekoArt.GenesisSeedNotRevealed.selector);
         unrevealed.mutate(1, 1, 0);
 
-        assertEq(unrevealed.totalSupply(), 2, "unrevealed fusion changed supply");
-        assertEq(unrevealed.ownerOf(1), ALICE, "unrevealed fusion changed first owner");
-        assertEq(unrevealed.ownerOf(2), ALICE, "unrevealed fusion changed second owner");
+        assertEq(unrevealed.totalSupply(), TEAM_SUPPLY, "unrevealed fusion changed supply");
+        assertEq(unrevealed.ownerOf(1), COLLABORATOR, "unrevealed fusion changed first owner");
+        assertEq(unrevealed.ownerOf(2), COLLABORATOR, "unrevealed fusion changed second owner");
     }
 
     function testFusionBurnClearsConsumedLiveStateButPreservesAncestry() public {
-        _mint(ALICE, 3);
         NekoRenderer.Traits memory duplicate = _baseTraits(7, 2);
         generator.setRawTraits(neko.tokenSeed(1), _baseTraits(5, 1));
         generator.setRawTraits(neko.tokenSeed(2), duplicate);
         generator.setRawTraits(neko.tokenSeed(3), duplicate);
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.merge(2, 3);
         uint16 historicalRoot = neko.currentRoot(2);
 
-        vm.prank(ALICE);
+        vm.prank(COLLABORATOR);
         neko.mutate(1, 2, 0x0008);
 
         assertEq(neko.mutationCount(2), 0, "fusion burn retained mutation count");
@@ -282,6 +265,24 @@ contract NekoFusionTest is NekoTestBase {
         vm.expectRevert(IERC721A.OwnerQueryForNonexistentToken.selector);
         neko.fusionMass(2);
         assertEq(neko.fusionMass(1), 3, "survivor did not absorb the consumed tree's mass");
+    }
+
+    function testFusionBurnSkipsTheTransferValidator() public {
+        address validator = address(0x7A11);
+        vm.etch(validator, hex"60006000fd");
+        neko.setTransferValidator(validator);
+        NekoRenderer.Traits memory duplicate = _baseTraits(5, 1);
+        generator.setRawTraits(neko.tokenSeed(1), duplicate);
+        duplicate.toy = 2;
+        generator.setRawTraits(neko.tokenSeed(2), duplicate);
+
+        vm.prank(COLLABORATOR);
+        neko.merge(1, 2);
+
+        assertEq(neko.fusionMass(1), 2, "merge under a validator mass mismatch");
+        vm.prank(COLLABORATOR);
+        vm.expectRevert();
+        neko.transferFrom(COLLABORATOR, BOB, 1);
     }
 
     function _assertAncestryNode(

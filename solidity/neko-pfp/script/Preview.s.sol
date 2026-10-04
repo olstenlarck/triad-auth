@@ -38,8 +38,8 @@ abstract contract PreviewBase is Script {
 }
 
 /// @notice Local anvil preview: deploys the collection with the broadcaster acting as the
-///         allowed SeaDrop, mints the full supply, snapshots one unrevealed tokenURI to
-///         `preview/unrevealed.svg`, then reveals.
+///         allowed SeaDrop, mints the rest of the supply after the team cats, snapshots one
+///         unrevealed tokenURI to `preview/unrevealed.svg`, then reveals.
 ///
 ///         Run:
 ///           forge script script/Preview.s.sol:PreviewDeploy \
@@ -62,7 +62,7 @@ contract PreviewDeploy is PreviewBase {
             ISeaDrop(broadcaster)
         );
 
-        uint256 remaining = neko.MAX_SUPPLY();
+        uint256 remaining = neko.MAX_SUPPLY() - neko.totalSupply();
         while (remaining > 0) {
             uint256 quantity = remaining > MINT_BATCH ? MINT_BATCH : remaining;
             neko.mintSeaDrop(broadcaster, quantity);

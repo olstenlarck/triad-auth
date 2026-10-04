@@ -7,6 +7,7 @@ import {Base64} from "solady/utils/Base64.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {NekoSeaDrop} from "../src/NekoSeaDrop.sol";
 import {NekoRenderer} from "../src/NekoRenderer.sol";
+import {ICreatorToken} from "../src/seadrop/TransferValidation.sol";
 import {
     ISeaDrop,
     IERC2981,
@@ -30,6 +31,7 @@ contract NekoSeaDropTest is Test {
     address internal constant FEE = address(0xFEE);
     bytes32 internal constant GENESIS = keccak256("Neko SeaDrop integration");
     uint256 internal constant SUPPLY = 4663;
+    uint256 internal constant TEAM_SUPPLY = 20;
     uint80 internal constant PRICE = 0.001 ether;
     ISeaDrop internal seaDrop = ISeaDrop(SEA_DROP);
     NekoRenderer internal renderer;
@@ -73,6 +75,7 @@ contract NekoSeaDropTest is Test {
         assertTrue(neko.supportsInterface(0x01ffc9a7));
         assertTrue(neko.supportsInterface(0x80ac58cd));
         assertTrue(neko.supportsInterface(0x5b5e139f));
+        assertTrue(neko.supportsInterface(type(ICreatorToken).interfaceId));
         assertTrue(neko.supportsInterface(0x49064906));
         assertFalse(neko.supportsInterface(0xffffffff));
         assertLe(address(neko).code.length, 24_576);
@@ -101,9 +104,13 @@ contract NekoSeaDropTest is Test {
         );
         config.allowedPayers = new address[](1);
         config.allowedPayers[0] = BOB;
+        string memory collection = neko.contractURI();
+        neko.setContractURI("ipfs://custom");
 
         vm.expectEmit(false, false, false, true, address(neko));
         emit ISeaDropTokenContractMetadata.MaxSupplyUpdated(SUPPLY);
+        vm.expectEmit(false, false, false, true, address(neko));
+        emit NekoSeaDrop.ContractURIUpdated(collection);
         vm.expectEmit(true, false, false, true, SEA_DROP);
         emit DropURIUpdated(address(neko), config.dropURI);
         (bool success,) = address(neko).call(abi.encodeWithSelector(bytes4(0x911f456b), config));
@@ -113,7 +120,7 @@ contract NekoSeaDropTest is Test {
         assertEq(seaDrop.getAllowListMerkleRoot(address(neko)), config.allowListData.merkleRoot);
         assertTrue(seaDrop.getFeeRecipientIsAllowed(address(neko), FEE));
         assertTrue(seaDrop.getPayerIsAllowed(address(neko), BOB));
-        assertEq(neko.contractURI(), config.contractURI);
+        assertEq(neko.contractURI(), collection);
 
         vm.prank(ALICE);
         seaDrop.mintAllowList(address(neko), FEE, address(0), 3, allowlist, new bytes32[](0));
@@ -126,7 +133,7 @@ contract NekoSeaDropTest is Test {
         assertTrue(LibString.contains(placeholder, '"name":"0xNeko PFP #1 - Unrevealed"'));
         assertTrue(LibString.contains(placeholder, '"image":"data:image/svg+xml;base64,'));
         vm.prank(ALICE);
-        neko.transferFrom(ALICE, BOB, 1);
+        neko.transferFrom(ALICE, BOB, TEAM_SUPPLY + 1);
         vm.prank(ALICE);
         vm.expectRevert(
             abi.encodeWithSelector(ISeaDrop.MintQuantityExceedsMaxMintedPerWallet.selector, 11, 10)
@@ -134,7 +141,8 @@ contract NekoSeaDropTest is Test {
         seaDrop.mintPublic{value: PRICE}(address(neko), FEE, address(0), 1);
     }
 
-    function testEmptyConfigPreservesProfileAndDropSettings() public {
+    function testEmptyConfigRestoresProfileAndPreservesDropSettings() public {
+        string memory collection = neko.contractURI();
         neko.multiConfigure(_config());
         neko.setContractURI("ipfs://custom");
         PublicDrop memory stage = seaDrop.getPublicDrop(address(neko));
@@ -151,8 +159,9 @@ contract NekoSeaDropTest is Test {
 
         vm.recordLogs();
         neko.multiConfigure(config);
-        assertEq(vm.getRecordedLogs().length, 0);
-        assertEq(neko.contractURI(), "ipfs://custom");
+        // Only the collection profile is written; ignored fields reach no SeaDrop setter.
+        assertEq(vm.getRecordedLogs().length, 1);
+        assertEq(neko.contractURI(), collection);
         assertEq(neko.maxSupply(), SUPPLY);
         assertEq(neko.provenanceHash(), _commitment());
         assertEq(abi.encode(seaDrop.getPublicDrop(address(neko))), abi.encode(stage));
@@ -215,12 +224,15 @@ contract NekoSeaDropTest is Test {
         config.publicDrop.maxTotalMintableByWallet = uint16(SUPPLY + 1);
         neko.multiConfigure(config);
         vm.prank(ALICE);
-        seaDrop.mintPublic{value: PRICE * SUPPLY}(address(neko), FEE, address(0), SUPPLY);
+        uint256 publicSupply = SUPPLY - TEAM_SUPPLY;
+        seaDrop.mintPublic{value: PRICE * publicSupply}(
+            address(neko), FEE, address(0), publicSupply
+        );
         neko.reveal(GENESIS);
         assertTrue(neko.revealed());
         assertEq(neko.tokenURI(1), renderer.tokenURI(1, neko.tokenData(1)));
         (uint256 minted, uint256 total, uint256 maximum) = neko.getMintStats(ALICE);
-        assertEq(minted, SUPPLY);
+        assertEq(minted, publicSupply);
         assertEq(total, SUPPLY);
         assertEq(maximum, SUPPLY);
         vm.prank(ALICE);

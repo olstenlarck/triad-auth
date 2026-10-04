@@ -23,6 +23,9 @@ abstract contract NekoTestBase is Test {
     address internal constant SEA_DROP = address(0x5EA);
     address internal constant ALICE = address(0xA11CE);
     address internal constant BOB = address(0xB0B);
+    address internal constant COLLABORATOR = 0x9D9db340778139774cF73DFB7Bf27498Fa67978F;
+    address internal constant TEAM = 0x6C22d03544609Db5128736706d90D66fC7f45388;
+    uint256 internal constant TEAM_SUPPLY = 20;
     uint256 internal constant INTENDED_SUPPLY = 4663;
     uint256 internal constant PRIMARY_COLOR_QUOTA = 96;
     bytes32 internal constant GENESIS_SEED = keccak256("NekoPFPv3SeaDrop.test.seed");

@@ -8,16 +8,21 @@ Fully on-chain generative 0xNeko SVG cat PFPs. Fixed supply 4663, deterministic 
 - `NekoRenderer`. Deployed renderer with the Mews surface: `traits`, `generate`, `combine`, `visualHash`, `profile`, `render`, and `tokenURI`.
 - `NekoSeedSampler`. Quota-aware deterministic token seeds (keyed 13-bit Feistel plus rejection sampling), inherited by the bridge.
 - `NekoArt`. The bridge between rendering and token state, like Mews's `MewsArt`. Holds the immutable renderer and seed commitment, token seeds, the unrevealed placeholder, token metadata, reveal, and fusion with on-chain ancestry. It enforces the lifetime mint cap.
-- `NekoSeaDrop`. The SeaDrop-facing NFT. Holds ownership, one immutable SeaDrop address, collection metadata, and royalties. Its mint and reveal entrypoints call the bridge.
+- `NekoSeaDrop`. The SeaDrop-facing NFT, like Mews's `MewsSeaDrop`. Holds ownership, one immutable SeaDrop address, collection metadata, royalties, and the transfer validator. It mints the team allocation at deployment. Its mint and reveal entrypoints call the bridge.
 - `seadrop/SeaDropInterfaces.sol`. The same SeaDrop ABI declarations as Mews. The SeaDrop interface ID is `0x1890fe8e`; the Studio `multiConfigure` selector is `0x911f456b`.
+- `seadrop/TransferValidation.sol`. The same creator token and transfer validator interfaces as Mews.
 
 Dependencies are npm-only: `erc721a`, `solady`, and `viem` (allowlist tooling). No submodules, no vendored code. The SeaDrop protocol is not imported. It lives on-chain and receives configuration through `multiConfigure`.
 
-The `multiConfigure` method supports public drops, collection and drop URIs, allowlists, payouts, fee recipients, and payers. Empty fields skip their update. The owner can also change the collection profile with `setContractURI`. Base URI, provenance changes, token gating, and signed-mint fields are ignored.
+The `multiConfigure` method supports public drops, drop URIs, allowlists, payouts, fee recipients, and payers. Empty fields skip their update. Every call writes the hardcoded Neko collection metadata (name, symbol, description, placeholder image, and both collaborators) and ignores the supplied `contractURI` field. The constructor writes the same metadata. The owner can change it separately with `setContractURI`. Base URI, provenance changes, token gating, and signed-mint fields are ignored.
 
 Supply is fixed at 4663. A nonzero `maxSupply` in `multiConfigure` must equal 4663 and emits `MaxSupplyUpdated`; zero skips that announcement. The owner can announce it separately with `setMaxSupply(4663)`. Deployment emits `AllowedSeaDropUpdated`, `SeaDropTokenDeployed`, and `MaxSupplyUpdated` for discovery and indexing.
 
+The 20 team cats are minted at deployment: five to `0x9D9db340778139774cF73DFB7Bf27498Fa67978F` and fifteen to `0x6C22d03544609Db5128736706d90D66fC7f45388`. They count toward the 4663, and they reveal like every other cat.
+
 The NFT retains `setRoyaltyInfo`, `royaltyInfo`, `royaltyAddress`, and `royaltyBasisPoints`. Reveal emits `BatchMetadataUpdate`; fusion emits `MetadataUpdate` for the survivor, and the NFT advertises [ERC-4906](https://eips.ethereum.org/EIPS/eip-4906).
+
+The NFT is a creator token, as in Mews: `getTransferValidator`, `getTransferValidationFunction`, and the owner-only `setTransferValidator`. Every transfer calls the validator when one is set. Mints and burns skip it, so the merge and mutate burns never reach the validator. The owner can switch validators or set the zero address to turn checks off.
 
 The bridge exposes `renderer`, `deriveTokenSeed`, `tokenSeed`, `tokenURI`, and `tokenData`. Both the bridge and renderer expose `generate(seed)` and `generate(traits)`, which return traits and metadata values for an unfused cat. Before reveal, the bridge serves a fixed placeholder cat rendered through the same renderer. The existing seed algorithm, artwork, reveal, and fusion rules are preserved. The SeaDrop integration tests use the same deployed bytecode fixture as Mews.
 
@@ -39,7 +44,7 @@ Individual scripts: `fmt`, `lint`, `test`, `build`, `gas`, `snapshot`.
 
 ## The drop plan
 
-SeaDrop lives at `0x00005EA00Ac477B1030CE78506496e8C2dE24bf5` on every supported chain, including Robinhood Chain. Deploy costs for Ethereum mainnet and Robinhood Chain are in [docs/DEPLOY-COSTS.md](./docs/DEPLOY-COSTS.md).
+SeaDrop lives at `0x00005EA00Ac477B1030CE78506496e8C2dE24bf5` on every supported chain, including Robinhood Chain. Deploy costs on Robinhood Chain are in [docs/DEPLOY-COSTS.md](./docs/DEPLOY-COSTS.md).
 
 Two phases. Allowlist first, public later.
 
@@ -52,13 +57,13 @@ Two phases. Allowlist first, public later.
 
 One leaf per allowlisted wallet: 3 free mints, claimable in one tx or several. SeaDrop caps are lifetime, not per stage, so the public cap includes the free mints: an allowlisted wallet that claimed all 3 can buy up to 7 more in public, everyone else up to 10.
 
-Royalties default to zero. The owner can configure them with `setRoyaltyInfo`.
+Deployment sets royalties to 0% with the deployer as receiver. The owner can change them with `setRoyaltyInfo`.
 
 OpenSea takes 10% of primary mint proceeds (`feeBps = 1000` in every stage, `restrictFeeRecipients = true`, fee wallet `0x0000a26b00c1F0DF003000390027140000fAa719`, "OpenSea: Fees 3"). Free mints pay nothing, so the fee only touches the paid stages.
 
 ## Launch runbook
 
-Decisions still open: chain, payout wallet, public price, the final public cap, both time windows. Everything below is ready to run once those are set.
+The chain is Robinhood Chain (chain ID 4663). Decisions still open: payout wallet, public price, the final public cap, both time windows. Everything below is ready to run once those are set.
 
 ### 1. Seed and commitment
 
@@ -74,37 +79,23 @@ The commitment is exposed through the SeaDrop-standard `provenanceHash` getter a
 
 ### 2. Deploy
 
-One script, three transactions: deploy `NekoRenderer`, deploy `NekoSeaDrop(commitment, renderer, seaDrop)`, then configure the payout address and OpenSea's fee wallet together through `multiConfigure`. The constructor sets Neko's initial collection metadata.
+Copy `.env.example` to `.env` inside `solidity/neko-pfp`. Set `PRIVATE_KEY` to the key for `0x6C22d03544609Db5128736706d90D66fC7f45388` and `GENESIS_SEED_COMMITMENT` to the commitment. The file is ignored by Git. Forge loads it automatically; the script rejects a key for a different wallet and any chain other than Robinhood Chain.
 
-```
-GENESIS_SEED_COMMITMENT=$COMMITMENT PAYOUT_ADDRESS=<payout> \
-  forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PK --broadcast
-```
+From the monorepo root, simulate:
 
-### 3. Allowlist stage
-
-Build the merkle tree (one leaf per wallet: 3 free mints), host the JSON, publish the root:
-
-```
-START_TIME=<unix> END_TIME=<unix> \
-  node scripts/allowlist-merkle.ts wallets.txt > allowlist.json
-# host allowlist.json somewhere stable (the proofs live there), then:
-MERKLE_ROOT=<root> ALLOWLIST_URI=<uri> NEKO=<token> \
-  forge script script/ConfigureDrop.s.sol --sig "allowlist()" --rpc-url $RPC_URL --private-key $PK --broadcast
+```sh
+pnpm --filter neko-pfp run deploy --rpc-url https://rpc.mainnet.chain.robinhood.com
 ```
 
-The leaf encoding (`keccak256(abi.encode(minter, mintParams))`, sorted-pair proofs) is pinned by `test/NekoAllowListLeaf.t.sol` against fixtures the TS script generated. If the script ever drifts from what SeaDrop verifies, that test fails.
+Add `--broadcast` to deploy. The [deployment script](./script/Deploy.s.sol) deploys `NekoRenderer` and `NekoSeaDrop(commitment, renderer, seaDrop)`, sets 0% royalties, and sets the transfer validator `0xA000027A9B2802E1ddf7000061001e5c005A0000`. It does not configure the sale. The constructor mints the team cats and sets the collection metadata.
 
-### 4. Public stage
+### 3. Sale stages
 
-When the public window is decided:
+Configure the allowlist and public stages in OpenSea Studio (step 4). Studio submits them through `multiConfigure`.
 
-```
-PUBLIC_PRICE_WEI=<wei> START_TIME=<unix> END_TIME=<unix> NEKO=<token> \
-  forge script script/ConfigureDrop.s.sol --sig "publicDrop()" --rpc-url $RPC_URL --private-key $PK --broadcast
-```
+`scripts/allowlist-merkle.ts` builds a SeaDrop allowlist tree offline (one leaf per wallet: 3 free mints). Its leaf encoding (`keccak256(abi.encode(minter, mintParams))`, sorted-pair proofs) is pinned by `test/NekoAllowListLeaf.t.sol` against fixtures the script generated. If the script ever drifts from what SeaDrop verifies, that test fails.
 
-### 5. OpenSea mint page
+### 4. OpenSea mint page
 
 Two things get called "the drop page". They are separate.
 
@@ -116,12 +107,12 @@ Studio flow, per OpenSea's [Create a primary drop](https://docs.opensea.io/docs/
 1. Sign in at [opensea.io/studio](https://opensea.io/studio) with the deployer wallet on the right chain. Studio calls `supportsInterface(0x1890fe8e)` and lists the contract. Discovery is by ownership; there is no import button because none is needed.
 2. Fill in collection details. Name and description come from the on-chain `contractURI`; add banner, logo, socials.
 3. Skip metadata upload. Studio's uploader is for off-chain `baseURI` collections. `NekoRenderer` returns full data URIs.
-4. Check the drop settings show the stages configured in steps 3 and 4. Studio and the configuration scripts use `multiConfigure`.
+4. Configure the payout address, the allowlist stage, and the public stage. Studio submits them through `multiConfigure`.
 5. Customize the landing page, then Publish. That signs an on-chain tx and turns on `opensea.io/collection/<slug>/drop`.
 
 Without Studio, minting still works. Anyone can call `SeaDrop.mintPublic(nftContract, feeRecipient, minterIfNotPayer, quantity)` from a wallet or dapp, or use the OpenSea Drops SDK (`sdk.api.buildDropMintTransaction`). You lose the `/drop` UI, not the mint.
 
-### 6. Reveal
+### 5. Reveal
 
 Once all 4663 are minted:
 
