@@ -44,7 +44,7 @@ Individual scripts: `fmt`, `lint`, `test`, `build`, `gas`, `snapshot`.
 
 ## The drop plan
 
-SeaDrop lives at `0x00005EA00Ac477B1030CE78506496e8C2dE24bf5` on every supported chain, including Robinhood Chain. Deploy costs on Robinhood Chain are in [docs/DEPLOY-COSTS.md](./docs/DEPLOY-COSTS.md).
+SeaDrop lives at `0x00005EA00Ac477B1030CE78506496e8C2dE24bf5` on every supported chain, including Robinhood Chain. Deploy costs for Ethereum mainnet and Robinhood Chain are in [docs/DEPLOY-COSTS.md](./docs/DEPLOY-COSTS.md).
 
 Two phases. Allowlist first, public later.
 
@@ -63,7 +63,7 @@ OpenSea takes 10% of primary mint proceeds (`feeBps = 1000` in every stage, `res
 
 ## Launch runbook
 
-The chain is Robinhood Chain (chain ID 4663). Decisions still open: payout wallet, public price, the final public cap, both time windows. Everything below is ready to run once those are set.
+Decisions still open: chain (Robinhood Chain or Ethereum mainnet), payout wallet, public price, the final public cap, both time windows. Everything below is ready to run once those are set.
 
 ### 1. Seed and commitment
 
