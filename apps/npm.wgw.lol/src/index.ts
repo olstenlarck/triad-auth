@@ -117,7 +117,7 @@ app.all("*", async (c) => {
         headers: {
           accept: "application/vnd.github+json",
           authorization: `Bearer ${bearer}`,
-          "user-agent": "vlt-front-worker",
+          "user-agent": "vlt-npm-wgw-lol",
           "x-github-api-version": "2026-03-10",
         },
       });
