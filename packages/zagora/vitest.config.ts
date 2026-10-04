@@ -1,18 +1,12 @@
-import isCI from "is-ci";
 import { defineConfig } from "vitest/config";
+
+// lcovonly feeds scripts/coverage-badge.ts, which reads coverage/lcov.info.
 export default defineConfig({
   test: {
     coverage: {
-      enabled: process.env.COV === "1" || isCI,
-      clean: true,
-      cleanOnRerun: true,
-      reporter: ["text", "lcovonly", "html-spa"],
-      exclude: ["dist/**"],
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      reporter: ["text", "lcovonly"],
     },
-    // NOTE: seems to not work..
-    // typecheck: {
-    //   enabled: true,
-    //   tsconfig: "./tsconfig.json",
-    // },
   },
 });

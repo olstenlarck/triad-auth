@@ -42,21 +42,21 @@ function parseLcovFile(filePath: string): CoverageMetrics {
 
     // Use summary lines (LF/LH for lines, FNF/FNH for functions, BRF/BRH for branches)
     if (trimmed.startsWith("LF:")) {
-      metrics.linesFound += parseInt(trimmed.substring(3), 10);
+      metrics.linesFound += parseInt(trimmed.slice(3), 10);
     } else if (trimmed.startsWith("LH:")) {
-      metrics.linesHit += parseInt(trimmed.substring(3), 10);
+      metrics.linesHit += parseInt(trimmed.slice(3), 10);
     }
     // Functions found/hit (FNF/FNH)
     else if (trimmed.startsWith("FNF:")) {
-      metrics.functionsFound += parseInt(trimmed.substring(4), 10);
+      metrics.functionsFound += parseInt(trimmed.slice(4), 10);
     } else if (trimmed.startsWith("FNH:")) {
-      metrics.functionsHit += parseInt(trimmed.substring(4), 10);
+      metrics.functionsHit += parseInt(trimmed.slice(4), 10);
     }
     // Branches found/hit (BRF/BRH)
     else if (trimmed.startsWith("BRF:")) {
-      metrics.branchesFound += parseInt(trimmed.substring(4), 10);
+      metrics.branchesFound += parseInt(trimmed.slice(4), 10);
     } else if (trimmed.startsWith("BRH:")) {
-      metrics.branchesHit += parseInt(trimmed.substring(4), 10);
+      metrics.branchesHit += parseInt(trimmed.slice(4), 10);
     }
   }
 
@@ -75,15 +75,13 @@ function calculateCoverage(metrics: CoverageMetrics): number {
   }
 
   if (metrics.functionsFound > 0) {
-    const functionsCoverage =
-      (metrics.functionsHit / metrics.functionsFound) * 100;
+    const functionsCoverage = (metrics.functionsHit / metrics.functionsFound) * 100;
     weightedSum += functionsCoverage * 0.25;
     totalWeight += 0.25;
   }
 
   if (metrics.branchesFound > 0) {
-    const branchesCoverage =
-      (metrics.branchesHit / metrics.branchesFound) * 100;
+    const branchesCoverage = (metrics.branchesHit / metrics.branchesFound) * 100;
     weightedSum += branchesCoverage * 0.15;
     totalWeight += 0.15;
   }
@@ -166,14 +164,15 @@ function main() {
   // Exit with error code if coverage is below threshold
   const threshold = parseFloat(process.env.COVERAGE_THRESHOLD || "0");
   if (threshold > 0 && coverage < threshold) {
-    console.error(
-      `❌ Coverage ${coverage.toFixed(2)}% is below threshold ${threshold}%`,
-    );
+    console.error(`❌ Coverage ${coverage.toFixed(2)}% is below threshold ${threshold}%`);
     return process.exit(1);
   }
 }
 
-function coverageColor(value, colors = {}) {
+function coverageColor(
+  value: number,
+  colors: Partial<Record<"red" | "orange" | "yellow" | "green", number>> = {},
+) {
   const defaultColors = { green: 100, yellow: 85, orange: 70, red: 35 };
   const { red, orange, yellow, green } = { ...defaultColors, ...colors };
 

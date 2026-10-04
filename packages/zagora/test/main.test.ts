@@ -3,12 +3,9 @@
 import * as v from "valibot";
 import { expect, expectTypeOf, test } from "vitest";
 import z from "zod";
-import {
-  isDefinedError,
-  isInternalError,
-  isValidationError,
-} from "../src/errors.ts";
-import { zagora } from "../src/index.ts";
+
+import { isDefinedError, isInternalError, isValidationError } from "../src/errors";
+import { zagora } from "../src/index";
 
 // Schemas
 const errorSchemas = {
@@ -80,9 +77,7 @@ test("context override in callable", () => {
     .context({ db: "default" })
     .input(z.string())
     .output(z.string())
-    .handler(({ context }, input) => {
-      return `${input}-${context.db}`;
-    })
+    .handler(({ context }, input) => `${input}-${context.db}`)
     .callable({ context: { db: "override" } });
 
   const res = fn("baz");
@@ -146,9 +141,7 @@ test("multiple typed errors discriminated union", () => {
 });
 
 test("async input schema", async () => {
-  const asyncSchema = z
-    .string()
-    .refine(async (val) => val.length > 2, "Min 3 chars");
+  const asyncSchema = z.string().refine(async (val) => val.length > 2, "Min 3 chars");
 
   const fn = zagora()
     .input(asyncSchema)
@@ -169,9 +162,7 @@ test("async input schema", async () => {
 });
 
 test("async output schema", async () => {
-  const asyncSchema = z
-    .string()
-    .refine(async (val) => val !== "bad", "Bad value");
+  const asyncSchema = z.string().refine(async (val) => val !== "bad", "Bad value");
 
   const fn = zagora()
     .input(z.string())
@@ -253,9 +244,7 @@ test("union-typed Valibot schemas preserve runtime return shape", async () => {
 
 test("handleError with async schema validation", async () => {
   const asyncErrorSchema = z.object({
-    message: z
-      .string()
-      .refine(async (val) => val.length < 500, "Message too long"),
+    message: z.string().refine(async (val) => val.length < 500, "Message too long"),
   });
 
   const fn = zagora()
@@ -292,11 +281,7 @@ test("async handler typed error", async () => {
     .callable();
 
   const res = await fn("fail");
-  if (
-    !res.ok &&
-    isDefinedError(res.error) &&
-    res.error.kind === "NETWORK_ERROR"
-  ) {
+  if (!res.ok && isDefinedError(res.error) && res.error.kind === "NETWORK_ERROR") {
     expect(res.error.statusCode).toBe(408);
   } else {
     expect(false, "Expected NETWORK_ERROR in async").toBe(true);
@@ -318,9 +303,7 @@ test("async handler regular untyped error thrown", async () => {
   const res = await fn("fail");
   if (!res.ok && isInternalError(res.error)) {
     expect(res.error.cause).toBeInstanceOf(Error);
-    expect((res.error.cause as Error).message).toBe(
-      "Some custom err thrown from async handler",
-    );
+    expect((res.error.cause as Error).message).toBe("Some custom err thrown from async handler");
   } else {
     expect(false, "Expected internal error from async").toBe(true);
   }
@@ -486,17 +469,11 @@ test("multiple procedures (calculator) from single instance (autoCallable:true)"
     return a + b;
   });
 
-  const subtract = za
-    .input(z.tuple([z.number(), z.number()]))
-    .handler((a, b) => a - b);
+  const subtract = za.input(z.tuple([z.number(), z.number()])).handler((a, b) => a - b);
 
-  const multiply = za
-    .input(z.tuple([z.number(), z.number()]))
-    .handler((a, b) => a * b);
+  const multiply = za.input(z.tuple([z.number(), z.number()])).handler((a, b) => a * b);
 
-  const divide = za
-    .input(z.tuple([z.number(), z.number()]))
-    .handler((a, b) => a / b);
+  const divide = za.input(z.tuple([z.number(), z.number()])).handler((a, b) => a / b);
 
   const added = add(1, 2);
   if (added.ok) {
@@ -541,10 +518,7 @@ test("multiple procedures (calculator) from single instance (autoCallable:true)"
 
 test("handle optional/default values in object schemas", async () => {
   const SpeedSchema = z.enum(["slow", "normal", "fast"]);
-  const NumberSchema = z
-    .string()
-    .transform(Number)
-    .pipe(z.number().int().gte(0));
+  const NumberSchema = z.string().transform(Number).pipe(z.number().int().gte(0));
 
   const InputSchema = z.object({
     speed: SpeedSchema,
@@ -585,63 +559,59 @@ test("handle optional/default values in object schemas", async () => {
     .input(InputSchema)
     .output(SuccessSchema);
 
-  const getPrices = getPricesContract.handler(
-    async ({ errors: err }, input) => {
-      const { speed, num, includeDetails } = input;
-      expectTypeOf(input).toEqualTypeOf<{
-        speed: "slow" | "normal" | "fast";
-        num: number;
-        includeDetails: boolean;
-      }>();
+  const getPrices = getPricesContract.handler(async ({ errors: err }, input) => {
+    const { speed, num, includeDetails } = input;
+    expectTypeOf(input).toEqualTypeOf<{
+      speed: "slow" | "normal" | "fast";
+      num: number;
+      includeDetails: boolean;
+    }>();
 
-      // Simulate rate limiting
-      if (num && num > 1000) {
-        throw err.RATE_LIMIT({
-          retryAfter: 60,
-          limit: 1000,
-          message: "Rate limit exceeded, try again in 60 seconds",
+    // Simulate rate limiting
+    if (num && num > 1000) {
+      throw err.RATE_LIMIT({
+        retryAfter: 60,
+        limit: 1000,
+        message: "Rate limit exceeded, try again in 60 seconds",
+      });
+    }
+
+    // Simulate validation error
+    if (speed === "slow" && includeDetails) {
+      throw err.AUTH_ERR({
+        userId: "user123",
+        url: "https://www.ethgastracker.com/api/gas/latest",
+      });
+    }
+
+    try {
+      const resp = await fetch("https://www.ethgastracker.com/api/gas/latest");
+
+      if (!resp.ok) {
+        throw err.NET_ERR({
+          code: resp.status,
+          message: `HTTP ${resp.status}: ${resp.statusText}`,
+          url: resp.url,
         });
       }
 
-      // Simulate validation error
-      if (speed === "slow" && includeDetails) {
-        throw err.AUTH_ERR({
-          userId: "user123",
-          url: "https://www.ethgastracker.com/api/gas/latest",
-        });
-      }
+      const { data }: any = await resp.json();
 
-      try {
-        const resp = await fetch(
-          "https://www.ethgastracker.com/api/gas/latest",
-        );
-
-        if (!resp.ok) {
-          throw err.NET_ERR({
-            code: resp.status,
-            message: `HTTP ${resp.status}: ${resp.statusText}`,
-            url: resp.url,
-          });
-        }
-
-        const { data }: any = await resp.json();
-
-        // Success case - return the data
-        return {
-          block_number: String(data.blockNr),
-          base_fee: String(data.baseFee),
-          next_fee: String(data.nextFee),
-          eth_price: String(data.ethPrice),
-          gas_price: String(data.oracle[speed].gwei),
-          gas_fee: String(data.oracle[speed].gasFee),
-          priority_fee: String(data.oracle[speed].priorityFee),
-        };
-      } catch (error) {
-        // This will be automatically wrapped in ZagoraError since we didn't handle it with our typed errors
-        throw new Error(`Failed to fetch gas prices: ${error}`);
-      }
-    },
-  );
+      // Success case - return the data
+      return {
+        block_number: String(data.blockNr),
+        base_fee: String(data.baseFee),
+        next_fee: String(data.nextFee),
+        eth_price: String(data.ethPrice),
+        gas_price: String(data.oracle[speed].gwei),
+        gas_fee: String(data.oracle[speed].gasFee),
+        priority_fee: String(data.oracle[speed].priorityFee),
+      };
+    } catch (error) {
+      // This will be automatically wrapped in ZagoraError since we didn't handle it with our typed errors
+      throw new Error(`Failed to fetch gas prices: ${error}`, { cause: error });
+    }
+  });
 
   const prices = await getPrices({
     speed: "normal",
@@ -736,11 +706,7 @@ test("basic in-memory caching/memoization", async () => {
 
 test("cache adapter passed through `.callable` method", async () => {
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ok
-  async function fixture(
-    withSetError = false,
-    withGetError = false,
-    withHasError = false,
-  ) {
+  async function fixture(withSetError = false, withGetError = false, withHasError = false) {
     let called = 0;
     const cache = new Map();
     const hello = zagora()
@@ -781,17 +747,13 @@ test("cache adapter passed through `.callable` method", async () => {
       if (!res.ok) {
         expect(res.error.kind).toBe("UNKNOWN_ERROR");
         expect(res.error.message).toContain(
-          withSetError
-            ? "Failure in async CacheAdapter.set"
-            : "Failure in CacheAdapter.has",
+          withSetError ? "Failure in async CacheAdapter.set" : "Failure in CacheAdapter.has",
         );
         if (withSetError) {
           expect((res.error as any)?.cause?.message).toContain("Set method is");
         }
         if (withHasError) {
-          expect((res.error as any)?.cause?.message).toContain(
-            "The has is not impl",
-          );
+          expect((res.error as any)?.cause?.message).toContain("The has is not impl");
         }
       }
 
@@ -807,9 +769,7 @@ test("cache adapter passed through `.callable` method", async () => {
       if (!res2.ok) {
         expect(res2.error.kind).toBe("UNKNOWN_ERROR");
         expect(res2.error.message).toContain("Failure in CacheAdapter.get");
-        expect((res2.error as any)?.cause?.message).toContain(
-          "Get method not impl",
-        );
+        expect((res2.error as any)?.cause?.message).toContain("Get method not impl");
       }
 
       return;
@@ -932,14 +892,7 @@ test("passning and sync env schema", () => {
 
 test("4-argument tuple with all required", () => {
   const fn = zagora()
-    .input(
-      z.tuple([
-        z.string(),
-        z.number(),
-        z.boolean(),
-        z.object({ id: z.string() }),
-      ]),
-    )
+    .input(z.tuple([z.string(), z.number(), z.boolean(), z.object({ id: z.string() })]))
     .output(z.string())
     .handler((_, str, num, bool, obj) => {
       expectTypeOf(str).toEqualTypeOf<string>();
@@ -961,14 +914,7 @@ test("4-argument tuple with all required", () => {
 
 test("4-argument tuple with last optional", () => {
   const fn = zagora()
-    .input(
-      z.tuple([
-        z.string(),
-        z.number(),
-        z.boolean(),
-        z.object({ id: z.string() }).optional(),
-      ]),
-    )
+    .input(z.tuple([z.string(), z.number(), z.boolean(), z.object({ id: z.string() }).optional()]))
     .output(z.string())
     .handler((_, str, num, bool, obj) => {
       expectTypeOf(str).toEqualTypeOf<string>();
