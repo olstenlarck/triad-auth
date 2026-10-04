@@ -239,7 +239,6 @@ export function createResult(data: any, error: any, isTypedError: boolean) {
   return { ok: true, data, error: undefined } as const;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: it's fine
 export function handleTupleDefaults(schema: AnySchema, rawArgs: unknown[]): unknown[] {
   // Check if this might be a tuple schema by examining the schema structure
   const schemaAny = schema as any;

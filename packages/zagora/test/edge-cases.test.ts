@@ -24,7 +24,7 @@ test("typed errors should be in options - when input schema is defined", () => {
       // NOTE: simulate return, because the return types break
       // when no return and no `input` schema
 
-      // biome-ignore lint/correctness/noUnreachable: bruh
+      // oxlint-disable-next-line no-unreachable -- the dead return gives the handler a string return type
       return "foo";
     })
     .callable();
@@ -284,7 +284,7 @@ test("Handler without input schema should work", () => {
     .errors(errorSchemas)
     .handler(({ errors }) => {
       throw errors.BARRY_ERR({ msg: "Some custom error" });
-      // biome-ignore lint/correctness/noUnreachable: bruh
+      // oxlint-disable-next-line no-unreachable -- the dead return gives the handler a string return type
       return "foo";
     })
     .callable();

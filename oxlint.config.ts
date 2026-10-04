@@ -177,7 +177,6 @@ export default defineConfig({
         "anti-slop/require-safety-comment-for-type-assertion": "off",
         "class-methods-use-this": "off",
         "no-throw-literal": "off",
-        "no-unreachable": "off",
         "no-warning-comments": "off",
         "typescript/ban-types": "off",
         "typescript/no-explicit-any": "off",

@@ -704,7 +704,6 @@ test("basic in-memory caching/memoization", async () => {
   expect(called, "Expects `called` to be incremented").toBe(2);
 });
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ok
 async function fixture(withSetError = false, withGetError = false, withHasError = false) {
   let called = 0;
   const cache = new Map();
