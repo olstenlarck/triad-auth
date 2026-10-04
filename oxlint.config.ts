@@ -168,5 +168,23 @@ export default defineConfig({
         "unicorn/prefer-spread": "off",
       },
     },
+    {
+      // Zagora was migrated as it was. The library is `any`-heavy by design, and the tests throw the
+      // typed error objects on purpose. Enable these one at a time in follow-up pull requests.
+      files: ["packages/zagora/**"],
+      rules: {
+        "anti-slop/no-object-parameters": "off",
+        "anti-slop/require-safety-comment-for-type-assertion": "off",
+        "class-methods-use-this": "off",
+        "no-throw-literal": "off",
+        "no-warning-comments": "off",
+        "typescript/ban-types": "off",
+        "typescript/no-explicit-any": "off",
+        "typescript/no-this-alias": "off",
+        "typescript/no-unnecessary-type-parameters": "off",
+        "typescript/only-throw-error": "off",
+        "unicorn/no-this-assignment": "off",
+      },
+    },
   ],
 });

@@ -1,0 +1,67 @@
+{
+  "name": "zagora",
+  "version": "1.0.0-next.8",
+  "description": "A minimalist & robust way to create type-safe and error-safe never throwing functions & libraries in TypeScript - with input/output validation and typed errors. Based on StandardSchema-compliant validation libraries. No batteries, no routers, it's just functions that you can export and use. Simple but robust alternative to oRPC and tRPC, no network layer.",
+  "keywords": [
+    "error-safe",
+    "fn",
+    "funcs",
+    "functions",
+    "minimal",
+    "procedures",
+    "rpc",
+    "type-safe",
+    "typesafe",
+    "typescript"
+  ],
+  "license": "Apache-2.0",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./errors": "./src/errors.ts",
+    "./types": "./src/types.ts",
+    "./utils": "./src/utils.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./errors": {
+        "types": "./dist/errors.d.ts",
+        "default": "./dist/errors.js"
+      },
+      "./types": {
+        "types": "./dist/types.d.ts",
+        "default": "./dist/types.js"
+      },
+      "./utils": {
+        "types": "./dist/utils.d.ts",
+        "default": "./dist/utils.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "access": "public",
+    "tag": "next"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check": "ultracite fix --type-aware --type-check",
+    "coverage:badge": "bun scripts/coverage-badge.ts",
+    "test": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "catalog:"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:",
+    "valibot": "catalog:",
+    "zod": "catalog:"
+  }
+}

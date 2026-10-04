@@ -24,3 +24,4 @@ out/
 *.log
 .turbo/
 .turbo/
+coverage/
