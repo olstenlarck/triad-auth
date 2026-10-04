@@ -476,7 +476,10 @@ export class Zagora<
         : TProvidedCache
       : TCacheAdapter;
 
-    const za: this = options.cache ? (this.cache(options.cache) as any) : this;
+    let za = this;
+    if (options.cache) {
+      za = this.cache(options.cache) as any;
+    }
 
     return za._createProcedure<TEffectiveCacheAdapter, TIncomingEnv, TNewContext, TKindNames>(
       options.context,
