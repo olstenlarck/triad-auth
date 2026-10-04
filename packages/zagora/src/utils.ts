@@ -1,10 +1,15 @@
-import nodeCrypto from "node:crypto";
-
 import { createInternalError, createValidationError } from "./errors";
 import type { AnySchema, CacheAdapter } from "./types";
 
+// FNV-1a, 64-bit. Cache keys are computed on the synchronous path, and Web Crypto only digests
+// asynchronously, so the hash is plain JavaScript and the package stays platform-neutral.
 export function getCacheHash(data: string) {
-  return nodeCrypto.createHash("sha256").update(data).digest("hex");
+  let hash = 0xcbf29ce484222325n;
+  for (let i = 0; i < data.length; i++) {
+    hash ^= BigInt(data.charCodeAt(i));
+    hash = (hash * 0x100000001b3n) & 0xffffffffffffffffn;
+  }
+  return hash.toString(16).padStart(16, "0");
 }
 
 function createUnexpectedValidationError(
