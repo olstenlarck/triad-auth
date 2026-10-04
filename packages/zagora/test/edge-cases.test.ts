@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import * as v from "valibot";
 import { expect, test } from "vitest";
-import z from "zod";
+import { z } from "zod";
 
 import { isInternalError } from "../src/errors";
 import { zagora } from "../src/index";
@@ -318,17 +318,17 @@ test("Handler without input schema and no errors should work", () => {
   }
 });
 
-test("wrapping external async functions in pseudo-sync `.handler` fn", async () => {
-  // Basic async function that can succeed or fail
-  const basicAsyncFn = async (input: string): Promise<string> => {
-    if (input !== "foobie") {
-      throw new Error("Basic async failed");
-    }
-    return `processed: ${input}`;
-  };
+// Basic async function that can succeed or fail
+const basicAsyncFn = async (input: string): Promise<string> => {
+  if (input !== "foobie") {
+    throw new Error("Basic async failed");
+  }
+  return `processed: ${input}`;
+};
 
+test("wrapping external async functions in pseudo-sync `.handler` fn", async () => {
   const basicWrapper = zagora()
-    .handler((_) => basicAsyncFn("foobie"))
+    .handler(() => basicAsyncFn("foobie"))
     .callable();
 
   const res1 = await basicWrapper();
@@ -337,7 +337,7 @@ test("wrapping external async functions in pseudo-sync `.handler` fn", async () 
 
   // Test basic wrapper without schemas - failure
   const failingBasicWrapper = zagora()
-    .handler((_) => basicAsyncFn("fail one"))
+    .handler(() => basicAsyncFn("fail one"))
     .callable();
 
   const res2 = await failingBasicWrapper();

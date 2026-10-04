@@ -131,7 +131,7 @@ export type ConditionalCacheAsync<TCache, TResult> = [HasAsyncCache<TCache>] ext
 // TEST: with expect-type
 export type ZagoraResult<
   TOutput,
-  TErrorsMap extends Record<string, AnySchema> | any,
+  TErrorsMap,
   TResolvedResult,
   IsTypedError = TErrorsMap extends Record<string, any> ? boolean : false,
 > = TResolvedResult extends { readonly ok: true }

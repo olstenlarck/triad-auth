@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from "vitest";
-import z from "zod";
+import { z } from "zod";
 
 import { zagora } from "../src/index";
 

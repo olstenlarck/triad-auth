@@ -42,21 +42,21 @@ function parseLcovFile(filePath: string): CoverageMetrics {
 
     // Use summary lines (LF/LH for lines, FNF/FNH for functions, BRF/BRH for branches)
     if (trimmed.startsWith("LF:")) {
-      metrics.linesFound += parseInt(trimmed.slice(3), 10);
+      metrics.linesFound += Number(trimmed.slice(3));
     } else if (trimmed.startsWith("LH:")) {
-      metrics.linesHit += parseInt(trimmed.slice(3), 10);
+      metrics.linesHit += Number(trimmed.slice(3));
     }
     // Functions found/hit (FNF/FNH)
     else if (trimmed.startsWith("FNF:")) {
-      metrics.functionsFound += parseInt(trimmed.slice(4), 10);
+      metrics.functionsFound += Number(trimmed.slice(4));
     } else if (trimmed.startsWith("FNH:")) {
-      metrics.functionsHit += parseInt(trimmed.slice(4), 10);
+      metrics.functionsHit += Number(trimmed.slice(4));
     }
     // Branches found/hit (BRF/BRH)
     else if (trimmed.startsWith("BRF:")) {
-      metrics.branchesFound += parseInt(trimmed.slice(4), 10);
+      metrics.branchesFound += Number(trimmed.slice(4));
     } else if (trimmed.startsWith("BRH:")) {
-      metrics.branchesHit += parseInt(trimmed.slice(4), 10);
+      metrics.branchesHit += Number(trimmed.slice(4));
     }
   }
 
@@ -162,7 +162,7 @@ function main() {
   }
 
   // Exit with error code if coverage is below threshold
-  const threshold = parseFloat(process.env.COVERAGE_THRESHOLD || "0");
+  const threshold = Number(process.env.COVERAGE_THRESHOLD || "0");
   if (threshold > 0 && coverage < threshold) {
     console.error(`❌ Coverage ${coverage.toFixed(2)}% is below threshold ${threshold}%`);
     return process.exit(1);

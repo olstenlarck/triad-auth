@@ -30,7 +30,7 @@ export function validateInputOutputOrEnv(mode: "input" | "output" | "env", schem
     if (result instanceof Promise) {
       return result
         .then(processResult)
-        .catch((error) => createUnexpectedValidationError(mode, error));
+        .catch((error: unknown) => createUnexpectedValidationError(mode, error));
     }
     return processResult(result);
   } catch (error) {
@@ -79,7 +79,7 @@ export function validateError<TKindNames>(
       if (result instanceof Promise) {
         return result
           .then(processError)
-          .catch((error) => createUnexpectedValidationError("error data", error));
+          .catch((error: unknown) => createUnexpectedValidationError("error data", error));
       }
       return processError(result);
     } catch (error) {
@@ -187,13 +187,13 @@ export function executeHandler(
   return handlerResult;
 }
 
-export function tryCatch(fn: any, isHandler: boolean, method: string = "") {
+export function tryCatch(fn: any, isHandler: boolean, method = "") {
   try {
     const res = fn();
     if (res instanceof Promise) {
       return res
         .then((data) => createResult(data, null, false))
-        .catch((error) => {
+        .catch((error: unknown) => {
           if (isHandler) {
             return {
               ok: false as const,

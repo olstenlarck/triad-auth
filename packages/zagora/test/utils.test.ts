@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from "vitest";
-import z from "zod";
+import { z } from "zod";
 
 import { zagora } from "../src/index";
 import { deepMerge, handleTupleDefaults } from "../src/utils";
@@ -42,7 +42,7 @@ test("validateInputOutput - sync validation with issues on output (line 87)", ()
   const fn = zagora()
     .input(z.string())
     .output(z.number())
-    .handler((_, input) => "not a number")
+    .handler(() => "not a number")
     .callable();
 
   const res = fn("valid input");

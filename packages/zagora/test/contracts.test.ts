@@ -3,7 +3,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as v from "valibot";
 import { expect, test } from "vitest";
-import z from "zod";
+import { z } from "zod";
 
 import { createErrorHelpers } from "../src/errors";
 import { zagora } from "../src/index";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, test } from "vitest";
-import z from "zod";
+import { z } from "zod";
 
 import { zagora } from "../src/index";
 
@@ -200,7 +200,7 @@ test("autoCallable: true + disableOptions: true - with tuple", () => {
 });
 
 test("autoCallable: true - no input schema", () => {
-  const fn = zagora({ autoCallable: true }).handler((_) => "no input");
+  const fn = zagora({ autoCallable: true }).handler(() => "no input");
 
   const res = fn();
   if (res.ok) {

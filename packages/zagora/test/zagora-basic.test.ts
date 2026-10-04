@@ -2,7 +2,7 @@
 
 import * as v from "valibot";
 import { expect, test } from "vitest";
-import z from "zod";
+import { z } from "zod";
 
 import { Zagora, zagora } from "../src/index";
 
@@ -130,7 +130,7 @@ test("should maintain immutability when chaining", () => {
 
 test("should NOT throw error when handler called without input schema", async () => {
   const fn = zagora()
-    .handler((_) => "foobar")
+    .handler(() => "foobar")
     .callable();
 
   const res = fn();

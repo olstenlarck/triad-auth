@@ -666,7 +666,7 @@ test("Function parameters - createResult, validateInputOutputOrEnv, validateErro
 
   // Test that createResult accepts the correct parameter types
   expectTypeOf(createResult).toBeCallableWith("data", null, false);
-  expectTypeOf(createResult).toBeCallableWith(null, new Error(), true);
+  expectTypeOf(createResult).toBeCallableWith(null, new Error("boom"), true);
   expectTypeOf(createResult).toBeCallableWith({ any: "data" }, null, false);
 
   // Test validateInputOutputOrEnv parameters

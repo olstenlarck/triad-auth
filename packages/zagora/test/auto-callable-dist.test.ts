@@ -1,5 +1,5 @@
 import { expectTypeOf, test } from "vitest";
-import z from "zod";
+import { z } from "zod";
 
 import { zagora } from "../dist/index";
 

@@ -54,15 +54,7 @@ export interface ZagoraConfig {
   autoCallable?: boolean;
 }
 
-export function zagora(): Zagora<
-  any,
-  undefined,
-  undefined,
-  undefined,
-  undefined,
-  undefined,
-  undefined
->;
+export function zagora(): Zagora<any>;
 export function zagora<
   TDisableOptions extends boolean = false,
   TAutoCallable extends boolean = false,
@@ -98,9 +90,19 @@ export function zagora(config?: ZagoraConfig) {
   return new Zagora(config) as any;
 }
 
+const isAsyncSchema = (schema: unknown) =>
+  (schema as { async?: boolean } | undefined)?.async === true;
+
+const processor = (mode: "input" | "output", schema: any, data: any) => {
+  if (schema) {
+    return validateInputOutputOrEnv(mode, schema, data);
+  }
+  return createResult(data, null, false);
+};
+
 export class Zagora<
   THandlerFn extends (...args: any[]) => any,
-  TContext extends any | undefined = undefined,
+  TContext = undefined,
   TInputSchema extends AnySchema | undefined = undefined,
   TOutputSchema extends AnySchema | undefined = undefined,
   TErrorsMap extends Record<string, AnySchema> | undefined = undefined,
@@ -317,8 +319,6 @@ export class Zagora<
     const envVarsMapSchema = zagora.envVarsMapSchema;
     const baseEnvVars = zagora.envVars;
 
-    const isAsyncSchema = (schema: unknown) =>
-      (schema as { async?: boolean } | undefined)?.async === true;
     const hasAsyncSchema =
       isAsyncSchema(inputSchema) ||
       isAsyncSchema(outputSchema) ||
@@ -364,13 +364,6 @@ export class Zagora<
         (schemaAny?._def && schemaAny?._def?.type === "array") || schemaAny?.type === "array";
 
       const isPrimitiveSchema = !isTupleSchema;
-
-      const processor = (mode: "input" | "output", schema: any, data: any) => {
-        if (schema) {
-          return validateInputOutputOrEnv(mode, schema, data);
-        }
-        return createResult(data, null, false);
-      };
 
       const processInput = (inputData: any) => {
         // NOTE: isTuple is safe/enough here cuz it's based on the inputSchema,
@@ -483,10 +476,7 @@ export class Zagora<
         : TProvidedCache
       : TCacheAdapter;
 
-    let za = this;
-    if (options.cache) {
-      za = this.cache(options.cache) as any;
-    }
+    const za: this = options.cache ? (this.cache(options.cache) as any) : this;
 
     return za._createProcedure<TEffectiveCacheAdapter, TIncomingEnv, TNewContext, TKindNames>(
       options.context,
