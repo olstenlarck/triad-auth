@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from "vitest";
 import z from "zod";
+
 import { zagora } from "../src/index";
 
 test("autoCallable: false (default) - requires .callable() call", () => {

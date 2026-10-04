@@ -2,6 +2,7 @@
 
 import { expect, test } from "vitest";
 import z from "zod";
+
 import { zagora } from "../src/index";
 
 test("disableOptions: false (default) - handler receives options as first arg", () => {
@@ -9,9 +10,7 @@ test("disableOptions: false (default) - handler receives options as first arg", 
     .input(z.string())
     .output(z.string())
     .context({ userId: "123" })
-    .handler(({ context }, input) => {
-      return `${input}-${context.userId}`;
-    })
+    .handler(({ context }, input) => `${input}-${context.userId}`)
     .callable();
 
   const res = fn("hello");
@@ -26,9 +25,7 @@ test("disableOptions: true - handler receives only input", () => {
   const fn = zagora({ disableOptions: true })
     .input(z.string())
     .output(z.string())
-    .handler((input) => {
-      return input.toUpperCase();
-    })
+    .handler((input) => input.toUpperCase())
     .callable();
 
   const res = fn("hello");
@@ -43,9 +40,7 @@ test("disableOptions: true - handler with tuple input spreads args", () => {
   const fn = zagora({ disableOptions: true })
     .input(z.tuple([z.number(), z.string()]))
     .output(z.string())
-    .handler((num, str) => {
-      return `${str}-${num}`;
-    })
+    .handler((num, str) => `${str}-${num}`)
     .callable();
 
   const res = fn(42, "answer");
@@ -59,9 +54,7 @@ test("disableOptions: true - handler with tuple input spreads args", () => {
 test("disableOptions: true - handler with no input", () => {
   const fn = zagora({ disableOptions: true })
     .output(z.string())
-    .handler(() => {
-      return "no input needed";
-    })
+    .handler(() => "no input needed")
     .callable();
 
   const res = fn();

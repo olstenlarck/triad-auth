@@ -1,10 +1,5 @@
-import {
-  createErrorHelpers,
-  createInternalError,
-  type ResolveErrorKindNames,
-} from "./errors";
+import { createErrorHelpers, createInternalError, type ResolveErrorKindNames } from "./errors";
 import type { ConditionalAsync } from "./is-promise";
-
 import type {
   AnySchema,
   CacheAdapter,
@@ -24,7 +19,6 @@ import type {
   ZagoraEnvVars,
   ZagoraResult,
 } from "./types";
-
 import {
   createResult,
   deepMerge,
@@ -35,7 +29,7 @@ import {
 } from "./utils";
 
 export * as errors from "./errors";
-export * as types from "./types";
+export type * as types from "./types";
 export * as utils from "./utils";
 
 type KeysOfUnion<T> = T extends unknown ? keyof T : never;
@@ -67,8 +61,7 @@ export function zagora(): Zagora<
   undefined,
   undefined,
   undefined,
-  undefined,
-  false
+  undefined
 >;
 export function zagora<
   TDisableOptions extends boolean = false,
@@ -117,26 +110,12 @@ export class Zagora<
   TAutoCallable extends boolean = false,
 > {
   "~zagora": Partial<
-    ZagoraDef<
-      TContext,
-      TInputSchema,
-      TOutputSchema,
-      TErrorsMap,
-      TEnvVarsMap,
-      TCacheAdapter
-    >
+    ZagoraDef<TContext, TInputSchema, TOutputSchema, TErrorsMap, TEnvVarsMap, TCacheAdapter>
   >;
 
   constructor(
     def: Partial<
-      ZagoraDef<
-        TContext,
-        TInputSchema,
-        TOutputSchema,
-        TErrorsMap,
-        TEnvVarsMap,
-        TCacheAdapter
-      >
+      ZagoraDef<TContext, TInputSchema, TOutputSchema, TErrorsMap, TEnvVarsMap, TCacheAdapter>
     > = {},
   ) {
     this["~zagora"] = def;
@@ -267,13 +246,7 @@ export class Zagora<
   }
 
   handler<
-    TFn extends ResolveProcedure<
-      TDisableOptions,
-      TContext,
-      TInputSchema,
-      TErrorsMap,
-      TEnvVarsMap
-    >,
+    TFn extends ResolveProcedure<TDisableOptions, TContext, TInputSchema, TErrorsMap, TEnvVarsMap>,
   >(
     fn: TFn,
   ): TAutoCallable extends true
@@ -287,9 +260,7 @@ export class Zagora<
               ReturnType<TFn>,
               ZagoraResult<InferOutput<TOutputSchema, TFn>, TErrorsMap, any>
             >,
-            Promise<
-              ZagoraResult<InferOutput<TOutputSchema, TFn>, TErrorsMap, any>
-            >
+            Promise<ZagoraResult<InferOutput<TOutputSchema, TFn>, TErrorsMap, any>>
           >
         >
       >
@@ -334,8 +305,7 @@ export class Zagora<
     TCache extends CacheAdapter | undefined = TCacheAdapter,
     TEnv = unknown,
     TNewContext extends TContext = TContext,
-    TKindNames extends
-      ResolveErrorKindNames<TErrorsMap> = ResolveErrorKindNames<TErrorsMap>,
+    TKindNames extends ResolveErrorKindNames<TErrorsMap> = ResolveErrorKindNames<TErrorsMap>,
   >(context?: TNewContext, env?: TEnv) {
     const zagora = this["~zagora"];
     const disableOptions = zagora.disableOptions ?? false;
@@ -354,7 +324,7 @@ export class Zagora<
       isAsyncSchema(outputSchema) ||
       Object.values(errorsMap || {}).some(isAsyncSchema);
 
-    const mergedEnvVars = deepMerge({ ...(baseEnvVars || {}) }, env || {});
+    const mergedEnvVars = deepMerge({ ...baseEnvVars }, env || {});
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: -- ok
     const forwardProcedure = (...args: unknown[]) => {
@@ -365,9 +335,7 @@ export class Zagora<
       if (envVars instanceof Promise) {
         return createResult(
           null,
-          createInternalError(
-            "Environment Variables cannot have async schema validation",
-          ),
+          createInternalError("Environment Variables cannot have async schema validation"),
           false,
         );
       }
@@ -379,29 +347,21 @@ export class Zagora<
         ? deepMerge(zagora.initialContext || {}, context)
         : zagora.initialContext;
 
-      const errors = zagora.errorsMap
-        ? createErrorHelpers(zagora.errorsMap as any)
-        : undefined;
+      const errors = zagora.errorsMap ? createErrorHelpers(zagora.errorsMap as any) : undefined;
       const options = {
-        errors: errors,
+        errors,
         context: mergedContext,
         env: envVars.data,
       } as Prettify<
-        ResolveHandlerOptions<
-          Prettify<TNewContext & TContext>,
-          TErrorsMap,
-          TEnvVarsMap
-        >
+        ResolveHandlerOptions<Prettify<TNewContext & TContext>, TErrorsMap, TEnvVarsMap>
       >;
 
       const schemaAny = inputSchema as any;
       const isTupleSchema =
-        (schemaAny?._def && schemaAny?._def?.type === "tuple") ||
-        schemaAny?.type === "tuple";
+        (schemaAny?._def && schemaAny?._def?.type === "tuple") || schemaAny?.type === "tuple";
 
       const isArraySchema =
-        (schemaAny?._def && schemaAny?._def?.type === "array") ||
-        schemaAny?.type === "array";
+        (schemaAny?._def && schemaAny?._def?.type === "array") || schemaAny?.type === "array";
 
       const isPrimitiveSchema = !isTupleSchema;
 
@@ -420,9 +380,7 @@ export class Zagora<
             ? handleTupleDefaults(inputSchema as any, inputData as any)
             : [inputData];
 
-        const executionArgs = disableOptions
-          ? handlerArgs
-          : [options, ...handlerArgs];
+        const executionArgs = disableOptions ? handlerArgs : [options, ...handlerArgs];
 
         const state = processHandler(handlerFn, executionArgs, cacheAdapter, {
           inputSchema,
@@ -468,11 +426,7 @@ export class Zagora<
     };
 
     type TResolvedResult = Awaited<ReturnType<typeof forwardProcedure>>;
-    type Result = ZagoraResult<
-      InferOutput<TOutputSchema, THandlerFn>,
-      TErrorsMap,
-      TResolvedResult
-    >;
+    type Result = ZagoraResult<InferOutput<TOutputSchema, THandlerFn>, TErrorsMap, TResolvedResult>;
 
     type TResult = ConditionalSchemaAsync<
       HasAsyncSchema<TInputSchema, TOutputSchema, TErrorsMap>,
@@ -494,14 +448,7 @@ export class Zagora<
 
     const proc = procedure as typeof procedure & {
       "~zagora": Partial<
-        ZagoraDef<
-          TContext,
-          TInputSchema,
-          TOutputSchema,
-          TErrorsMap,
-          TEnvVarsMap,
-          TCacheAdapter
-        >
+        ZagoraDef<TContext, TInputSchema, TOutputSchema, TErrorsMap, TEnvVarsMap, TCacheAdapter>
       >;
     };
 
@@ -521,10 +468,7 @@ export class Zagora<
       cache?: CacheAdapter;
       env?: ResolveCallableEnv<TOptions, TEnvVarsMap>;
     } & TOptions &
-      Record<
-        Exclude<keyof TOptions, "context" | "cache" | "env">,
-        never
-      > = {} as {
+      Record<Exclude<keyof TOptions, "context" | "cache" | "env">, never> = {} as {
       context?: TNewContext;
       cache?: CacheAdapter;
       env?: ResolveCallableEnv<TOptions, TEnvVarsMap>;
@@ -544,11 +488,9 @@ export class Zagora<
       za = this.cache(options.cache) as any;
     }
 
-    return za._createProcedure<
-      TEffectiveCacheAdapter,
-      TIncomingEnv,
-      TNewContext,
-      TKindNames
-    >(options.context, options.env as any);
+    return za._createProcedure<TEffectiveCacheAdapter, TIncomingEnv, TNewContext, TKindNames>(
+      options.context,
+      options.env as any,
+    );
   }
 }

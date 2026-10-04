@@ -4,7 +4,6 @@
 
 Elevate your TypeScript workflow with Zagora: a sleek, bulletproof toolkit for forging type-safe, error-proof functions and libraries that never throw. Powered by StandardSchema-compliant validators like Zod, Valibot, and Arktype, it delivers rock-solid input/output validation and richly typed errors. No routers, no network baggage — just pure, exportable functions ready to supercharge your code. The ultimate streamlined alternative to oRPC and tRPC, stripping away the network layer for unmatched type-safety, simplicity and robustness.
 
-
 ### Highlights
 
 - 🪶 **Minimal:** Lightweight and focused, built on [StandardSchema](https://standardschema.dev) for seamless validation.
@@ -20,12 +19,7 @@ Elevate your TypeScript workflow with Zagora: a sleek, bulletproof toolkit for f
 - 🎁 **EnvVars Handling:** Handling and validation of environment variables.
 - 🤖 **Agents Ready:** Rules for LLMs with subtle nuances and where to be careful. [Read/get here](./AGENTS.md)
 
-_This library is product of 3+ months of dedication and passion, after 10 years in Open Source._<br>
-_It's the best library I've ever done (i have 300+)._<br>
-_It's the best TypeScript library i've ever wrote (i love it)._<br>
-_It's the most complex TypeScript I've ever wrote._<br>
-_It's the most TypeScript I've ever learned._<br>
-_I went all-in on TypeScript just this year - the experience is unparalleled._<br>
+_This library is product of 3+ months of dedication and passion, after 10 years in Open Source._<br> _It's the best library I've ever done (i have 300+)._<br> _It's the best TypeScript library i've ever wrote (i love it)._<br> _It's the most complex TypeScript I've ever wrote._<br> _It's the most TypeScript I've ever learned._<br> _I went all-in on TypeScript just this year - the experience is unparalleled._<br>
 
 ## Table of Contents
 
@@ -58,7 +52,6 @@ _I went all-in on TypeScript just this year - the experience is unparalleled._<b
 - [ZagoraResult Type](#zagoraresult-type)
 - [License](#license)
 
-
 <!--### Highlights
 
 - **Minimal:** Tiny surface, powered by StandardSchema (Zod, Valibot, Arktype)
@@ -83,16 +76,13 @@ bun install zagora@next
 ## Usage
 
 ```ts
-import { z } from 'zod';
-import { zagora } from 'zagora';
+import { z } from "zod";
+import { zagora } from "zagora";
 
 const za = zagora();
 
 const getUser = za
-  .input(z.tuple([
-    z.string(),
-    z.number().default(18),
-  ]))
+  .input(z.tuple([z.string(), z.number().default(18)]))
   .output(z.object({ name: z.string(), age: z.number(), email: z.string() }))
   .handler(async (_, name, age) => {
     // name: string;
@@ -101,7 +91,7 @@ const getUser = za
   })
   .callable();
 
-const result = await getUser('Charlie');
+const result = await getUser("Charlie");
 if (result.ok) {
   console.log(result.data);
   // ^ { name: 'Charlie', age: 18, email: 'charlie@example.com' }
@@ -118,7 +108,7 @@ const helloUppercased = za
   .handler((_, str) => str.toUpperCase())
   .callable();
 
-const res = helloUppercased('Hello world');
+const res = helloUppercased("Hello world");
 
 if (res.ok) {
   console.log(res);
@@ -131,9 +121,9 @@ const uppercase = zagora({ autoCallable: true, disableOptions: true })
   .handler((arrayOfStrings) => {
     // NOTE: `x` is typed as string too!
     return arrayOfStrings.map((x) => x.toUpperCase());
-  })
+  });
 
-const upRes = uppercase(['foo', 'bar', 'qux']);
+const upRes = uppercase(["foo", "bar", "qux"]);
 if (upRes.ok) {
   console.log(upRes);
   // ^ { ok: true, data: ['FOO', 'BAR', 'QUX' ] }
@@ -143,15 +133,10 @@ if (upRes.ok) {
 You'll also have access to all the types, utils, and error-related stuff through package exports.
 
 ```ts
-import { 
-  isValidationError,
-  isInternalError,
-  isDefinedError,
-  isZagoraError,
-} from 'zagora/errors';
+import { isValidationError, isInternalError, isDefinedError, isZagoraError } from "zagora/errors";
 
-import * as ZagoraTypes from 'zagora/types';
-import * as zagoraUtils from 'zagora/utils';
+import * as ZagoraTypes from "zagora/types";
+import * as zagoraUtils from "zagora/utils";
 ```
 
 [**Back to top**](#table-of-contents)
@@ -159,6 +144,7 @@ import * as zagoraUtils from 'zagora/utils';
 ## Why zagora?
 
 ### Motivation
+
 While `orpc` is great and you can use it for direct function calls (and not network requests with `createRouterClient`), and for example for building "type-safe SDK"s, it does have a few opinions that may get in the way. I use it extensively in my projects, but `zagora` is smaller and even more focused approach - i always wanted "just functions" where you define input, outputs, and you get error-safe, typed function back not a wrapper around it.
 
 Both `tRPC` and `oRPC` are promoted as "backend", or specifically for when you're building "apps". Recently, all major frameworks also introduced similar concepts, like "server actions" and so on. All that is cool, but `zagora` is focused on building just functions, a low-level library for building other libraries - I have a lot of them, so i need a simple way for building type-safe and error-safe functions, where i don't necessarily need network layer and i don't need "routers" concept, and etc.
@@ -171,37 +157,36 @@ They are built around the network, Zagora is built around functions with excelle
 
 - Zagora is focused on producing "just functions", not networks, routers, or groups.
 - oRPC and tRPC does not "support" creating synchornous functions, they are always async
-  + in contrast, Zagora does not use `async/await` anywhere in the codebase, but `instanceof Promise` checks
-  + the return type of Zagora procedures is dynamically inferred based on many factors
-  - return type is NOT a union like `ZagoraResult | Promise<ZagoraResult>` which gives amazing DX
+  - in contrast, Zagora does not use `async/await` anywhere in the codebase, but `instanceof Promise` checks
+  - the return type of Zagora procedures is dynamically inferred based on many factors
+  * return type is NOT a union like `ZagoraResult | Promise<ZagoraResult>` which gives amazing DX
 - oRPC/tRPC cannot create procedures that look like regular functions, they always accept a single object
-  + that's important if you want to create a basic function with multiple input arguments
-  + of course, with oRPC/tRPC you can just pass them as object, but that's not always wanted effect for end-users of libraries
+  - that's important if you want to create a basic function with multiple input arguments
+  - of course, with oRPC/tRPC you can just pass them as object, but that's not always wanted effect for end-users of libraries
 - Zagora allows you to use schema tuples (`z.tuple([z.string(), z.number().default(10)])` to define multiple arguments
 - Zagora is lower-level, focused on building libraries, but can be used to build groups and routers.
-  + groups/routers could be just `const router = { users: { get: getUserProcedure }  }` and everything remains type-safe
-  + for more complex stuff, or if type performance is reached, we can explore further
+  - groups/routers could be just `const router = { users: { get: getUserProcedure }  }` and everything remains type-safe
+  - for more complex stuff, or if type performance is reached, we can explore further
 - Zagora does support injecting typed/runtime "context" to procedures, if/when needed.
 - The whole error system across Zagora is build around typed error objects, never Errors.
-  + meaning, even if your handler fail with syntax error - you'll get ZagoraResult with error in it
-  + it also gives absolute guarantees for never crashing the process, total predictability and type-safety
-  + error determinism - if there's ANY error at ANY level - you'll get `result.error`
+  - meaning, even if your handler fail with syntax error - you'll get ZagoraResult with error in it
+  - it also gives absolute guarantees for never crashing the process, total predictability and type-safety
+  - error determinism - if there's ANY error at ANY level - you'll get `result.error`
 - With Zagora, unlike `neverthrow`, you don't need any kind of "unwrapping" nor need to jump into too much functional programming - you always have either the "ok result" or the "error result".
 - With Zagora, unlike `Effect.ts`, you don't need to learn a whole other mindset or kind of a language
-  + please, just check out `ReScript Lang` before even considering `Effect.ts` - it's far better, compiles to efficient TypeScript, and you'd have to learn NOTHING new other than TypeScript
+  - please, just check out `ReScript Lang` before even considering `Effect.ts` - it's far better, compiles to efficient TypeScript, and you'd have to learn NOTHING new other than TypeScript
 - Zagora does not have the concept of "middlewares" - that should and can be outside
-  + use some type-safe middlware/plugins processing library, i believe there are few - like `use` and `useware` are just one oldschool example
-  + process "middleware" stuff, then provide the final result to the procedure's `.callable` method
-  + I tried adding `.use`, but once I realized all the possible scenarios with all the rest of more important features, it got too complex too fast, especially on type-system level, **I am open though**
-  
+  - use some type-safe middlware/plugins processing library, i believe there are few - like `use` and `useware` are just one oldschool example
+  - process "middleware" stuff, then provide the final result to the procedure's `.callable` method
+  - I tried adding `.use`, but once I realized all the possible scenarios with all the rest of more important features, it got too complex too fast, especially on type-system level, **I am open though**
+
 Funny enough, you can use Zagora to build fully type-safe CLIs with auto-generated detailed help, based on the provided schemas. I have another library for that, which i will overhaul soon - [zodest](https://npmjs.com/package/zodest).
 
 [**Back to top**](#table-of-contents)
 
 ### Why Zagora over plain TypeScript functions?
 
-- Plain TypeScript offers compile-time types but no runtime validation — a mismatch between runtime and
-  compile-time can blow up.
+- Plain TypeScript offers compile-time types but no runtime validation — a mismatch between runtime and compile-time can blow up.
 - Zagora combines runtime validation/transforms (StandardSchema) with full compile-time inference, and returns a safe, uniform result tuple inspired by true functional programming
 
 [**Back to top**](#table-of-contents)
@@ -231,26 +216,26 @@ const procedure = zagora()
   .handler((_, input) => {
     // input is fully typed: { name: string, age: number }
     // NOTE: how `age` is typed as `number` and not `number | undefined`
-    return { id: '123', age: input.age, verified: input.age >= 18 };
+    return { id: "123", age: input.age, verified: input.age >= 18 };
   })
   .callable();
- 
+
 // NOTE: you don't need to pass `age` because it has a default value set in schema.
-const result = procedure({ name: 'John' });
+const result = procedure({ name: "John" });
 if (result.ok) {
   console.log(result.data);
   // ^ { id: string, age: number, verified: boolean }
 }
 
 // @ts-expect-error -- this will be reported at compile-time, AND error at runtime.
-const res2 = procedure('foobar');
+const res2 = procedure("foobar");
 if (!res2.ok) {
   console.error(res2.error);
   // ^ { kind: 'VALIDATION_ERROR', message: string, issues: Schema.Issue[] }
 }
 
 // note: this will error at runtime - age is no valid schema defined number
-const resul3 = procedure({ name: 'Barry', age: -5 });
+const resul3 = procedure({ name: "Barry", age: -5 });
 if (!resul3.ok) {
   console.error(resul3.error);
   // ^ { kind: 'VALIDATION_ERROR', message: string, issues: Schema.Issue[] }
@@ -271,24 +256,24 @@ const procedure = zagora()
   .output(z.string())
   .errors({
     NOT_FOUND: z.object({ resource: z.string() }),
-    UNAUTHORIZED: z.object({ userId: z.string() })
+    UNAUTHORIZED: z.object({ userId: z.string() }),
   })
   .handler(({ errors }, id) => {
-    if (id === 'invalid') {
-      throw errors.NOT_FOUND({ resource: 'user' });
+    if (id === "invalid") {
+      throw errors.NOT_FOUND({ resource: "user" });
     }
     return `User ${id}`;
   })
   .callable();
 
-const result = procedure('invalid');
+const result = procedure("invalid");
 // result.error is typed as NOT_FOUND | UNAUTHORIZED | VALIDATION_ERROR | UNKNOWN_ERROR
-if (!result.ok && result.error.kind === 'NOT_FOUND') {
+if (!result.ok && result.error.kind === "NOT_FOUND") {
   console.log(result.error);
   // ^ { kind: 'NOT_FOUND', resource: 'user', isTypedError: true }
 }
 
-const id = 'foobie'
+const id = "foobie";
 const res = procedure(id);
 if (res.ok) {
   console.log(res);
@@ -309,12 +294,7 @@ Since you may want to differentiate between the error kinds, there are couple of
 Demo calculator below to see it in action.
 
 ```ts
-import { 
-  isValidationError,
-  isInternalError,
-  isDefinedError,
-  isZagoraError,
-} from 'zagora/errors';
+import { isValidationError, isInternalError, isDefinedError, isZagoraError } from "zagora/errors";
 
 const za = zagora({ autoCallable: true, disableOptions: true });
 
@@ -327,7 +307,7 @@ const za = zagora({ autoCallable: true, disableOptions: true });
 export const add = za
   .input(z.tuple([z.number(), z.number()]))
   .output(z.string())
-  .handler((a, b) => `a + b = ${a + b}` );
+  .handler((a, b) => `a + b = ${a + b}`);
 
 /**
  * Subtracts the second number from the first.
@@ -338,7 +318,7 @@ export const add = za
 export const sub = za
   .input(z.tuple([z.number(), z.number()]))
   .output(z.string())
-  .handler((a, b) => `a - b = ${a - b}` );
+  .handler((a, b) => `a - b = ${a - b}`);
 
 /**
  * Divides the first number by the second.
@@ -348,20 +328,20 @@ export const sub = za
  * @returns ZagoraResult<string>
  */
 export const div = zagora({ autoCallable: true })
-  .input(z.tuple([z.number(), z.number()])) 
+  .input(z.tuple([z.number(), z.number()]))
   .output(z.string())
   .errors({
-    DIVIDE_BY_ZERO: z.object({ a: z.number(), b: z.number(), msg: z.string() })
+    DIVIDE_BY_ZERO: z.object({ a: z.number(), b: z.number(), msg: z.string() }),
   })
   .handler(({ errors }, a, b) => {
     if (b === 0) {
       throw errors.DIVIDE_BY_ZERO({
         a,
         b,
-        msg: 'Cannot divide by zero',
+        msg: "Cannot divide by zero",
       });
     }
-    
+
     return `a / b = ${a / b}`;
   });
 
@@ -370,16 +350,16 @@ console.log(add(5, 3)); // => '5 + 3 = 8'
 console.log(sub(10, 4)); // => '10 - 4 = 6'
 console.log(div(10, 2)); // => '10 / 2 = 5'
 
-const divRes = div(7, 'foo');
+const divRes = div(7, "foo");
 const divResult = div(7, 0);
 
 if (!divResult.ok && isDefinedError(divResult.error)) {
-  console.log('err:', divResult.error);
+  console.log("err:", divResult.error);
   // ^ { kind: 'DIVIDE_BY_ZERO', a, b, msg }
 }
 
 if (!divResult.ok && isValidationError(divResult.error)) {
-  console.log('validation err:', divResult.error);
+  console.log("validation err:", divResult.error);
   // ^ { kind: 'VALIDATION_ERROR', message: string, issues: Schema.Issue[] }
 }
 ```
@@ -402,30 +382,30 @@ const hello = zagora()
   })
   .input(z.string())
   .handler(({ errors }, input) => {
-    if (input === 'missing-required-keys') {
+    if (input === "missing-required-keys") {
       // NOTE: TypeScript WILL report type-error for the missing keys
-      throw errors.RATE_LIMIT({ retryAfter: 120 })
+      throw errors.RATE_LIMIT({ retryAfter: 120 });
     }
-    if (input === 'invalid-keys') {
+    if (input === "invalid-keys") {
       const userId = crypto.randomUUID();
-      throw errors.RATE_LIMIT({ 
+      throw errors.RATE_LIMIT({
         message: `User with id "${userId}" is limited temporarily`,
         userId,
-        retryAfter: 'invalid', // NOTE: expects number, TypeScript will report type-error
+        retryAfter: "invalid", // NOTE: expects number, TypeScript will report type-error
       });
     }
-    
+
     return input;
   });
 
-hello('ok');
+hello("ok");
 // => ZagoraResult OK
 
-hello('missing-required-keys');
+hello("missing-required-keys");
 // result.error => { kind: 'VALIDATION_ERROR', key: 'RATE_LIMIT', issues: Schema.Issue[] }
 // result.error.issues - will contain the issue that `userId` and `message` are required
 
-hello('invalid-keys');
+hello("invalid-keys");
 // result.error => { kind: 'VALIDATION_ERROR', key: 'RATE_LIMIT', issues: Schema.Issue[] }
 // result.error.issues - will contain the issue that `retryAfter` is expected to be number
 ```
@@ -444,17 +424,17 @@ Providing context (and cache for that matter) can be done through the `.callable
 
 ```ts
 const procedure = zagora()
-  .context<{ userId: string, foo?: string }>({ userId: 'default' })
+  .context<{ userId: string; foo?: string }>({ userId: "default" })
   .input(z.string())
   .handler(({ context }, id) => {
     // context is typed
-    return `${context.userId} has foo -> ${context.foo || 'unknown'}, id = ${id}`
+    return `${context.userId} has foo -> ${context.foo || "unknown"}, id = ${id}`;
   })
   // NOTE: a) you will get intellisense here
   // NOTE: b) you can override context
-  .callable({ context: { userId: 'foo-bar', foo: 'qux' } });
+  .callable({ context: { userId: "foo-bar", foo: "qux" } });
 
-procedure('charlie');
+procedure("charlie");
 // => 'foo-bar has foo -> qux, id = charlie'
 ```
 
@@ -466,7 +446,7 @@ procedure('charlie');
 zagora()
   .input(z.object({ name: z.string(), age: z.number().default(18) }))
   .handler((_, { name, age }) => `${name} is ${age}`)
-  .callable()
+  .callable();
 ```
 
 [**Back to top**](#table-of-contents)
@@ -477,15 +457,13 @@ Tuple schemas is used for defining multiple arguments in a handler. It's one of 
 
 ```ts
 // NOTE: ignore that for now, we'll get to it later
-const za = zagora({ autoCallable: true, disableOptions: true })
+const za = zagora({ autoCallable: true, disableOptions: true });
 
-const fnOne = za
-  .input(z.tuple([z.string(), z.number()]))
-  .handler((name, age) => {
-    // name: string
-    // age: number
-    return `${name} is ${age}`
-  })
+const fnOne = za.input(z.tuple([z.string(), z.number()])).handler((name, age) => {
+  // name: string
+  // age: number
+  return `${name} is ${age}`;
+});
 
 const fnTwo = za
   .input(z.tuple([z.string(), z.number().default(18), z.string().optional()]))
@@ -493,23 +471,23 @@ const fnTwo = za
     // name: string
     // age: number <-- because there is a default value in schema!
     // country: string | undefined <-- because it's marked as optional in schema!
-    return `${name} is ${age}, from ${country || 'unknown'}`
-  })
+    return `${name} is ${age}, from ${country || "unknown"}`;
+  });
 
-fnOne('John', 30);
+fnOne("John", 30);
 // => John is 30
 
 // @ts-expect-error -- reported at compile-time AND runtime, invalid second argument
-fnOne('John', 'foo');
+fnOne("John", "foo");
 
 // @ts-expect-error -- reported at compile-time AND runtime, missing required second argument
-fnOne('John');
+fnOne("John");
 
 // NOTE: fine, because second and third arguments are optional
-fnTwo('Barry') // => Barry is 18, from unknown
+fnTwo("Barry"); // => Barry is 18, from unknown
 
-fnTwo('Barry', 25) // => Barry is 25, from unknown
-fnTwo('Barry', 33, 'USA') // => Barry is 33, from USA
+fnTwo("Barry", 25); // => Barry is 25, from unknown
+fnTwo("Barry", 33, "USA"); // => Barry is 33, from USA
 ```
 
 [**Back to top**](#table-of-contents)
@@ -520,15 +498,17 @@ Optionals and default values are supported at any level with any schema, whether
 
 ```ts
 const fn = zagora()
-  .input(z.object({
-    name: z.string(),
-    age: z.number().default(18),
-    country: z.string().optional()
-  }))
-  .handler((_, { name, age, country }) => `${name} is ${age}, from ${country || 'unknown'}`)
-  .callable()
-  
-fn({ name: 'John' }) // age defaults to 18
+  .input(
+    z.object({
+      name: z.string(),
+      age: z.number().default(18),
+      country: z.string().optional(),
+    }),
+  )
+  .handler((_, { name, age, country }) => `${name} is ${age}, from ${country || "unknown"}`)
+  .callable();
+
+fn({ name: "John" }); // age defaults to 18
 // => 'John is 18, from unknown'
 ```
 
@@ -560,7 +540,7 @@ const asyncProc = zagora()
 
 // TypeScript WILL NOT complain and correctly infer Promise<ZagoraResult>
 // because the handler is marked as `async`
-const result = await asyncProc('hello'); // Promise<Result>
+const result = await asyncProc("hello"); // Promise<Result>
 
 const syncHandlerPromiseProc = zagora()
   .input(z.string())
@@ -571,7 +551,7 @@ const syncHandlerPromiseProc = zagora()
 
 // TypeScript WILL NOT complain and correctly infer Promise<ZagoraResult>
 // because the handler in reality is async, eg. returns a Promise.
-const promiseRes = await syncHandlerPromiseProc('hello'); // Promise<Result>
+const promiseRes = await syncHandlerPromiseProc("hello"); // Promise<Result>
 
 const procAsyncInput = zagora()
   // Async input schema
@@ -581,7 +561,7 @@ const procAsyncInput = zagora()
 
 // NOTE: TypeScript will REPORT as warning that you may not need `await` but you do,
 // because async schemas force the handler to become async
-const result2 = await procAsyncInput('hello'); // ZagoraResult
+const result2 = await procAsyncInput("hello"); // ZagoraResult
 
 const procAsyncOutput = zagora()
   // Async output schema
@@ -592,7 +572,7 @@ const procAsyncOutput = zagora()
 
 // NOTE: TypeScript will REPORT as warning that you may not need `await` but you do,
 // because async schemas force the handler to become async
-const result2 = await procAsyncOutput('hello'); // ZagoraResult
+const result2 = await procAsyncOutput("hello"); // ZagoraResult
 ```
 
 [**Back to top**](#table-of-contents)
@@ -605,7 +585,7 @@ Built-in caching with custom cache adapter. Cache key includes the input, the in
 
 - any method of the cache adapter can be async, and this will force the procedure to be async
 - if cache method throws, the process never crash - you can find the error at the standard `result.error`
-- failures in cache adapter will be reported as `UNKNOWN_ERROR` in `result.error` with `result.error.cause` set to the error thrown 
+- failures in cache adapter will be reported as `UNKNOWN_ERROR` in `result.error` with `result.error.cause` set to the error thrown
 - in future this could change to be `CACHE_ERROR` with `cause`
 - when cache is passed through `.callable` - and has async methods, make sure to await the procedure and ignore the TypeScript warning that "you may not need await here" - you do need to await
 
@@ -624,15 +604,21 @@ const procedure = zagora()
   .callable({ cache });
 
 // First call executes handler
-const result1 = procedure('hello');
+const result1 = procedure("hello");
 // Second call returns cached result instantly
-const result2 = procedure('hello');
+const result2 = procedure("hello");
 
 const proc = zagora()
   .cache({
-    async has(key: string) { return cache.has(key); },
-    get(key: string) { return cache.get(key); },
-    set(key: string, value: unknown) { cache.set(key, value); }
+    async has(key: string) {
+      return cache.has(key);
+    },
+    get(key: string) {
+      return cache.get(key);
+    },
+    set(key: string, value: unknown) {
+      cache.set(key, value);
+    },
   })
   .input(z.number().default(10))
   .handler((_, num) => num * 2)
@@ -656,25 +642,26 @@ You can provide the runtime env vars (either `process.env` or `import.meta.env`)
 
 ```ts
 const zaWithEnv = zagora()
-  .env(z.object({
-    DATABASE_URL: z.string().min(1).default('file://db.sqlite'),
-    BETTER_AUTH_SECRET: z.string().min(1)
-  }))
-  .cache(new Map())
+  .env(
+    z.object({
+      DATABASE_URL: z.string().min(1).default("file://db.sqlite"),
+      BETTER_AUTH_SECRET: z.string().min(1),
+    }),
+  )
+  .cache(new Map());
 
 const fn1 = zaWithEnv
   .handler(({ env }) => {
     // env: { DATABASE_URL: string, BETTER_AUTH_SECRET: string }
   })
-  .callable({ env: process.env })
-````
+  .callable({ env: process.env });
+```
 
 Keep in mind that if you have `autoCallable: true` enabled in the instance, then you may need to provide the runtime env vars through the second argument, otherwise the types will say you have something, but in runtime you will get error.
 
 Also important to note that when `disableOptions` you will loose access to the `env` vars, as well `context` and `errors` which is normal behavior.
 
 **Important: Providing async schema for env variables is not supported, at least for now.**
-
 
 [**Back to top**](#table-of-contents)
 
@@ -688,28 +675,31 @@ Handlers receive an `options` (or "config") object as the first parameter contai
 
 ```ts
 const procedure = zagora()
-  .context({ user: 'bobby' })
+  .context({ user: "bobby" })
   .errors({ NOT_FOUND: z.object({ id: z.string() }) })
   .input(z.string())
-  .env(z.object({
-    DATABASE_URL: z.string().min(1).default('file://db.sqlite'),
-    AUTH_SECRET: z.string().min(1),
-    PORT: z.coerce.number(), // env.PORT type will be number
-  }), process.env)
+  .env(
+    z.object({
+      DATABASE_URL: z.string().min(1).default("file://db.sqlite"),
+      AUTH_SECRET: z.string().min(1),
+      PORT: z.coerce.number(), // env.PORT type will be number
+    }),
+    process.env,
+  )
   .handler((options, userId) => {
     const { context, errors, env } = options;
     // context: { user: 'bobby', id: 123 }
     // errors: { NOT_FOUND: (data) => throw { kind: 'NOT_FOUND', ...data } }
     // env: { DATABASE_URL: string, AUTH_SECRET: string, PORT: number }
-    
-    if (context.user !== 'bobby') {
+
+    if (context.user !== "bobby") {
       throw errors.NOT_FOUND({ id: userId });
     }
-    return 'bobby found';
+    return "bobby found";
   })
-  .callable({ context: { user: 'bobby ' }});
+  .callable({ context: { user: "bobby " } });
 
-procedure('bob-id-123');
+procedure("bob-id-123");
 ```
 
 Use `disableOptions: true` to make the options object be omitted from the handler arguments:
@@ -732,14 +722,14 @@ const zagoraInstance = zagora()
   .handler((_, input) => input);
 
 const procedure = zagoraInstance.callable();
-procedure('foo'); // ZagoraResult => 'foo'
+procedure("foo"); // ZagoraResult => 'foo'
 
 const hello = zagora({ autoCallable: true, disableOptions: true })
   .input(z.string())
   .handler((name) => `Hello, ${name.toUpperCase()}`);
 
-hello('bob'); // ZagoraResult => 'Hello, BOB'
-hello('alice'); // ZagoraResult => 'Hello, ALICE'
+hello("bob"); // ZagoraResult => 'Hello, BOB'
+hello("alice"); // ZagoraResult => 'Hello, ALICE'
 ```
 
 [**Back to top**](#table-of-contents)
@@ -754,7 +744,9 @@ Zagora ensures functions never throw - all errors are wrapped in the `Result` ob
 
 ```ts
 const procedure = zagora()
-  .handler(() => { throw new Error('Oops'); })
+  .handler(() => {
+    throw new Error("Oops");
+  })
   .callable();
 
 const result = procedure();
@@ -787,22 +779,23 @@ If you are interested, you can inspect the [test/types-testing.test.ts](./test/t
 Creates a new Zagora instance.
 
 **Config**:
+
 - `disableOptions?: boolean` - Omit options from handler, default `false`
 - `autoCallable?: boolean` - Return callable directly from `.handler()` call, default `false`
 
 ### Instance Methods
 
 - `.input(schema)` - Set input validation schema
-- `.output(schema)` - Set output validation schema  
+- `.output(schema)` - Set output validation schema
 - `.errors(Record<string, schema>)` - Define typed errors
 - `.context<TInitialContext>(initialContext)` - Type the context with generic, and optionally set initial context
 - `.cache(adapter)` - Set cache adapter that should have `has`, `get`, `set`, methods
 - `.handler(fn)` - Set handler/procedure function
 - `.env(schema, processEnv?)` - Set env vars schema, and optionally runtime envs.
 - `.callable(opts?: { context?, cache?, env? })` - Create callable procedure
-  + passed `context` (if any) will be deep-merged with the `initialContext` (if any)
-  + if `cache` passed, it will override the previously passed through `.cache` method (if so)
-  + if `env` passed, it will be deep-merged with the provided through the `.env` method (if so)
+  - passed `context` (if any) will be deep-merged with the `initialContext` (if any)
+  - if `cache` passed, it will override the previously passed through `.cache` method (if so)
+  - if `env` passed, it will be deep-merged with the provided through the `.env` method (if so)
 
 [**Back to top**](#table-of-contents)
 
@@ -817,16 +810,15 @@ Creates a new Zagora instance.
 I wish it was as easy as just the below.. but roughly, yeah, it looks like this.
 
 ```ts
-type ZagoraResult<TData, TError> = 
-  | { ok: true; data: TData; error: undefined }
-  | { ok: false; error: TError; isTypedError: boolean }
+type ZagoraResult<TData, TError> =
+  { ok: true; data: TData; error: undefined } | { ok: false; error: TError; isTypedError: boolean };
 ```
 
 and of course, for async stuff, it's wrapped with Promise.
 
 ```ts
-Promise<ZagoraResult>
-````
+Promise<ZagoraResult>;
+```
 
 If you are interested, you can check out the [src/types.ts](./src/types.ts) and [src/is-promise.ts](./src/is-promise.ts) files which are the core of the type-system of Zagora.
 

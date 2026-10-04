@@ -2,6 +2,7 @@
 
 import { expect, test } from "vitest";
 import z from "zod";
+
 import { zagora } from "../src/index";
 import { deepMerge, handleTupleDefaults } from "../src/utils";
 
@@ -21,9 +22,7 @@ test("validateInputOutput - sync validation with issues on input (line 82)", () 
 });
 
 test("validateInputOutput - async validation success path (line 82)", async () => {
-  const asyncSchema = z
-    .string()
-    .refine(async (val) => val.length > 2, "Min 3 chars");
+  const asyncSchema = z.string().refine(async (val) => val.length > 2, "Min 3 chars");
 
   const fn = zagora({ disableOptions: true, autoCallable: true })
     .input(asyncSchema)

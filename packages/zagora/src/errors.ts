@@ -21,22 +21,22 @@ export type ZagoraError<T> = ValidationError | InternalError | DefinedError<T>;
 export function isValidationError(val: any): val is ValidationError {
   return Boolean(
     val &&
-      val.kind === "VALIDATION_ERROR" &&
-      val.issues &&
-      Array.isArray(val.issues) &&
-      val.message &&
-      typeof val.message === "string",
+    val.kind === "VALIDATION_ERROR" &&
+    val.issues &&
+    Array.isArray(val.issues) &&
+    val.message &&
+    typeof val.message === "string",
   );
 }
 
 export function isInternalError(val: any): val is InternalError {
   return Boolean(
     val &&
-      val.kind === "UNKNOWN_ERROR" &&
-      val.message &&
-      typeof val.message === "string" &&
-      "cause" in val &&
-      "stack" in val,
+    val.kind === "UNKNOWN_ERROR" &&
+    val.message &&
+    typeof val.message === "string" &&
+    "cause" in val &&
+    "stack" in val,
   );
 }
 
@@ -44,9 +44,9 @@ export function isDefinedError<T>(val: any): val is DefinedError<T> {
   return (
     Boolean(
       val?.kind &&
-        typeof val.kind === "string" &&
-        val.kind.length > 0 &&
-        val.kind === val.kind.toUpperCase(),
+      typeof val.kind === "string" &&
+      val.kind.length > 0 &&
+      val.kind === val.kind.toUpperCase(),
     ) &&
     !isValidationError(val) &&
     !isInternalError(val)
@@ -90,43 +90,33 @@ export function createInternalError(msg: string, cause?: any) {
   } as const;
 }
 
-export function createErrorHelpers(
-  errorMap: any,
-): Record<string, (data: any) => any> {
+export function createErrorHelpers(errorMap: any): Record<string, (data: any) => any> {
   const helpers: any = {};
   for (const key of Object.keys(errorMap)) {
     const schema = errorMap[key];
-    if (!schema) continue;
+    if (!schema) {
+      continue;
+    }
 
-    helpers[key] = (data: any) => {
-      return { ...data, kind: key };
-    };
+    helpers[key] = (data: any) => ({ ...data, kind: key });
   }
   return helpers;
 }
 
-export type ErrorHelpers<
-  TErrorsMap extends Record<string, AnySchema> | undefined,
-> = TErrorsMap extends Record<string, AnySchema>
-  ? {
-      [K in keyof TErrorsMap]: (
-        data: Prettify<Omit<InferSchemaInput<TErrorsMap[K]>, "kind">>,
-      ) => never;
-    }
-  : never;
+export type ErrorHelpers<TErrorsMap extends Record<string, AnySchema> | undefined> =
+  TErrorsMap extends Record<string, AnySchema>
+    ? {
+        [K in keyof TErrorsMap]: (
+          data: Prettify<Omit<InferSchemaInput<TErrorsMap[K]>, "kind">>,
+        ) => never;
+      }
+    : never;
 
-export type InferSchemaMapPlain<
-  T extends Record<string, AnySchema>,
-  ResolveErr extends boolean,
-> = {
+export type InferSchemaMapPlain<T extends Record<string, AnySchema>, ResolveErr extends boolean> = {
   [K in keyof T]: ResolveErr extends true
     ? Prettify<{ kind: K } & Omit<InferSchemaOutput<T[K]>, "kind">>
     : Prettify<InferSchemaOutput<T[K]>>;
 };
 
-export type ResolveErrorKindNames<TErrorsMap> = TErrorsMap extends Record<
-  string,
-  AnySchema
->
-  ? keyof TErrorsMap
-  : undefined;
+export type ResolveErrorKindNames<TErrorsMap> =
+  TErrorsMap extends Record<string, AnySchema> ? keyof TErrorsMap : undefined;

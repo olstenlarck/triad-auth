@@ -1,4 +1,5 @@
 import nodeCrypto from "node:crypto";
+
 import { createInternalError, createValidationError } from "./errors";
 import type { AnySchema, CacheAdapter } from "./types";
 
@@ -18,11 +19,7 @@ function createUnexpectedValidationError(
 }
 
 // TEST: with expect-type
-export function validateInputOutputOrEnv(
-  mode: "input" | "output" | "env",
-  schema: any,
-  data: any,
-) {
+export function validateInputOutputOrEnv(mode: "input" | "output" | "env", schema: any, data: any) {
   const processResult = (result: any) =>
     result.issues
       ? createResult(null, createValidationError(mode, result.issues), false)
@@ -50,10 +47,7 @@ export function validateError<TKindNames>(
   if (!errorsMap) {
     return createResult(
       null,
-      createInternalError(
-        `${isAsync ? "Async" : "Sync"} handler threw unknown error`,
-        error,
-      ),
+      createInternalError(`${isAsync ? "Async" : "Sync"} handler threw unknown error`, error),
       false,
     );
   }
@@ -62,10 +56,7 @@ export function validateError<TKindNames>(
   if (kind == null) {
     return createResult(
       null,
-      createInternalError(
-        `${isAsync ? "Async" : "Sync"} handler threw unknown error`,
-        error,
-      ),
+      createInternalError(`${isAsync ? "Async" : "Sync"} handler threw unknown error`, error),
       false,
     );
   }
@@ -78,11 +69,7 @@ export function validateError<TKindNames>(
       res.issues
         ? createResult(
             null,
-            createValidationError<TKindNames>(
-              "error data",
-              res.issues,
-              kindName,
-            ),
+            createValidationError<TKindNames>("error data", res.issues, kindName),
             false,
           )
         : createResult(null, { ...res.value, kind } as const, true);
@@ -92,9 +79,7 @@ export function validateError<TKindNames>(
       if (result instanceof Promise) {
         return result
           .then(processError)
-          .catch((error) =>
-            createUnexpectedValidationError("error data", error),
-          );
+          .catch((error) => createUnexpectedValidationError("error data", error));
       }
       return processError(result);
     } catch (error) {
@@ -104,10 +89,7 @@ export function validateError<TKindNames>(
 
   return createResult(
     null,
-    createInternalError(
-      `Typed Error ${kind} is not defined in errors map`,
-      error,
-    ),
+    createInternalError(`Typed Error ${kind} is not defined in errors map`, error),
     false,
   );
 }
@@ -123,15 +105,9 @@ export function processHandler(
   if (cacheAdapter) {
     try {
       // TODO: we should have a better serializer a bit later
-      key = getCacheHash(
-        JSON.stringify({ ...incoming, fnStr: handlerFn.toString(), args }),
-      );
+      key = getCacheHash(JSON.stringify({ ...incoming, fnStr: handlerFn.toString(), args }));
     } catch (error) {
-      return createResult(
-        null,
-        createInternalError("Failed to compute cache key", error),
-        false,
-      );
+      return createResult(null, createInternalError("Failed to compute cache key", error), false);
     }
   }
 
@@ -164,11 +140,7 @@ export function processHandler(
 
 export function executeHandler(
   argz: any,
-  {
-    handlerFn,
-    cacheAdapter,
-    key,
-  }: { handlerFn: any; cacheAdapter: CacheAdapter; key: string },
+  { handlerFn, cacheAdapter, key }: { handlerFn: any; cacheAdapter: CacheAdapter; key: string },
 ) {
   const handlerResult = tryCatch(() => handlerFn(...argz), true);
   if (handlerResult instanceof Promise) {
@@ -187,9 +159,7 @@ export function executeHandler(
         );
         if (resp instanceof Promise) {
           /* v8 ignore next -- @preserve */
-          return resp.then((resolved) =>
-            resolved.ok ? handlerResolved : resolved,
-          );
+          return resp.then((resolved) => (resolved.ok ? handlerResolved : resolved));
         }
         return resp.ok ? handlerResolved : resp;
       }
@@ -235,10 +205,7 @@ export function tryCatch(fn: any, isHandler: boolean, method: string = "") {
           }
           return createResult(
             null,
-            createInternalError(
-              `Failure in async CacheAdapter.${method} method`,
-              error,
-            ),
+            createInternalError(`Failure in async CacheAdapter.${method} method`, error),
             false,
           );
         });
@@ -273,10 +240,7 @@ export function createResult(data: any, error: any, isTypedError: boolean) {
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: it's fine
-export function handleTupleDefaults(
-  schema: AnySchema,
-  rawArgs: unknown[],
-): unknown[] {
+export function handleTupleDefaults(schema: AnySchema, rawArgs: unknown[]): unknown[] {
   // Check if this might be a tuple schema by examining the schema structure
   const schemaAny = schema as any;
   const isZodTuple = schemaAny._def && schemaAny._def.type === "tuple";
@@ -300,11 +264,7 @@ export function handleTupleDefaults(
               : itemSchema._def.defaultValue;
 
           result[i] = defaultValue;
-        } else if (
-          itemSchema &&
-          isValibotTuple &&
-          itemSchema.type === "optional"
-        ) {
+        } else if (itemSchema && isValibotTuple && itemSchema.type === "optional") {
           result[i] = itemSchema.default;
         }
       }
@@ -323,10 +283,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
-export function deepMerge(
-  base: Record<string, unknown>,
-  override: Record<string, unknown>,
-) {
+export function deepMerge(base: Record<string, unknown>, override: Record<string, unknown>) {
   if (!isPlainObject(base) || !isPlainObject(override)) {
     throw new Error("Expects plain object args");
   }

@@ -3,6 +3,7 @@
 import * as v from "valibot";
 import { expect, test } from "vitest";
 import z from "zod";
+
 import { Zagora, zagora } from "../src/index";
 
 const errorSchemas = {
@@ -54,10 +55,7 @@ test("should chain output method", () => {
 });
 
 test("should chain errors method", () => {
-  const instance = zagora()
-    .input(z.string())
-    .output(z.string())
-    .errors(errorSchemas.single);
+  const instance = zagora().input(z.string()).output(z.string()).errors(errorSchemas.single);
 
   expect(instance).toBeInstanceOf(Zagora);
 });
@@ -72,9 +70,7 @@ test("should access error helpers from handler last arg", () => {
       }),
     )
     .errors(errorSchemas.single)
-    .handler(({ errors }, str) => {
-      return { str, errHelper: errors.NETWORK_ERROR };
-    })
+    .handler(({ errors }, str) => ({ str, errHelper: errors.NETWORK_ERROR }))
     .callable();
 
   const res = fooFn("barry");
@@ -89,10 +85,7 @@ test("should access error helpers from handler last arg", () => {
 });
 
 test("should work with multiple error schemas", () => {
-  const instance = zagora()
-    .input(z.string())
-    .output(z.string())
-    .errors(errorSchemas.multiple);
+  const instance = zagora().input(z.string()).output(z.string()).errors(errorSchemas.multiple);
 
   expect(instance).toBeInstanceOf(Zagora);
 });
@@ -165,20 +158,11 @@ test("should NOT throw error when async handler called without output schema", a
 });
 
 test("should allow method chaining in different orders", () => {
-  const instance1 = zagora()
-    .input(z.string())
-    .output(z.string())
-    .errors(errorSchemas.single);
+  const instance1 = zagora().input(z.string()).output(z.string()).errors(errorSchemas.single);
 
-  const instance2 = zagora()
-    .output(z.string())
-    .input(z.string())
-    .errors(errorSchemas.single);
+  const instance2 = zagora().output(z.string()).input(z.string()).errors(errorSchemas.single);
 
-  const instance3 = zagora()
-    .errors(errorSchemas.single)
-    .input(z.string())
-    .output(z.string());
+  const instance3 = zagora().errors(errorSchemas.single).input(z.string()).output(z.string());
 
   expect(instance1).toBeInstanceOf(Zagora);
   expect(instance2).toBeInstanceOf(Zagora);
@@ -258,8 +242,7 @@ test("should support overriding schemas", () => {
     .errors(errorSchemas.multiple)
     .errors(errorSchemas.single) // Override output
     .handler(
-      ({ errors }, str) =>
-        `${str}-${Object.keys(errors).length}-${typeof errors.NETWORK_ERROR}`,
+      ({ errors }, str) => `${str}-${Object.keys(errors).length}-${typeof errors.NETWORK_ERROR}`,
     )
     .callable();
 

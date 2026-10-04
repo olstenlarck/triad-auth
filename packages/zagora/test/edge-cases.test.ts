@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
+
 import * as v from "valibot";
 import { expect, test } from "vitest";
 import z from "zod";
+
 import { isInternalError } from "../src/errors";
 import { zagora } from "../src/index";
 
@@ -52,9 +54,7 @@ test("Zod tuple with default values - basic case", async () => {
         foo: z.string().min(1),
       }),
     )
-    .handler((_, speed, retry) => {
-      return { foo: `${speed}-${retry}` };
-    })
+    .handler((_, speed, retry) => ({ foo: `${speed}-${retry}` }))
     .callable();
 
   const res = hello("fast");
@@ -69,17 +69,13 @@ test("Zod tuple with required arg, default value arg, and optional arg", async (
   const SpeedSchema = z.enum(["slow", "normal", "fast"]);
 
   const hello = zagora()
-    .input(
-      z.tuple([SpeedSchema, z.number().default(123), z.string().optional()]),
-    )
+    .input(z.tuple([SpeedSchema, z.number().default(123), z.string().optional()]))
     .output(
       z.object({
         foo: z.string().min(1),
       }),
     )
-    .handler(async (_, speed, retry, str) => {
-      return { foo: `${speed}-${retry}-${str}` };
-    })
+    .handler(async (_, speed, retry, str) => ({ foo: `${speed}-${retry}-${str}` }))
     .callable();
 
   const res = await hello("fast");
@@ -100,9 +96,7 @@ test("Zod tuple with default values - both args provided", async () => {
         foo: z.string().min(1),
       }),
     )
-    .handler(async (_, speed, retry) => {
-      return { foo: `${speed}-${retry}` };
-    })
+    .handler(async (_, speed, retry) => ({ foo: `${speed}-${retry}` }))
     .callable();
 
   const res = await hello("slow", 456);
@@ -121,9 +115,7 @@ test("Zod tuple with default values - both args provided", async () => {
         })
         .strict(),
     )
-    .handler(async (_, speed, retry) => {
-      return { foo: `${speed}-${retry}`, bar: "barry" };
-    })
+    .handler(async (_, speed, retry) => ({ foo: `${speed}-${retry}`, bar: "barry" }))
     .callable();
 
   const failingHello = await hello2("slow", 456);
@@ -138,21 +130,13 @@ test("Zod tuple with multiple defaults", async () => {
   const SpeedSchema = z.enum(["slow", "normal", "fast"]);
 
   const hello = zagora()
-    .input(
-      z.tuple([
-        SpeedSchema,
-        z.number().default(123),
-        z.string().default("bruh"),
-      ]),
-    )
+    .input(z.tuple([SpeedSchema, z.number().default(123), z.string().default("bruh")]))
     .output(
       z.object({
         foo: z.string().min(1),
       }),
     )
-    .handler(async (_, speed, retry, extra) => {
-      return { foo: `${speed}-${retry}-${extra}` };
-    })
+    .handler(async (_, speed, retry, extra) => ({ foo: `${speed}-${retry}-${extra}` }))
     .callable();
 
   const res = await hello("normal");
@@ -171,9 +155,7 @@ test("Valibot tuple with optional and default value", async () => {
         foo: v.pipe(v.string(), v.minLength(1)),
       }),
     )
-    .handler(async (_, speed, retry) => {
-      return { foo: `${speed}-${retry}` };
-    })
+    .handler(async (_, speed, retry) => ({ foo: `${speed}-${retry}` }))
     .callable();
 
   const res = await hello("fast");
@@ -192,9 +174,7 @@ test("Valibot tuple with optional without default", async () => {
         foo: v.pipe(v.string(), v.minLength(1)),
       }),
     )
-    .handler(async (_, speed, retry) => {
-      return { foo: `${speed}-${retry}` };
-    })
+    .handler(async (_, speed, retry) => ({ foo: `${speed}-${retry}` }))
     .callable();
 
   const res = await hello("slow");
@@ -212,21 +192,13 @@ test("Valibot tuple with default values - both args provided", async () => {
   const SpeedSchema = v.picklist(["slow", "normal", "fast"]);
 
   const hello = zagora()
-    .input(
-      v.tuple([
-        SpeedSchema,
-        v.optional(v.number(), 123),
-        v.optional(v.string(), "str"),
-      ]),
-    )
+    .input(v.tuple([SpeedSchema, v.optional(v.number(), 123), v.optional(v.string(), "str")]))
     .output(
       v.object({
         foo: v.pipe(v.string(), v.minLength(1)),
       }),
     )
-    .handler(async (_, speed, retry, str) => {
-      return { foo: `${speed}-${retry}-${str}` };
-    })
+    .handler(async (_, speed, retry, str) => ({ foo: `${speed}-${retry}-${str}` }))
     .callable();
 
   const res = await hello("slow", 456);
@@ -245,9 +217,7 @@ test("Tuple without defaults - all args required - zod", async () => {
         foo: z.string().min(1),
       }),
     )
-    .handler(async (_, speed, retry) => {
-      return { foo: `${speed}-${retry}` };
-    })
+    .handler(async (_, speed, retry) => ({ foo: `${speed}-${retry}` }))
     .callable();
 
   const res = await hello("fast", 456);
@@ -266,9 +236,7 @@ test("Tuple without defaults - all args required - valibot", async () => {
         foo: v.pipe(v.string(), v.minLength(1)),
       }),
     )
-    .handler(async (_, speed, retry) => {
-      return { foo: `${speed}-${retry}` };
-    })
+    .handler(async (_, speed, retry) => ({ foo: `${speed}-${retry}` }))
     .callable();
 
   const res = await hello("fast", "sasa");
@@ -293,9 +261,7 @@ test("Zod Tuple without defaults - missing required arg should fail", async () =
         foo: z.string().min(1),
       }),
     )
-    .handler(async (_, speed, retry) => {
-      return { foo: `${speed}-${retry}` };
-    })
+    .handler(async (_, speed, retry) => ({ foo: `${speed}-${retry}` }))
     .callable();
 
   // @ts-expect-error - should error because missing second required arg
@@ -334,16 +300,15 @@ test("Handler without input schema should work", () => {
       expect(res.error.foo).toBe(500);
     }
   } else {
-    throw new Error(
-      `Expected BARRY_ERR, but got: ${JSON.stringify(res.error)}`,
-    );
+    throw new Error(`Expected BARRY_ERR, but got: ${JSON.stringify(res.error)}`);
   }
 });
 
 test("Handler without input schema and no errors should work", () => {
-  const func = zagora({ autoCallable: true }).handler(({ context }) => {
-    return { result: "success", ctx: context };
-  });
+  const func = zagora({ autoCallable: true }).handler(({ context }) => ({
+    result: "success",
+    ctx: context,
+  }));
 
   const res = func();
 

@@ -29,15 +29,16 @@ export type IsAny<T> = 0 extends 1 & T ? true : false;
  * @template V - The value type you want to test
  */
 // TEST: with expect-type
-export type IsPromise<V> = IsAny<V> extends true
-  ? false
-  : [V] extends [never]
+export type IsPromise<V> =
+  IsAny<V> extends true
     ? false
-    : [V] extends [PromiseLike<any>]
-      ? true
-      : [Extract<V, PromiseLike<any>>] extends [never]
-        ? false
-        : boolean;
+    : [V] extends [never]
+      ? false
+      : [V] extends [PromiseLike<any>]
+        ? true
+        : [Extract<V, PromiseLike<any>>] extends [never]
+          ? false
+          : boolean;
 
 /**
  * Preserves sync, async, and possibly-async return shapes from the input type.

@@ -2,6 +2,7 @@
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { expect, test } from "vitest";
+
 import {
   createErrorHelpers,
   createInternalError,
@@ -31,9 +32,7 @@ test("should create error with all options", () => {
   const error = createValidationError("input", issues);
 
   expect(error.kind).toBe("VALIDATION_ERROR");
-  expect(error.message).toBe(
-    "Input validation failed: name => Expected string",
-  );
+  expect(error.message).toBe("Input validation failed: name => Expected string");
   expect(error.issues).toEqual(issues);
 });
 

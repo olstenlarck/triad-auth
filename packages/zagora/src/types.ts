@@ -1,13 +1,9 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type {
-  ErrorHelpers,
-  InferSchemaMapPlain,
-  InternalError,
-  ValidationError,
-} from "./errors";
+
+import type { ErrorHelpers, InferSchemaMapPlain, InternalError, ValidationError } from "./errors";
 import type { IsPromise } from "./is-promise";
 
-export * from "./is-promise";
+export type * from "./is-promise";
 
 export type Schema<I, O = I> = StandardSchemaV1<I, O>;
 
@@ -26,34 +22,34 @@ export type IsAsyncSchema<T> = [T] extends [never]
       : false
     : never;
 
-type SchemaMapAsyncState<T> = T extends Record<string, AnySchema>
-  ? true extends {
-      [K in keyof T]: [IsAsyncSchema<T[K]>] extends [true] ? true : false;
-    }[keyof T]
-    ? true
-    : true extends {
-          [K in keyof T]: true extends IsAsyncSchema<T[K]> ? true : false;
-        }[keyof T]
-      ? boolean
-      : false
-  : false;
+type SchemaMapAsyncState<T> =
+  T extends Record<string, AnySchema>
+    ? true extends {
+        [K in keyof T]: [IsAsyncSchema<T[K]>] extends [true] ? true : false;
+      }[keyof T]
+      ? true
+      : true extends {
+            [K in keyof T]: true extends IsAsyncSchema<T[K]> ? true : false;
+          }[keyof T]
+        ? boolean
+        : false
+    : false;
 
 type IsDefinitelyAsync<T extends boolean> = [T] extends [true] ? true : false;
 type IsPossiblyAsync<T extends boolean> = true extends T ? true : false;
 
 // TEST: with expect-type
-export type HasAsyncSchema<TInputSchema, TOutputSchema, TErrorsMap> =
-  true extends
-    | IsDefinitelyAsync<IsAsyncSchema<TInputSchema>>
-    | IsDefinitelyAsync<IsAsyncSchema<TOutputSchema>>
-    | IsDefinitelyAsync<SchemaMapAsyncState<TErrorsMap>>
-    ? true
-    : true extends
-          | IsPossiblyAsync<IsAsyncSchema<TInputSchema>>
-          | IsPossiblyAsync<IsAsyncSchema<TOutputSchema>>
-          | IsPossiblyAsync<SchemaMapAsyncState<TErrorsMap>>
-      ? boolean
-      : false;
+export type HasAsyncSchema<TInputSchema, TOutputSchema, TErrorsMap> = true extends
+  | IsDefinitelyAsync<IsAsyncSchema<TInputSchema>>
+  | IsDefinitelyAsync<IsAsyncSchema<TOutputSchema>>
+  | IsDefinitelyAsync<SchemaMapAsyncState<TErrorsMap>>
+  ? true
+  : true extends
+        | IsPossiblyAsync<IsAsyncSchema<TInputSchema>>
+        | IsPossiblyAsync<IsAsyncSchema<TOutputSchema>>
+        | IsPossiblyAsync<SchemaMapAsyncState<TErrorsMap>>
+    ? boolean
+    : false;
 
 // TEST: with expect-type
 export type ConditionalSchemaAsync<
@@ -64,23 +60,13 @@ export type ConditionalSchemaAsync<
 
 export type SchemaIssue = StandardSchemaV1.Issue;
 
-export type InferSchemaOutput<T extends AnySchema> = T extends StandardSchemaV1<
-  any,
-  infer UOutput
->
-  ? UOutput
-  : never;
+export type InferSchemaOutput<T extends AnySchema> =
+  T extends StandardSchemaV1<any, infer UOutput> ? UOutput : never;
 
-export type InferSchemaInput<T extends AnySchema> = T extends StandardSchemaV1<
-  infer UInput,
-  any
->
-  ? UInput
-  : never;
+export type InferSchemaInput<T extends AnySchema> =
+  T extends StandardSchemaV1<infer UInput, any> ? UInput : never;
 
-export type InferSchemaOutputSafe<T> = T extends AnySchema
-  ? InferSchemaOutput<T>
-  : unknown;
+export type InferSchemaOutputSafe<T> = T extends AnySchema ? InferSchemaOutput<T> : unknown;
 
 // Infer output type from either output schema or handler return type
 export type InferOutput<
@@ -90,9 +76,7 @@ export type InferOutput<
   ? InferSchemaOutput<TOutputSchema>
   : Awaited<ReturnType<THandlerFn>>;
 
-export type InferSchemaInputSafe<T> = T extends AnySchema
-  ? InferSchemaInput<T>
-  : unknown;
+export type InferSchemaInputSafe<T> = T extends AnySchema ? InferSchemaInput<T> : unknown;
 
 // TEST: with expect-type
 export type UppercaseKeys<T> = {
@@ -140,9 +124,7 @@ export type HasAsyncCache<TCache> = TCache extends {
 
 // Cache methods run only on the paths that need them, so even a definitely
 // async method makes the procedure possibly async rather than always async.
-export type ConditionalCacheAsync<TCache, TResult> = [
-  HasAsyncCache<TCache>,
-] extends [false]
+export type ConditionalCacheAsync<TCache, TResult> = [HasAsyncCache<TCache>] extends [false]
   ? TResult
   : TResult | Promise<Awaited<TResult>>;
 
@@ -164,9 +146,7 @@ export type ZagoraResult<
           readonly ok: false;
           readonly isTypedError: true;
           readonly error: Prettify<
-            Readonly<
-              Prettify<ObjectToUnion<InferSchemaMapPlain<TErrorsMap, true>>>
-            >
+            Readonly<Prettify<ObjectToUnion<InferSchemaMapPlain<TErrorsMap, true>>>>
           >;
         }
       : never
@@ -176,9 +156,7 @@ export type ZagoraResult<
         readonly error:
           | InternalError
           | ValidationError<
-              TErrorsMap extends Record<string, AnySchema>
-                ? keyof TErrorsMap
-                : never
+              TErrorsMap extends Record<string, AnySchema> ? keyof TErrorsMap : never
             >;
       };
 
@@ -199,10 +177,7 @@ export interface ZagoraDef<
   envVarsMapSchema: TEnvVarsMap;
   envVars: ZagoraEnvVars;
   cacheAdapter: TCacheAdapter;
-  handler?: (
-    options: { context: TContext; errors: any },
-    ...args: unknown[]
-  ) => any;
+  handler?: (options: { context: TContext; errors: any }, ...args: unknown[]) => any;
 }
 
 // TEST: with expect-type
@@ -212,9 +187,7 @@ export interface ResolveHandlerOptions<
   TEnvVarsMap extends AnySchema | undefined,
 > {
   context: TContext;
-  errors: TErrorsMap extends Record<string, AnySchema>
-    ? ErrorHelpers<TErrorsMap>
-    : undefined;
+  errors: TErrorsMap extends Record<string, AnySchema> ? ErrorHelpers<TErrorsMap> : undefined;
   env: InferSchemaOutputSafe<TEnvVarsMap>;
 }
 
@@ -241,21 +214,13 @@ export type ResolveProcedure<
           any
         >
       : (
-          options: Prettify<
-            ResolveHandlerOptions<TContext, TErrorsMap, TEnvVarsMap>
-          >,
+          options: Prettify<ResolveHandlerOptions<TContext, TErrorsMap, TEnvVarsMap>>,
           arg: InferSchemaOutput<TInputSchema>,
         ) => any
-    : (
-        options: Prettify<
-          ResolveHandlerOptions<TContext, TErrorsMap, TEnvVarsMap>
-        >,
-      ) => any;
+    : (options: Prettify<ResolveHandlerOptions<TContext, TErrorsMap, TEnvVarsMap>>) => any;
 
 // TEST: with expect-type
-export type SpreadTuple<T extends readonly any[], R> = T extends readonly [
-  infer A,
-]
+export type SpreadTuple<T extends readonly any[], R> = T extends readonly [infer A]
   ? (arg: A) => R
   : T extends readonly [infer A, infer B]
     ? IsOptional<B> extends true
@@ -264,23 +229,11 @@ export type SpreadTuple<T extends readonly any[], R> = T extends readonly [
     : T extends readonly [infer A, infer B, infer C]
       ? IsOptional<B> extends true
         ? IsOptional<C> extends true
-          ?
-              | ((arg1: A, arg2?: B, arg3?: C) => R)
-              | ((arg1: A, arg2?: B) => R)
-              | ((arg1: A) => R)
-          :
-              | ((arg1: A, arg2?: B, arg3?: C) => R)
-              | ((arg1: A, arg2?: B) => R)
-              | ((arg1: A) => R)
+          ? ((arg1: A, arg2?: B, arg3?: C) => R) | ((arg1: A, arg2?: B) => R) | ((arg1: A) => R)
+          : ((arg1: A, arg2?: B, arg3?: C) => R) | ((arg1: A, arg2?: B) => R) | ((arg1: A) => R)
         : IsOptional<C> extends true
-          ?
-              | ((arg1: A, arg2: B, arg3?: C) => R)
-              | ((arg1: A, arg2: B) => R)
-              | ((arg1: A) => R)
-          :
-              | ((arg1: A, arg2: B, arg3: C) => R)
-              | ((arg1: A, arg2: B) => R)
-              | ((arg1: A) => R)
+          ? ((arg1: A, arg2: B, arg3?: C) => R) | ((arg1: A, arg2: B) => R) | ((arg1: A) => R)
+          : ((arg1: A, arg2: B, arg3: C) => R) | ((arg1: A, arg2: B) => R) | ((arg1: A) => R)
       : T extends readonly [infer A, infer B, infer C, infer D]
         ? IsOptional<B> extends true
           ? IsOptional<C> extends true

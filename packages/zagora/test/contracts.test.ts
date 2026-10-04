@@ -4,15 +4,14 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as v from "valibot";
 import { expect, test } from "vitest";
 import z from "zod";
+
 import { createErrorHelpers } from "../src/errors";
 import { zagora } from "../src/index";
 import { createResult } from "../src/utils";
 
 type Schema<I, O = I> = StandardSchemaV1<I, O>;
 
-function schema<I, O>(
-  validate: StandardSchemaV1.Props<I, O>["validate"],
-): Schema<I, O> {
+function schema<I, O>(validate: StandardSchemaV1.Props<I, O>["validate"]): Schema<I, O> {
   return {
     "~standard": {
       version: 1,
@@ -109,33 +108,30 @@ test("schema implementation failures become internal results", async () => {
   expectInternalError(await asyncErrorProcedure(), asyncErrorCause);
 });
 
-test.each([
-  undefined,
-  null,
-  false,
-  0,
-  "",
-])("a handler throwing %j still returns a failure", (thrown) => {
-  const procedure = zagora()
-    .input(z.boolean())
-    .handler((_, shouldThrow) => {
-      if (shouldThrow) {
-        throw thrown;
-      }
-      return "ok";
-    })
-    .callable();
+test.each([undefined, null, false, 0, ""])(
+  "a handler throwing %j still returns a failure",
+  (thrown) => {
+    const procedure = zagora()
+      .input(z.boolean())
+      .handler((_, shouldThrow) => {
+        if (shouldThrow) {
+          throw thrown;
+        }
+        return "ok";
+      })
+      .callable();
 
-  const result = procedure(true);
-  expect(result.ok).toBe(false);
-  if (!result.ok) {
-    expect(result.isTypedError).toBe(false);
-    expect(result.error.kind).toBe("UNKNOWN_ERROR");
-    if (result.error.kind === "UNKNOWN_ERROR") {
-      expect(result.error.cause).toBe(thrown);
+    const result = procedure(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.isTypedError).toBe(false);
+      expect(result.error.kind).toBe("UNKNOWN_ERROR");
+      if (result.error.kind === "UNKNOWN_ERROR") {
+        expect(result.error.cause).toBe(thrown);
+      }
     }
-  }
-});
+  },
+);
 
 test("context merges plain containers and preserves dependencies", () => {
   class Database {
@@ -215,11 +211,9 @@ test("error helpers only use own keys and preserve the declared kind", () => {
 test("error validation cannot replace the declared kind", () => {
   const procedure = zagora()
     .errors({
-      DECLARED: schema<{ message: string }, { message: string; kind: string }>(
-        (value) => ({
-          value: { ...(value as { message: string }), kind: "OTHER" },
-        }),
-      ),
+      DECLARED: schema<{ message: string }, { message: string; kind: string }>((value) => ({
+        value: { ...(value as { message: string }), kind: "OTHER" },
+      })),
     })
     .handler(({ errors }) => {
       throw errors.DECLARED({ message: "failure" });
@@ -233,20 +227,20 @@ test("error validation cannot replace the declared kind", () => {
   });
 });
 
-test.each([
-  new Error("failure"),
-  undefined,
-])("untyped handler throws remain unknown errors when an error map exists", (thrown) => {
-  const procedure = zagora()
-    .errors({ DECLARED: z.object({ message: z.string() }) })
-    .handler(() => {
-      throw thrown;
-    })
-    .callable();
+test.each([new Error("failure"), undefined])(
+  "untyped handler throws remain unknown errors when an error map exists",
+  (thrown) => {
+    const procedure = zagora()
+      .errors({ DECLARED: z.object({ message: z.string() }) })
+      .handler(() => {
+        throw thrown;
+      })
+      .callable();
 
-  const result = procedure();
-  expectInternalError(result, thrown);
-});
+    const result = procedure();
+    expectInternalError(result, thrown);
+  },
+);
 
 test("success results expose the shape promised by their type", () => {
   const result = createResult("ok", null, false);
@@ -323,12 +317,7 @@ test("an async error-map entry makes every runtime path async", async () => {
   const syncErrorResult = procedure("sync-error");
   const asyncErrorResult = procedure("async-error");
 
-  for (const result of [
-    invalidResult,
-    successResult,
-    syncErrorResult,
-    asyncErrorResult,
-  ]) {
+  for (const result of [invalidResult, successResult, syncErrorResult, asyncErrorResult]) {
     expect(result).toBeInstanceOf(Promise);
   }
 
