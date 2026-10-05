@@ -3,7 +3,7 @@
 /**
  * Coverage Badge Analyzer
  * Parses lcov.info file and calculates test coverage percentage
- * Usage: bun scripts/coverage-badge.ts
+ * Usage: node ../../scripts/coverage-badge.ts, from the package directory
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,7 +21,7 @@ interface CoverageMetrics {
 function parseLcovFile(filePath: string): CoverageMetrics {
   if (!existsSync(filePath)) {
     console.error(`❌ Coverage file not found: ${filePath}`);
-    console.error("Run tests with coverage first: bun run ci:test");
+    console.error("Run tests with coverage first: pnpm run test");
     return process.exit(1);
   }
 

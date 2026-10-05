@@ -1,5 +1,7 @@
 # @tunnckocore/calc
 
+[![depot ci](https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master?label=depot%20ci)](https://github.com/tunnckoCoreHQ/monarch/commit/master) <!-- COV_BADGE:START -->![coverage](https://badgen.net/badge/coverage/100.00%25/green)<!-- COV_BADGE:END -->
+
 A small package used to verify the private registry.
 
 ## Install

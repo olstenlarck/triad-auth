@@ -6,5 +6,5 @@
     }
   },
   "extends": "../../tsconfig.json",
-  "include": ["example.ts", "src/**/*.ts", "test/**/*.ts"]
+  "include": ["example.ts", "src/**/*.ts", "test/**/*.ts", "*.config.ts"]
 }
