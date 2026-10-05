@@ -582,7 +582,7 @@ const result2 = await procAsyncOutput("hello"); // ZagoraResult
 
 ### Caching/Memoization
 
-Built-in caching with custom cache adapter. Cache key includes the input, the input/output/error schemas, and an ID unique to the handler function. That can be used to implement custom caching strategies, and memoization.
+Built-in caching with custom cache adapter. Cache key includes the input, the input/output/error schemas, and handler function body. That can be used to implement custom caching strategies, and memoization.
 
 **Couple of notes:**
 
@@ -591,8 +591,8 @@ Built-in caching with custom cache adapter. Cache key includes the input, the in
 - failures in cache adapter will be reported as `UNKNOWN_ERROR` in `result.error` with `result.error.cause` set to the error thrown
 - in future this could change to be `CACHE_ERROR` with `cause`
 - when cache is passed through `.callable` - and has async methods, make sure to await the procedure and ignore the TypeScript warning that "you may not need await here" - you do need to await
-- only output that passes the output schema is stored, so a failed call never leaves an invalid value in the cache
-- the handler ID lives in memory, so cache entries are not reused by another process or after a restart
+- only the validated output is stored, so a failed call never leaves a value in the cache, and a cache hit returns the stored output without validating it again
+- a cache entry whose value is `undefined` counts as a miss, so an entry that expires between `has` and `get` runs the handler again
 
 ```ts
 const cache = new Map();

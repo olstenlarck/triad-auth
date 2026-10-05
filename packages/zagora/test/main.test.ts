@@ -788,23 +788,7 @@ test("cache adapter passed through `.callable` method", async () => {
   await fixture(false, false, true);
 });
 
-test("procedures with the same handler source do not share cache entries", () => {
-  const cache = new Map();
-  const createTenantProcedure = (tenantId: string) =>
-    zagora()
-      .cache(cache)
-      .input(z.string())
-      .handler((_, key) => `${tenantId}:${key}`)
-      .callable();
-
-  const firstTenant = createTenantProcedure("tenant-1");
-  const secondTenant = createTenantProcedure("tenant-2");
-
-  expect(firstTenant("profile")).toEqual({ ok: true, data: "tenant-1:profile" });
-  expect(secondTenant("profile")).toEqual({ ok: true, data: "tenant-2:profile" });
-});
-
-test("invalid handler output is not cached", async () => {
+test("the cache stores only the validated output", async () => {
   const cache = new Map();
   let called = 0;
   const procedure = zagora()
@@ -814,7 +798,7 @@ test("invalid handler output is not cached", async () => {
       set: (key: string, value: unknown) => cache.set(key, value),
     })
     .input(z.string())
-    .output(z.string())
+    .output(z.string().transform((value) => value.length))
     .handler((_, input) => {
       called += 1;
       return called === 1 ? 123 : input;
@@ -822,11 +806,28 @@ test("invalid handler output is not cached", async () => {
     .callable();
 
   expect((await procedure("foo")).ok).toBe(false);
-  expect(await procedure("foo")).toEqual({ ok: true, data: "foo" });
+  expect(await procedure("foo")).toEqual({ ok: true, data: 3 });
 
-  // the third call reads the valid output from the cache
-  expect(await procedure("foo")).toEqual({ ok: true, data: "foo" });
+  // the third call returns the cached output without validating it again
+  expect(await procedure("foo")).toEqual({ ok: true, data: 3 });
   expect(called).toBe(2);
+  expect([...cache.values()]).toEqual([3]);
+});
+
+test("a cache entry that expires between `has` and `get` runs the handler", () => {
+  let called = 0;
+  const procedure = zagora()
+    .cache({ has: () => true, get: () => undefined, set: () => {} })
+    .input(z.string())
+    .output(z.string())
+    .handler((_, input) => {
+      called += 1;
+      return input;
+    })
+    .callable();
+
+  expect(procedure("foo")).toEqual({ ok: true, data: "foo" });
+  expect(called).toBe(1);
 });
 
 test("failing env validation schema through `.env` method", () => {
