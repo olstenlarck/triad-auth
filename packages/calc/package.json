@@ -18,6 +18,7 @@
   },
   "scripts": {
     "check": "ultracite fix --type-aware --type-check",
-    "test": "vitest run"
+    "coverage:badge": "node ../../scripts/coverage-badge.ts",
+    "test": "vitest run --coverage"
   }
 }

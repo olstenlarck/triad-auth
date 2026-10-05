@@ -22,6 +22,7 @@
   "scripts": {
     "build": "tsdown",
     "check": "ultracite fix --type-aware --type-check",
+    "coverage:badge": "node ../../scripts/coverage-badge.ts",
     "test": "vitest run --coverage"
   },
   "devDependencies": {

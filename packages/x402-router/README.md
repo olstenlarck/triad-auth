@@ -1,5 +1,7 @@
 # @tunnckocore/x402-router
 
+[![ci](https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master?label=ci)](https://depot.dev/orgs/pcnr2v598s/workflows) <!-- COV_BADGE:START -->![coverage](https://badgen.net/badge/coverage/91.14%25/99CC09)<!-- COV_BADGE:END -->
+
 Standalone x402 v2 facilitator router for any WinterCG Fetch API runtime. Or call it "x402 facilitator multiplexer" if you want the fancy name. 😂
 
 ## Install
