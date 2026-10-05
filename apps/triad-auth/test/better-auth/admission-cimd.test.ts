@@ -10,7 +10,7 @@ import {
   type Fetcher,
 } from "../../src/better-auth/admission/cimd";
 
-function dnsResponse(answers: { data: string; type: number }[], status = 0): Response {
+function dnsResponse(answers: Array<{ data: string; type: number }>, status = 0): Response {
   return Response.json({ Answer: answers, Status: status });
 }
 

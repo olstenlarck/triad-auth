@@ -51,7 +51,7 @@ const installNote: Note[] = [
 ];
 
 // Unmarked words are set dimmer, so the key phrase carries the line.
-const statements: { parts: Part[]; support: Note[] }[] = [
+const statements: Array<{ parts: Part[]; support: Note[] }> = [
   {
     parts: [
       { text: "Ethereum Mainnet goes to ", tone: "key" },
@@ -203,7 +203,7 @@ app.get("/paid", (c) => c.json({ ok: true, message: "paid endpoint reached" }));
 const sellerLine = `const facilitator = new HTTPFacilitatorClient({ url: "${origin}" });`;
 
 // Mirrors X402RouterOptions in packages/x402-router/src/index.ts.
-const routerOptions: { name: string; fallback: string; does: Note[] }[] = [
+const routerOptions: Array<{ name: string; fallback: string; does: Note[] }> = [
   {
     name: "upstreams",
     fallback: "PrimeV, x402.org, CDP",

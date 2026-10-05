@@ -65,14 +65,14 @@ describe("Triad OAuth resource fragment", () => {
     const fragment = createTriadResourceFragment(productionEnv);
 
     expectTypeOf(fragment.oauthProviderOptions.resources).toMatchTypeOf<
-      | (
+      | Array<
           | string
           | {
               identifier: string;
               allowedScopes?: string[];
               accessTokenTtl?: number;
             }
-        )[]
+        >
       | undefined
     >();
   });

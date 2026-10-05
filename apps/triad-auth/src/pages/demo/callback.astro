@@ -109,7 +109,7 @@ export const prerender = true;
 
     function renderProfileClaims(profile: VerifiedProfile) {
       const container = document.querySelector<HTMLElement>("#callback-profile-claims")!;
-      const claims: [string, VerifiedProfile[keyof VerifiedProfile]][] = [
+      const claims: Array<[string, VerifiedProfile[keyof VerifiedProfile]]> = [
         ["email", profile.email],
         ["email_verified", profile.emailVerified],
         ["preferred_username", profile.handle],
