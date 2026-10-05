@@ -5,6 +5,11 @@ import type { Env } from "./env";
 const DEPOT_API = "https://api.depot.dev/depot.ci.v1.CIService";
 const DEPOT_CI_PRODUCT = "https://depot.dev/products/ci";
 const SEGMENT = /^[\w.-]+$/;
+const GITHUB_API = "https://api.github.com/repos";
+const SOCKET_CHECK = "Socket Security: Project Report";
+// The simple-icons 16.34.0 Socket logo, filled white.
+const SOCKET_ICON =
+  "data:image/svg+xml;base64,PHN2ZyBmaWxsPSJ3aGl0ZSIgdmlld0JveD0iMCAwIDI0IDI0IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0yLjkzIDExLjE3MWMwIDUuOTIgMy43NzggMTAuOTU3IDkuMDYzIDEyLjgyOWExMy42NTIgMTMuNjUyIDAgMCAwIDYuNTEzLTQuODkgMTMuNDk3IDEzLjQ5NyAwIDAgMCAyLjU2NC03LjkzOVYzLjI3NEwxMS45OTcgMCAyLjkzMyAzLjI3NHY3Ljg5N3ptNy40OTEtNi4wOWg0LjIwOEwxMy4zNCA5LjQ3aDIuMjkybC02LjI2NCA5LjQ0NiAxLjQ4Ni02Ljg1OEg4LjM2NXoiLz48L3N2Zz4=";
 
 interface Badge {
   subject: string;
@@ -36,11 +41,23 @@ interface GetWorkflowResponse {
   jobs?: Array<{ jobId: string; jobKey: string; status: string }>;
 }
 
+interface CheckRunsResponse {
+  check_runs?: Array<{ conclusion: string | null }>;
+}
+
 const STATUS: Record<string, Pick<Badge, "status" | "color">> = {
   finished: { status: "passing", color: "green" },
   failed: { status: "failing", color: "red" },
   cancelled: { status: "cancelled", color: "grey" },
   skipped: { status: "skipped", color: "grey" },
+};
+
+// GitHub check run conclusions in the Depot terms of STATUS.
+const CONCLUSION: Record<string, string> = {
+  success: "finished",
+  failure: "failed",
+  cancelled: "cancelled",
+  skipped: "skipped",
 };
 
 async function depot<T>(
@@ -86,12 +103,41 @@ async function latestWorkflow(
   return depot<GetWorkflowResponse>(env, "GetWorkflow", { workflowId: found.workflowId });
 }
 
-function render(badge: Badge, format: string): Response {
+// The conclusion of the Socket check run on the default branch head. GitHub allows 60
+// unauthenticated requests an hour, so Cloudflare caches the answer for five minutes.
+async function socketConclusion(repo: string): Promise<string | undefined> {
+  const url = new URL(`${GITHUB_API}/${repo}/commits/HEAD/check-runs`);
+  url.searchParams.set("check_name", SOCKET_CHECK);
+  const response = await fetch(url, {
+    headers: { accept: "application/vnd.github+json", "user-agent": "badges.wgw.lol" },
+    cf: { cacheEverything: true, cacheTtl: 300 },
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub check-runs answered ${response.status}`);
+  }
+  // SAFETY: GitHub answers check-runs with this shape, checked by response.ok above.
+  const { check_runs: runs = [] }: CheckRunsResponse = await response.json();
+  return runs[0]?.conclusion ?? undefined;
+}
+
+async function socket(repo: string, format: string): Promise<Response> {
+  let conclusion: string | undefined;
+  try {
+    conclusion = await socketConclusion(repo);
+  } catch (error) {
+    console.error(error);
+  }
+  const known = conclusion ? STATUS[CONCLUSION[conclusion] ?? ""] : undefined;
+  const badge: Badge = { subject: "Socket Security", status: "unknown", color: "grey", ...known };
+  return render(badge, format, SOCKET_ICON);
+}
+
+function render(badge: Badge, format: string, icon?: string): Response {
   const headers = { "cache-control": "public, max-age=60" };
   if (format === "json") {
     return Response.json(badge, { headers });
   }
-  return new Response(badgen(badge), {
+  return new Response(badgen({ ...badge, labelColor: "black", icon }), {
     headers: { ...headers, "content-type": "image/svg+xml; charset=utf-8" },
   });
 }
@@ -106,6 +152,12 @@ async function handle(request: Request, env: Env): Promise<Response> {
   const [owner = "", name = "", workflow = "", job] = segments;
   if (segments.length < 3 || segments.length > 4 || !segments.every((s) => SEGMENT.test(s))) {
     return new Response("Not Found", { status: 404 });
+  }
+  // The Socket badge has no link to redirect to.
+  if (owner === "socket" && !job) {
+    return format
+      ? socket(segments.slice(1).join("/"), format)
+      : new Response("Not Found", { status: 404 });
   }
   if (!format && !job) {
     return Response.redirect(DEPOT_CI_PRODUCT, 302);

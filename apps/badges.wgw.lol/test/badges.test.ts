@@ -22,6 +22,13 @@ function get(path: string): Promise<Response> {
   return worker.fetch(new Request(`${base}${path}`), env);
 }
 
+function socket(path: string): Promise<Response> {
+  return worker.fetch(
+    new Request(`https://badges.wgw.lol/socket/tunnckoCoreHQ/monarch${path}`),
+    env,
+  );
+}
+
 beforeEach(() => {
   depot.mockReset();
   depot.mockImplementation((method: string) =>
@@ -90,6 +97,8 @@ describe("badges", () => {
     const svg = await response.text();
     expect(svg).toContain("ci: check");
     expect(svg).toContain("passing");
+    // The badgen black label.
+    expect(svg).toContain('fill="#2A2A2A"');
   });
 
   it("shows the workflow status", async () => {
@@ -111,6 +120,52 @@ describe("badges", () => {
     const response = await get("/ci/test.svg");
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("unknown");
+  });
+});
+
+describe("socket", () => {
+  const github = vi.fn();
+
+  beforeEach(() => {
+    github.mockReset();
+    github.mockResolvedValue(Response.json({ check_runs: [{ conclusion: "success" }] }));
+    vi.stubGlobal("fetch", github);
+  });
+
+  it("shows the Socket check run of the default branch as passing", async () => {
+    await expect((await socket(".json")).json()).resolves.toEqual({
+      subject: "Socket Security",
+      status: "passing",
+      color: "green",
+    });
+    expect(String(github.mock.calls[0]?.[0])).toBe(
+      "https://api.github.com/repos/tunnckoCoreHQ/monarch/commits/HEAD/check-runs?check_name=Socket+Security%3A+Project+Report",
+    );
+  });
+
+  it("renders the badge as SVG with the Socket icon", async () => {
+    const svg = await (await socket(".svg")).text();
+
+    expect(svg).toContain("Socket Security");
+    expect(svg).toContain("passing");
+    expect(svg).toContain("data:image/svg+xml;base64,");
+  });
+
+  it("shows failing for a failed check and unknown for a missing check or a GitHub error", async () => {
+    github.mockResolvedValueOnce(Response.json({ check_runs: [{ conclusion: "failure" }] }));
+    await expect((await socket(".json")).json()).resolves.toMatchObject({ status: "failing" });
+
+    github.mockResolvedValueOnce(Response.json({ check_runs: [] }));
+    await expect((await socket(".json")).json()).resolves.toMatchObject({ status: "unknown" });
+
+    github.mockResolvedValueOnce(new Response("rate limited", { status: 403 }));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await expect((await socket(".json")).json()).resolves.toMatchObject({ status: "unknown" });
+  });
+
+  it("answers 404 without an extension", async () => {
+    expect((await socket("")).status).toBe(404);
+    expect(github).not.toHaveBeenCalled();
   });
 });
 
