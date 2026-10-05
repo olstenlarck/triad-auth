@@ -96,11 +96,24 @@ function render(badge: Badge, format: string): Response {
   });
 }
 
+function health(sha: string): Response {
+  const link =
+    sha === "local"
+      ? "https://github.com/tunnckoCoreHQ/monarch"
+      : `https://github.com/tunnckoCoreHQ/monarch/commit/${sha}`;
+  return Response.json({ ok: true, link, commit: sha });
+}
+
 async function handle(request: Request, env: Env): Promise<Response> {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, HEAD" } });
   }
-  const match = /^(.+?)(?:\.(svg|json))?$/.exec(new URL(request.url).pathname.slice(1));
+  const { pathname } = new URL(request.url);
+  // Badge paths have at least three segments, so this cannot shadow a badge.
+  if (pathname === "/health") {
+    return health(env.COMMIT_SHA);
+  }
+  const match = /^(.+?)(?:\.(svg|json))?$/.exec(pathname.slice(1));
   const segments = match?.[1]?.split("/") ?? [];
   const format = match?.[2];
   const [owner = "", name = "", workflow = "", job] = segments;

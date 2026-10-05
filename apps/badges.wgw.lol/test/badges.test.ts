@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/env";
 import worker from "../src/index";
 
-const env: Env = { BADGES_DEPOT_TOKEN: "depot-token" };
+const env: Env = { BADGES_DEPOT_TOKEN: "depot-token", COMMIT_SHA: "abc123" };
 const base = "https://badges.wgw.lol/tunnckoCoreHQ/monarch";
 const workflow = {
   orgId: "pcnr2v598s",
@@ -111,6 +111,19 @@ describe("badges", () => {
     const response = await get("/ci/test.svg");
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("unknown");
+  });
+});
+
+describe("health", () => {
+  it("shows the deployed commit without asking Depot", async () => {
+    const response = await worker.fetch(new Request("https://badges.wgw.lol/health"), env);
+
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      link: "https://github.com/tunnckoCoreHQ/monarch/commit/abc123",
+      commit: "abc123",
+    });
+    expect(depot).not.toHaveBeenCalled();
   });
 });
 
