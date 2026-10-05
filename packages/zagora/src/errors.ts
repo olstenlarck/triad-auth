@@ -77,7 +77,7 @@ export function createValidationError<ErrorKindNames = never>(
     kind: "VALIDATION_ERROR" as const,
     message: `${modeName} validation failed${str}: ${issuesMsg}`,
     key,
-    issues: issues as SchemaIssue[],
+    issues,
   } as const;
 }
 

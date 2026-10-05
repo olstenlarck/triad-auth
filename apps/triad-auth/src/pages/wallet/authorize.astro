@@ -75,12 +75,12 @@ export const prerender = true;
       };
       identity_source: string;
       cancel_uri: string;
-      passkeys: Array<{
+      passkeys: {
         id: string;
         name: string;
         backed_up: boolean;
         created_at: number | string | null;
-      }>;
+      }[];
     }
 
     interface WalletOptions {

@@ -167,6 +167,7 @@ class WalletBrokerError extends Error {
     message: string,
   ) {
     super(message);
+    this.name = "WalletBrokerError";
   }
 }
 

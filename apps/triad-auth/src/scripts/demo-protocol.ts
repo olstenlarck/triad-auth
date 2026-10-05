@@ -367,7 +367,7 @@ export function inspectOAuthQuery(search: string): InspectedOAuthQuery {
   const validResources = resources.length > 0 && resources.every(absoluteHttpUrl);
   let scopes: DisclosureScope[] = [];
   if (scopeValues.length === 1) {
-    scopes = canonicalDisclosureScopes(scopeValues[0]!.split(" "));
+    scopes = canonicalDisclosureScopes(scopeValues[0].split(" "));
   }
 
   if (

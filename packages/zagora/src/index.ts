@@ -369,7 +369,7 @@ export class Zagora<
         // thus if inputSchema is not defined, then it would be isTuple=false too.
         const handlerArgs =
           !isArraySchema && !isPrimitiveSchema
-            ? handleTupleDefaults(inputSchema as any, inputData as any)
+            ? handleTupleDefaults(inputSchema as any, inputData)
             : [inputData];
 
         const executionArgs = disableOptions ? handlerArgs : [options, ...handlerArgs];
@@ -482,7 +482,7 @@ export class Zagora<
 
     return za._createProcedure<TEffectiveCacheAdapter, TIncomingEnv, TNewContext, TKindNames>(
       options.context,
-      options.env as any,
+      options.env,
     );
   }
 }

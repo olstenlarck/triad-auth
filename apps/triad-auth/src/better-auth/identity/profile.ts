@@ -386,8 +386,11 @@ export function createProfileClaimResolver(options: ProfileClaimResolverOptions)
       }
 
       const passkeyScopes: readonly OptionalDisclosureScope[] = ["cred", "pubkey", "cosekey"];
-      const databaseScopes: readonly OptionalDisclosureScope[] = ["wallet", ...passkeyScopes];
-      const requiresDatabaseClaims = scopes.some((scope) => databaseScopes.includes(scope));
+      const databaseScopes: ReadonlySet<OptionalDisclosureScope> = new Set([
+        "wallet",
+        ...passkeyScopes,
+      ]);
+      const requiresDatabaseClaims = scopes.some((scope) => databaseScopes.has(scope));
       if (requiresDatabaseClaims && !database) {
         throw new Error("Credential claims require an identity database");
       }

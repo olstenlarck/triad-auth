@@ -917,7 +917,7 @@ test("context and deepMerge only accept record-shaped roots", () => {
     value: string;
   }
 
-  const interfaceContext = { value: "interface" } as InterfaceContext;
+  const interfaceContext: InterfaceContext = { value: "interface" };
 
   const assertInvalidRoots = () => {
     // @ts-expect-error interface-shaped roots are intentionally unsupported

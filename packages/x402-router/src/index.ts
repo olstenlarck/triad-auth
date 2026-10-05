@@ -42,7 +42,7 @@ function json(value: unknown, init?: ResponseInit) {
   const finalHeaders = corsHeaders(headers);
   finalHeaders.set("content-type", "application/json; charset=utf-8");
 
-  return new Response(JSON.stringify(value), { ...init, headers: finalHeaders });
+  return Response.json(value, { ...init, headers: finalHeaders });
 }
 
 function empty(init?: ResponseInit, allowedHeaders?: string) {
@@ -123,7 +123,7 @@ function mergeSupported(responses: X402SupportedResponse[]) {
   }
 
   return {
-    ...(extensions.size > 0 ? { extensions: [...extensions].sort() } : {}),
+    ...(extensions.size > 0 ? { extensions: [...extensions].toSorted() } : {}),
     kinds: [...kinds.values()],
     ...(Object.keys(signers).length > 0 ? { signers } : {}),
   } satisfies X402SupportedResponse;

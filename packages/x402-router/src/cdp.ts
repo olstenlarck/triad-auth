@@ -81,4 +81,4 @@ export async function createCdpAuthHeaders(
   };
 }
 
-export { CDP_FACILITATOR_URL };
+export { CDP_FACILITATOR_URL } from "./defaults";

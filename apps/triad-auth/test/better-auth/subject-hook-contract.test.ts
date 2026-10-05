@@ -13,8 +13,8 @@ const plugin = oauthProvider({
 });
 
 const entryUrl = new URL(import.meta.resolve("@better-auth/oauth-provider"));
-const entrySource = readFileSync(entryUrl, "utf8");
-const utilitySource = readFileSync(new URL("./utils-GbnW6qPl.mjs", entryUrl), "utf8");
+const entrySource = readFileSync(entryUrl, "utf-8");
+const utilitySource = readFileSync(new URL("utils-GbnW6qPl.mjs", entryUrl), "utf-8");
 
 describe("OAuth Provider exact-client subject hook", () => {
   it("exposes the resolver through the public options type", () => {

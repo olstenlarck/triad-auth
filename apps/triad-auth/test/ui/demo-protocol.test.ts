@@ -114,15 +114,15 @@ describe("demo disclosure scopes", () => {
   });
 
   it("defaults to openid and serializes supported selections in canonical order", () => {
-    const github = demoProviderCapabilities[1]!;
+    const github = demoProviderCapabilities[1];
 
     expect(canonicalScopeRequest(github, [])).toBe("openid");
     expect(canonicalScopeRequest(github, ["avatar", "email", "email"])).toBe("openid email avatar");
   });
 
   it("rejects scopes that the selected provider cannot disclose", () => {
-    const google = demoProviderCapabilities[0]!;
-    const twitter = demoProviderCapabilities[2]!;
+    const google = demoProviderCapabilities[0];
+    const twitter = demoProviderCapabilities[2];
 
     expect(() => canonicalScopeRequest(google, ["handle"])).toThrow("selected provider");
     expect(() => canonicalScopeRequest(twitter, ["email"])).toThrow("selected provider");

@@ -578,7 +578,7 @@ const router = createX402Router();
 
       // In-page links slide to their section. Native smooth scroll is too fast over this
       // distance to read as a slide. Reduced motion jumps straight there.
-      const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+      const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
       document.querySelectorAll('a[href^="#"]').forEach((link) => {
         link.addEventListener("click", (event) => {
           const hash = link.getAttribute("href");

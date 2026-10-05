@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import { utils } from "../src/index";
 
-function streamResponse(chunks: Array<string | Uint8Array>): Response {
+function streamResponse(chunks: (string | Uint8Array)[]): Response {
   const encoder = new TextEncoder();
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
