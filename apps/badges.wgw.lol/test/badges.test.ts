@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/env";
 import worker from "../src/index";
 
-const env: Env = { BADGES_DEPOT_TOKEN: "depot-token" };
+const env: Env = { BADGES_DEPOT_TOKEN: "depot-token", COMMIT_SHA: "abc123" };
 const base = "https://badges.wgw.lol/tunnckoCoreHQ/monarch";
 const workflow = {
   orgId: "pcnr2v598s",
@@ -90,6 +90,8 @@ describe("badges", () => {
     const svg = await response.text();
     expect(svg).toContain("ci: check");
     expect(svg).toContain("passing");
+    // The badgen black label.
+    expect(svg).toContain('fill="#2A2A2A"');
   });
 
   it("shows the workflow status", async () => {
@@ -111,6 +113,51 @@ describe("badges", () => {
     const response = await get("/ci/test.svg");
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("unknown");
+  });
+});
+
+describe("socket", () => {
+  it("proxies the badgen Socket checks badge with passing and failing", async () => {
+    const badgenFetch = vi.fn(async () => new Response("<svg>Socket Security: success</svg>"));
+    vi.stubGlobal("fetch", badgenFetch);
+
+    const response = await get("/socket");
+
+    expect(response.headers.get("content-type")).toBe("image/svg+xml; charset=utf-8");
+    expect(await response.text()).toBe("<svg>Socket Security: passing</svg>");
+    expect(badgenFetch).toHaveBeenCalledWith(
+      "https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket",
+    );
+
+    badgenFetch.mockResolvedValueOnce(new Response("<svg>Socket Security: failure</svg>"));
+    expect(await (await get("/socket")).text()).toBe("<svg>Socket Security: failing</svg>");
+  });
+
+  it("shows unknown when badgen answers an error or cannot be reached", async () => {
+    const badgenFetch = vi.fn(async () => new Response("nope", { status: 500 }));
+    vi.stubGlobal("fetch", badgenFetch);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await get("/socket");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/svg+xml; charset=utf-8");
+    expect(await response.text()).toContain("Socket Security: unknown");
+
+    badgenFetch.mockRejectedValueOnce(new Error("network"));
+    expect(await (await get("/socket")).text()).toContain("Socket Security: unknown");
+  });
+});
+
+describe("health", () => {
+  it("shows the deployed commit without asking Depot", async () => {
+    const response = await worker.fetch(new Request("https://badges.wgw.lol/health"), env);
+
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      link: "https://github.com/tunnckoCoreHQ/monarch/commit/abc123",
+      commit: "abc123",
+    });
+    expect(depot).not.toHaveBeenCalled();
   });
 });
 

@@ -13,6 +13,8 @@ export const Worker = Cloudflare.Worker("Worker", {
   compatibility: { date: "2026-08-24" },
   observability: { enabled: true, headSamplingRate: 1 },
   env: {
+    // The deploy workflow passes the commit being deployed; local deploys get "local".
+    COMMIT_SHA: process.env.COMMIT_SHA ?? "local",
     // A Depot organization token for pcnr2v598s, from the BADGES_DEPOT_TOKEN Depot CI secret.
     BADGES_DEPOT_TOKEN: Config.Redacted("BADGES_DEPOT_TOKEN"),
   },

@@ -1,6 +1,6 @@
-# @tunnckocore/x402-router
+# @tunnckocore/x402-router ![](https://badgen.net/static/license/Apache-2.0/blue?labelColor=black) [![built with depot](https://badgen.net/static/Built%20With%20Depot%20CI/%E2%98%85%E2%98%85%E2%98%85%E2%98%85%E2%98%85/black?labelColor=black)](https://depot.dev/products/ci?utm_source=tunnckoCoreHQ_monarch)
 
-[![ci: check](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/check.svg)](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/check) [![ci: test](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/test.svg)](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/test) [![ci: build](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/build.svg)](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/build) <!-- COV_BADGE:START -->![coverage](https://badgen.net/badge/coverage/91.14%25/99CC09)<!-- COV_BADGE:END -->
+[![socket security](https://badges.wgw.lol/tunnckoCoreHQ/monarch/socket)](https://socket.dev?utm_source=tunnckoCoreHQ_monarch) [![ci: check](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/check.svg)](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/check) [![ci: test](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/test.svg)](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/test) [![ci: build](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/build.svg)](https://badges.wgw.lol/tunnckoCoreHQ/monarch/ci/build) <!-- COV_BADGE:START -->![coverage](https://badgen.net/badge/coverage/91.14%25/99CC09)<!-- COV_BADGE:END -->
 
 Standalone x402 v2 facilitator router for any WinterCG Fetch API runtime. Or call it "x402 facilitator multiplexer" if you want the fancy name. 😂
 

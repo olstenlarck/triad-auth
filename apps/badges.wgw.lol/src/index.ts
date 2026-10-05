@@ -91,21 +91,63 @@ function render(badge: Badge, format: string): Response {
   if (format === "json") {
     return Response.json(badge, { headers });
   }
-  return new Response(badgen(badge), {
+  return new Response(badgen({ ...badge, labelColor: "black" }), {
     headers: { ...headers, "content-type": "image/svg+xml; charset=utf-8" },
   });
+}
+
+// The badgen GitHub checks badge of the Socket report on master, saying passing and failing
+// like the Depot badges instead of success and failure.
+async function socket(repo: string): Promise<Response> {
+  try {
+    const response = await fetch(
+      `https://badgen.net/github/checks/${repo}/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket`,
+    );
+    if (!response.ok) {
+      throw new Error(`badgen answered ${response.status}`);
+    }
+    const svg = (await response.text())
+      .replaceAll("success", "passing")
+      .replaceAll("failure", "failing");
+    return new Response(svg, {
+      headers: {
+        "cache-control": "public, max-age=60",
+        "content-type": "image/svg+xml; charset=utf-8",
+      },
+    });
+  } catch (error) {
+    // A broken image helps nobody, so the badge shows "unknown" like the Depot badges.
+    console.error(error);
+    return render({ subject: "Socket Security", status: "unknown", color: "grey" }, "svg");
+  }
+}
+
+function health(sha: string): Response {
+  const link =
+    sha === "local"
+      ? "https://github.com/tunnckoCoreHQ/monarch"
+      : `https://github.com/tunnckoCoreHQ/monarch/commit/${sha}`;
+  return Response.json({ ok: true, link, commit: sha });
 }
 
 async function handle(request: Request, env: Env): Promise<Response> {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, HEAD" } });
   }
-  const match = /^(.+?)(?:\.(svg|json))?$/.exec(new URL(request.url).pathname.slice(1));
+  const { pathname } = new URL(request.url);
+  // Badge paths have at least three segments, so this cannot shadow a badge.
+  if (pathname === "/health") {
+    return health(env.COMMIT_SHA);
+  }
+  const match = /^(.+?)(?:\.(svg|json))?$/.exec(pathname.slice(1));
   const segments = match?.[1]?.split("/") ?? [];
   const format = match?.[2];
   const [owner = "", name = "", workflow = "", job] = segments;
   if (segments.length < 3 || segments.length > 4 || !segments.every((s) => SEGMENT.test(s))) {
     return new Response("Not Found", { status: 404 });
+  }
+  if (workflow === "socket" && !job) {
+    return socket(`${owner}/${name}`);
   }
   if (!format && !job) {
     return Response.redirect(DEPOT_CI_PRODUCT, 302);
