@@ -56,7 +56,7 @@ Filter Patterns:
 - The app's `promote` script fast-forwards only its own branch: `git fetch origin && git push origin origin/master:release/<name>`. Run it only when the user asks. Promoting one app never builds another app's Worker.
 - An app without environments has one Worker with branch control on `master` and no `promote` script. Every merge that touches its paths deploys it.
 - One Depot CI pull request workflow in `.depot/workflows/` covers the whole workspace. `ci` runs `turbo run check` and `turbo run test` for every package on every pull request and on pushes to `master`, with `--affected` on pull requests; `publish-nightly`, `prepare-publish`, and `publish-prod` follow it on `master`. `build` builds the npm packages and the Solidity projects in the same workflow. Turbo's remote cache on Depot CI is Depot Cache, so unchanged tasks replay across runs. A new app or package needs no workflow of its own. The master ruleset requires the Depot checks `ci / check`, `ci / test`, and `ci / build`. `auto-merge-deps`, `do-not-merge`, and the npm publishing workflows stay on GitHub Actions; `socket-optimize` runs on Depot CI on a schedule.
-- Never run an app's `deploy` script locally unless the user explicitly asks. Builds runs it.
+- Never run an app's `deploy` script locally unless the user explicitly asks. CI flows runs what's needed when needed.
 
 ## Alchemy apps
 
