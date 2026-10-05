@@ -81,6 +81,7 @@ catalogs:
     "better-auth": 1.7.0-rc.4
 
 overrides:
+  "is-unicode-supported": "npm:@socketregistry/is-unicode-supported@^1"
   "yocto-spinner": "npm:@socketregistry/yocto-spinner@^1"
   "shell-quote": "npm:shell-quote@^1"
   "hasown": "npm:@socketregistry/hasown@^1"
