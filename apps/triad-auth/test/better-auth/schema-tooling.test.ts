@@ -10,7 +10,7 @@ import { authSchemaDatabase } from "../../scripts/auth-schema-database";
 
 function readSource(path: string): string {
   const file = resolve(repositoryRoot, path);
-  return existsSync(file) ? readFileSync(file, "utf8") : "";
+  return existsSync(file) ? readFileSync(file, "utf-8") : "";
 }
 
 type DirectoryEntry = {
@@ -35,7 +35,7 @@ function collectRuntimeSourcePaths(directory: string): string[] {
 
       return runtimeExtensions.has(extname(path)) ? [path] : [];
     })
-    .sort((left, right) => left.localeCompare(right));
+    .toSorted((left, right) => left.localeCompare(right));
 }
 
 function importSpecifiers(source: string): string[] {
@@ -81,7 +81,7 @@ const schemaIntrospectionParameters = [
   "kysely_migration_lock",
 ];
 const unsupportedIntrospectionError = "no such table: oauthResource";
-const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, "package.json"), "utf8")) as {
+const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, "package.json"), "utf-8")) as {
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
   scripts: Record<string, string>;
@@ -91,7 +91,7 @@ const schemaSource = readSource("src/better-auth/schema.ts");
 const schemaDatabaseSource = readSource("scripts/auth-schema-database.ts");
 const migrationFiles = readdirSync(resolve(repositoryRoot, "migrations"))
   .filter((path: string) => path.endsWith(".sql"))
-  .sort();
+  .toSorted();
 const initialMigration = readSource("migrations/0001-initial.sql");
 
 // cloudflare.config.ts exports a function of the build mode; `cf build --mode nightly` selects nightly.

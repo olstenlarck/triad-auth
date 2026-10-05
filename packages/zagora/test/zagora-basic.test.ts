@@ -178,7 +178,7 @@ test("should work with array input schemas", () => {
 
   const input: string[] = ["foo", "bar", "qux"];
 
-  const res = fn(input as any);
+  const res = fn(input);
 
   if (res.ok) {
     expect(res.data.arr).toBeInstanceOf(Array);

@@ -152,8 +152,7 @@ export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T
     const body = await response.text();
 
     throw new Error(
-      `Request failed: ${response.status} ${response.statusText}` +
-        (body ? ` — ${body.slice(0, 5_000)}` : ""),
+      `Request failed: ${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 5_000)}` : ""}`,
     );
   }
 
@@ -181,8 +180,7 @@ export async function* fetchLines(
     const body = await response.text();
 
     throw new Error(
-      `Request failed: ${response.status} ${response.statusText}` +
-        (body ? ` — ${body.slice(0, 5_000)}` : ""),
+      `Request failed: ${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 5_000)}` : ""}`,
     );
   }
 

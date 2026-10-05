@@ -1,6 +1,6 @@
-import { oauthProvider } from "@better-auth/oauth-provider";
+import type { oauthProvider } from "@better-auth/oauth-provider";
 import type { BetterAuthPlugin } from "better-auth";
-import { jwt } from "better-auth/plugins";
+import type { jwt } from "better-auth/plugins";
 import { describe, expect, it } from "vitest";
 
 import { createTriadConfiguration } from "../../src/better-auth/configuration";

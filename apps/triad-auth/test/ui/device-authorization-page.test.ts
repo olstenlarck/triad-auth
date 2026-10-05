@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-const page = readFileSync(new URL("../../src/pages/device/verify.astro", import.meta.url), "utf8");
+const page = readFileSync(new URL("../../src/pages/device/verify.astro", import.meta.url), "utf-8");
 
 describe("Better Auth device verification page", () => {
   it("requires a Triad session and links signed-out users to account sign-in", () => {

@@ -7,7 +7,7 @@ import { jwt } from "better-auth/plugins";
 import { describe, expect, it } from "vitest";
 
 const packageJson = JSON.parse(
-  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../../package.json", import.meta.url), "utf-8"),
 ) as {
   dependencies: Record<string, string>;
 };

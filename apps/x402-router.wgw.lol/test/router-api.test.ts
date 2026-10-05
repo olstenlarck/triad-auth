@@ -24,7 +24,7 @@ describe("x402-router", () => {
     const response = await fetch(`${origin}/supported`);
 
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { kinds: { network: string }[]; extensions: string[] };
+    const body: { kinds: { network: string }[]; extensions: string[] } = await response.json();
     expect(body.kinds.map((kind) => kind.network)).toContain("eip155:1");
     expect(body.extensions.length).toBeGreaterThan(0);
   });

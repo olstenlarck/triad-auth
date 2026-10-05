@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { npm, utils } from "../src/index";
 
 function days(from: string, to: string, downloads = 1) {
-  const records: Array<{ downloads: number; day: string }> = [];
+  const records: { downloads: number; day: string }[] = [];
   for (let day = utils.parseDay(from); day <= utils.parseDay(to);) {
     records.push({ downloads, day: utils.formatDay(day) });
     day = new Date(day.getTime() + utils.CYA_DAY_MS);

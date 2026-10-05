@@ -1,9 +1,9 @@
-import {
-  type OAuthOptions,
-  type OAuthProviderExtension,
-  type OAuthResourceInput,
-  type ResourceServerMetadata,
-  type Scope,
+import type {
+  OAuthOptions,
+  OAuthProviderExtension,
+  OAuthResourceInput,
+  ResourceServerMetadata,
+  Scope,
 } from "@better-auth/oauth-provider";
 import type { BetterAuthPlugin } from "better-auth";
 

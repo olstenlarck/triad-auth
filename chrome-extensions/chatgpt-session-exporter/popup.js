@@ -856,7 +856,7 @@ function extractConversationFromPage(options = {}) {
   }
 
   function sortByDocumentOrder(messages) {
-    return [...messages].sort((a, b) => {
+    return messages.toSorted((a, b) => {
       const aNode = a.orderNode;
       const bNode = b.orderNode;
       if (aNode === bNode) return 0;

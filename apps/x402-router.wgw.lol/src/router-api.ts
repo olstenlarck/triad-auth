@@ -15,7 +15,7 @@ export async function routerApi(request: Request): Promise<Response> {
   }
 
   // SAFETY: the router answers health checks with a JSON object, checked by response.ok above.
-  const body = (await response.json()) as Record<string, unknown>;
+  const body: Record<string, unknown> = await response.json();
 
-  return new Response(JSON.stringify({ ...body, commit: import.meta.env.COMMIT_SHA }), response);
+  return Response.json({ ...body, commit: import.meta.env.COMMIT_SHA }, response);
 }

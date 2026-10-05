@@ -98,7 +98,7 @@ async function handleDeviceDisclosure(
 
   const url = new URL(request.url);
   const userCodes = url.searchParams.getAll("user_code");
-  const userCode = userCodes.length === 1 ? userCodes[0]!.replaceAll("-", "").toUpperCase() : "";
+  const userCode = userCodes.length === 1 ? userCodes[0].replaceAll("-", "").toUpperCase() : "";
   if (!/^[A-Z0-9]{8}$/.test(userCode)) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }

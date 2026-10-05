@@ -1,5 +1,8 @@
-import { createCimdClientDiscovery as createBetterAuthCimdDiscovery } from "@better-auth/cimd";
-import { validateClientIdUrl, type CimdOptions } from "@better-auth/cimd";
+import {
+  createCimdClientDiscovery as createBetterAuthCimdDiscovery,
+  validateClientIdUrl,
+  type CimdOptions,
+} from "@better-auth/cimd";
 
 import { isRecord } from "../../utils";
 

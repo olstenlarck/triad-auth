@@ -157,7 +157,7 @@ async function resolveSessionClaims(
     throw new Error("The authentication session does not contain a valid chain_id claim");
   }
 
-  const chains = [...new Set([...resolved.chains.filter(validChainId), chainId])].sort(
+  const chains = [...new Set([...resolved.chains.filter(validChainId), chainId])].toSorted(
     (left, right) => left - right,
   );
 

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { type OAuthOptions, type Scope } from "@better-auth/oauth-provider";
+import type { OAuthOptions, Scope } from "@better-auth/oauth-provider";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
@@ -10,11 +10,11 @@ import {
 
 const entrySource = readFileSync(
   new URL(import.meta.resolve("@better-auth/oauth-provider")),
-  "utf8",
+  "utf-8",
 );
 const registrationSource = readFileSync(
-  new URL("./register-BotzQoS8.mjs", import.meta.resolve("@better-auth/oauth-provider")),
-  "utf8",
+  new URL("register-BotzQoS8.mjs", import.meta.resolve("@better-auth/oauth-provider")),
+  "utf-8",
 );
 
 describe("public DCR policy", () => {

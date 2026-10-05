@@ -106,12 +106,11 @@ async function collectSellers(market: string, token: string): Promise<Set<string
   return sellers;
 }
 
-const outDir = new URL(`./data/${new Date().toISOString().slice(0, 10)}/`, import.meta.url)
-  .pathname;
+const outDir = new URL(`data/${new Date().toISOString().slice(0, 10)}/`, import.meta.url).pathname;
 const all = new Set<string>();
 
 function writeList(name: string, addrs: Set<string>) {
-  return Bun.write(`${outDir}${name}.txt`, [...addrs].join("\n") + "\n");
+  return Bun.write(`${outDir}${name}.txt`, `${[...addrs].join("\n")}\n`);
 }
 
 for (const [slug, token] of Object.entries(COLLECTIONS)) {

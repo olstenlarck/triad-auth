@@ -176,7 +176,7 @@ function verifyBitcoin(
     if (!encodedSignature || (encodedSignature.length !== 64 && encodedSignature.length !== 65)) {
       return false;
     }
-    const sighash = encodedSignature.length === 65 ? encodedSignature[64]! : 0;
+    const sighash = encodedSignature.length === 65 ? encodedSignature[64] : 0;
     if (sighash !== 0) {
       return false;
     }
