@@ -14,7 +14,7 @@ export const Worker = Cloudflare.Worker("Worker", {
   observability: { enabled: true, headSamplingRate: 1 },
   env: {
     // A Depot organization token for pcnr2v598s, from the BADGES_DEPOT_TOKEN Depot CI secret.
-    DEPOT_TOKEN: Config.Redacted("BADGES_DEPOT_TOKEN"),
+    BADGES_DEPOT_TOKEN: Config.Redacted("BADGES_DEPOT_TOKEN"),
   },
 });
 

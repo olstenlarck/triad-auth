@@ -51,7 +51,7 @@ async function depot<T>(
   const response = await fetch(`${DEPOT_API}/${method}`, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${env.DEPOT_TOKEN}`,
+      authorization: `Bearer ${env.BADGES_DEPOT_TOKEN}`,
       "connect-protocol-version": "1",
       "content-type": "application/json",
     },

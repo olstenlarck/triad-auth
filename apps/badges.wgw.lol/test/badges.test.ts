@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../src/env";
 import worker from "../src/index";
 
-const env: Env = { DEPOT_TOKEN: "depot-token" };
+const env: Env = { BADGES_DEPOT_TOKEN: "depot-token" };
 const base = "https://badges.wgw.lol/tunnckoCoreHQ/monarch";
 const workflow = {
   orgId: "pcnr2v598s",
