@@ -132,6 +132,20 @@ describe("socket", () => {
     badgenFetch.mockResolvedValueOnce(new Response("<svg>Socket Security: failure</svg>"));
     expect(await (await get("/socket")).text()).toBe("<svg>Socket Security: failing</svg>");
   });
+
+  it("shows unknown when badgen answers an error or cannot be reached", async () => {
+    const badgenFetch = vi.fn(async () => new Response("nope", { status: 500 }));
+    vi.stubGlobal("fetch", badgenFetch);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await get("/socket");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/svg+xml; charset=utf-8");
+    expect(await response.text()).toContain("Socket Security: unknown");
+
+    badgenFetch.mockRejectedValueOnce(new Error("network"));
+    expect(await (await get("/socket")).text()).toContain("Socket Security: unknown");
+  });
 });
 
 describe("health", () => {

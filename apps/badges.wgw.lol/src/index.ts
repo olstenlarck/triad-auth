@@ -99,21 +99,27 @@ function render(badge: Badge, format: string): Response {
 // The badgen GitHub checks badge of the Socket report on master, saying passing and failing
 // like the Depot badges instead of success and failure.
 async function socket(repo: string): Promise<Response> {
-  const response = await fetch(
-    `https://badgen.net/github/checks/${repo}/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket`,
-  );
-  if (!response.ok) {
-    throw new Error(`badgen answered ${response.status}`);
+  try {
+    const response = await fetch(
+      `https://badgen.net/github/checks/${repo}/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket`,
+    );
+    if (!response.ok) {
+      throw new Error(`badgen answered ${response.status}`);
+    }
+    const svg = (await response.text())
+      .replaceAll("success", "passing")
+      .replaceAll("failure", "failing");
+    return new Response(svg, {
+      headers: {
+        "cache-control": "public, max-age=60",
+        "content-type": "image/svg+xml; charset=utf-8",
+      },
+    });
+  } catch (error) {
+    // A broken image helps nobody, so the badge shows "unknown" like the Depot badges.
+    console.error(error);
+    return render({ subject: "Socket Security", status: "unknown", color: "grey" }, "svg");
   }
-  const svg = (await response.text())
-    .replaceAll("success", "passing")
-    .replaceAll("failure", "failing");
-  return new Response(svg, {
-    headers: {
-      "cache-control": "public, max-age=60",
-      "content-type": "image/svg+xml; charset=utf-8",
-    },
-  });
 }
 
 function health(sha: string): Response {
