@@ -1,6 +1,6 @@
 # Zagora
 
-[![depot ci](https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master?label=depot%20ci)](https://github.com/tunnckoCoreHQ/monarch/commit/master) <!-- COV_BADGE:START -->![coverage](https://badgen.net/badge/coverage/98.11%25/99CC09)<!-- COV_BADGE:END -->
+[![depot ci](https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master?label=depot%20ci)](https://github.com/tunnckoCoreHQ/monarch/commit/master) <!-- COV_BADGE:START -->![coverage](https://badgen.net/badge/coverage/98.15%25/99CC09)<!-- COV_BADGE:END -->
 
 Elevate your TypeScript workflow with Zagora: a sleek, bulletproof toolkit for forging type-safe, error-proof functions and libraries that never throw. Powered by StandardSchema-compliant validators like Zod, Valibot, and Arktype, it delivers rock-solid input/output validation and richly typed errors. No routers, no network baggage — just pure, exportable functions ready to supercharge your code. The ultimate streamlined alternative to oRPC and tRPC, stripping away the network layer for unmatched type-safety, simplicity and robustness.
 
