@@ -1,8 +1,8 @@
 {
   "strictness": 2,
-  "triggerOnUpdates": false,
+  "autoReview": ["open"],
   "excludeAuthors": ["dependabot[bot]"],
-  "ignoreKeywords": "chore: release packages",
+  "disabledLabels": ["release"],
   "autoApprove": {
     "enabled": true
   }
