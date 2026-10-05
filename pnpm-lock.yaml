@@ -46,13 +46,13 @@ catalogs:
       version: 15.0.0-beta.0
     '@coinbase/cdp-sdk':
       specifier: ^1.57.0
-      version: 1.57.1
+      version: 1.57.0
     '@effect/platform-node':
       specifier: ^4.0.0
       version: 4.0.0
     '@hono/node-server':
       specifier: ^2.0.6
-      version: 2.1.3
+      version: 2.1.1
     '@openzeppelin/contracts':
       specifier: 5.6.1
       version: 5.6.1
@@ -64,16 +64,16 @@ catalogs:
       version: 5.0.3
     '@x402/core':
       specifier: ^2.27.0
-      version: 2.28.0
+      version: 2.27.0
     '@x402/evm':
       specifier: ^2.27.0
-      version: 2.28.0
+      version: 2.27.0
     '@x402/hono':
       specifier: ^2.27.0
-      version: 2.28.0
+      version: 2.27.0
     '@x402/svm':
       specifier: ^2.27.0
-      version: 2.28.0
+      version: 2.27.0
     alchemy:
       specifier: 2.0.0-beta.80
       version: 2.0.0-beta.80
@@ -133,14 +133,14 @@ catalogs:
       version: 4.6.5
   types:
     '@cloudflare/workers-types':
-      specifier: 5.20260926.1
-      version: 5.20260926.1
+      specifier: 5.20260928.1
+      version: 5.20260928.1
     '@types/bun':
       specifier: ^1.4.2
       version: 1.4.2
     '@types/node':
       specifier: ^24
-      version: 24.19.1
+      version: 24.19.0
     typescript:
       specifier: 7.0.2
       version: 7.0.2
@@ -172,7 +172,7 @@ importers:
         version: 3.0.3
       '@cloudflare/workers-types':
         specifier: catalog:types
-        version: 5.20260926.1
+        version: 5.20260928.1
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0(effect@4.0.0)(redis@6.3.0)
@@ -181,16 +181,16 @@ importers:
         version: 1.4.2
       '@types/node':
         specifier: catalog:types
-        version: 24.19.1
+        version: 24.19.0
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.0.3(vitest@5.0.3)
       alchemy:
         specifier: 'catalog:'
-        version: 2.0.0-beta.80(@alchemy.run/frontend-frameworks@2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.3))(@types/node@24.19.1)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.0)
+        version: 2.0.0-beta.80(@alchemy.run/frontend-frameworks@2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.0)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.3))(@types/node@24.19.0)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.0)
       cf:
         specifier: 'catalog:'
-        version: 1.0.0-beta.10(@types/node@24.19.1)
+        version: 1.0.0-beta.10(@types/node@24.19.0)
       effect:
         specifier: 'catalog:'
         version: 4.0.0
@@ -217,7 +217,7 @@ importers:
         version: 7.12.2(oxfmt@0.71.0)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(prettier@3.9.9)
       vitest:
         specifier: 'catalog:'
-        version: 5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+        version: 5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
 
   apps/npm.wgw.lol:
     dependencies:
@@ -239,16 +239,16 @@ importers:
     dependencies:
       '@astrojs/cloudflare':
         specifier: 'catalog:'
-        version: 15.0.0-beta.0(@types/node@24.19.1)(astro@7.4.0-beta.0(@types/node@24.19.1)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1))(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+        version: 15.0.0-beta.0(@types/node@24.19.0)(astro@7.4.0-beta.0(@types/node@24.19.0)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1))(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
       '@better-auth/cimd':
         specifier: catalog:better-auth
-        version: 1.7.0-rc.4(ab169d544af93aa8ce373af1b6139adb)
+        version: 1.7.0-rc.4(ecb3ffd66e19fa3a0ce917fc6edca652)
       '@better-auth/oauth-provider':
         specifier: catalog:better-auth
-        version: 1.7.0-rc.4(patch_hash=faa8be19f1cb40d4569945f9028935b82f6592f7549ec41dda3e9939b61676dd)(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))
+        version: 1.7.0-rc.4(patch_hash=faa8be19f1cb40d4569945f9028935b82f6592f7549ec41dda3e9939b61676dd)(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))
       '@better-auth/passkey':
         specifier: catalog:better-auth
-        version: 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))(nanostores@1.5.4)
+        version: 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))(nanostores@1.5.4)
       '@fontsource-variable/archivo':
         specifier: ^5.2.8
         version: 5.3.0
@@ -281,13 +281,13 @@ importers:
         version: 14.0.3
       astro:
         specifier: 'catalog:'
-        version: 7.4.0-beta.0(@types/node@24.19.1)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1)
+        version: 7.4.0-beta.0(@types/node@24.19.0)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1)
       auth:
         specifier: catalog:better-auth
-        version: 1.7.0-rc.4(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(magicast@0.5.5)(nanostores@1.5.4)(react@19.3.0)(supports-color@10.2.2)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
+        version: 1.7.0-rc.4(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(magicast@0.5.5)(nanostores@1.5.4)(react@19.3.0)(supports-color@10.2.2)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
       better-auth:
         specifier: catalog:better-auth
-        version: 1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
+        version: 1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
       jose:
         specifier: 'catalog:'
         version: 6.2.12
@@ -297,16 +297,16 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: catalog:types
-        version: 5.20260926.1
+        version: 5.20260928.1
       '@types/bun':
         specifier: catalog:types
         version: 1.4.2
       '@types/node':
         specifier: catalog:types
-        version: 24.19.1
+        version: 24.19.0
       cf:
         specifier: 'catalog:'
-        version: 1.0.0-beta.10(@types/node@24.19.1)
+        version: 1.0.0-beta.10(@types/node@24.19.0)
       typescript:
         specifier: catalog:types
         version: 7.0.2
@@ -361,23 +361,23 @@ importers:
     dependencies:
       '@coinbase/cdp-sdk':
         specifier: 'catalog:'
-        version: 1.57.1(@x402/core@2.28.0)(@x402/evm@2.28.0(typescript@7.0.2))(@x402/extensions@2.28.0(typescript@7.0.2))(@x402/svm@2.28.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2))(typescript@7.0.2))(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(typescript@7.0.2)
+        version: 1.57.0(@x402/core@2.27.0)(@x402/evm@2.27.0(typescript@7.0.2))(@x402/extensions@2.28.0(typescript@7.0.2))(@x402/svm@2.27.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2)))(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(typescript@7.0.2)
     devDependencies:
       '@hono/node-server':
         specifier: 'catalog:'
-        version: 2.1.3(hono@4.13.9)
+        version: 2.1.1(hono@4.13.9)
       '@x402/core':
         specifier: 'catalog:'
-        version: 2.28.0
+        version: 2.27.0
       '@x402/evm':
         specifier: 'catalog:'
-        version: 2.28.0(typescript@7.0.2)
+        version: 2.27.0(typescript@7.0.2)
       '@x402/hono':
         specifier: 'catalog:'
-        version: 2.28.0(hono@4.13.9)(typescript@7.0.2)
+        version: 2.27.0(hono@4.13.9)(typescript@7.0.2)
       '@x402/svm':
         specifier: 'catalog:'
-        version: 2.28.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2))(typescript@7.0.2)
+        version: 2.27.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2))
       hono:
         specifier: 'catalog:'
         version: 4.13.9
@@ -409,13 +409,13 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: catalog:types
-        version: 5.20260926.1
+        version: 5.20260928.1
       '@types/bun':
         specifier: catalog:types
         version: 1.4.2
       '@types/node':
         specifier: catalog:types
-        version: 24.19.1
+        version: 24.19.0
       forge-std:
         specifier: github:foundry-rs/forge-std#v1.16.1
         version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/620536fa5277db4e3fd46772d5cbc1ea0696fb43
@@ -434,13 +434,13 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: catalog:types
-        version: 5.20260926.1
+        version: 5.20260928.1
       '@types/bun':
         specifier: catalog:types
         version: 1.4.2
       '@types/node':
         specifier: catalog:types
-        version: 24.19.1
+        version: 24.19.0
       forge-std:
         specifier: github:foundry-rs/forge-std#v1.16.1
         version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/620536fa5277db4e3fd46772d5cbc1ea0696fb43
@@ -459,13 +459,13 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: catalog:types
-        version: 5.20260926.1
+        version: 5.20260928.1
       '@types/bun':
         specifier: catalog:types
         version: 1.4.2
       '@types/node':
         specifier: catalog:types
-        version: 24.19.1
+        version: 24.19.0
       forge-std:
         specifier: github:foundry-rs/forge-std#v1.16.1
         version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/620536fa5277db4e3fd46772d5cbc1ea0696fb43
@@ -484,13 +484,13 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: catalog:types
-        version: 5.20260926.1
+        version: 5.20260928.1
       '@types/bun':
         specifier: catalog:types
         version: 1.4.2
       '@types/node':
         specifier: catalog:types
-        version: 24.19.1
+        version: 24.19.0
       forge-std:
         specifier: github:foundry-rs/forge-std#v1.16.1
         version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/620536fa5277db4e3fd46772d5cbc1ea0696fb43
@@ -509,13 +509,13 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: catalog:types
-        version: 5.20260926.1
+        version: 5.20260928.1
       '@types/bun':
         specifier: catalog:types
         version: 1.4.2
       '@types/node':
         specifier: catalog:types
-        version: 24.19.1
+        version: 24.19.0
       forge-std:
         specifier: github:foundry-rs/forge-std#v1.16.1
         version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/620536fa5277db4e3fd46772d5cbc1ea0696fb43
@@ -1249,11 +1249,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@cloudflare/workers-types@5.20260926.1':
-    resolution: {integrity: sha512-jLtwSjBFtXucrEIj584vNk/k9OwgW4ij7/nK40hnCw137/0ilqfkTlYIUTWlTEbUX2V/+XVBijzZha9spdQTUw==}
+  '@cloudflare/workers-types@5.20260928.1':
+    resolution: {integrity: sha512-B/El15v5HqZyuyfR7Z0W443iA6Ml4nZjaR8rgHyW612r8reO+1JaDKtNbP3CPdzVIM2egp98by3NlpMm5pKbcg==}
 
-  '@coinbase/cdp-sdk@1.57.1':
-    resolution: {integrity: sha512-p47gw/5WNJ2Js+MMSQ1U1ocUY0UNnVvrjAxcrYt6YEcmVAUuz56L7Sg025tdutzH1BP+yU/jG9lDr/0AkTVvNw==}
+  '@coinbase/cdp-sdk@1.57.0':
+    resolution: {integrity: sha512-SaOlyVgJzaIuuA+r2e+OEcQA2ncFyUT1sAGCqqAxXHQQxwOcea8N2r4NnnBAde0V0EEhDonJonuPBQFE0TBzmw==}
     peerDependencies:
       '@x402/core': ^2.25.0
       '@x402/evm': ^2.25.0
@@ -1585,8 +1585,8 @@ packages:
     peerDependencies:
       hono: ^4
 
-  '@hono/node-server@2.1.3':
-    resolution: {integrity: sha512-TA//nWMqPhbfdfneACk6t5a9eqbS9lABEPyKn0/xZTah3H3U2XaVg85rJFl0/Fyit0I552YDHgXGVSf3GwqbUw==}
+  '@hono/node-server@2.1.1':
+    resolution: {integrity: sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
@@ -2151,6 +2151,9 @@ packages:
   '@oxc-project/types@0.146.0':
     resolution: {integrity: sha512-XC0QsnnhVe7sLIWmYmdPw7x5P0h4W8vUU3Nv1ySgWXtvCz8NizoAEpGXA0sOYoJQV2Rl13LgURAHQ5cI5ILCSA==}
 
+  '@oxc-project/types@0.151.0':
+    resolution: {integrity: sha512-J1yXrIlNDZVzE3ada310xeAw7nH8yCAyLPuUIsjKatFPmfn5bS1oW+cM+QsGOtVWd5nhSpbwZWx/rue+r5Z+PA==}
+
   '@oxc-project/types@0.152.0':
     resolution: {integrity: sha512-oM/5rLBm2tPkg0iBgkH/FOeR3PCDpY19GTgAZjMFM8h9WI9VW7cLgzp6nwtarYKmovavIQZ+Fe/RKX/8C8O/Rw==}
 
@@ -2572,6 +2575,12 @@ packages:
     peerDependencies:
       '@redis/client': ^6.3.0
 
+  '@rolldown/binding-android-arm-eabi@1.2.11':
+    resolution: {integrity: sha512-A5kXfGKvKWWZE0TtPrfsvT+q4Y5d1QG8gGUzpYjGydM+fARM9MuX90PrXYXe0XbsDVgyxxNzHo6giCj90bsFNw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm]
+    os: [android]
+
   '@rolldown/binding-android-arm-eabi@1.2.12':
     resolution: {integrity: sha512-dB/a1214qKfHMXCpgqR4OZT+jS4kTyEXbQGJPqzobt5EwH5rX080pxE37alt3RzvR1bf1Yz/yGqRfrYAxuPw0A==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2582,6 +2591,12 @@ packages:
     resolution: {integrity: sha512-DLe/i+l8ynIBY7XEQ191TeZvCoowIGa18R+dIV30GW7DiOtp74i/xX8hs8GUjW5ARV7VZuie3d6AumSmCwbeRA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
+    os: [android]
+
+  '@rolldown/binding-android-arm64@1.2.11':
+    resolution: {integrity: sha512-z6cTycz+iJ4PVkuL4HHW4DfTfoeU/2nqYYuSOrTmH7yHK5Y0LCOnA03V4ZNxavyVaU1oOqUgIg2klN/s+USGOA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
     os: [android]
 
   '@rolldown/binding-android-arm64@1.2.12':
@@ -2596,6 +2611,12 @@ packages:
     cpu: [arm64]
     os: [android]
 
+  '@rolldown/binding-darwin-arm64@1.2.11':
+    resolution: {integrity: sha512-jShvqNtP6vDC6/A5JOAzbVV+DkgHqhl/ScVCJEbt+TUY6QYz7YnXcrg3sLtFBniro0f/Ld50ZwCWA6f7KYD1nQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [darwin]
+
   '@rolldown/binding-darwin-arm64@1.2.12':
     resolution: {integrity: sha512-3YIhqHD96nA5SaYNRBR16HnGv4oavZvXfD/ayHM+oYZ0WD/8lBAtf6zQua4kEyAvpqrluKXl0lnOBoiNby7x9w==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2606,6 +2627,12 @@ packages:
     resolution: {integrity: sha512-dK4QakI42nzWgJT5sm4y4y/O//D4OxM75/cH28RLV+nzIN9AY+YsbuUVrUTjlLjXR6vpyxFbSsbmNuJ6BP9sww==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
+    os: [darwin]
+
+  '@rolldown/binding-darwin-x64@1.2.11':
+    resolution: {integrity: sha512-f2i2xiNWq1Z1l2++q2fuhZRdLAT3aqxD6vRNm1RAxpUoBcdqNB3C0s1Bt+K+PbEx2F5F4gQp6hqKkphCY/xF9w==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
     os: [darwin]
 
   '@rolldown/binding-darwin-x64@1.2.12':
@@ -2620,6 +2647,12 @@ packages:
     cpu: [x64]
     os: [darwin]
 
+  '@rolldown/binding-freebsd-x64@1.2.11':
+    resolution: {integrity: sha512-4Ir5FSOKIAMr4r0kExpt1s3bMgzJU3rA45AYOHtQpls0oNeqcYBKrWMlckrYH4KCfGLfkfn1tN1dmZPMVsdXow==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [freebsd]
+
   '@rolldown/binding-freebsd-x64@1.2.12':
     resolution: {integrity: sha512-uMvssit0a4W+/7D8CbHUvG719mH3R2jwXAlh/XcPvuHTE0g++LymF88DCGNX0HM2rBOn0xrzgXktIB6fLSJBTQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2632,6 +2665,12 @@ packages:
     cpu: [x64]
     os: [freebsd]
 
+  '@rolldown/binding-linux-arm-gnueabihf@1.2.11':
+    resolution: {integrity: sha512-/gnRDM+39BROzAN/k1OZjDPnDMcZxB/0EUxKjONO5yVkNEvlsoMDrxGNKgZi/ttFriS2gwlDNzB65pvNbFOXIQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm]
+    os: [linux]
+
   '@rolldown/binding-linux-arm-gnueabihf@1.2.12':
     resolution: {integrity: sha512-XcFu0R0xWnwzSf4IQgFH1rJIckPN1pLy2R+4r9IDB7Yfu/ys9cVqfa4pBrMHj7a3gl8mIR4nRNPg0e5IvEVs6g==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2643,6 +2682,13 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
     os: [linux]
+
+  '@rolldown/binding-linux-arm64-gnu@1.2.11':
+    resolution: {integrity: sha512-PFaK8HwvAHbaKbBcDNQihjMKYvFnA5hiENx/l5tphTDz1E0WFp32l0A7aq7lyUwGsRw/xSrNIy/gIK4thrSCrw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-arm64-gnu@1.2.12':
     resolution: {integrity: sha512-260UrKgn8tz39ak+SMDOirKzr7V04M9dWPw5llW00SwBivCZoWcRBKV1d8cXnRkUmSZA3BdiUmBHWk7734Ulpw==}
@@ -2658,6 +2704,13 @@ packages:
     os: [linux]
     libc: [glibc]
 
+  '@rolldown/binding-linux-arm64-musl@1.2.11':
+    resolution: {integrity: sha512-AskzJUIKRLPxkruR1wLKewGbOw+EYfU/9lOrBFj4AFrEA8hPpKFnODWNu2WLaNs0QNkEb9QIJufmVZZIL/bJlg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
   '@rolldown/binding-linux-arm64-musl@1.2.12':
     resolution: {integrity: sha512-5YK1I9SqDkbPgc1IA8BgDl34suqUS2q0KWnBrirm0E51YjOs6eo6dV6jbQfNE/argHRSvd0QUGgtpIoYx+WWpw==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2672,6 +2725,13 @@ packages:
     os: [linux]
     libc: [musl]
 
+  '@rolldown/binding-linux-ppc64-gnu@1.2.11':
+    resolution: {integrity: sha512-qlUGAheh2yh8afH7QBgx0PrRHN85hKnNd78x8MeMhXivuevgd8vgf6/CstOzmNKY/lLTHvNTrPy98cLnAugzJw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
   '@rolldown/binding-linux-ppc64-gnu@1.2.12':
     resolution: {integrity: sha512-Rkcrmp7eFRg74yL5fXEU91JEWbdEPLevWwGtXpmhbjlD1StScbWTmO94Bhly+Mo+ketKYkdmM1vNUKeWSlx8cQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2683,6 +2743,13 @@ packages:
     resolution: {integrity: sha512-GRjeqTUDHTo5GwntsLaAMcBahG3nlpjftXWZLN73HiYQlhwEowvarFgQnRnQZtIp4keXX7quXFbG38uPZBa2EA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
+  '@rolldown/binding-linux-s390x-gnu@1.2.11':
+    resolution: {integrity: sha512-secpEad+0vCbSfn8upFySkDskv+bGPk3THSDS9Y89yc4rb4kzqHp8Dmyd9BkQW4SnhNXBZCl/6CrO//hZahNJQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [s390x]
     os: [linux]
     libc: [glibc]
 
@@ -2700,6 +2767,13 @@ packages:
     os: [linux]
     libc: [glibc]
 
+  '@rolldown/binding-linux-x64-gnu@1.2.11':
+    resolution: {integrity: sha512-mOVBT3dPpkWm8XBWPmU4bf+U6dYDLeMo/9ojUmis4N0L5uu10qra5vOyngZ7/PSdoE4G9KvRt4bloRxNjLas7A==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
   '@rolldown/binding-linux-x64-gnu@1.2.12':
     resolution: {integrity: sha512-Q9uLBO53Xd4QIq1WOycVQyPP1O4HhraEV2qqb3uTrnVw6QZih9duY4vNXOivL1xoUS1/z+W8eF4NMfl2a8Sdjw==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2713,6 +2787,13 @@ packages:
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+
+  '@rolldown/binding-linux-x64-musl@1.2.11':
+    resolution: {integrity: sha512-Is78i9A8Ui4SqcxUwFJ9uMmjDn58IbVTjFWYdQestFEgeuEmHMLGNriXnVJKkwG2YiZjw8cP0zCTyDMdDGtOOg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
 
   '@rolldown/binding-linux-x64-musl@1.2.12':
     resolution: {integrity: sha512-3IBxWFMjbOZskDPKv8Lf9BCnahlKuHthWkYnyIxOH/QcJrFcS4EmcenthApkwr/5+nEqZlLzeYbxeMaX7A5u4g==}
@@ -2728,6 +2809,12 @@ packages:
     os: [linux]
     libc: [musl]
 
+  '@rolldown/binding-openharmony-arm64@1.2.11':
+    resolution: {integrity: sha512-dUCXneZ87INUMyQ0D+C0HrEBNUPNXHaPmU5GTjyKTJEiussw9Kaj5Ln8UztPe4epV/ffvgNBEadksdYhmW6xJA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [openharmony]
+
   '@rolldown/binding-openharmony-arm64@1.2.12':
     resolution: {integrity: sha512-xtX61xg4LKPkPWilZU1ynKClz5Gj4bf74LML4r3eVLWumKnGjoEr1OSHQhMdbBDoYTi+yjrujvpZe2pUnqCrrA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2740,6 +2827,12 @@ packages:
     cpu: [arm64]
     os: [openharmony]
 
+  '@rolldown/binding-win32-arm64-msvc@1.2.11':
+    resolution: {integrity: sha512-jByxb6qfd+bH1xUd0qnfFnb17i9sWBPY2tOavJ0l3tdr3OTu+Kvtm8cd/JV5nFt657b1VqGltxg9olOEfofXWw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [win32]
+
   '@rolldown/binding-win32-arm64-msvc@1.2.12':
     resolution: {integrity: sha512-At7fPB6PCaIjzgIhEZFxuT+BBFqiQibJDT4d3PhiR3f4E7bbMZF4aKblbFfEM3sETRDd1YiQx/+U/g/B/ou5Ew==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2750,6 +2843,12 @@ packages:
     resolution: {integrity: sha512-vGbruD5zquhoc8D9SViXgN2FBJtNdTyQ4DtG+SWiEGlJiAzoKcZ2xp+xuXCffhubVdt0NJlTZqkeRuERy7g8Cw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
+    os: [win32]
+
+  '@rolldown/binding-win32-x64-msvc@1.2.11':
+    resolution: {integrity: sha512-/PzKqzAJ03i19oy2ItPvyvaVjOjBCNnfaJs8yvUdGBKmiESgnrJSQ2awd81QzFbbnAmu7YO9ZnJrDCb9VSJPRA==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [x64]
     os: [win32]
 
   '@rolldown/binding-win32-x64-msvc@1.2.12':
@@ -2960,29 +3059,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/accounts@6.10.0':
-    resolution: {integrity: sha512-+FxfDOrnifoPlBkF+fr8eeQdgM6xtIgAg9xKMu3WnIz60oZd4Xnry6+ff6t+ePPoZZp397FSg9ZJet68VCWm5Q==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/addresses@5.5.1':
     resolution: {integrity: sha512-5xoah3Q9G30HQghu/9BiHLb5pzlPKRC3zydQDmE3O9H//WfayxTFppsUDCL6FjYUHqj/wzK6CWHySglc2RkpdA==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/addresses@6.10.0':
-    resolution: {integrity: sha512-vEoCGBTxG0HCERAn84KXkrJjl+pDaNzOpZ0qbgcPS98fYxP5yzbKB8SNOY2bzrbkRUmmw5Q3hqTRERemUN2Gcw==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -2996,29 +3077,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/assertions@6.10.0':
-    resolution: {integrity: sha512-lKSAdVo+P/6Lp4vs6shstXmFOpvxrABwn4o1462tb7sKkNapk6o9pPFVPGw4DUgPS3WqWRs1j2tmpuVjhQRntg==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/codecs-core@5.5.1':
     resolution: {integrity: sha512-TgBt//bbKBct0t6/MpA8ElaOA3sa8eYVvR7LGslCZ84WiAwwjCY0lW/lOYsFHJQzwREMdUyuEyy5YWBKtdh8Rw==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/codecs-core@6.10.0':
-    resolution: {integrity: sha512-nfAl9OMGo4HanIMxGsQoVB7BxMoqBCYEUxl8oEAZZ09pDxnaXQZkTRXEwPPccag37XfW1ciPd1vWPKwB2b0HHQ==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3032,29 +3095,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/codecs-data-structures@6.10.0':
-    resolution: {integrity: sha512-CNasJW3bq5u+632Zt5aJ8rOjAjv2HyenpV8o9kAIqdmV4CBpjCCoBnKn8LkuR/sbeREZxJYfhKTXO/9ruAkw7A==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/codecs-numbers@5.5.1':
     resolution: {integrity: sha512-rllMIZAHqmtvC0HO/dc/21wDuWaD0B8Ryv8o+YtsICQBuiL/0U4AGwH7Pi5GNFySYk0/crSuwfIqQFtmxNSPFw==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/codecs-numbers@6.10.0':
-    resolution: {integrity: sha512-CcM+wX4zOiA9zkh8A7t1787A0Ehgmu5+6Z2tKoHew6cNw/dkaUTPa8JnNHbvfsLC8dfHC1BhAEJl86sKmRsfkQ==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3065,18 +3110,6 @@ packages:
     peerDependencies:
       fastestsmallesttextencoderdecoder: ^1.0.22
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      fastestsmallesttextencoderdecoder:
-        optional: true
-      typescript:
-        optional: true
-
-  '@solana/codecs-strings@6.10.0':
-    resolution: {integrity: sha512-zlaqkg7K6F6IN4V/Ec8TWkTn054gxv7ZLagvGkuEyAdPQ6BzzsehOm2TqCuyXgJJTCGPLY1bEk6yH9NxANe0kA==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      fastestsmallesttextencoderdecoder: ^1.0.22
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       fastestsmallesttextencoderdecoder:
         optional: true
@@ -3102,30 +3135,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/errors@6.10.0':
-    resolution: {integrity: sha512-KBLAxCtAXr357JNhCyIDQXWbuSj5vN6w+28FSfcYY6OOSiphmXLAV3V58jgV0C6iNbIzFJFi6yatFyDTdeJsNg==}
-    engines: {node: '>=20.18.0'}
-    hasBin: true
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/fast-stable-stringify@5.5.1':
     resolution: {integrity: sha512-Ni7s2FN33zTzhTFgRjEbOVFO+UAmK8qi3Iu0/GRFYK4jN696OjKHnboSQH/EacQ+yGqS54bfxf409wU5dsLLCw==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/fixed-points@6.10.0':
-    resolution: {integrity: sha512-ZkKL0alXH3L7/wMiVG8YUuG8qBKunlM810+YBD7nUPRhifiGsX1zwADViHLYNqLr/jUk0mTYFUcKznTpB/K+Gg==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3139,29 +3153,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/functional@6.10.0':
-    resolution: {integrity: sha512-P8cevu4mAqHTXC37h1TVoOh8zhWB2tlOI/R9vWjYPpcLwcyWf8p2qq4LEGHl5kY+1C+4PNX39HsmCocXOPCDkQ==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/instruction-plans@5.5.1':
     resolution: {integrity: sha512-7z3CB7YMcFKuVvgcnNY8bY6IsZ8LG61Iytbz7HpNVGX2u1RthOs1tRW8luTzSG1MPL0Ox7afyAVMYeFqSPHnaQ==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/instruction-plans@6.10.0':
-    resolution: {integrity: sha512-YG7mo4zykzdc6ZTV0BuN6pveK9qeBySzlYYerq578A4eQu3xcypMAYRGAvhMZtWTanjjmD6CKtM0M7kVp0TNxg==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3175,29 +3171,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/instructions@6.10.0':
-    resolution: {integrity: sha512-0TToYF+8LXQ3ofPMx+yF6yaM9l4YJvcAPMy0qV5JsrBUFlWXBSANRuudKBQLHMvb+a3OiUTq5X7omuorKMBB3A==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/keys@5.5.1':
     resolution: {integrity: sha512-KRD61cL7CRL+b4r/eB9dEoVxIf/2EJ1Pm1DmRYhtSUAJD2dJ5Xw8QFuehobOGm9URqQ7gaQl+Fkc1qvDlsWqKg==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/keys@6.10.0':
-    resolution: {integrity: sha512-26IRfdm/hTUCmM7MeEeX0ULSbCM6OzkZTkfkrPircqmRM7xyNqP4hq7u0P7wjb9dl7NfgyG6K7cdvUxrj2e3mA==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3220,29 +3198,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/nominal-types@6.10.0':
-    resolution: {integrity: sha512-9ykyBBvnkInH7fCacjJi7zu2PJyd+OCt+VTjIISv070fHzKIMFqZqJJ/dJ0SRH2aHwfB3n86iVsmtBtuxi4KKA==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/offchain-messages@5.5.1':
     resolution: {integrity: sha512-g+xHH95prTU+KujtbOzj8wn+C7ZNoiLhf3hj6nYq3MTyxOXtBEysguc97jJveUZG0K97aIKG6xVUlMutg5yxhw==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/offchain-messages@6.10.0':
-    resolution: {integrity: sha512-RiEgAueeMkFMC1suOXBIcmCZgtXRxy24yk0DldPB37bB4zwOF1SAaRjNRPjIkGK8RhCYrEpPosnzLyavw9ueRg==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3265,24 +3225,6 @@ packages:
       typescript:
         optional: true
 
-  '@solana/plugin-interfaces@6.10.0':
-    resolution: {integrity: sha512-vr0/l9wcM4orwGr8cjkFWaJ9A4HvzuAv00jMFNMg0Spd0GZqnwnpW+D/fXa1lIJnTRaF3EeEjLh4VjKU037T0Q==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/program-client-core@6.10.0':
-    resolution: {integrity: sha512-4PPbTLdC1ylHIuvhOFDP8RnSkXPCFjNFWGslzc+UFKnoR4ajzBcByX94jmaruDMk5ncxgj7tr9pzJTvfGHIaMA==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/programs@5.5.1':
     resolution: {integrity: sha512-7U9kn0Jsx1NuBLn5HRTFYh78MV4XN145Yc3WP/q5BlqAVNlMoU9coG5IUTJIG847TUqC1lRto3Dnpwm6T4YRpA==}
     engines: {node: '>=20.18.0'}
@@ -3301,29 +3243,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/promises@6.10.0':
-    resolution: {integrity: sha512-oJSIn+VBBMWDo8oqw7RV3tI6Jih+Ieup6FcQLYLDUriaeo7+8l1Zdezl8zh7SIfeU4lOfAbRg6mR0huaS/Lltg==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/rpc-api@5.5.1':
     resolution: {integrity: sha512-XWOQQPhKl06Vj0xi3RYHAc6oEQd8B82okYJ04K7N0Vvy3J4PN2cxeK7klwkjgavdcN9EVkYCChm2ADAtnztKnA==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/rpc-api@6.10.0':
-    resolution: {integrity: sha512-RjPIVsAb/85P1ptoO3WpC0x7QG6gG/e4q/3lo6gbSznUZOcoM+8sSBnCX7BwP1ZkCDS6NK/ClXLnhhhYZx+OGg==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3337,15 +3261,6 @@ packages:
       typescript:
         optional: true
 
-  '@solana/rpc-parsed-types@6.10.0':
-    resolution: {integrity: sha512-5275mvSV1mxhwvrMVa+K7BU/nAetpHfcb+8Ql9rtA8RRf6DyiimFQFZUukE4Ez6XJihEpCHNy98yhkgai9wytQ==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/rpc-spec-types@5.5.1':
     resolution: {integrity: sha512-6OFKtRpIEJQs8Jb2C4OO8KyP2h2Hy1MFhatMAoXA+0Ik8S3H+CicIuMZvGZ91mIu/tXicuOOsNNLu3HAkrakrw==}
     engines: {node: '>=20.18.0'}
@@ -3355,29 +3270,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/rpc-spec-types@6.10.0':
-    resolution: {integrity: sha512-NDZrKyZrJk4HaMFhTE/lAiMB824cWAodKqDHyKi0UteHU9pyRmil3BN1jt7e+j08mwMWwfklSgyrTaq52g6DIQ==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/rpc-spec@5.5.1':
     resolution: {integrity: sha512-m3LX2bChm3E3by4mQrH4YwCAFY57QBzuUSWqlUw7ChuZ+oLLOq7b2czi4i6L4Vna67j3eCmB3e+4tqy1j5wy7Q==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/rpc-spec@6.10.0':
-    resolution: {integrity: sha512-yQdbWw5mZEWrwsunHR9NHkuhMXIB9sPOObwm18D53v5tAJnxTB0IcHvO647XqFDLTK/yQ4AdDtlYD1vsY07AMQ==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3409,15 +3306,6 @@ packages:
       typescript:
         optional: true
 
-  '@solana/rpc-subscriptions-spec@6.10.0':
-    resolution: {integrity: sha512-nWMwGaG4ulzeX2sskY5TywXF3cwEd8FDmUpLe2JBWxE8XDAOGOKcsYPYFcBgb8ee9KqfPT2PTNdcz9jOhJf34w==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/rpc-subscriptions@5.5.1':
     resolution: {integrity: sha512-CTMy5bt/6mDh4tc6vUJms9EcuZj3xvK0/xq8IQ90rhkpYvate91RjBP+egvjgSayUg9yucU9vNuUpEjz4spM7w==}
     engines: {node: '>=20.18.0'}
@@ -3432,15 +3320,6 @@ packages:
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/rpc-transformers@6.10.0':
-    resolution: {integrity: sha512-2nFUrVTiE720pJOY4XKx3HuYmishw0of/4oScu76YGm6O8wsmvFvPNAkrEinmieWXQkfpBfRvLZmpl8PaAy+ug==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3463,15 +3342,6 @@ packages:
       typescript:
         optional: true
 
-  '@solana/rpc-types@6.10.0':
-    resolution: {integrity: sha512-zaSecTfCPvz/vcoAmKD6XoRstGHTr1EKJBD8T9UcpEFFB6CtF6DxerDB+wrzkamuT6msmnR2DWXMrYOGDAsgIg==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/rpc@5.5.1':
     resolution: {integrity: sha512-ku8zTUMrkCWci66PRIBC+1mXepEnZH/q1f3ck0kJZ95a06bOTl5KU7HeXWtskkyefzARJ5zvCs54AD5nxjQJ+A==}
     engines: {node: '>=20.18.0'}
@@ -3490,29 +3360,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/signers@6.10.0':
-    resolution: {integrity: sha512-+vtCc+mT1FpGxrA5oL2aaMxSHiMJ2hH5PcDIfjo2XJkHz2klZiCZyT5F9+zpltc9vdi1QTElQq59Sfplmtd33A==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/subscribable@5.5.1':
     resolution: {integrity: sha512-9K0PsynFq0CsmK1CDi5Y2vUIJpCqkgSS5yfDN0eKPgHqEptLEaia09Kaxc90cSZDZU5mKY/zv1NBmB6Aro9zQQ==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/subscribable@6.10.0':
-    resolution: {integrity: sha512-VsR6XMwkiDBkZJUcoGkEOhf397pOV75gKCL9Bx8bpi2T3Bbs0CxUpMn4yaUgAnRba3eXmjbXMNCXjttfa6sKbw==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3544,29 +3396,11 @@ packages:
       typescript:
         optional: true
 
-  '@solana/transaction-messages@6.10.0':
-    resolution: {integrity: sha512-s7v8G3BTxGlKYIj3eWCG0g1296v+1LBt16mVnlRH5FuyaJ5AdhlhtRho5HUDpdwE8EXun+y1c48V6uhcZ8wdbQ==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/transactions@5.5.1':
     resolution: {integrity: sha512-8hHtDxtqalZ157pnx6p8k10D7J/KY/biLzfgh9R09VNLLY3Fqi7kJvJCr7M2ik3oRll56pxhraAGCC9yIT6eOA==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/transactions@6.10.0':
-    resolution: {integrity: sha512-VADSqP9OTYmhrox4pcgDd4+RjVmednXSE0+8Y7SPK4PN1pK5Az2RJ0nSsy0xcTnaOr8mF/crwFktqPrRQwSbQA==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -3731,6 +3565,9 @@ packages:
   '@types/nlcst@2.0.3':
     resolution: {integrity: sha512-vSYNSDe6Ix3q+6Z7ri9lyWqgGhJTmzRjZRqyq15N0Z/1/UnVsno9G/N40NBijoYx2seFDIl0+B2mgAb9mezUCA==}
 
+  '@types/node@24.19.0':
+    resolution: {integrity: sha512-zY+5tKxXdhGh1PYI0ac+7juvEu4OI6vWtVVoj5i2m42jxAY1U+zHGt6QCyOFwykdP62sM3MJ9stoYYUw5aCWew==}
+
   '@types/node@24.19.1':
     resolution: {integrity: sha512-aS3/DG0oM05K0RIXXP+hKjinGG5IgSSVGzswZxW3O0sS3pH4/fycXundUC9XsszgKCk4gHXylTEK6hyFxVxnoQ==}
 
@@ -3894,26 +3731,32 @@ packages:
   '@vitest/spy@5.0.3':
     resolution: {integrity: sha512-XhFysQTB8AZ+P4gMi+Lpo99vg2AZi0qKpaB9yXQl37+CaMEAPO3iH/wGVnSyL5MPERiLezpqTVtrR6UZH5GCXg==}
 
+  '@x402/core@2.27.0':
+    resolution: {integrity: sha512-UbxCKnoTsg5nQX9fYER3g9tt5l80jHm1IZOmDczQRqE0cwskls5r+VAAj0iUQfHVshnpv0qo/rLFI7UntqL96g==}
+
   '@x402/core@2.28.0':
     resolution: {integrity: sha512-Da/7zKxCKqpBoB4Msc9tFgkAv7tJTD8nG+DSSm+QdXAyJS4PQsmgVSKe17rDJTtlu0pwNbLcOje6MyQ6kaDkig==}
 
-  '@x402/evm@2.28.0':
-    resolution: {integrity: sha512-BZuoaCKMoPQQuMTa4oibvoyI06WdCpgrzgdicUu8d+5NBMAfWb6LAmSQf1KkeiS8C+25/+2JGB4cHSL0VLGnSA==}
+  '@x402/evm@2.27.0':
+    resolution: {integrity: sha512-WKVFq5VaSrDJfo6lHNG7/4hT0iZdpsmd53W/a+gZqmE1CiVT8wyRpwIPue4f/YKqNfgHHhZ00AcfPho0xLr2eQ==}
+
+  '@x402/extensions@2.27.0':
+    resolution: {integrity: sha512-eGBZZCTNtJsbzYoOe72Mfo/HN7Ir4i8+gmBUQ3ScrTiO91Q0bscO6LjGg2d3oJiFQ6g+YVXn+5fLxCEwoqgFsA==}
 
   '@x402/extensions@2.28.0':
     resolution: {integrity: sha512-M3SVxO8DJnx7gpok/ODQp803jr21s1XrCMholNw0hSgOVvSPRksfTZ+CUNfJwteNaHmaAxGjPelXWBhTCMD9oQ==}
 
-  '@x402/hono@2.28.0':
-    resolution: {integrity: sha512-tR/AegvCpluj4AX1uYpqt0Ak7e3RcA2QE9GYrPCzwZTxv2z7gYUl7xE/olaxxDEiEb/yRmlsNAxmL81cARjeKw==}
+  '@x402/hono@2.27.0':
+    resolution: {integrity: sha512-ySXqPl32IcctPBbDIuX3+sjJfwNpCE3lsEt4F0PE30VyIYrnmQ/VrSCkMp456AzR9WagV+gqna3cwxEr70/s0g==}
     peerDependencies:
-      '@x402/paywall': ^2.28.0
+      '@x402/paywall': ^2.27.0
       hono: ^4.0.0
     peerDependenciesMeta:
       '@x402/paywall':
         optional: true
 
-  '@x402/svm@2.28.0':
-    resolution: {integrity: sha512-D6+MSi7GG9LP7Lld1/i+A+Rk9ZyET5MmZAZqAyxmIda42tW3mVZjn/RJjGQbQmTKe+lYk8KiKWbeaxoK/x/ArA==}
+  '@x402/svm@2.27.0':
+    resolution: {integrity: sha512-ObRKE5qAVit/oSdscfno3M52PX4PDV2VuyYJPOE4rIzR6fzHNRaAjRi9EgzU6otvYhVhm7ejiZbYlp1DEwMJag==}
     peerDependencies:
       '@solana/kit': '>=5.1.0'
 
@@ -5563,6 +5406,11 @@ packages:
       vue-tsc:
         optional: true
 
+  rolldown@1.2.11:
+    resolution: {integrity: sha512-qpSwIyz0jHQq5qXBTNxFmE6664rJ7O+4TvPFOiOaBSrz8IOHc1koKKSqTM2H6u1UG1+TveuC6vaDHKXFOvb1Kw==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    hasBin: true
+
   rolldown@1.2.12:
     resolution: {integrity: sha512-8wafseiaG80xmXSfqidUNqZcylTlhmPZZt+za2m+js2sFZ8dTNlhIOV2WcbIPx2hgwPBJpEUGFAMZ9bgBBLTSQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -5628,8 +5476,8 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
-  shell-quote@1.11.0:
-    resolution: {integrity: sha512-JdxDPD0DBTyu08pq0kPC0xSNet/qsU07qT6IsX1AS8oO2ICNRY4ldNa8OAI6PuwAH8tG3lxEhbqmyp4Dw4036g==}
+  shell-quote@1.10.0:
+    resolution: {integrity: sha512-w1aiOKwKuRgtwAReIIj89puqg+I7GvX4IbLrvmhXbzQsj1+Zwi4VO3+fa6ZF91TWSjIxoEkKnMeHcLEODK5ZXA==}
     engines: {node: '>= 0.4'}
 
   shiki@4.5.0:
@@ -5661,6 +5509,10 @@ packages:
 
   solady@0.1.26:
     resolution: {integrity: sha512-dhGr/ptJFdea/1KE6xgqgwEdbMhUiSfRc6A+jLeltPe16zyt9qtED3PElIBVRnzEmUO5aZTjKVAr6SlqXBBcIw==}
+
+  source-map-js@1.2.1:
+    resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
+    engines: {node: '>=0.10.0'}
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
@@ -6238,6 +6090,29 @@ snapshots:
 
   '@adraffy/ens-normalize@1.11.1': {}
 
+  '@alchemy.run/cloudflare-runtime@2.0.0-beta.80(@distilled.cloud/cloudflare@1.0.0-rc.13(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.0)(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
+    dependencies:
+      '@alchemy.run/node-utils': 2.0.0-beta.80
+      '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20260918.1)
+      '@distilled.cloud/cloudflare': 1.0.0-rc.13(effect@4.0.0)
+      '@puppeteer/browsers': 3.2.3(yauzl@3.4.0)
+      capnp-es: 0.0.16(typescript@7.0.2)
+      effect: 4.0.0
+      magic-string: 0.30.21
+      mime: 4.1.0
+      sharp: 0.35.5(@types/node@24.19.0)
+      unenv: 2.0.0-rc.24
+      workerd: 1.20260918.1
+      yauzl: 3.4.0
+    optionalDependencies:
+      '@effect/platform-node': 4.0.0(effect@4.0.0)(redis@6.3.0)
+      rolldown: 1.2.5
+      vite: 8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+    transitivePeerDependencies:
+      - '@types/node'
+      - proxy-agent
+      - typescript
+
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.80(@distilled.cloud/cloudflare@1.0.0-rc.13(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@alchemy.run/node-utils': 2.0.0-beta.80
@@ -6265,6 +6140,26 @@ snapshots:
     dependencies:
       effect: 4.0.0
 
+  '@alchemy.run/frontend-frameworks@2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.0)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
+    dependencies:
+      '@alchemy.run/cloudflare-runtime': 2.0.0-beta.80(@distilled.cloud/cloudflare@1.0.0-rc.13(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.0)(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      '@distilled.cloud/aws': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/cloudflare': 1.0.0-rc.13(effect@4.0.0)
+      effect: 4.0.0
+      esbuild: 0.28.2
+      rolldown: 1.2.5
+      srvx: 1.0.5
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@effect/platform-node': 4.0.0(effect@4.0.0)(redis@6.3.0)
+      hono: 4.11.4
+      vite: 8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+    transitivePeerDependencies:
+      - '@types/node'
+      - proxy-agent
+      - typescript
+    optional: true
+
   '@alchemy.run/frontend-frameworks@2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(astro@7.4.0-beta.0(@types/node@24.19.1)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1))(effect@4.0.0)(hono@4.13.9)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@alchemy.run/cloudflare-runtime': 2.0.0-beta.80(@distilled.cloud/cloudflare@1.0.0-rc.13(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
@@ -6284,26 +6179,6 @@ snapshots:
       - '@types/node'
       - proxy-agent
       - typescript
-
-  '@alchemy.run/frontend-frameworks@2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
-    dependencies:
-      '@alchemy.run/cloudflare-runtime': 2.0.0-beta.80(@distilled.cloud/cloudflare@1.0.0-rc.13(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
-      '@distilled.cloud/aws': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/cloudflare': 1.0.0-rc.13(effect@4.0.0)
-      effect: 4.0.0
-      esbuild: 0.28.2
-      rolldown: 1.2.5
-      srvx: 1.0.5
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@effect/platform-node': 4.0.0(effect@4.0.0)(redis@6.3.0)
-      hono: 4.11.4
-      vite: 8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
-    transitivePeerDependencies:
-      - '@types/node'
-      - proxy-agent
-      - typescript
-    optional: true
 
   '@alchemy.run/frontend-frameworks@2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(hono@4.13.9)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
@@ -6332,14 +6207,14 @@ snapshots:
 
   '@alchemy.run/sigil@0.1.0-alpha.1': {}
 
-  '@astrojs/cloudflare@15.0.0-beta.0(@types/node@24.19.1)(astro@7.4.0-beta.0(@types/node@24.19.1)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1))(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)':
+  '@astrojs/cloudflare@15.0.0-beta.0(@types/node@24.19.0)(astro@7.4.0-beta.0(@types/node@24.19.0)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1))(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)':
     dependencies:
       '@astrojs/internal-helpers': 0.11.0
       '@astrojs/underscore-redirects': 1.0.4
-      '@cloudflare/vite-plugin': 2.0.0-beta.sha-238e489d5(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
-      astro: 7.4.0-beta.0(@types/node@24.19.1)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1)
+      '@cloudflare/vite-plugin': 2.0.0-beta.sha-238e489d5(@types/node@24.19.0)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      astro: 7.4.0-beta.0(@types/node@24.19.0)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1)
       piccolore: 0.1.3
-      vite: 8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      vite: 8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
     transitivePeerDependencies:
       - '@types/node'
       - '@vitejs/devtools'
@@ -6667,14 +6542,14 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@better-auth/cimd@1.7.0-rc.4(ab169d544af93aa8ce373af1b6139adb)':
+  '@better-auth/cimd@1.7.0-rc.4(ecb3ffd66e19fa3a0ce917fc6edca652)':
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
-      '@better-auth/oauth-provider': 1.7.0-rc.4(patch_hash=faa8be19f1cb40d4569945f9028935b82f6592f7549ec41dda3e9939b61676dd)(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))
-      better-auth: 1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/oauth-provider': 1.7.0-rc.4(patch_hash=faa8be19f1cb40d4569945f9028935b82f6592f7549ec41dda3e9939b61676dd)(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))
+      better-auth: 1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
       better-call: 1.3.7(zod@4.6.5)
 
-  '@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)':
+  '@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)':
     dependencies:
       '@better-auth/utils': 0.4.2
       '@better-fetch/fetch': 1.3.1
@@ -6686,60 +6561,60 @@ snapshots:
       nanostores: 1.5.4
       zod: 4.6.5
     optionalDependencies:
-      '@cloudflare/workers-types': 5.20260926.1
+      '@cloudflare/workers-types': 5.20260928.1
 
-  '@better-auth/drizzle-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)':
+  '@better-auth/drizzle-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)':
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
       '@better-auth/utils': 0.4.2
 
-  '@better-auth/kysely-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(kysely@0.29.6)':
+  '@better-auth/kysely-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(kysely@0.29.6)':
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
       '@better-auth/utils': 0.4.2
     optionalDependencies:
       kysely: 0.29.6
 
-  '@better-auth/memory-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)':
+  '@better-auth/memory-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)':
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
       '@better-auth/utils': 0.4.2
 
-  '@better-auth/mongo-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)':
+  '@better-auth/mongo-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)':
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
       '@better-auth/utils': 0.4.2
 
-  '@better-auth/oauth-provider@1.7.0-rc.4(patch_hash=faa8be19f1cb40d4569945f9028935b82f6592f7549ec41dda3e9939b61676dd)(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))':
+  '@better-auth/oauth-provider@1.7.0-rc.4(patch_hash=faa8be19f1cb40d4569945f9028935b82f6592f7549ec41dda3e9939b61676dd)(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))':
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
       '@better-auth/utils': 0.4.2
       '@better-fetch/fetch': 1.3.1
-      better-auth: 1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
+      better-auth: 1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
       better-call: 1.3.7(zod@4.6.5)
       jose: 6.2.12
       zod: 4.6.5
 
-  '@better-auth/passkey@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))(nanostores@1.5.4)':
+  '@better-auth/passkey@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))))(better-call@1.3.7(zod@4.6.5))(nanostores@1.5.4)':
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
       '@better-auth/utils': 0.4.2
       '@better-fetch/fetch': 1.3.1
       '@simplewebauthn/browser': 13.3.0
       '@simplewebauthn/server': 13.3.3
-      better-auth: 1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
+      better-auth: 1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
       better-call: 1.3.7(zod@4.6.5)
       nanostores: 1.5.4
       zod: 4.6.5
 
-  '@better-auth/prisma-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)':
+  '@better-auth/prisma-adapter@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)':
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
       '@better-auth/utils': 0.4.2
 
-  '@better-auth/telemetry@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)':
+  '@better-auth/telemetry@1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)':
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
       '@better-auth/utils': 0.4.2
       '@better-fetch/fetch': 1.3.1
 
@@ -6953,9 +6828,9 @@ snapshots:
     dependencies:
       zod: 4.4.3
 
-  '@cloudflare/runtime-types@0.1.6(@types/node@24.19.1)':
+  '@cloudflare/runtime-types@0.1.6(@types/node@24.19.0)':
     dependencies:
-      miniflare: 5.20260930.0-alpha(@types/node@24.19.1)
+      miniflare: 5.20260930.0-alpha(@types/node@24.19.0)
       workerd: 1.20260930.2
     transitivePeerDependencies:
       - '@types/node'
@@ -6968,13 +6843,13 @@ snapshots:
     optionalDependencies:
       workerd: 1.20260918.1
 
-  '@cloudflare/vite-plugin@2.0.0-beta.sha-238e489d5(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
+  '@cloudflare/vite-plugin@2.0.0-beta.sha-238e489d5(@types/node@24.19.0)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@cloudflare/config': 0.18.0
       '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20260918.1)
-      miniflare: 5.20260923.0-alpha(@types/node@24.19.1)
+      miniflare: 5.20260923.0-alpha(@types/node@24.19.0)
       unenv: 2.0.0-rc.24
-      vite: 8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      vite: 8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
       workerd: 1.20260918.1
       ws: 8.21.0
     transitivePeerDependencies:
@@ -7027,9 +6902,9 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20260930.2':
     optional: true
 
-  '@cloudflare/workers-types@5.20260926.1': {}
+  '@cloudflare/workers-types@5.20260928.1': {}
 
-  '@coinbase/cdp-sdk@1.57.1(@x402/core@2.28.0)(@x402/evm@2.28.0(typescript@7.0.2))(@x402/extensions@2.28.0(typescript@7.0.2))(@x402/svm@2.28.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2))(typescript@7.0.2))(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(typescript@7.0.2)':
+  '@coinbase/cdp-sdk@1.57.0(@x402/core@2.27.0)(@x402/evm@2.27.0(typescript@7.0.2))(@x402/extensions@2.28.0(typescript@7.0.2))(@x402/svm@2.27.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2)))(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)(typescript@7.0.2)':
     dependencies:
       '@solana-program/system': 0.10.0(@solana/kit@5.5.1(typescript@7.0.2))
       '@solana-program/token': 0.9.0(@solana/kit@5.5.1(typescript@7.0.2))
@@ -7044,10 +6919,10 @@ snapshots:
       viem: 2.57.2(typescript@7.0.2)(zod@3.25.76)
       zod: 3.25.76
     optionalDependencies:
-      '@x402/core': 2.28.0
-      '@x402/evm': 2.28.0(typescript@7.0.2)
+      '@x402/core': 2.27.0
+      '@x402/evm': 2.27.0(typescript@7.0.2)
       '@x402/extensions': 2.28.0(typescript@7.0.2)
-      '@x402/svm': 2.28.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2))(typescript@7.0.2)
+      '@x402/svm': 2.27.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2))
     transitivePeerDependencies:
       - bufferutil
       - debug
@@ -7162,7 +7037,7 @@ snapshots:
 
   '@effect/sql-d1@4.0.0(effect@4.0.0)':
     dependencies:
-      '@cloudflare/workers-types': 5.20260926.1
+      '@cloudflare/workers-types': 5.20260928.1
       effect: 4.0.0
 
   '@effect/sql-sqlite-do@4.0.0(effect@4.0.0)':
@@ -7172,7 +7047,7 @@ snapshots:
   '@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.3)':
     dependencies:
       effect: 4.0.0
-      vitest: 5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      vitest: 5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
     optional: true
 
   '@electric-sql/pglite-socket@0.0.20(@electric-sql/pglite@0.3.15)':
@@ -7305,7 +7180,7 @@ snapshots:
     dependencies:
       hono: 4.11.4
 
-  '@hono/node-server@2.1.3(hono@4.13.9)':
+  '@hono/node-server@2.1.1(hono@4.13.9)':
     dependencies:
       hono: 4.13.9
 
@@ -7771,6 +7646,8 @@ snapshots:
 
   '@oxc-project/types@0.146.0': {}
 
+  '@oxc-project/types@0.151.0': {}
+
   '@oxc-project/types@0.152.0': {}
 
   '@oxfmt/binding-android-arm-eabi@0.71.0':
@@ -8114,10 +7991,16 @@ snapshots:
     dependencies:
       '@redis/client': 6.3.0
 
+  '@rolldown/binding-android-arm-eabi@1.2.11':
+    optional: true
+
   '@rolldown/binding-android-arm-eabi@1.2.12':
     optional: true
 
   '@rolldown/binding-android-arm-eabi@1.2.5':
+    optional: true
+
+  '@rolldown/binding-android-arm64@1.2.11':
     optional: true
 
   '@rolldown/binding-android-arm64@1.2.12':
@@ -8126,10 +8009,16 @@ snapshots:
   '@rolldown/binding-android-arm64@1.2.5':
     optional: true
 
+  '@rolldown/binding-darwin-arm64@1.2.11':
+    optional: true
+
   '@rolldown/binding-darwin-arm64@1.2.12':
     optional: true
 
   '@rolldown/binding-darwin-arm64@1.2.5':
+    optional: true
+
+  '@rolldown/binding-darwin-x64@1.2.11':
     optional: true
 
   '@rolldown/binding-darwin-x64@1.2.12':
@@ -8138,10 +8027,16 @@ snapshots:
   '@rolldown/binding-darwin-x64@1.2.5':
     optional: true
 
+  '@rolldown/binding-freebsd-x64@1.2.11':
+    optional: true
+
   '@rolldown/binding-freebsd-x64@1.2.12':
     optional: true
 
   '@rolldown/binding-freebsd-x64@1.2.5':
+    optional: true
+
+  '@rolldown/binding-linux-arm-gnueabihf@1.2.11':
     optional: true
 
   '@rolldown/binding-linux-arm-gnueabihf@1.2.12':
@@ -8150,10 +8045,16 @@ snapshots:
   '@rolldown/binding-linux-arm-gnueabihf@1.2.5':
     optional: true
 
+  '@rolldown/binding-linux-arm64-gnu@1.2.11':
+    optional: true
+
   '@rolldown/binding-linux-arm64-gnu@1.2.12':
     optional: true
 
   '@rolldown/binding-linux-arm64-gnu@1.2.5':
+    optional: true
+
+  '@rolldown/binding-linux-arm64-musl@1.2.11':
     optional: true
 
   '@rolldown/binding-linux-arm64-musl@1.2.12':
@@ -8162,10 +8063,16 @@ snapshots:
   '@rolldown/binding-linux-arm64-musl@1.2.5':
     optional: true
 
+  '@rolldown/binding-linux-ppc64-gnu@1.2.11':
+    optional: true
+
   '@rolldown/binding-linux-ppc64-gnu@1.2.12':
     optional: true
 
   '@rolldown/binding-linux-ppc64-gnu@1.2.5':
+    optional: true
+
+  '@rolldown/binding-linux-s390x-gnu@1.2.11':
     optional: true
 
   '@rolldown/binding-linux-s390x-gnu@1.2.12':
@@ -8174,10 +8081,16 @@ snapshots:
   '@rolldown/binding-linux-s390x-gnu@1.2.5':
     optional: true
 
+  '@rolldown/binding-linux-x64-gnu@1.2.11':
+    optional: true
+
   '@rolldown/binding-linux-x64-gnu@1.2.12':
     optional: true
 
   '@rolldown/binding-linux-x64-gnu@1.2.5':
+    optional: true
+
+  '@rolldown/binding-linux-x64-musl@1.2.11':
     optional: true
 
   '@rolldown/binding-linux-x64-musl@1.2.12':
@@ -8186,16 +8099,25 @@ snapshots:
   '@rolldown/binding-linux-x64-musl@1.2.5':
     optional: true
 
+  '@rolldown/binding-openharmony-arm64@1.2.11':
+    optional: true
+
   '@rolldown/binding-openharmony-arm64@1.2.12':
     optional: true
 
   '@rolldown/binding-openharmony-arm64@1.2.5':
     optional: true
 
+  '@rolldown/binding-win32-arm64-msvc@1.2.11':
+    optional: true
+
   '@rolldown/binding-win32-arm64-msvc@1.2.12':
     optional: true
 
   '@rolldown/binding-win32-arm64-msvc@1.2.5':
+    optional: true
+
+  '@rolldown/binding-win32-x64-msvc@1.2.11':
     optional: true
 
   '@rolldown/binding-win32-x64-msvc@1.2.12':
@@ -8281,11 +8203,11 @@ snapshots:
       '@noble/hashes': 1.8.0
       apg-js: 4.4.0
 
-  '@signinwithethereum/siwe@4.2.1(viem@2.57.2(typescript@7.0.2)(zod@3.25.76))':
+  '@signinwithethereum/siwe@4.2.1(viem@2.56.9(typescript@7.0.2)(zod@3.25.76))':
     dependencies:
       '@signinwithethereum/siwe-parser': 4.2.1
     optionalDependencies:
-      viem: 2.57.2(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.56.9(typescript@7.0.2)(zod@3.25.76)
 
   '@simplewebauthn/browser@13.3.0': {}
 
@@ -8408,19 +8330,6 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
-  '@solana/accounts@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/addresses': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-strings': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-spec': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-types': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
   '@solana/addresses@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/assertions': 5.5.1(typescript@7.0.2)
@@ -8433,39 +8342,15 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
-  '@solana/addresses@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/assertions': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-strings': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/nominal-types': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
   '@solana/assertions@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/errors': 5.5.1(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
 
-  '@solana/assertions@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
   '@solana/codecs-core@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/errors': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
-  '@solana/codecs-core@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/errors': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
 
@@ -8477,25 +8362,10 @@ snapshots:
     optionalDependencies:
       typescript: 7.0.2
 
-  '@solana/codecs-data-structures@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-numbers': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
   '@solana/codecs-numbers@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/codecs-core': 5.5.1(typescript@7.0.2)
       '@solana/errors': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
-  '@solana/codecs-numbers@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
 
@@ -8504,14 +8374,6 @@ snapshots:
       '@solana/codecs-core': 5.5.1(typescript@7.0.2)
       '@solana/codecs-numbers': 5.5.1(typescript@7.0.2)
       '@solana/errors': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
-  '@solana/codecs-strings@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-numbers': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
 
@@ -8534,29 +8396,11 @@ snapshots:
     optionalDependencies:
       typescript: 7.0.2
 
-  '@solana/errors@6.10.0(typescript@7.0.2)':
-    dependencies:
-      chalk: 5.6.2
-      commander: 15.0.0
-    optionalDependencies:
-      typescript: 7.0.2
-
   '@solana/fast-stable-stringify@5.5.1(typescript@7.0.2)':
     optionalDependencies:
       typescript: 7.0.2
 
-  '@solana/fixed-points@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
   '@solana/functional@5.5.1(typescript@7.0.2)':
-    optionalDependencies:
-      typescript: 7.0.2
-
-  '@solana/functional@6.10.0(typescript@7.0.2)':
     optionalDependencies:
       typescript: 7.0.2
 
@@ -8573,30 +8417,10 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
-  '@solana/instruction-plans@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/instructions': 6.10.0(typescript@7.0.2)
-      '@solana/keys': 6.10.0(typescript@7.0.2)
-      '@solana/promises': 6.10.0(typescript@7.0.2)
-      '@solana/transaction-messages': 6.10.0(typescript@7.0.2)
-      '@solana/transactions': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
   '@solana/instructions@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/codecs-core': 5.5.1(typescript@7.0.2)
       '@solana/errors': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
-  '@solana/instructions@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
 
@@ -8607,19 +8431,6 @@ snapshots:
       '@solana/codecs-strings': 5.5.1(typescript@7.0.2)
       '@solana/errors': 5.5.1(typescript@7.0.2)
       '@solana/nominal-types': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
-  '@solana/keys@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/assertions': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-strings': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/nominal-types': 6.10.0(typescript@7.0.2)
-      '@solana/promises': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
     transitivePeerDependencies:
@@ -8660,10 +8471,6 @@ snapshots:
     optionalDependencies:
       typescript: 7.0.2
 
-  '@solana/nominal-types@6.10.0(typescript@7.0.2)':
-    optionalDependencies:
-      typescript: 7.0.2
-
   '@solana/offchain-messages@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/addresses': 5.5.1(typescript@7.0.2)
@@ -8674,21 +8481,6 @@ snapshots:
       '@solana/errors': 5.5.1(typescript@7.0.2)
       '@solana/keys': 5.5.1(typescript@7.0.2)
       '@solana/nominal-types': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
-  '@solana/offchain-messages@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/addresses': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-data-structures': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-numbers': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-strings': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/keys': 6.10.0(typescript@7.0.2)
-      '@solana/nominal-types': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
     transitivePeerDependencies:
@@ -8710,36 +8502,6 @@ snapshots:
     optionalDependencies:
       typescript: 7.0.2
 
-  '@solana/plugin-interfaces@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/addresses': 6.10.0(typescript@7.0.2)
-      '@solana/instruction-plans': 6.10.0(typescript@7.0.2)
-      '@solana/keys': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-spec': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-subscriptions-spec': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-types': 6.10.0(typescript@7.0.2)
-      '@solana/signers': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
-  '@solana/program-client-core@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/accounts': 6.10.0(typescript@7.0.2)
-      '@solana/addresses': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/instruction-plans': 6.10.0(typescript@7.0.2)
-      '@solana/instructions': 6.10.0(typescript@7.0.2)
-      '@solana/plugin-interfaces': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-api': 6.10.0(typescript@7.0.2)
-      '@solana/signers': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
   '@solana/programs@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/addresses': 5.5.1(typescript@7.0.2)
@@ -8750,10 +8512,6 @@ snapshots:
       - fastestsmallesttextencoderdecoder
 
   '@solana/promises@5.5.1(typescript@7.0.2)':
-    optionalDependencies:
-      typescript: 7.0.2
-
-  '@solana/promises@6.10.0(typescript@7.0.2)':
     optionalDependencies:
       typescript: 7.0.2
 
@@ -8775,29 +8533,7 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
-  '@solana/rpc-api@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/addresses': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-strings': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/keys': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-parsed-types': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-spec': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-transformers': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-types': 6.10.0(typescript@7.0.2)
-      '@solana/transaction-messages': 6.10.0(typescript@7.0.2)
-      '@solana/transactions': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
   '@solana/rpc-parsed-types@5.5.1(typescript@7.0.2)':
-    optionalDependencies:
-      typescript: 7.0.2
-
-  '@solana/rpc-parsed-types@6.10.0(typescript@7.0.2)':
     optionalDependencies:
       typescript: 7.0.2
 
@@ -8805,22 +8541,10 @@ snapshots:
     optionalDependencies:
       typescript: 7.0.2
 
-  '@solana/rpc-spec-types@6.10.0(typescript@7.0.2)':
-    optionalDependencies:
-      typescript: 7.0.2
-
   '@solana/rpc-spec@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/errors': 5.5.1(typescript@7.0.2)
       '@solana/rpc-spec-types': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
-  '@solana/rpc-spec@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-spec-types': 6.10.0(typescript@7.0.2)
-      '@solana/subscribable': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
 
@@ -8860,15 +8584,6 @@ snapshots:
     optionalDependencies:
       typescript: 7.0.2
 
-  '@solana/rpc-subscriptions-spec@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/promises': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-spec-types': 6.10.0(typescript@7.0.2)
-      '@solana/subscribable': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
   '@solana/rpc-subscriptions@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/errors': 5.5.1(typescript@7.0.2)
@@ -8901,18 +8616,6 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
-  '@solana/rpc-transformers@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/functional': 6.10.0(typescript@7.0.2)
-      '@solana/nominal-types': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-spec-types': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-types': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
   '@solana/rpc-transport-http@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/errors': 5.5.1(typescript@7.0.2)
@@ -8930,20 +8633,6 @@ snapshots:
       '@solana/codecs-strings': 5.5.1(typescript@7.0.2)
       '@solana/errors': 5.5.1(typescript@7.0.2)
       '@solana/nominal-types': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
-  '@solana/rpc-types@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/addresses': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-numbers': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-strings': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/fixed-points': 6.10.0(typescript@7.0.2)
-      '@solana/nominal-types': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
     transitivePeerDependencies:
@@ -8981,32 +8670,9 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
-  '@solana/signers@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/addresses': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/instructions': 6.10.0(typescript@7.0.2)
-      '@solana/keys': 6.10.0(typescript@7.0.2)
-      '@solana/nominal-types': 6.10.0(typescript@7.0.2)
-      '@solana/offchain-messages': 6.10.0(typescript@7.0.2)
-      '@solana/transaction-messages': 6.10.0(typescript@7.0.2)
-      '@solana/transactions': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
   '@solana/subscribable@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/errors': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-
-  '@solana/subscribable@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/promises': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
 
@@ -9056,22 +8722,6 @@ snapshots:
     transitivePeerDependencies:
       - fastestsmallesttextencoderdecoder
 
-  '@solana/transaction-messages@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/addresses': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-data-structures': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-numbers': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/functional': 6.10.0(typescript@7.0.2)
-      '@solana/instructions': 6.10.0(typescript@7.0.2)
-      '@solana/nominal-types': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-types': 6.10.0(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
   '@solana/transactions@5.5.1(typescript@7.0.2)':
     dependencies:
       '@solana/addresses': 5.5.1(typescript@7.0.2)
@@ -9086,25 +8736,6 @@ snapshots:
       '@solana/nominal-types': 5.5.1(typescript@7.0.2)
       '@solana/rpc-types': 5.5.1(typescript@7.0.2)
       '@solana/transaction-messages': 5.5.1(typescript@7.0.2)
-    optionalDependencies:
-      typescript: 7.0.2
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-
-  '@solana/transactions@6.10.0(typescript@7.0.2)':
-    dependencies:
-      '@solana/addresses': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-core': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-data-structures': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-numbers': 6.10.0(typescript@7.0.2)
-      '@solana/codecs-strings': 6.10.0(typescript@7.0.2)
-      '@solana/errors': 6.10.0(typescript@7.0.2)
-      '@solana/functional': 6.10.0(typescript@7.0.2)
-      '@solana/instructions': 6.10.0(typescript@7.0.2)
-      '@solana/keys': 6.10.0(typescript@7.0.2)
-      '@solana/nominal-types': 6.10.0(typescript@7.0.2)
-      '@solana/rpc-types': 6.10.0(typescript@7.0.2)
-      '@solana/transaction-messages': 6.10.0(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
     transitivePeerDependencies:
@@ -9236,15 +8867,20 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
 
+  '@types/node@24.19.0':
+    dependencies:
+      undici-types: 7.24.6
+
   '@types/node@24.19.1':
     dependencies:
       undici-types: 7.24.6
+    optional: true
 
   '@types/unist@3.0.3': {}
 
   '@types/ws@8.18.2':
     dependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.19.0
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -9318,7 +8954,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      vitest: 5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
 
   '@vitest/istanbul-lib-coverage@1.0.2': {}
 
@@ -9326,28 +8962,50 @@ snapshots:
     dependencies:
       '@vitest/istanbul-lib-coverage': 1.0.2
 
-  '@vitest/mocker@5.0.3(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
+  '@vitest/mocker@5.0.3(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.3
       estree-walker: 3.0.3
       magic-string: 1.4.2
     optionalDependencies:
-      vite: 8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      vite: 8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
 
   '@vitest/spy@5.0.3': {}
+
+  '@x402/core@2.27.0':
+    dependencies:
+      zod: 3.25.76
 
   '@x402/core@2.28.0':
     dependencies:
       zod: 3.25.76
+    optional: true
 
-  '@x402/evm@2.28.0(typescript@7.0.2)':
+  '@x402/evm@2.27.0(typescript@7.0.2)':
     dependencies:
-      '@x402/core': 2.28.0
+      '@x402/core': 2.27.0
       viem: 2.57.2(typescript@7.0.2)(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
       - bufferutil
+      - typescript
+      - utf-8-validate
+
+  '@x402/extensions@2.27.0(typescript@7.0.2)':
+    dependencies:
+      '@noble/curves': 1.9.7
+      '@scure/base': 1.2.6
+      '@signinwithethereum/siwe': 4.2.1(viem@2.56.9(typescript@7.0.2)(zod@3.25.76))
+      '@x402/core': 2.27.0
+      ajv: 8.20.0
+      jose: 5.10.0
+      tweetnacl: 1.0.3
+      viem: 2.56.9(typescript@7.0.2)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - ethers
       - typescript
       - utf-8-validate
 
@@ -9355,23 +9013,24 @@ snapshots:
     dependencies:
       '@noble/curves': 1.9.7
       '@scure/base': 1.2.6
-      '@signinwithethereum/siwe': 4.2.1(viem@2.57.2(typescript@7.0.2)(zod@3.25.76))
+      '@signinwithethereum/siwe': 4.2.1(viem@2.56.9(typescript@7.0.2)(zod@3.25.76))
       '@x402/core': 2.28.0
       ajv: 8.20.0
       jose: 5.10.0
       tweetnacl: 1.0.3
-      viem: 2.57.2(typescript@7.0.2)(zod@3.25.76)
+      viem: 2.56.9(typescript@7.0.2)(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
       - bufferutil
       - ethers
       - typescript
       - utf-8-validate
+    optional: true
 
-  '@x402/hono@2.28.0(hono@4.13.9)(typescript@7.0.2)':
+  '@x402/hono@2.27.0(hono@4.13.9)(typescript@7.0.2)':
     dependencies:
-      '@x402/core': 2.28.0
-      '@x402/extensions': 2.28.0(typescript@7.0.2)
+      '@x402/core': 2.27.0
+      '@x402/extensions': 2.27.0(typescript@7.0.2)
       hono: 4.13.9
     transitivePeerDependencies:
       - bufferutil
@@ -9379,19 +9038,16 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@x402/svm@2.28.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2))(typescript@7.0.2)':
+  '@x402/svm@2.27.0(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2))':
     dependencies:
       '@noble/hashes': 1.8.0
       '@solana-program/compute-budget': 0.11.0(@solana/kit@5.5.1(typescript@7.0.2))
       '@solana-program/token': 0.9.0(@solana/kit@5.5.1(typescript@7.0.2))
       '@solana-program/token-2022': 0.6.1(@solana/kit@5.5.1(typescript@7.0.2))(@solana/sysvars@5.5.1(typescript@7.0.2))
       '@solana/kit': 5.5.1(typescript@7.0.2)
-      '@solana/program-client-core': 6.10.0(typescript@7.0.2)
-      '@x402/core': 2.28.0
+      '@x402/core': 2.27.0
     transitivePeerDependencies:
       - '@solana/sysvars'
-      - fastestsmallesttextencoderdecoder
-      - typescript
 
   '@yuku-codegen/binding-android-arm64@0.10.2':
     optional: true
@@ -9497,6 +9153,61 @@ snapshots:
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
+  alchemy@2.0.0-beta.80(@alchemy.run/frontend-frameworks@2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.0)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.3))(@types/node@24.19.0)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.0):
+    dependencies:
+      '@alchemy.run/cloudflare-runtime': 2.0.0-beta.80(@distilled.cloud/cloudflare@1.0.0-rc.13(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.0)(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      '@alchemy.run/floci': 2.0.0-beta.80(effect@4.0.0)
+      '@alchemy.run/node-utils': 2.0.0-beta.80
+      '@alchemy.run/sigil': 0.1.0-alpha.1
+      '@distilled.cloud/acme': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/aws': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/axiom': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/cloudflare': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/core': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/doppler': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/fly-io': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/gcp': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/hetzner': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/infisical': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/neon': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/planetscale': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/prisma': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/railway': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/stripe': 1.0.0-rc.13(effect@4.0.0)
+      '@distilled.cloud/zerossl': 1.0.0-rc.13(effect@4.0.0)
+      '@effect/sql-d1': 4.0.0(effect@4.0.0)
+      '@effect/sql-sqlite-do': 4.0.0(effect@4.0.0)
+      '@libsql/client': 0.17.4
+      '@neon/functions': 0.11.0(hono@4.11.4)
+      '@octokit/rest': 22.0.1
+      '@octokit/webhooks': 14.2.0
+      '@prisma/dev': 0.20.0(typescript@7.0.2)
+      '@types/aws-lambda': 8.10.164
+      capnweb: 0.12.0
+      effect: 4.0.0
+      fflate: 0.8.3
+      libsodium-wrappers: 0.8.4
+      pathe: 2.0.3
+      picomatch: 4.0.7
+      rolldown: 1.2.5
+      tinyglobby: 0.2.17
+      yaml: 2.9.1
+    optionalDependencies:
+      '@alchemy.run/frontend-frameworks': 2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.0)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      '@effect/platform-node': 4.0.0(effect@4.0.0)(redis@6.3.0)
+      '@effect/vitest': 4.0.0(effect@4.0.0)(vitest@5.0.3)
+      vite: 8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      ws: 8.22.0
+    transitivePeerDependencies:
+      - '@types/node'
+      - '@types/react'
+      - bufferutil
+      - hono
+      - proxy-agent
+      - react-devtools-core
+      - typescript
+      - utf-8-validate
+
   alchemy@2.0.0-beta.80(@alchemy.run/frontend-frameworks@2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(astro@7.4.0-beta.0(@types/node@24.19.1)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1))(effect@4.0.0)(hono@4.13.9)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.3))(@types/node@24.19.1)(effect@4.0.0)(hono@4.13.9)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.0):
     dependencies:
       '@alchemy.run/cloudflare-runtime': 2.0.0-beta.80(@distilled.cloud/cloudflare@1.0.0-rc.13(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
@@ -9538,61 +9249,6 @@ snapshots:
       yaml: 2.9.1
     optionalDependencies:
       '@alchemy.run/frontend-frameworks': 2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(astro@7.4.0-beta.0(@types/node@24.19.1)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1))(effect@4.0.0)(hono@4.13.9)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
-      '@effect/platform-node': 4.0.0(effect@4.0.0)(redis@6.3.0)
-      '@effect/vitest': 4.0.0(effect@4.0.0)(vitest@5.0.3)
-      vite: 8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
-      ws: 8.22.0
-    transitivePeerDependencies:
-      - '@types/node'
-      - '@types/react'
-      - bufferutil
-      - hono
-      - proxy-agent
-      - react-devtools-core
-      - typescript
-      - utf-8-validate
-
-  alchemy@2.0.0-beta.80(@alchemy.run/frontend-frameworks@2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.3))(@types/node@24.19.1)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(ws@8.22.0):
-    dependencies:
-      '@alchemy.run/cloudflare-runtime': 2.0.0-beta.80(@distilled.cloud/cloudflare@1.0.0-rc.13(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
-      '@alchemy.run/floci': 2.0.0-beta.80(effect@4.0.0)
-      '@alchemy.run/node-utils': 2.0.0-beta.80
-      '@alchemy.run/sigil': 0.1.0-alpha.1
-      '@distilled.cloud/acme': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/aws': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/axiom': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/cloudflare': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/core': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/doppler': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/fly-io': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/gcp': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/hetzner': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/infisical': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/neon': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/planetscale': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/prisma': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/railway': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/stripe': 1.0.0-rc.13(effect@4.0.0)
-      '@distilled.cloud/zerossl': 1.0.0-rc.13(effect@4.0.0)
-      '@effect/sql-d1': 4.0.0(effect@4.0.0)
-      '@effect/sql-sqlite-do': 4.0.0(effect@4.0.0)
-      '@libsql/client': 0.17.4
-      '@neon/functions': 0.11.0(hono@4.11.4)
-      '@octokit/rest': 22.0.1
-      '@octokit/webhooks': 14.2.0
-      '@prisma/dev': 0.20.0(typescript@7.0.2)
-      '@types/aws-lambda': 8.10.164
-      capnweb: 0.12.0
-      effect: 4.0.0
-      fflate: 0.8.3
-      libsodium-wrappers: 0.8.4
-      pathe: 2.0.3
-      picomatch: 4.0.7
-      rolldown: 1.2.5
-      tinyglobby: 0.2.17
-      yaml: 2.9.1
-    optionalDependencies:
-      '@alchemy.run/frontend-frameworks': 2.0.0-beta.80(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.3.0))(@types/node@24.19.1)(effect@4.0.0)(hono@4.11.4)(typescript@7.0.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
       '@effect/platform-node': 4.0.0(effect@4.0.0)(redis@6.3.0)
       '@effect/vitest': 4.0.0(effect@4.0.0)(vitest@5.0.3)
       vite: 8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
@@ -9699,6 +9355,95 @@ snapshots:
       estree-walker: 3.0.3
       js-tokens: 10.0.0
 
+  astro@7.4.0-beta.0(@types/node@24.19.0)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1):
+    dependencies:
+      '@astrojs/compiler-rs': 0.5.1
+      '@astrojs/internal-helpers': 0.11.0
+      '@astrojs/markdown-satteri': 0.4.2
+      '@astrojs/telemetry': 3.3.3
+      '@capsizecss/unpack': 4.0.1
+      '@clack/prompts': 1.8.1
+      '@oslojs/encoding': 1.1.0
+      am-i-vibing: 0.4.0
+      aria-query: 5.3.2
+      axobject-query: 4.1.0
+      ci-info: 4.4.0
+      clsx: 2.1.1
+      common-ancestor-path: 2.0.0
+      cookie: 2.0.1
+      devalue: 5.9.4
+      diff: 9.0.0
+      dset: 3.1.4
+      es-module-lexer: 2.3.2
+      esbuild: 0.28.2
+      find-proc: 0.2.0
+      flattie: 1.1.1
+      fontace: 0.4.1
+      get-tsconfig: 5.0.0-beta.4
+      github-slugger: 2.0.0
+      html-escaper: 3.0.3
+      http-cache-semantics: 4.2.0
+      js-yaml: 4.3.2
+      jsonc-parser: 3.3.1
+      magic-string: 1.4.2
+      magicast: 0.5.5
+      mrmime: 2.0.1
+      neotraverse: 1.0.1
+      obug: 3.0.0
+      p-limit: 7.3.3
+      p-queue: 9.3.3
+      package-manager-detector: 1.8.0
+      piccolore: 0.1.3
+      picomatch: 4.0.7
+      shiki: 4.5.0
+      smol-toml: 1.9.0
+      svgo: 4.1.0
+      tinyclip: 1.0.3
+      tinyexec: 1.3.1
+      tinyglobby: 0.2.17
+      ultrahtml: 1.7.0
+      unifont: 0.7.5
+      unstorage: 1.17.5(aws4fetch@1.0.20)
+      verkit: 0.4.1
+      vite: 8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      vitefu: 1.1.3(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      xxhash-wasm: 1.1.0
+      yargs-parser: 22.0.0
+      zod: 4.6.5
+    optionalDependencies:
+      sharp: 0.35.5(@types/node@24.19.0)
+    transitivePeerDependencies:
+      - '@azure/app-configuration'
+      - '@azure/cosmos'
+      - '@azure/data-tables'
+      - '@azure/identity'
+      - '@azure/keyvault-secrets'
+      - '@azure/storage-blob'
+      - '@capacitor/preferences'
+      - '@deno/kv'
+      - '@netlify/blobs'
+      - '@planetscale/database'
+      - '@types/node'
+      - '@upstash/redis'
+      - '@vercel/blob'
+      - '@vercel/functions'
+      - '@vercel/kv'
+      - '@vitejs/devtools'
+      - aws4fetch
+      - db0
+      - idb-keyval
+      - ioredis
+      - jiti
+      - less
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - terser
+      - tsx
+      - uploadthing
+      - yaml
+
   astro@7.4.0-beta.0(@types/node@24.19.1)(aws4fetch@1.0.20)(jiti@2.7.0)(yaml@2.9.1):
     dependencies:
       '@astrojs/compiler-rs': 0.5.1
@@ -9790,17 +9535,17 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  auth@1.7.0-rc.4(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(magicast@0.5.5)(nanostores@1.5.4)(react@19.3.0)(supports-color@10.2.2)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))):
+  auth@1.7.0-rc.4(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(magicast@0.5.5)(nanostores@1.5.4)(react@19.3.0)(supports-color@10.2.2)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))):
     dependencies:
       '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/preset-react': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)
       '@babel/preset-typescript': 7.29.7(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
-      '@better-auth/telemetry': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/telemetry': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)
       '@better-auth/utils': 0.4.2
       '@clack/prompts': 1.8.1
       '@mrleebo/prisma-ast': 0.16.0
-      better-auth: 1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
+      better-auth: 1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)))
       c12: 4.0.0-rc.2(dotenv@17.4.2)(jiti@2.7.0)(magicast@0.5.5)
       chalk: 5.6.2
       commander: 15.0.0
@@ -9872,15 +9617,15 @@ snapshots:
 
   before-after-hook@4.0.0: {}
 
-  better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260926.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))):
+  better-auth@1.7.0-rc.4(@cloudflare/workers-types@5.20260928.1)(react@19.3.0)(vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))):
     dependencies:
-      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
-      '@better-auth/drizzle-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)
-      '@better-auth/kysely-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(kysely@0.29.6)
-      '@better-auth/memory-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)
-      '@better-auth/mongo-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)
-      '@better-auth/prisma-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)
-      '@better-auth/telemetry': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260926.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)
+      '@better-auth/core': 1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4)
+      '@better-auth/drizzle-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)
+      '@better-auth/kysely-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(kysely@0.29.6)
+      '@better-auth/memory-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)
+      '@better-auth/mongo-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)
+      '@better-auth/prisma-adapter': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)
+      '@better-auth/telemetry': 1.7.0-rc.4(@better-auth/core@1.7.0-rc.4(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@cloudflare/workers-types@5.20260928.1)(better-call@1.3.7(zod@4.6.5))(jose@6.2.12)(kysely@0.29.6)(nanostores@1.5.4))(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)
       '@better-auth/utils': 0.4.2
       '@better-fetch/fetch': 1.3.1
       '@noble/ciphers': 2.4.0
@@ -9893,7 +9638,7 @@ snapshots:
       zod: 4.6.5
     optionalDependencies:
       react: 19.3.0
-      vitest: 5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      vitest: 5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
       - '@opentelemetry/api'
@@ -9931,7 +9676,7 @@ snapshots:
 
   bun-types@1.4.2:
     dependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.19.0
 
   bundle-name@4.1.1:
     dependencies:
@@ -9962,14 +9707,14 @@ snapshots:
 
   ccount@2.0.1: {}
 
-  cf@1.0.0-beta.10(@types/node@24.19.1):
+  cf@1.0.0-beta.10(@types/node@24.19.0):
     dependencies:
       '@cloudflare/build-output-utils': 0.8.4
       '@cloudflare/codemods': 0.3.0
       '@cloudflare/config': 0.22.0
-      '@cloudflare/runtime-types': 0.1.6(@types/node@24.19.1)
+      '@cloudflare/runtime-types': 0.1.6(@types/node@24.19.0)
       blake3-wasm: 2.1.5
-      miniflare: 5.20260930.0-alpha(@types/node@24.19.1)
+      miniflare: 5.20260930.0-alpha(@types/node@24.19.0)
       minisearch: 7.2.0
     transitivePeerDependencies:
       - '@types/node'
@@ -10497,7 +10242,7 @@ snapshots:
   launch-editor@2.14.1:
     dependencies:
       picocolors: 1.1.1
-      shell-quote: 1.11.0
+      shell-quote: 1.10.0
 
   libsodium-wrappers@0.8.4:
     dependencies:
@@ -10649,7 +10394,7 @@ snapshots:
     dependencies:
       '@babel/parser': 7.29.9
       '@babel/types': 7.29.8
-      source-map-js: 1.2.2
+      source-map-js: 1.2.1
 
   md5@2.3.0:
     dependencies:
@@ -10711,10 +10456,10 @@ snapshots:
 
   mimic-function@5.0.1: {}
 
-  miniflare@5.20260923.0-alpha(@types/node@24.19.1):
+  miniflare@5.20260923.0-alpha(@types/node@24.19.0):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
-      sharp: 0.35.4(@types/node@24.19.1)
+      sharp: 0.35.4(@types/node@24.19.0)
       undici: 7.29.0
       workerd: 1.20260923.1
       ws: 8.21.0
@@ -10724,10 +10469,10 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  miniflare@5.20260930.0-alpha(@types/node@24.19.1):
+  miniflare@5.20260930.0-alpha(@types/node@24.19.0):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
-      sharp: 0.35.4(@types/node@24.19.1)
+      sharp: 0.35.4(@types/node@24.19.0)
       undici: 7.29.1
       workerd: 1.20260930.2
       ws: 8.21.0
@@ -10951,7 +10696,7 @@ snapshots:
     dependencies:
       nanoid: 3.3.19
       picocolors: 1.1.1
-      source-map-js: 1.2.2
+      source-map-js: 1.2.1
 
   powershell-utils@0.2.1: {}
 
@@ -11066,6 +10811,27 @@ snapshots:
     transitivePeerDependencies:
       - oxc-resolver
 
+  rolldown@1.2.11:
+    dependencies:
+      '@oxc-project/types': 0.151.0
+      '@rolldown/pluginutils': 1.0.1
+    optionalDependencies:
+      '@rolldown/binding-android-arm-eabi': 1.2.11
+      '@rolldown/binding-android-arm64': 1.2.11
+      '@rolldown/binding-darwin-arm64': 1.2.11
+      '@rolldown/binding-darwin-x64': 1.2.11
+      '@rolldown/binding-freebsd-x64': 1.2.11
+      '@rolldown/binding-linux-arm-gnueabihf': 1.2.11
+      '@rolldown/binding-linux-arm64-gnu': 1.2.11
+      '@rolldown/binding-linux-arm64-musl': 1.2.11
+      '@rolldown/binding-linux-ppc64-gnu': 1.2.11
+      '@rolldown/binding-linux-s390x-gnu': 1.2.11
+      '@rolldown/binding-linux-x64-gnu': 1.2.11
+      '@rolldown/binding-linux-x64-musl': 1.2.11
+      '@rolldown/binding-openharmony-arm64': 1.2.11
+      '@rolldown/binding-win32-arm64-msvc': 1.2.11
+      '@rolldown/binding-win32-x64-msvc': 1.2.11
+
   rolldown@1.2.12:
     dependencies:
       '@oxc-project/types': 0.152.0
@@ -11141,7 +10907,7 @@ snapshots:
 
   set-cookie-parser@3.1.2: {}
 
-  sharp@0.35.4(@types/node@24.19.1):
+  sharp@0.35.4(@types/node@24.19.0):
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2
@@ -11172,7 +10938,40 @@ snapshots:
       '@img/sharp-win32-arm64': 0.35.4
       '@img/sharp-win32-ia32': 0.35.4
       '@img/sharp-win32-x64': 0.35.4
-      '@types/node': 24.19.1
+      '@types/node': 24.19.0
+
+  sharp@0.35.5(@types/node@24.19.0):
+    dependencies:
+      '@img/colour': 1.1.0
+      detect-libc: 2.1.2
+      semver: 7.8.5
+    optionalDependencies:
+      '@img/sharp-darwin-arm64': 0.35.5
+      '@img/sharp-darwin-x64': 0.35.5
+      '@img/sharp-freebsd-wasm32': 0.35.5
+      '@img/sharp-libvips-darwin-arm64': 1.3.4
+      '@img/sharp-libvips-darwin-x64': 1.3.4
+      '@img/sharp-libvips-linux-arm': 1.3.4
+      '@img/sharp-libvips-linux-arm64': 1.3.4
+      '@img/sharp-libvips-linux-ppc64': 1.3.4
+      '@img/sharp-libvips-linux-riscv64': 1.3.4
+      '@img/sharp-libvips-linux-s390x': 1.3.4
+      '@img/sharp-libvips-linux-x64': 1.3.4
+      '@img/sharp-libvips-linuxmusl-arm64': 1.3.4
+      '@img/sharp-libvips-linuxmusl-x64': 1.3.4
+      '@img/sharp-linux-arm': 0.35.5
+      '@img/sharp-linux-arm64': 0.35.5
+      '@img/sharp-linux-ppc64': 0.35.5
+      '@img/sharp-linux-riscv64': 0.35.5
+      '@img/sharp-linux-s390x': 0.35.5
+      '@img/sharp-linux-x64': 0.35.5
+      '@img/sharp-linuxmusl-arm64': 0.35.5
+      '@img/sharp-linuxmusl-x64': 0.35.5
+      '@img/sharp-webcontainers-wasm32': 0.35.5
+      '@img/sharp-win32-arm64': 0.35.5
+      '@img/sharp-win32-ia32': 0.35.5
+      '@img/sharp-win32-x64': 0.35.5
+      '@types/node': 24.19.0
 
   sharp@0.35.5(@types/node@24.19.1):
     dependencies:
@@ -11213,7 +11012,7 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  shell-quote@1.11.0: {}
+  shell-quote@1.10.0: {}
 
   shiki@4.5.0:
     dependencies:
@@ -11245,6 +11044,8 @@ snapshots:
       form-data: 4.0.6
 
   solady@0.1.26: {}
+
+  source-map-js@1.2.1: {}
 
   source-map-js@1.2.2: {}
 
@@ -11519,6 +11320,23 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
 
+  viem@2.56.9(typescript@7.0.2)(zod@3.25.76):
+    dependencies:
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.2.3(typescript@7.0.2)(zod@3.25.76)
+      isows: 1.0.7(ws@8.21.0)
+      ox: 0.14.45(typescript@7.0.2)(zod@3.25.76)
+      ws: 8.21.0
+    optionalDependencies:
+      typescript: 7.0.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+
   viem@2.56.9(typescript@7.0.2)(zod@4.6.5):
     dependencies:
       '@noble/curves': 1.9.1
@@ -11553,12 +11371,26 @@ snapshots:
       - utf-8-validate
       - zod
 
+  vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.7
+      postcss: 8.5.28
+      rolldown: 1.2.11
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 24.19.0
+      esbuild: 0.28.2
+      fsevents: 2.3.3
+      jiti: 2.7.0
+      yaml: 2.9.1
+
   vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
       postcss: 8.5.28
-      rolldown: 1.2.12
+      rolldown: 1.2.11
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 24.19.1
@@ -11567,14 +11399,18 @@ snapshots:
       jiti: 2.7.0
       yaml: 2.9.1
 
+  vitefu@1.1.3(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)):
+    optionalDependencies:
+      vite: 8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+
   vitefu@1.1.3(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)):
     optionalDependencies:
       vite: 8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
 
-  vitest@5.0.3(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)):
+  vitest@5.0.3(@types/node@24.19.0)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.3(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      '@vitest/mocker': 5.0.3(vite@8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -11585,10 +11421,10 @@ snapshots:
       tinybench: 6.2.0
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      vite: 8.3.2(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
-      '@types/node': 24.19.1
+      '@types/node': 24.19.0
       '@vitest/coverage-v8': 5.0.3(vitest@5.0.3)
     transitivePeerDependencies:
       - msw
