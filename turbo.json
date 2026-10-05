@@ -52,6 +52,7 @@
       "passThroughEnv": [
         "CLOUDFLARE_ACCOUNT_ID",
         "CLOUDFLARE_API_TOKEN",
+        "BADGES_DEPOT_TOKEN",
         "COMMIT_SHA",
         "VLT_READ_TOKEN",
         "VLT_UPSTREAM_URL",
