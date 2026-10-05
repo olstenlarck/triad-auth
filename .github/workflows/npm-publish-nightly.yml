@@ -1,7 +1,7 @@
 # GitHub Actions. After the Depot CI ci workflow passes on a master push, publishes nightly versions
 # of the unscoped packages that push changed to npmjs.com. npm trusted publishing accepts OIDC tokens
 # only from GitHub-hosted runners, so this runs on GitHub Actions. The @tunnckocore packages publish
-# to npm.wgw.lol from .depot/workflows/publish-nightly.yml.
+# to VLT via npm.wgw.lol from .depot/workflows/publish-nightly.yml.
 #
 # SECURITY: npm trusts this workflow file in the nightly environment. npm cannot limit a trusted
 # publisher to one dist-tag the way npm.wgw.lol does, so the nightly environment allows only master.

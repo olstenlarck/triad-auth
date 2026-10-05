@@ -2,7 +2,7 @@
 # package tags, and GitHub Releases. Runs after the Depot CI ci workflow passes for the merged
 # release PR commit, or manually on master to publish whatever a failed release left missing. npm
 # trusted publishing accepts OIDC tokens only from GitHub-hosted runners, so this runs on GitHub
-# Actions. The @tunnckocore packages publish to npm.wgw.lol from .depot/workflows/publish-prod.yml,
+# Actions. The @tunnckocore packages publish to VLT via npm.wgw.lol from .depot/workflows/publish-prod.yml,
 # and .depot/workflows/prepare-publish.yml keeps one release PR for both.
 #
 # SECURITY: npm trusts this workflow file in the latest environment, which allows only master. The
