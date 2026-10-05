@@ -15,6 +15,11 @@
     "typescript"
   ],
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tunnckoCoreHQ/monarch.git",
+    "directory": "packages/zagora"
+  },
   "files": [
     "dist"
   ],

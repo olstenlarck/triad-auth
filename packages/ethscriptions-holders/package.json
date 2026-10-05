@@ -2,6 +2,11 @@
   "name": "@tunnckocore/ethscriptions-holders",
   "version": "0.1.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tunnckoCoreHQ/monarch.git",
+    "directory": "packages/ethscriptions-holders"
+  },
   "type": "module",
   "scripts": {
     "check": "ultracite fix --type-aware --type-check",
