@@ -1,6 +1,6 @@
 # @tunnckocore/npm-downloads
 
-[![ci](https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master?label=ci)](https://depot.dev/orgs/pcnr2v598s/workflows) <!-- COV_BADGE:START -->![coverage](https://badgen.net/badge/coverage/100.00%25/green)<!-- COV_BADGE:END -->
+[![depot ci](https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master?label=depot%20ci)](https://github.com/tunnckoCoreHQ/monarch/commit/master) <!-- COV_BADGE:START -->![coverage](https://badgen.net/badge/coverage/100.00%25/green)<!-- COV_BADGE:END -->
 
 Stream the daily npm download counts of a package, and read or convert them as JSON lines or CSV.
 
