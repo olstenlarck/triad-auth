@@ -4,27 +4,22 @@ import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 
 export const Worker = Cloudflare.Worker("Worker", {
-  name: "vlt-npm-wgw-lol",
+  name: "badges-wgw-lol",
   main: "./src/index.ts",
   // A zone route, not a custom domain: wgw.lol hosts many subdomains on routes.
   domain: null,
-  routes: [{ pattern: "npm.wgw.lol/*", zoneName: "wgw.lol" }],
+  routes: [{ pattern: "badges.wgw.lol/*", zoneName: "wgw.lol" }],
   workersDev: false,
   compatibility: { date: "2026-08-24" },
   observability: { enabled: true, headSamplingRate: 1 },
   env: {
-    ALLOWED_GITHUB_LOGIN: "tunnckoCore",
-    // The deploy workflow passes the commit being deployed; local deploys get "local".
-    COMMIT_SHA: process.env.COMMIT_SHA ?? "local",
-    // VLT service tokens and the upstream registry come from the Depot CI secrets.
-    VLT_READ_TOKEN: Config.Redacted("VLT_READ_TOKEN"),
-    VLT_WRITE_TOKEN: Config.Redacted("VLT_WRITE_TOKEN"),
-    VLT_UPSTREAM_URL: Config.Redacted("VLT_UPSTREAM_URL"),
+    // A Depot organization token for pcnr2v598s, from the BADGES_DEPOT_TOKEN Depot CI secret.
+    BADGES_DEPOT_TOKEN: Config.Redacted("BADGES_DEPOT_TOKEN"),
   },
 });
 
 export default Alchemy.Stack(
-  "vlt-npm-wgw-lol",
+  "badges-wgw-lol",
   {
     providers: Cloudflare.providers(),
     state: Cloudflare.state(),

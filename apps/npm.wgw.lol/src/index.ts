@@ -89,7 +89,7 @@ app.all("*", async (c) => {
 
   let token: string;
   if (isRead) {
-    token = c.env.READ_TOKEN;
+    token = c.env.VLT_READ_TOKEN;
   } else {
     const bearer = /^Bearer\s+(.+)$/i.exec(request.headers.get("authorization") ?? "")?.[1];
     if (!bearer) {
@@ -142,13 +142,13 @@ app.all("*", async (c) => {
       }
     }
 
-    token = c.env.WRITE_TOKEN;
+    token = c.env.VLT_WRITE_TOKEN;
   }
 
   const upstreamPath = isDistTagPath
     ? url.pathname.replace(/(%40|@)tunnckocore%2f/i, "$1tunnckocore%252F")
     : url.pathname;
-  const upstream = new URL(upstreamPath.replace(/^\/+/, ""), c.env.UPSTREAM_URL);
+  const upstream = new URL(upstreamPath.replace(/^\/+/, ""), c.env.VLT_UPSTREAM_URL);
   upstream.search = url.search;
 
   const headers = new Headers(request.headers);
@@ -188,7 +188,7 @@ app.all("*", async (c) => {
     return new Response(response.body, { status: response.status, headers: responseHeaders });
   }
 
-  const body = (await response.text()).replaceAll(c.env.UPSTREAM_URL, `${url.origin}/`);
+  const body = (await response.text()).replaceAll(c.env.VLT_UPSTREAM_URL, `${url.origin}/`);
   responseHeaders.delete("content-length");
   responseHeaders.delete("etag");
 

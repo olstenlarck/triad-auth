@@ -8,9 +8,9 @@ import app from "../src/index";
 const env: Env = {
   ALLOWED_GITHUB_LOGIN: "tunnckoCore",
   COMMIT_SHA: "local",
-  READ_TOKEN: "read-service-token",
-  WRITE_TOKEN: "write-service-token",
-  UPSTREAM_URL: "https://registry.vlt.io/tunnckocore/main/",
+  VLT_READ_TOKEN: "read-service-token",
+  VLT_WRITE_TOKEN: "write-service-token",
+  VLT_UPSTREAM_URL: "https://registry.vlt.io/tunnckocore/main/",
 };
 const claims: JWTPayload = {
   iss: "https://identity.depot.dev",

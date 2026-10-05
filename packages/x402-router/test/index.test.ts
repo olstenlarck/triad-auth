@@ -65,7 +65,7 @@ test("serves the live merged supported response with cache headers", async () =>
     ],
   });
   const response = await router.fetch(new Request("https://router.example/supported"));
-  const body = (await response.json()) as { kinds: unknown[] };
+  const body = await response.json<{ kinds: unknown[] }>();
 
   expect(response.headers.get("cache-control")).toBe("public, max-age=300");
   expect(body.kinds).toContainEqual({ network: ETHEREUM_MAINNET, scheme: "exact", x402Version: 2 });
@@ -109,7 +109,7 @@ test("falls back to static upstream support when supported fetch fails", async (
     ],
   });
   const response = await router.fetch(new Request("https://router.example/supported"));
-  const body = (await response.json()) as { kinds: unknown[] };
+  const body = await response.json<{ kinds: unknown[] }>();
 
   expect(response.headers.get("cache-control")).toBe("public, max-age=3600");
   expect(body.kinds).toEqual([{ network: ETHEREUM_MAINNET, scheme: "exact", x402Version: 2 }]);

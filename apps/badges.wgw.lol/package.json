@@ -1,0 +1,18 @@
+{
+  "name": "badges.wgw.lol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "README badges for Depot CI workflows and jobs at badges.wgw.lol",
+  "type": "module",
+  "scripts": {
+    "check": "ultracite fix --type-aware --type-check",
+    "deploy:nightly": "pnpm exec alchemy deploy --stage prod",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "badgen": "catalog:"
+  },
+  "devDependencies": {
+    "alchemy": "catalog:"
+  }
+}
