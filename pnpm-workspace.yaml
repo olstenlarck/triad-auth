@@ -63,7 +63,7 @@ catalogs:
     valibot: ^1.5.0
     '@standard-schema/spec': ^1.1.0
   types:
-    "@cloudflare/workers-types": 5.20260926.1
+    "@cloudflare/workers-types": 5.20260928.1
     "@types/bun": ^1.4.2
     "@types/node": ^24
     typescript: 7.0.2
