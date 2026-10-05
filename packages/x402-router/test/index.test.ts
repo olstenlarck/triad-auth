@@ -339,7 +339,7 @@ test("creates HTTPFacilitatorClient auth headers for CDP pass-through routing", 
 });
 
 test("uses a custom token header for default CDP routing and preflight", async () => {
-  const authorizations: (string | null)[] = [];
+  const authorizations: Array<string | null> = [];
   const router = createX402Router({
     forwardedBearerHeader: "X-Seller-Token",
     supported: { kinds: [{ network: BASE_MAINNET, scheme: "exact", x402Version: 2 }] },

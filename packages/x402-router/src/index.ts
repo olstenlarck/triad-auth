@@ -259,7 +259,7 @@ async function supportedForRequest(
 
 function routeFor(
   request: Request,
-  entries: { supported: X402SupportedResponse; upstream: X402RouterUpstream }[],
+  entries: Array<{ supported: X402SupportedResponse; upstream: X402RouterUpstream }>,
   kind: X402SupportedKind,
   options: X402RouterOptions,
 ): X402RouterUpstream | undefined {

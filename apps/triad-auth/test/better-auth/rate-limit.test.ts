@@ -39,7 +39,7 @@ function createDatabase(batchResults: D1Result[], capture: QueryCapture): D1Data
       } as D1PreparedStatement;
     },
     async batch<T = unknown>(_statements: D1PreparedStatement[]) {
-      return batchResults as D1Result<T>[];
+      return batchResults as Array<D1Result<T>>;
     },
     exec: vi.fn(async () => ({ count: 0, duration: 0 })),
     withSession() {

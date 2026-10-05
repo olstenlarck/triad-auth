@@ -116,6 +116,7 @@ export default defineConfig({
     "anti-slop/no-widen-then-assert": "error",
     "anti-slop/require-safety-comment-for-type-assertion": "error",
     curly: ["error", "all"],
+    "typescript/array-type": ["error", { default: "array-simple" }],
     "typescript/await-thenable": "off",
     "typescript/no-base-to-string": "off",
     "typescript/unbound-method": "off",
