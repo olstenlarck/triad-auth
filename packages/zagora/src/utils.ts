@@ -176,7 +176,7 @@ export function executeHandler(
     cacheAdapter,
     key,
     outputSchema,
-  }: { handlerFn: any; cacheAdapter: CacheAdapter; key: string; outputSchema: any },
+  }: { handlerFn: any; cacheAdapter: CacheAdapter; key: string; outputSchema?: any },
 ) {
   const handlerResult = tryCatch(() => handlerFn(...argz), true);
   if (handlerResult instanceof Promise) {
