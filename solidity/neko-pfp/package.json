@@ -14,6 +14,7 @@
   "scripts": {
     "build": "forge build",
     "check": "pnpm run fmt && pnpm run lint",
+    "deploy": "forge script script/Deploy.s.sol:Deploy",
     "fmt": "forge fmt",
     "gas": "forge snapshot --no-match-test testFuzz",
     "lint": "forge lint --deny warnings",

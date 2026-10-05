@@ -14,7 +14,7 @@
 //
 // wallets.txt: one 0x address per line. Blank lines and lines starting with # are skipped.
 // Output: { root, leaves: [{ minter, mintParams, proof }] }. Host the file at a URI and
-// pass root + URI to ConfigureDrop.s.sol `allowlist()`. OpenSea and any custom mint
+// pass root + URI to `multiConfigure` in `allowListData`. OpenSea and any custom mint
 // frontend read the proofs from that URI.
 
 import { readFileSync } from "node:fs";
