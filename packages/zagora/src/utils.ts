@@ -120,7 +120,7 @@ export function processHandler(
         if (r.ok) {
           // r.data is the result of the `cache.has`
           return r.data
-            ? tryCatch(() => cacheAdapter.get?.(key), false, "get")
+            ? readCache(args, { handlerFn, cacheAdapter, key, outputSchema })
             : executeHandler(args, { handlerFn, cacheAdapter, key, outputSchema });
         }
         return r;
@@ -130,13 +130,29 @@ export function processHandler(
     if (ret.ok) {
       // ret.data is the result of the `cache.has`
       return ret.data
-        ? tryCatch(() => cacheAdapter.get?.(key), false, "get")
+        ? readCache(args, { handlerFn, cacheAdapter, key, outputSchema })
         : executeHandler(args, { handlerFn, cacheAdapter, key, outputSchema });
     }
     return ret;
   }
 
   return executeHandler(args, { handlerFn, cacheAdapter, key, outputSchema });
+}
+
+// An entry can expire between `has` and `get`, so a missing value runs the handler again.
+function readCache(
+  args: any[],
+  options: { handlerFn: any; cacheAdapter: CacheAdapter; key: string; outputSchema?: any },
+) {
+  const useCached = (cached: any) =>
+    cached.ok && cached.data === undefined ? executeHandler(args, options) : cached;
+
+  const cached = tryCatch(() => options.cacheAdapter.get?.(options.key), false, "get");
+  if (cached instanceof Promise) {
+    return cached.then(useCached);
+  }
+
+  return useCached(cached);
 }
 
 function validateOutput(outputSchema: any, data: unknown) {

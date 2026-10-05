@@ -592,6 +592,7 @@ Built-in caching with custom cache adapter. Cache key includes the input, the in
 - in future this could change to be `CACHE_ERROR` with `cause`
 - when cache is passed through `.callable` - and has async methods, make sure to await the procedure and ignore the TypeScript warning that "you may not need await here" - you do need to await
 - only the validated output is stored, so a failed call never leaves a value in the cache, and a cache hit returns the stored output without validating it again
+- a cache entry whose value is `undefined` counts as a miss, so an entry that expires between `has` and `get` runs the handler again
 
 ```ts
 const cache = new Map();

@@ -814,6 +814,22 @@ test("the cache stores only the validated output", async () => {
   expect([...cache.values()]).toEqual([3]);
 });
 
+test("a cache entry that expires between `has` and `get` runs the handler", () => {
+  let called = 0;
+  const procedure = zagora()
+    .cache({ has: () => true, get: () => undefined, set: () => {} })
+    .input(z.string())
+    .output(z.string())
+    .handler((_, input) => {
+      called += 1;
+      return input;
+    })
+    .callable();
+
+  expect(procedure("foo")).toEqual({ ok: true, data: "foo" });
+  expect(called).toBe(1);
+});
+
 test("failing env validation schema through `.env` method", () => {
   const envPopulatedProcedure = zagora()
     .input(z.string())
