@@ -90,6 +90,8 @@ describe("badges", () => {
     const svg = await response.text();
     expect(svg).toContain("ci: check");
     expect(svg).toContain("passing");
+    // The badgen black label.
+    expect(svg).toContain('fill="#2A2A2A"');
   });
 
   it("shows the workflow status", async () => {
@@ -111,6 +113,24 @@ describe("badges", () => {
     const response = await get("/ci/test.svg");
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("unknown");
+  });
+});
+
+describe("socket", () => {
+  it("proxies the badgen Socket checks badge with passing and failing", async () => {
+    const badgenFetch = vi.fn(async () => new Response("<svg>Socket Security: success</svg>"));
+    vi.stubGlobal("fetch", badgenFetch);
+
+    const response = await get("/socket");
+
+    expect(response.headers.get("content-type")).toBe("image/svg+xml; charset=utf-8");
+    expect(await response.text()).toBe("<svg>Socket Security: passing</svg>");
+    expect(badgenFetch).toHaveBeenCalledWith(
+      "https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket",
+    );
+
+    badgenFetch.mockResolvedValueOnce(new Response("<svg>Socket Security: failure</svg>"));
+    expect(await (await get("/socket")).text()).toBe("<svg>Socket Security: failing</svg>");
   });
 });
 

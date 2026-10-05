@@ -91,8 +91,28 @@ function render(badge: Badge, format: string): Response {
   if (format === "json") {
     return Response.json(badge, { headers });
   }
-  return new Response(badgen(badge), {
+  return new Response(badgen({ ...badge, labelColor: "black" }), {
     headers: { ...headers, "content-type": "image/svg+xml; charset=utf-8" },
+  });
+}
+
+// The badgen GitHub checks badge of the Socket report on master, saying passing and failing
+// like the Depot badges instead of success and failure.
+async function socket(repo: string): Promise<Response> {
+  const response = await fetch(
+    `https://badgen.net/github/checks/${repo}/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket`,
+  );
+  if (!response.ok) {
+    throw new Error(`badgen answered ${response.status}`);
+  }
+  const svg = (await response.text())
+    .replaceAll("success", "passing")
+    .replaceAll("failure", "failing");
+  return new Response(svg, {
+    headers: {
+      "cache-control": "public, max-age=60",
+      "content-type": "image/svg+xml; charset=utf-8",
+    },
   });
 }
 
@@ -119,6 +139,9 @@ async function handle(request: Request, env: Env): Promise<Response> {
   const [owner = "", name = "", workflow = "", job] = segments;
   if (segments.length < 3 || segments.length > 4 || !segments.every((s) => SEGMENT.test(s))) {
     return new Response("Not Found", { status: 404 });
+  }
+  if (workflow === "socket" && !job) {
+    return socket(`${owner}/${name}`);
   }
   if (!format && !job) {
     return Response.redirect(DEPOT_CI_PRODUCT, 302);
