@@ -1,0 +1,49 @@
+# Reusable. Waits for the Depot CI ci workflow on the caller's commit and reports whether it passed.
+# GitHub Actions cannot follow a Depot CI workflow through workflow_run, so this job polls the
+# ci / check, ci / test, and ci / build check runs that Depot reports to GitHub. A failed ci ends the
+# wait with passed=false, so the caller skips its publish job like the Depot workflows do.
+
+name: wait-for-ci
+
+on:
+  workflow_call:
+    outputs:
+      passed:
+        description: "true when ci / check, ci / test, and ci / build all succeeded"
+        value: ${{ jobs.wait.outputs.passed }}
+
+permissions: {}
+
+jobs:
+  wait:
+    permissions:
+      checks: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      passed: ${{ steps.ci.outputs.passed }}
+    steps:
+      - id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          while true; do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?per_page=100" --jq '
+              [.check_runs[] | select(.app.slug == "depot-code-access")] as $runs
+              | ["ci / check", "ci / test", "ci / build"]
+              | map(. as $name | ([$runs[] | select(.name == $name)] | first | .conclusion) // "pending")
+              | if all(. == "success") then "success"
+                elif any(. != "success" and . != "pending") then "failure"
+                else "pending" end')
+            case $state in
+              success)
+                echo passed=true >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+              failure)
+                echo "Not published: ci did not pass on this commit" | tee -a "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+            esac
+            sleep 30
+          done

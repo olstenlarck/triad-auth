@@ -1,45 +1,53 @@
-# Depot CI. After ci succeeds for a master push, publishes nightly versions of the @tunnckocore
-# packages that push changed. Only this workflow may write the nightly dist-tag: npm.wgw.lol reads
-# the workflow_ref claim of the Depot CI OIDC token and maps publish-nightly.yml to nightly. The
-# unscoped packages publish to npm from .github/workflows/npm-publish-nightly.yml.
+# GitHub Actions. After the Depot CI ci workflow passes on a master push, publishes nightly versions
+# of the unscoped packages that push changed to npmjs.com. npm trusted publishing accepts OIDC tokens
+# only from GitHub-hosted runners, so this runs on GitHub Actions. The @tunnckocore packages publish
+# to VLT via npm.wgw.lol from .depot/workflows/publish-nightly.yml.
 #
-# SECURITY: the OIDC token here can publish nightly prereleases and nothing else. No repository
-# secrets; the read-only job token only lets the changelog writer read commits and pull requests.
+# SECURITY: npm trusts this workflow file in the nightly environment. npm cannot limit a trusted
+# publisher to one dist-tag the way npm.wgw.lol does, so the nightly environment allows only master.
+# No repository secrets; the read-only job token only lets the changelog writer read commits and
+# pull requests.
 
-name: publish-nightly
+name: npm-publish-nightly
 
 on:
-  workflow_run:
-    workflows: [ci]
-    types: [completed]
+  push:
     branches: [master]
 
 permissions: {}
 
-concurrency:
-  group: packages-publish-nightly
-  cancel-in-progress: false
+env:
+  TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
+  depot-ci:
+    uses: ./.github/workflows/wait-for-ci.yml
+    permissions:
+      checks: read
+
   publish:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    needs: depot-ci
+    if: needs.depot-ci.outputs.passed == 'true'
+    environment: nightly
     permissions:
       contents: read
       id-token: write
       pull-requests: read
-    runs-on: depot-ubuntu-24.04-4
+    concurrency:
+      group: npm-publish-nightly
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.depot/actions/setup
       # Nightly publishes only what this push changed. Pending changesets for other packages stay
       # untouched for their stable release. Packages are built in dependency order first, then
-      # published in dependency order. pnpm exchanges the Depot CI OIDC token at npm.wgw.lol.
+      # published in dependency order. pnpm exchanges the GitHub OIDC token at npmjs.com.
       # master takes squash merges, so the pushed commit's parent is the previous master.
-      - name: Publish nightlies for the packages this push changed
+      - name: Publish nightlies for the unscoped packages this push changed
         env:
           # @changesets/changelog-github reads commit and PR data through the GitHub API.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,13 +63,13 @@ jobs:
           published=()
           for manifest in $(git diff --name-only -- 'packages/*/package.json'); do
             name=$(jq -r .name "$manifest")
-            [[ $name == @tunnckocore/* ]] || continue
+            [[ $name != @tunnckocore/* ]] || continue
             grep -qxF "$name" <<< "$changed" || continue
             filters+=(--filter "$name")
             published+=("$name@$(jq -r .version "$manifest")")
           done
           if [ "${#published[@]}" -eq 0 ]; then
-            echo "Not published: this push changed no @tunnckocore package with a pending changeset" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "Not published: this push changed no unscoped package with a pending changeset" | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           pnpm exec turbo run build --filter='./packages/*'
