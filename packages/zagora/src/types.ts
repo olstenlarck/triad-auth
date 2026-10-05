@@ -219,70 +219,18 @@ export type ResolveProcedure<
         ) => any
     : (options: Prettify<ResolveHandlerOptions<TContext, TErrorsMap, TEnvVarsMap>>) => any;
 
+// Only the trailing elements that accept `undefined` become optional.
+type OptionalTail<T extends readonly any[], TTail extends any[] = []> = T extends readonly [
+  ...infer THead,
+  infer TLast,
+]
+  ? IsOptional<TLast> extends true
+    ? OptionalTail<THead, [TLast, ...TTail]>
+    : [...T, ...Partial<TTail>]
+  : [...T, ...Partial<TTail>];
+
 // TEST: with expect-type
-export type SpreadTuple<T extends readonly any[], R> = T extends readonly [infer A]
-  ? (arg: A) => R
-  : T extends readonly [infer A, infer B]
-    ? IsOptional<B> extends true
-      ? ((arg1: A, arg2?: B) => R) | ((arg1: A) => R)
-      : ((arg1: A, arg2: B) => R) | ((arg1: A) => R)
-    : T extends readonly [infer A, infer B, infer C]
-      ? IsOptional<B> extends true
-        ? IsOptional<C> extends true
-          ? ((arg1: A, arg2?: B, arg3?: C) => R) | ((arg1: A, arg2?: B) => R) | ((arg1: A) => R)
-          : ((arg1: A, arg2?: B, arg3?: C) => R) | ((arg1: A, arg2?: B) => R) | ((arg1: A) => R)
-        : IsOptional<C> extends true
-          ? ((arg1: A, arg2: B, arg3?: C) => R) | ((arg1: A, arg2: B) => R) | ((arg1: A) => R)
-          : ((arg1: A, arg2: B, arg3: C) => R) | ((arg1: A, arg2: B) => R) | ((arg1: A) => R)
-      : T extends readonly [infer A, infer B, infer C, infer D]
-        ? IsOptional<B> extends true
-          ? IsOptional<C> extends true
-            ? IsOptional<D> extends true
-              ?
-                  | ((arg1: A, arg2?: B, arg3?: C, arg4?: D) => R)
-                  | ((arg1: A, arg2?: B, arg3?: C) => R)
-                  | ((arg1: A, arg2?: B) => R)
-                  | ((arg1: A) => R)
-              :
-                  | ((arg1: A, arg2?: B, arg3?: C, arg4?: D) => R)
-                  | ((arg1: A, arg2?: B, arg3?: C) => R)
-                  | ((arg1: A, arg2?: B) => R)
-                  | ((arg1: A) => R)
-            : IsOptional<D> extends true
-              ?
-                  | ((arg1: A, arg2?: B, arg3?: C, arg4?: D) => R)
-                  | ((arg1: A, arg2?: B, arg3?: C) => R)
-                  | ((arg1: A, arg2?: B) => R)
-                  | ((arg1: A) => R)
-              :
-                  | ((arg1: A, arg2?: B, arg3?: C, arg4?: D) => R)
-                  | ((arg1: A, arg2?: B, arg3?: C) => R)
-                  | ((arg1: A, arg2?: B) => R)
-                  | ((arg1: A) => R)
-          : IsOptional<C> extends true
-            ? IsOptional<D> extends true
-              ?
-                  | ((arg1: A, arg2: B, arg3?: C, arg4?: D) => R)
-                  | ((arg1: A, arg2: B, arg3?: C) => R)
-                  | ((arg1: A, arg2: B) => R)
-                  | ((arg1: A) => R)
-              :
-                  | ((arg1: A, arg2: B, arg3?: C, arg4?: D) => R)
-                  | ((arg1: A, arg2: B, arg3?: C) => R)
-                  | ((arg1: A, arg2: B) => R)
-                  | ((arg1: A) => R)
-            : IsOptional<D> extends true
-              ?
-                  | ((arg1: A, arg2: B, arg3: C, arg4?: D) => R)
-                  | ((arg1: A, arg2: B, arg3: C) => R)
-                  | ((arg1: A, arg2: B) => R)
-                  | ((arg1: A) => R)
-              :
-                  | ((arg1: A, arg2: B, arg3: C, arg4: D) => R)
-                  | ((arg1: A, arg2: B, arg3: C) => R)
-                  | ((arg1: A, arg2: B) => R)
-                  | ((arg1: A) => R)
-        : (...args: T) => R;
+export type SpreadTuple<T extends readonly any[], R> = (...args: OptionalTail<T>) => R;
 
 // TEST: with expect-type
 export type ResolvedProcedure<

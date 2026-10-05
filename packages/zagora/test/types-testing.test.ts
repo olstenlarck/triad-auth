@@ -607,30 +607,24 @@ test("SpreadTuple<T, R> - spreads tuple types into function parameters with opti
 
   // Two element tuple (both required)
   type Spread2 = SpreadTuple<readonly [string, number], boolean>;
-  expectTypeOf<Spread2>().toEqualTypeOf<
-    ((arg1: string, arg2: number) => boolean) | ((arg1: string) => boolean)
-  >();
+  expectTypeOf<Spread2>().toEqualTypeOf<(arg1: string, arg2: number) => boolean>();
 
   // Two element tuple (second optional)
   type Spread3 = SpreadTuple<readonly [string, number | undefined], boolean>;
-  expectTypeOf<Spread3>().toEqualTypeOf<
-    ((arg1: string, arg2?: number) => boolean) | ((arg1: string) => boolean)
-  >();
+  expectTypeOf<Spread3>().toEqualTypeOf<(arg1: string, arg2?: number) => boolean>();
 
   // Three element tuple (all required)
   type Spread4 = SpreadTuple<readonly [string, number, boolean], void>;
-  expectTypeOf<Spread4>().toEqualTypeOf<
-    | ((arg1: string, arg2: number, arg3: boolean) => void)
-    | ((arg1: string, arg2: number) => void)
-    | ((arg1: string) => void)
-  >();
+  expectTypeOf<Spread4>().toEqualTypeOf<(arg1: string, arg2: number, arg3: boolean) => void>();
 
   // Three element tuple (last optional)
   type Spread5 = SpreadTuple<readonly [string, number, boolean | undefined], void>;
-  expectTypeOf<Spread5>().toEqualTypeOf<
-    | ((arg1: string, arg2: number, arg3?: boolean) => void)
-    | ((arg1: string, arg2: number) => void)
-    | ((arg1: string) => void)
+  expectTypeOf<Spread5>().toEqualTypeOf<(arg1: string, arg2: number, arg3?: boolean) => void>();
+
+  // Three element tuple (middle accepts undefined, last required)
+  type SpreadMiddle = SpreadTuple<readonly [string, number | undefined, boolean], void>;
+  expectTypeOf<SpreadMiddle>().toEqualTypeOf<
+    (arg1: string, arg2: number | undefined, arg3: boolean) => void
   >();
 
   // Empty tuple
@@ -997,10 +991,7 @@ test("SpreadTuple works for 4-argument tuple", () => {
   // Four element tuple (all required)
   type Spread8 = SpreadTuple<readonly [string, number, boolean, object], void>;
   expectTypeOf<Spread8>().toEqualTypeOf<
-    | ((arg1: string, arg2: number, arg3: boolean, arg4: object) => void)
-    | ((arg1: string, arg2: number, arg3: boolean) => void)
-    | ((arg1: string, arg2: number) => void)
-    | ((arg1: string) => void)
+    (arg1: string, arg2: number, arg3: boolean, arg4: object) => void
   >();
 });
 
@@ -1008,10 +999,7 @@ test("SpreadTuple works for 4-element tuple (last optional)", () => {
   // Four element tuple (last optional)
   type Spread9 = SpreadTuple<readonly [string, number, boolean, object | undefined], void>;
   expectTypeOf<Spread9>().toEqualTypeOf<
-    | ((arg1: string, arg2: number, arg3: boolean, arg4?: object) => void)
-    | ((arg1: string, arg2: number, arg3: boolean) => void)
-    | ((arg1: string, arg2: number) => void)
-    | ((arg1: string) => void)
+    (arg1: string, arg2: number, arg3: boolean, arg4?: object) => void
   >();
 });
 
@@ -1022,10 +1010,7 @@ test("SpreadTuple four element tuple (last two optional)", () => {
     string
   >;
   expectTypeOf<Spread10>().toEqualTypeOf<
-    | ((arg1: string, arg2: number, arg3?: boolean, arg4?: object) => string)
-    | ((arg1: string, arg2: number, arg3?: boolean) => string)
-    | ((arg1: string, arg2: number) => string)
-    | ((arg1: string) => string)
+    (arg1: string, arg2: number, arg3?: boolean, arg4?: object) => string
   >();
 });
 
@@ -1036,10 +1021,7 @@ test("SpreadTuple four element tuple (last three optional)", () => {
     number
   >;
   expectTypeOf<Spread11>().toEqualTypeOf<
-    | ((arg1: string, arg2?: number, arg3?: boolean, arg4?: object) => number)
-    | ((arg1: string, arg2?: number, arg3?: boolean) => number)
-    | ((arg1: string, arg2?: number) => number)
-    | ((arg1: string) => number)
+    (arg1: string, arg2?: number, arg3?: boolean, arg4?: object) => number
   >();
 });
 
@@ -1051,9 +1033,7 @@ test("ResolvedProcedure<TInputSchema, TFinalResult> - resolves procedure type ba
 
   // With tuple schema (multiple arguments)
   type TupleProc = ResolvedProcedure<MockTupleSchema, string>;
-  expectTypeOf<TupleProc>().toEqualTypeOf<
-    ((arg1: string, arg2: number) => string) | ((arg1: string) => string)
-  >();
+  expectTypeOf<TupleProc>().toEqualTypeOf<(arg1: string, arg2: number) => string>();
 
   // With single schema (one argument)
   type SingleProc = ResolvedProcedure<MockStringSchema, number>;
