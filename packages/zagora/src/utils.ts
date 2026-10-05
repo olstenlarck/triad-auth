@@ -7,6 +7,19 @@ export function getCacheHash(data: string) {
   return nodeCrypto.createHash("sha256").update(data).digest("hex");
 }
 
+// Handlers with the same source can capture different values, so each handler gets its own ID.
+const handlerIds = new WeakMap<object, string>();
+
+function getHandlerId(handlerFn: object) {
+  let handlerId = handlerIds.get(handlerFn);
+  if (!handlerId) {
+    handlerId = nodeCrypto.randomUUID();
+    handlerIds.set(handlerFn, handlerId);
+  }
+
+  return handlerId;
+}
+
 function createUnexpectedValidationError(
   mode: "input" | "output" | "error data" | "env",
   cause: unknown,
@@ -100,12 +113,13 @@ export function processHandler(
   cacheAdapter: any,
   incoming: any, // inputSchema, outputSchema, errorsMapSchema, envVarsMapSchema
 ) {
+  const { outputSchema } = incoming;
   let key = "";
 
   if (cacheAdapter) {
     try {
       // TODO: we should have a better serializer a bit later
-      key = getCacheHash(JSON.stringify({ ...incoming, fnStr: handlerFn.toString(), args }));
+      key = getCacheHash(JSON.stringify({ ...incoming, handlerId: getHandlerId(handlerFn), args }));
     } catch (error) {
       return createResult(null, createInternalError("Failed to compute cache key", error), false);
     }
@@ -119,8 +133,8 @@ export function processHandler(
         if (r.ok) {
           // r.data is the result of the `cache.has`
           return r.data
-            ? tryCatch(() => cacheAdapter.get?.(key), false, "get")
-            : executeHandler(args, { handlerFn, cacheAdapter, key });
+            ? readCache(cacheAdapter, key, outputSchema)
+            : executeHandler(args, { handlerFn, cacheAdapter, key, outputSchema });
         }
         return r;
       });
@@ -129,62 +143,83 @@ export function processHandler(
     if (ret.ok) {
       // ret.data is the result of the `cache.has`
       return ret.data
-        ? tryCatch(() => cacheAdapter.get?.(key), false, "get")
-        : executeHandler(args, { handlerFn, cacheAdapter, key });
+        ? readCache(cacheAdapter, key, outputSchema)
+        : executeHandler(args, { handlerFn, cacheAdapter, key, outputSchema });
     }
     return ret;
   }
 
-  return executeHandler(args, { handlerFn, cacheAdapter, key });
+  return executeHandler(args, { handlerFn, cacheAdapter, key, outputSchema });
+}
+
+function validateOutput(outputSchema: any, data: unknown) {
+  return outputSchema
+    ? validateInputOutputOrEnv("output", outputSchema, data)
+    : createResult(data, null, false);
+}
+
+function readCache(cacheAdapter: CacheAdapter, key: string, outputSchema: any) {
+  const cached = tryCatch(() => cacheAdapter.get?.(key), false, "get");
+  if (cached instanceof Promise) {
+    return cached.then((resolved) =>
+      resolved.ok ? validateOutput(outputSchema, resolved.data) : resolved,
+    );
+  }
+
+  return cached.ok ? validateOutput(outputSchema, cached.data) : cached;
 }
 
 export function executeHandler(
   argz: any,
-  { handlerFn, cacheAdapter, key }: { handlerFn: any; cacheAdapter: CacheAdapter; key: string },
+  {
+    handlerFn,
+    cacheAdapter,
+    key,
+    outputSchema,
+  }: { handlerFn: any; cacheAdapter: CacheAdapter; key: string; outputSchema: any },
 ) {
   const handlerResult = tryCatch(() => handlerFn(...argz), true);
   if (handlerResult instanceof Promise) {
-    return handlerResult.then((handlerResolved) => {
-      if (handlerResolved.ok) {
-        // NOTE: no need to await (if cache adapter is async to begin with)
-        // NOTE: we only store successful results in cache
-        // cache?.set(key, result.data);
-
-        const resp = tryCatch(
-          // NOTE: that `?` and `?.` are important here because `processor` can in both cases,
-          // whether there is cacheAdapter or not.
-          () => cacheAdapter?.set?.(key, handlerResolved.data),
-          false,
-          "set",
-        );
-        if (resp instanceof Promise) {
-          /* v8 ignore next -- @preserve */
-          return resp.then((resolved) => (resolved.ok ? handlerResolved : resolved));
-        }
-        return resp.ok ? handlerResolved : resp;
-      }
-
-      return handlerResolved;
-    });
-  }
-
-  if (handlerResult.ok) {
-    // NOTE: no need to await (if cache adapter is async to begin with)
-    // NOTE: we only store successful results in cache
-    // cache?.set(key, handlerResult.data);
-    const resp = tryCatch(
-      // NOTE: that `?` and `?.` are important here because `processor` can in both cases,
-      // whether there is cacheAdapter or not.
-      () => cacheAdapter?.set?.(key, handlerResult.data),
-      false,
-      "set",
+    return handlerResult.then((handlerResolved) =>
+      handlerResolved.ok
+        ? cacheValidOutput(handlerResolved.data, { cacheAdapter, key, outputSchema })
+        : handlerResolved,
     );
-    if (resp instanceof Promise) {
-      return resp.then((resolved) => (resolved.ok ? handlerResult : resolved));
-    }
-    return resp.ok ? handlerResult : resp;
   }
-  return handlerResult;
+
+  return handlerResult.ok
+    ? cacheValidOutput(handlerResult.data, { cacheAdapter, key, outputSchema })
+    : handlerResult;
+}
+
+// The output is validated before `set`, so an invalid value never reaches the cache.
+function cacheValidOutput(
+  data: unknown,
+  {
+    cacheAdapter,
+    key,
+    outputSchema,
+  }: { cacheAdapter: CacheAdapter; key: string; outputSchema: any },
+) {
+  const storeOutput = (output: any) => {
+    if (!output.ok) {
+      return output;
+    }
+
+    // NOTE: that `?` and `?.` are important here because there may be no cacheAdapter.
+    const resp = tryCatch(() => cacheAdapter?.set?.(key, data), false, "set");
+    if (resp instanceof Promise) {
+      return resp.then((resolved) => (resolved.ok ? output : resolved));
+    }
+    return resp.ok ? output : resp;
+  };
+
+  const output = validateOutput(outputSchema, data);
+  if (output instanceof Promise) {
+    return output.then(storeOutput);
+  }
+
+  return storeOutput(output);
 }
 
 export function tryCatch(fn: any, isHandler: boolean, method = "") {

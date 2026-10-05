@@ -93,13 +93,6 @@ export function zagora(config?: ZagoraConfig) {
 const isAsyncSchema = (schema: unknown) =>
   (schema as { async?: boolean } | undefined)?.async === true;
 
-const processor = (mode: "input" | "output", schema: any, data: any) => {
-  if (schema) {
-    return validateInputOutputOrEnv(mode, schema, data);
-  }
-  return createResult(data, null, false);
-};
-
 export class Zagora<
   THandlerFn extends (...args: any[]) => any,
   TContext = undefined,
@@ -382,8 +375,9 @@ export class Zagora<
         });
 
         const handleState = (st: any) => {
+          // processHandler already validated the output
           if (st.ok) {
-            return processor("output", outputSchema, st.data);
+            return st;
           }
 
           const { isAsync, handlerFailed, ...rest } = st;
@@ -439,12 +433,17 @@ export class Zagora<
       : () => TFinalResult;
 
     const proc = procedure as typeof procedure & {
-      "~zagora": Partial<
-        ZagoraDef<TContext, TInputSchema, TOutputSchema, TErrorsMap, TEnvVarsMap, TCacheAdapter>
+      "~zagora": Omit<
+        Partial<
+          ZagoraDef<TContext, TInputSchema, TOutputSchema, TErrorsMap, TEnvVarsMap, TCacheAdapter>
+        >,
+        "envVars"
       >;
     };
 
-    proc["~zagora"] = this["~zagora"];
+    // The callable can reach code that only invokes it, so it must not carry the env values.
+    const { envVars: _envVars, ...metadata } = this["~zagora"];
+    proc["~zagora"] = metadata;
 
     return proc;
   }

@@ -71,6 +71,15 @@ describe("callable procedure metadata", () => {
     expect(procedure("hello")).toEqual({ ok: true, data: "HELLO" });
     expect(procedure["~zagora"]).toBeDefined();
   });
+  test("should not expose env values on callable procedures", () => {
+    const procedure = zagora()
+      .env(z.object({ AUTH_SECRET: z.string() }), { AUTH_SECRET: "secret" })
+      .handler(({ env }) => env.AUTH_SECRET.length)
+      .callable();
+
+    expect(procedure["~zagora"]).not.toHaveProperty("envVars");
+    expect(procedure()).toEqual({ ok: true, data: 6 });
+  });
 });
 
 test("autoCallable: true - handler returns procedure directly", () => {
