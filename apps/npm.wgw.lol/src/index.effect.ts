@@ -83,7 +83,7 @@ const handle = Effect.fn("VltProxy.handle")(function* (request: Request, env: En
 
   let token: string;
   if (isRead) {
-    token = env.READ_TOKEN;
+    token = env.VLT_READ_TOKEN;
   } else {
     const bearer = /^Bearer\s+(.+)$/i.exec(request.headers.get("authorization") ?? "")?.[1];
     if (!bearer) {
@@ -142,13 +142,13 @@ const handle = Effect.fn("VltProxy.handle")(function* (request: Request, env: En
       );
     }
 
-    token = env.WRITE_TOKEN;
+    token = env.VLT_WRITE_TOKEN;
   }
 
   const upstreamPath = isDistTagPath
     ? url.pathname.replace(/(%40|@)tunnckocore%2f/i, "$1tunnckocore%252F")
     : url.pathname;
-  const upstream = new URL(upstreamPath.replace(/^\/+/, ""), env.UPSTREAM_URL);
+  const upstream = new URL(upstreamPath.replace(/^\/+/, ""), env.VLT_UPSTREAM_URL);
   upstream.search = url.search;
 
   const headers = new Headers(request.headers);
@@ -201,7 +201,7 @@ const handle = Effect.fn("VltProxy.handle")(function* (request: Request, env: En
   responseHeaders.delete("content-length");
   responseHeaders.delete("etag");
 
-  return new Response(body.replaceAll(env.UPSTREAM_URL, `${url.origin}/`), {
+  return new Response(body.replaceAll(env.VLT_UPSTREAM_URL, `${url.origin}/`), {
     status: response.status,
     headers: responseHeaders,
   });

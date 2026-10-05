@@ -17,9 +17,9 @@ export const Worker = Cloudflare.Worker("Worker", {
     // The deploy workflow passes the commit being deployed; local deploys get "local".
     COMMIT_SHA: process.env.COMMIT_SHA ?? "local",
     // VLT service tokens and the upstream registry come from the Depot CI secrets.
-    READ_TOKEN: Config.Redacted("VLT_READ_TOKEN"),
-    WRITE_TOKEN: Config.Redacted("VLT_WRITE_TOKEN"),
-    UPSTREAM_URL: Config.Redacted("VLT_UPSTREAM_URL"),
+    VLT_READ_TOKEN: Config.Redacted("VLT_READ_TOKEN"),
+    VLT_WRITE_TOKEN: Config.Redacted("VLT_WRITE_TOKEN"),
+    VLT_UPSTREAM_URL: Config.Redacted("VLT_UPSTREAM_URL"),
   },
 });
 
