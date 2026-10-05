@@ -1,7 +1,8 @@
-# Depot CI. Publishes stable versions with latest, package tags, and GitHub Releases. Runs after ci
-# succeeds for the merged release PR commit, or manually on master to publish whatever a failed
-# release left missing. Only this workflow may write the latest dist-tag: npm.wgw.lol reads the
-# workflow_ref claim of the Depot CI OIDC token and maps publish-prod.yml to latest.
+# Depot CI. Publishes stable versions of the @tunnckocore packages with latest, package tags, and
+# GitHub Releases. Runs after ci succeeds for the merged release PR commit, or manually on master to
+# publish whatever a failed release left missing. Only this workflow may write the latest dist-tag:
+# npm.wgw.lol reads the workflow_ref claim of the Depot CI OIDC token and maps publish-prod.yml to
+# latest. The unscoped packages publish to npm from .github/workflows/npm-publish-prod.yml.
 #
 # SECURITY: the only job with a latest-capable OIDC token, and it runs only after a human merged the
 # release PR or started it by hand on master. The PAT is a Depot CI secret for changesets/action, which pushes
@@ -51,6 +52,6 @@ jobs:
         with:
           github-token: ${{ secrets.OLSTENLARCK_HQ_PAT }}
           version-script: pnpm run packages:version
-          publish-script: pnpm run packages:publish
+          publish-script: pnpm run packages:publish vlt
           commit-message: "chore: release packages"
           pr-title: "chore: release packages"

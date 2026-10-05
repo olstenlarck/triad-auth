@@ -1,5 +1,6 @@
-# Shared toolchain setup for the Depot CI workflows: Socket firewall, pnpm, Node, optional Foundry,
-# and the workspace install. Each workflow checks out first, because this file comes from the checkout.
+# Shared toolchain setup for the Depot CI workflows and the GitHub Actions npm publishing workflows:
+# Socket firewall, pnpm, Node, optional Foundry, and the workspace install. Each workflow checks out
+# first, because this file comes from the checkout.
 
 name: setup
 description: Install the toolchain and the workspace dependencies

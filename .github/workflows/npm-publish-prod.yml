@@ -1,0 +1,61 @@
+# GitHub Actions. Publishes stable versions of the unscoped packages to npmjs.com with latest,
+# package tags, and GitHub Releases. Runs after the Depot CI ci workflow passes for the merged
+# release PR commit, or manually on master to publish whatever a failed release left missing. npm
+# trusted publishing accepts OIDC tokens only from GitHub-hosted runners, so this runs on GitHub
+# Actions. The @tunnckocore packages publish to npm.wgw.lol from .depot/workflows/publish-prod.yml,
+# and .depot/workflows/prepare-publish.yml keeps one release PR for both.
+#
+# SECURITY: npm trusts this workflow file in the latest environment, which allows only master. The
+# job token pushes the package tags and creates the GitHub Releases.
+
+name: npm-publish-prod
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  depot-ci:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || startsWith(github.event.head_commit.message, 'chore: release packages')
+    uses: ./.github/workflows/wait-for-ci.yml
+    permissions:
+      checks: read
+
+  publish:
+    needs: depot-ci
+    if: needs.depot-ci.outputs.passed == 'true'
+    environment: latest
+    permissions:
+      contents: write
+      id-token: write
+    concurrency:
+      group: npm-publish-prod
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.depot/actions/setup
+      # With pending changesets, changesets/action would version them and take over the release PR,
+      # which prepare-publish owns. Publish only when the release PR has consumed them.
+      - id: changesets
+        run: |
+          if compgen -G '.changeset/*.md' > /dev/null; then
+            echo "Not published: pending changesets; merge the release PR first" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo none=true >> "$GITHUB_OUTPUT"
+          fi
+      # The action does not use a shell for publish-script, so it must be one command.
+      - if: steps.changesets.outputs.none == 'true'
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          publish-script: pnpm run packages:publish npm
