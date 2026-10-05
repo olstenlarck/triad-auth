@@ -7,19 +7,6 @@ export function getCacheHash(data: string) {
   return nodeCrypto.createHash("sha256").update(data).digest("hex");
 }
 
-// Handlers with the same source can capture different values, so each handler gets its own ID.
-const handlerIds = new WeakMap<object, string>();
-
-function getHandlerId(handlerFn: object) {
-  let handlerId = handlerIds.get(handlerFn);
-  if (!handlerId) {
-    handlerId = nodeCrypto.randomUUID();
-    handlerIds.set(handlerFn, handlerId);
-  }
-
-  return handlerId;
-}
-
 function createUnexpectedValidationError(
   mode: "input" | "output" | "error data" | "env",
   cause: unknown,
@@ -119,7 +106,7 @@ export function processHandler(
   if (cacheAdapter) {
     try {
       // TODO: we should have a better serializer a bit later
-      key = getCacheHash(JSON.stringify({ ...incoming, handlerId: getHandlerId(handlerFn), args }));
+      key = getCacheHash(JSON.stringify({ ...incoming, fnStr: handlerFn.toString(), args }));
     } catch (error) {
       return createResult(null, createInternalError("Failed to compute cache key", error), false);
     }
@@ -133,7 +120,7 @@ export function processHandler(
         if (r.ok) {
           // r.data is the result of the `cache.has`
           return r.data
-            ? readCache(cacheAdapter, key, outputSchema)
+            ? tryCatch(() => cacheAdapter.get?.(key), false, "get")
             : executeHandler(args, { handlerFn, cacheAdapter, key, outputSchema });
         }
         return r;
@@ -143,7 +130,7 @@ export function processHandler(
     if (ret.ok) {
       // ret.data is the result of the `cache.has`
       return ret.data
-        ? readCache(cacheAdapter, key, outputSchema)
+        ? tryCatch(() => cacheAdapter.get?.(key), false, "get")
         : executeHandler(args, { handlerFn, cacheAdapter, key, outputSchema });
     }
     return ret;
@@ -156,17 +143,6 @@ function validateOutput(outputSchema: any, data: unknown) {
   return outputSchema
     ? validateInputOutputOrEnv("output", outputSchema, data)
     : createResult(data, null, false);
-}
-
-function readCache(cacheAdapter: CacheAdapter, key: string, outputSchema: any) {
-  const cached = tryCatch(() => cacheAdapter.get?.(key), false, "get");
-  if (cached instanceof Promise) {
-    return cached.then((resolved) =>
-      resolved.ok ? validateOutput(outputSchema, resolved.data) : resolved,
-    );
-  }
-
-  return cached.ok ? validateOutput(outputSchema, cached.data) : cached;
 }
 
 export function executeHandler(
@@ -192,7 +168,7 @@ export function executeHandler(
     : handlerResult;
 }
 
-// The output is validated before `set`, so an invalid value never reaches the cache.
+// Only the validated output reaches the cache, so a cache hit returns it without validating again.
 function cacheValidOutput(
   data: unknown,
   {
@@ -207,7 +183,7 @@ function cacheValidOutput(
     }
 
     // NOTE: that `?` and `?.` are important here because there may be no cacheAdapter.
-    const resp = tryCatch(() => cacheAdapter?.set?.(key, data), false, "set");
+    const resp = tryCatch(() => cacheAdapter?.set?.(key, output.data), false, "set");
     if (resp instanceof Promise) {
       return resp.then((resolved) => (resolved.ok ? output : resolved));
     }
