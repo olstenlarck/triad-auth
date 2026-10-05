@@ -8,8 +8,14 @@
 set -euo pipefail
 
 case "${1:-}" in
-  vlt) share='startswith("@tunnckocore/")' ;;
-  npm) share='startswith("@tunnckocore/") | not' ;;
+  vlt)
+    share='startswith("@tunnckocore/")'
+    builds=(--filter='@tunnckocore/*')
+    ;;
+  npm)
+    share='startswith("@tunnckocore/") | not'
+    builds=(--filter='./packages/*' --filter='!@tunnckocore/*')
+    ;;
   *)
     echo "Usage: pnpm run packages:publish <vlt|npm>" >&2
     exit 1
@@ -18,7 +24,7 @@ esac
 
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
-pnpm exec turbo run build --filter='./packages/*'
+pnpm exec turbo run build "${builds[@]}"
 pnpm exec changeset publish-plan --output "$out/plan.json"
 jq ".plan |= (map(map(select(.name | $share))) | map(select(length > 0)))" "$out/plan.json" > "$out/share.json"
 pnpm exec changeset pack --from-publish-plan "$out/share.json" --out-dir "$out/pack"

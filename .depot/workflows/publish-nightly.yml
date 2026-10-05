@@ -64,6 +64,6 @@ jobs:
             echo "Not published: this push changed no @tunnckocore package with a pending changeset" | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          pnpm exec turbo run build --filter='./packages/*'
+          pnpm exec turbo run build "${filters[@]}"
           pnpm publish -r "${filters[@]}" --tag nightly --no-git-checks
           printf 'Published %s with nightly\n' "${published[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
