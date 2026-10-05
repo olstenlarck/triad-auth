@@ -92,6 +92,8 @@ describe("badges", () => {
     expect(svg).toContain("passing");
     // The badgen black label.
     expect(svg).toContain('fill="#2A2A2A"');
+    // The Depot logo on the label.
+    expect(svg).toContain('xlink:href="data:image/svg+xml;base64,');
   });
 
   it("shows the workflow status", async () => {
