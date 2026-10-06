@@ -11,10 +11,10 @@
   },
   "dependencies": {
     "effect": "catalog:",
-    "hono": "4.13.9",
     "jose": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "alchemy": "catalog:"
   }
 }
