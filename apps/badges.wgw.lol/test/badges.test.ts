@@ -4,9 +4,12 @@ import { FetchHttpClient } from "effect/http";
 import { TestClock } from "effect/testing";
 import { afterAll, beforeEach, vi } from "vitest";
 
-import { Depot, DepotError, depotLayer, handle, makeWorker, socketLayer } from "../src/badges";
+import { Depot, DepotError, depotLayer } from "../src/depot";
 import type { Env } from "../src/env";
+import { handle } from "../src/handle";
 import worker from "../src/index";
+import { socketLayer } from "../src/socket";
+import { makeWorker } from "../src/worker";
 import { startServer } from "./server";
 import type { Reply, Seen } from "./server";
 
