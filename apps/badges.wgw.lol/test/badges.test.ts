@@ -116,6 +116,24 @@ describe("badges", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("unknown");
   });
+
+  it("shows unknown when Depot answers a shape the schema rejects", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    depot.mockImplementation(() => Response.json({ workflows: [{ workflowId: 1 }] }));
+    await expect((await get("/ci/test.json")).json()).resolves.toMatchObject({
+      status: "unknown",
+    });
+
+    depot.mockImplementation((method: string) =>
+      method === "ListWorkflows"
+        ? Response.json({ workflows: [{ workflowId: "1nk9dzm8gw", workflowPath: "ci.yml" }] })
+        : Response.json({ ...workflow, jobs: "nope" }),
+    );
+    await expect((await get("/ci/test.json")).json()).resolves.toMatchObject({
+      status: "unknown",
+    });
+  });
 });
 
 describe("socket", () => {
@@ -131,7 +149,10 @@ describe("socket", () => {
       new URL(
         "https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket",
       ),
-      expect.anything(),
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.not.objectContaining({ authorization: expect.anything() }),
+      }),
     );
 
     badgenFetch.mockResolvedValueOnce(new Response("<svg>Socket Security: failure</svg>"));
@@ -190,6 +211,39 @@ describe("links", () => {
     depot.mockResolvedValue(new Response("nope", { status: 500 }));
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     expect((await get("/ci/test")).status).toBe(502);
+  });
+
+  it("answers 502 when Depot answers a shape the schema rejects", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    depot.mockImplementation(() => Response.json({ workflows: [{ workflowId: 1 }] }));
+    expect((await get("/ci/test")).status).toBe(502);
+
+    depot.mockImplementation((method: string) =>
+      method === "ListWorkflows"
+        ? Response.json({ workflows: [{ workflowId: "1nk9dzm8gw", workflowPath: "ci.yml" }] })
+        : Response.json({ ...workflow, jobs: "nope" }),
+    );
+    expect((await get("/ci/test")).status).toBe(502);
+  });
+
+  it("serves the routes that skip Depot without the Depot token", async () => {
+    const noToken: Env = { ...env };
+    Reflect.deleteProperty(noToken, "BADGES_DEPOT_TOKEN");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const fetchWithout = (path: string) =>
+      worker.fetch(new Request(`https://badges.wgw.lol${path}`), noToken);
+
+    expect((await fetchWithout("/health")).status).toBe(200);
+    expect((await fetchWithout("/tunnckoCoreHQ/monarch/ci")).status).toBe(302);
+    expect((await fetchWithout("/a/b")).status).toBe(404);
+    await expect(
+      (await fetchWithout("/tunnckoCoreHQ/monarch/ci/test.json")).json(),
+    ).resolves.toMatchObject({
+      status: "unknown",
+    });
+    expect((await fetchWithout("/tunnckoCoreHQ/monarch/ci/test")).status).toBe(502);
+    expect(depot).not.toHaveBeenCalled();
   });
 
   it("answers 404 for other paths", async () => {

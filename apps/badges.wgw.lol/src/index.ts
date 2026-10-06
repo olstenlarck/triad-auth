@@ -73,22 +73,29 @@ class Depot extends Context.Service<Depot, DepotInterface>()("Badges.Depot") {}
 const DepotLive = Layer.effect(
   Depot,
   Effect.gen(function* () {
-    // A Depot organization token for pcnr2v598s.
-    const token = yield* Config.Redacted("BADGES_DEPOT_TOKEN");
     const client = (yield* HttpClient.HttpClient).pipe(
       HttpClient.mapRequest((request) =>
         request.pipe(
           HttpClientRequest.prependUrl(DEPOT_API),
-          HttpClientRequest.bearerToken(token),
           HttpClientRequest.setHeader("connect-protocol-version", "1"),
         ),
       ),
       HttpClient.filterStatusOk,
     );
 
+    // The token is read on each call, not when the layer is built, so a missing token fails only
+    // the Depot routes and not /health, the Socket badge, or the redirects.
     const call = <S extends Schema.Constraint>(method: string, body: unknown, schema: S) =>
-      client.post(`/${method}`, { body: HttpBody.jsonUnsafe(body) }).pipe(
-        Effect.flatMap(HttpIncomingMessage.schemaBodyJson(schema)),
+      Effect.gen(function* () {
+        // A Depot organization token for pcnr2v598s.
+        const token = yield* Config.Redacted("BADGES_DEPOT_TOKEN");
+        const response = yield* client.execute(
+          HttpClientRequest.post(`/${method}`, { body: HttpBody.jsonUnsafe(body) }).pipe(
+            HttpClientRequest.bearerToken(token),
+          ),
+        );
+        return yield* HttpIncomingMessage.schemaBodyJson(schema)(response);
+      }).pipe(
         Effect.mapError((cause) => new DepotError({ method, cause })),
         Effect.withSpan(`Depot.${method}`),
       );
