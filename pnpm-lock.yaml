@@ -51,7 +51,7 @@ catalogs:
       specifier: ^4.0.0
       version: 4.0.0
     '@effect/vitest':
-      specifier: ^4.0.0
+      specifier: 4.0.0
       version: 4.0.0
     '@hono/node-server':
       specifier: ^2.0.6
@@ -90,7 +90,7 @@ catalogs:
       specifier: 1.0.0-beta.10
       version: 1.0.0-beta.10
     effect:
-      specifier: ^4.0.0
+      specifier: 4.0.0
       version: 4.0.0
     erc721a:
       specifier: 4.3.0
