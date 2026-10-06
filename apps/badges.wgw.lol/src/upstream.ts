@@ -2,10 +2,11 @@ import { Cache, Effect, Exit, Schedule } from "effect";
 import type { Duration } from "effect";
 import { HttpClient } from "effect/http";
 
-// Each attempt gets 5 seconds. Transport errors, timeouts, 408, 429, and 5xx are tried two more
-// times, about 100ms and 200ms later, with jitter so isolates do not retry in step. Both upstreams
-// are read-only lookups, so a repeat is safe.
-const TIMEOUT = "5 seconds";
+// Each attempt gets 5 seconds for the headers. Transport errors, timeouts, 408, 429, and 5xx are
+// tried two more times, about 100ms and 200ms later, with jitter so isolates do not retry in step.
+// Both upstreams are read-only lookups, so a repeat is safe. Reading the body gets its own 5
+// seconds and is not retried, so a body that stalls fails the lookup.
+export const TIMEOUT = "5 seconds";
 const RETRY = { times: 2, schedule: Schedule.exponential("100 millis").pipe(Schedule.jittered) };
 
 export const resilient = (client: HttpClient.HttpClient) =>

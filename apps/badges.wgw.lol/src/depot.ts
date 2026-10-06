@@ -1,7 +1,7 @@
 import { Cache, Config, Context, Effect, Layer, Option, Schema } from "effect";
 import { HttpBody, HttpClient, HttpClientRequest, HttpIncomingMessage } from "effect/http";
 
-import { cached, resilient } from "./upstream";
+import { TIMEOUT, cached, resilient } from "./upstream";
 
 export const DEPOT_API = "https://api.depot.dev/depot.ci.v1.CIService";
 
@@ -65,7 +65,9 @@ export const depotLayer = (url: string) =>
               HttpClientRequest.bearerToken(token),
             ),
           );
-          return yield* HttpIncomingMessage.schemaBodyJson(schema)(response);
+          return yield* HttpIncomingMessage.schemaBodyJson(schema)(response).pipe(
+            Effect.timeout(TIMEOUT),
+          );
         }).pipe(
           Effect.mapError((cause) => new DepotError({ method, cause })),
           Effect.withSpan(`Depot.${method}`),

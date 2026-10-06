@@ -1,7 +1,7 @@
 import { Cache, Context, Effect, Layer, Schema } from "effect";
 import { HttpClient } from "effect/http";
 
-import { cached, resilient } from "./upstream";
+import { TIMEOUT, cached, resilient } from "./upstream";
 
 export const BADGEN = "https://badgen.net";
 
@@ -29,7 +29,7 @@ export const socketLayer = (url: string) =>
             `${url}/github/checks/${repo}/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket`,
           )
           .pipe(
-            Effect.flatMap((response) => response.text),
+            Effect.flatMap((response) => Effect.timeout(response.text, TIMEOUT)),
             Effect.mapError((cause) => new BadgenError({ cause })),
           );
         return svg.replaceAll("success", "passing").replaceAll("failure", "failing");

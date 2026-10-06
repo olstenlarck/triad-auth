@@ -14,6 +14,8 @@ export interface Reply {
   text?: string;
   // Accept the request and never answer, like an upstream that stalls.
   hang?: boolean;
+  // Send the headers and part of the body, then never finish.
+  stall?: boolean;
 }
 
 const notFound = (): Reply => ({ status: 404 });
@@ -37,13 +39,17 @@ export async function startServer() {
         body: raw ? JSON.parse(raw) : undefined,
       };
       seen.push(request);
-      const { status = 200, json, text = "", hang = false } = reply(request);
+      const { status = 200, json, text = "", hang = false, stall = false } = reply(request);
       if (hang) {
         return;
       }
       res.writeHead(status, {
         "content-type": json === undefined ? "image/svg+xml" : "application/json",
       });
+      if (stall) {
+        res.write("{");
+        return;
+      }
       res.end(json === undefined ? text : JSON.stringify(json));
     });
   });

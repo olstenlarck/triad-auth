@@ -8,7 +8,7 @@ import { Depot, DepotError, depotLayer } from "../src/depot";
 import type { Env } from "../src/env";
 import { handle } from "../src/handle";
 import worker from "../src/index";
-import { socketLayer } from "../src/socket";
+import { Socket, socketLayer } from "../src/socket";
 import { makeWorker } from "../src/worker";
 import { startServer } from "./server";
 import type { Reply, Seen } from "./server";
@@ -354,6 +354,41 @@ describe("caching", () => {
       expect(Option.isSome(found)).toBe(true);
       expect(server.seen).toHaveLength(3);
     }).pipe(Effect.provide(depot)),
+  );
+
+  // Waits for the request, then a moment of real time, so the headers have arrived and only the
+  // body is left.
+  const headersSent = Effect.promise(async () => {
+    await vi.waitFor(() => expect(server.seen).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+
+  it.effect("gives a Depot body that stalls 5 seconds, then fails without a retry", () =>
+    Effect.gen(function* () {
+      server.reply(() => ({ stall: true }));
+      const service = yield* Depot;
+      const fiber = yield* Effect.forkChild(
+        Effect.exit(service.latestWorkflow("tunnckoCoreHQ/monarch", "ci")),
+      );
+      yield* headersSent;
+      yield* TestClock.adjust("5 seconds");
+
+      expect(Exit.isFailure(yield* Fiber.join(fiber))).toBe(true);
+      expect(server.seen).toHaveLength(1);
+    }).pipe(Effect.provide(depot)),
+  );
+
+  it.effect("gives a badgen body that stalls 5 seconds, then fails without a retry", () =>
+    Effect.gen(function* () {
+      server.reply(() => ({ stall: true }));
+      const service = yield* Socket;
+      const fiber = yield* Effect.forkChild(Effect.exit(service.badge("tunnckoCoreHQ/monarch")));
+      yield* headersSent;
+      yield* TestClock.adjust("5 seconds");
+
+      expect(Exit.isFailure(yield* Fiber.join(fiber))).toBe(true);
+      expect(server.seen).toHaveLength(1);
+    }).pipe(Effect.provide(socketLayer(server.url).pipe(Layer.provide(FetchHttpClient.layer)))),
   );
 });
 
