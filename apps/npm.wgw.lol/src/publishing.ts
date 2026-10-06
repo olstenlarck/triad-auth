@@ -1,8 +1,9 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createRemoteJWKSet, customFetch, jwtVerify } from "jose";
 
 import { BadRequest, Forbidden, Unauthorized } from "./errors";
 
@@ -52,31 +53,37 @@ export class DepotIdentity extends Context.Service<
   DepotIdentity,
   { readonly verify: (token: string) => Effect.Effect<PublishTag, Unauthorized> }
 >()("DepotIdentity") {
-  static readonly layer = Layer.sync(DepotIdentity, () => {
-    const keys = createRemoteJWKSet(new URL("https://identity.depot.dev/keys"));
-
-    const verify = Effect.fn("DepotIdentity.verify")(function* (token: string) {
-      const { payload } = yield* Effect.tryPromise({
-        try: () =>
-          jwtVerify(token, keys, {
-            issuer: "https://identity.depot.dev",
-            audience: publishAudience,
-            algorithms: ["ES256", "ES384", "RS256"],
-            requiredClaims: ["exp", "iat", "sub", "workflow_ref"],
-            maxTokenAge: "10m",
-          }),
-        catch: () => new Unauthorized(),
+  static readonly layer = Layer.effect(
+    DepotIdentity,
+    Effect.gen(function* () {
+      const fetch = yield* FetchHttpClient.Fetch;
+      const keys = createRemoteJWKSet(new URL("https://identity.depot.dev/keys"), {
+        [customFetch]: fetch,
       });
-      const claims = yield* Schema.decodeUnknownEffect(DepotClaims)(payload).pipe(
-        Effect.mapError(() => new Unauthorized()),
-      );
 
-      const [, workflow] = workflowRef.exec(claims.workflow_ref) ?? [];
-      return workflowTags[workflow];
-    });
+      const verify = Effect.fn("DepotIdentity.verify")(function* (token: string) {
+        const { payload } = yield* Effect.tryPromise({
+          try: () =>
+            jwtVerify(token, keys, {
+              issuer: "https://identity.depot.dev",
+              audience: publishAudience,
+              algorithms: ["ES256", "ES384", "RS256"],
+              requiredClaims: ["exp", "iat", "sub", "workflow_ref"],
+              maxTokenAge: "10m",
+            }),
+          catch: () => new Unauthorized(),
+        });
+        const claims = yield* Schema.decodeUnknownEffect(DepotClaims)(payload).pipe(
+          Effect.mapError(() => new Unauthorized()),
+        );
 
-    return DepotIdentity.of({ verify });
-  });
+        const [, workflow] = workflowRef.exec(claims.workflow_ref) ?? [];
+        return workflowTags[workflow];
+      });
+
+      return DepotIdentity.of({ verify });
+    }),
+  );
 }
 
 // A CI token may publish one version under its own dist-tag, or point that dist-tag at a

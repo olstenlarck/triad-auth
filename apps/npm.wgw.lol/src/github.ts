@@ -5,6 +5,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Layer from "effect/Layer";
+import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 
 import { BadGateway, Forbidden, Unauthorized } from "./errors";
@@ -38,7 +39,7 @@ export class GitHub extends Context.Service<
             }),
           ),
         ),
-        HttpClient.retryTransient({ times: 2 }),
+        HttpClient.retryTransient({ schedule: Schedule.exponential("100 millis"), times: 2 }),
       );
 
       const authorize = Effect.fn("GitHub.authorize")(function* (token: string) {

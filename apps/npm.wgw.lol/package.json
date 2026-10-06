@@ -14,6 +14,7 @@
     "jose": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "alchemy": "catalog:"
   }
 }

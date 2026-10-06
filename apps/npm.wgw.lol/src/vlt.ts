@@ -1,6 +1,7 @@
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 
@@ -29,6 +30,7 @@ export class Vlt extends Context.Service<
   static readonly layer = Layer.effect(
     Vlt,
     Effect.gen(function* () {
+      const fetch = yield* FetchHttpClient.Fetch;
       const upstreamUrl = yield* Config.String("VLT_UPSTREAM_URL");
       const tokens = {
         read: yield* Config.Redacted("VLT_READ_TOKEN"),

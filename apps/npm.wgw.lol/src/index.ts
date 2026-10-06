@@ -3,20 +3,18 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpRouter from "effect/http/HttpRouter";
+import * as HttpServerError from "effect/http/HttpServerError";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 
 import type { Env } from "./env";
-import { BadGateway, BadRequest, MethodNotAllowed, NotFound, Unauthorized } from "./errors";
+import { errorResponse, MethodNotAllowed, NotFound, Unauthorized } from "./errors";
 import { GitHub } from "./github";
 import { DepotIdentity, validatePublishRequest } from "./publishing";
 import { Vlt } from "./vlt";
 
 const scopedPackage = /^@tunnckocore\/[a-z0-9][a-z0-9._-]*$/;
-
-const decode = (value: string, onError: NotFound | BadRequest) =>
-  Effect.try({ try: () => decodeURIComponent(value), catch: () => onError });
 
 const bearerToken = (request: HttpServerRequest.HttpServerRequest) =>
   /^Bearer\s+(.+)$/i.exec(request.headers.authorization ?? "")?.[1];
@@ -30,7 +28,11 @@ const HealthRoute = Layer.unwrap(
         ? "https://github.com/tunnckoCoreHQ/monarch"
         : `https://github.com/tunnckoCoreHQ/monarch/commit/${commit}`;
 
-    return HttpRouter.add("GET", "/-/health", HttpServerResponse.json({ ok: true, link, commit }));
+    return HttpRouter.add(
+      "GET",
+      "/-/health",
+      HttpServerResponse.jsonUnsafe({ ok: true, link, commit }),
+    );
   }),
 );
 
@@ -43,12 +45,7 @@ const ExchangeRoute = HttpRouter.add(
   "/-/npm/v1/oidc/token/exchange/package/*",
   Effect.fn("Registry.exchange")(function* (request) {
     const depot = yield* DepotIdentity;
-    const url = new URL(request.originalUrl);
-
-    const name = yield* decode(
-      url.pathname.slice("/-/npm/v1/oidc/token/exchange/package/".length),
-      new BadRequest({ message: "Invalid package name" }),
-    );
+    const { "*": name = "" } = yield* HttpRouter.params;
     if (!scopedPackage.test(name)) {
       return yield* new NotFound();
     }
@@ -59,7 +56,7 @@ const ExchangeRoute = HttpRouter.add(
     }
     yield* depot.verify(bearer);
 
-    return yield* HttpServerResponse.json({ token: bearer });
+    return HttpServerResponse.jsonUnsafe({ token: bearer });
   }),
 );
 
@@ -69,16 +66,13 @@ const ExchangeRoute = HttpRouter.add(
 const VisibilityRoute = HttpRouter.add(
   "GET",
   "/-/package/:name/visibility",
-  Effect.fn("Registry.visibility")(function* (request) {
-    const url = new URL(request.originalUrl);
-    const [, encodedName = ""] = /^\/-\/package\/(.+)\/visibility$/.exec(url.pathname) ?? [];
-
-    const name = yield* decode(encodedName, new NotFound());
+  Effect.fn("Registry.visibility")(function* () {
+    const { name = "" } = yield* HttpRouter.params;
     if (!scopedPackage.test(name)) {
       return yield* new NotFound();
     }
 
-    return yield* HttpServerResponse.json({ public: false });
+    return HttpServerResponse.jsonUnsafe({ public: false });
   }),
 );
 
@@ -87,10 +81,9 @@ const ProxyRoute = HttpRouter.add(
   "/*",
   Effect.fn("Registry.proxy")(function* (request) {
     const vlt = yield* Vlt;
-    const source = yield* HttpServerRequest.toWeb(request).pipe(
-      Effect.mapError((cause) => new BadGateway({ message: "Bad gateway", cause })),
-    );
-    const path = yield* decode(new URL(source.url).pathname, new NotFound());
+    const source = yield* HttpServerRequest.toWeb(request);
+    // The router already answered 404 for a path that does not decode.
+    const path = decodeURIComponent(new URL(source.url).pathname);
 
     const isPackagePath = /^\/@tunnckocore\/[a-z0-9][a-z0-9._-]*(?:\/.*)?$/.test(path);
     const isDistTagPath =
@@ -146,17 +139,51 @@ const Services = Layer.mergeAll(DepotIdentity.layer, Vlt.layer, GitHub.layer).pi
   Layer.provide(FetchHttpClient.layer),
 );
 
-// The services are built once with the router and provided to every request.
-const Routes = Layer.mergeAll(HealthRoute, ExchangeRoute, VisibilityRoute, ProxyRoute).pipe(
-  HttpRouter.provideRequest(Services),
+// A failure that is not one of our errors, such as an unparsable URL or a defect, would reach
+// the client as an empty response. This gives it the same JSON shape as every other error.
+const fallbackErrors: Record<number, string> = {
+  400: "Bad request",
+  404: "Not found",
+  500: "Internal server error",
+  503: "Service unavailable",
+};
+
+const JsonErrors = HttpRouter.middleware(
+  (effect) =>
+    Effect.catchCause(effect, (cause) =>
+      Effect.flatMap(HttpServerError.causeResponse(cause), ([response]) => {
+        if (response.body._tag !== "Empty") {
+          return Effect.failCause(cause);
+        }
+
+        const fallback = errorResponse(
+          response.status,
+          fallbackErrors[response.status] ?? "Request failed",
+        );
+        return response.status >= 500
+          ? Effect.as(Effect.logError(cause), fallback)
+          : Effect.succeed(fallback);
+      }),
+    ),
+  { global: true },
 );
+
+// The services are built once with the router and provided to every request. The bindings
+// and the outgoing fetch come from outside, so tests can supply their own.
+export const App = Layer.mergeAll(HealthRoute, ExchangeRoute, VisibilityRoute, ProxyRoute).pipe(
+  HttpRouter.provideRequest(Services),
+  Layer.merge(JsonErrors),
+);
+
+export const configLayer = (env: Env) => ConfigProvider.layer(ConfigProvider.fromUnknown(env));
 
 // Bindings arrive with the first request, so each isolate builds the app once from them.
 let web: ReturnType<typeof makeWebHandler> | undefined;
 
 function makeWebHandler(env: Env) {
-  const config = ConfigProvider.layer(ConfigProvider.fromUnknown(env));
-  return HttpRouter.toWebHandler(Routes.pipe(Layer.provide(config)), { disableLogger: true });
+  return HttpRouter.toWebHandler(App.pipe(Layer.provide(configLayer(env))), {
+    disableLogger: true,
+  });
 }
 
 export default {
