@@ -74,13 +74,25 @@ export class BadgenError extends Schema.TaggedError<BadgenError>()("Socket.Badge
   cause: Schema.Defect(),
 }) {}
 
-// Transport errors, timeouts, 408, 429, and 5xx are tried two more times, 100ms and 200ms later.
-// Both upstreams are read-only lookups, so a repeat is safe.
-const RETRY = { times: 2, schedule: Schedule.exponential("100 millis") };
+// The default logger prints an error as its tag only, so the log names the call and its cause.
+const logFailure = (error: DepotError | BadgenError) =>
+  Effect.logError(
+    error._tag === "Depot.DepotError" ? `Depot ${error.method} failed` : "Socket badge failed",
+    String(error.cause),
+  );
+
+// Each attempt gets 5 seconds. Transport errors, timeouts, 408, 429, and 5xx are tried two more
+// times, about 100ms and 200ms later, with jitter so isolates do not retry in step. Both upstreams
+// are read-only lookups, so a repeat is safe.
+const TIMEOUT = "5 seconds";
+const RETRY = { times: 2, schedule: Schedule.exponential("100 millis").pipe(Schedule.jittered) };
 
 // The badges say max-age=60, so a successful lookup is kept for a minute in the isolate. A failure
-// is not kept, so the next request asks again. Concurrent requests for one key share one lookup.
-const ttl = (exit: Exit.Exit<unknown, unknown>) => (Exit.isSuccess(exit) ? "60 seconds" : 0);
+// is kept for 5 seconds, so a failing upstream gets one lookup per key in that window instead of
+// one per request. Cache never keeps an interrupted lookup. Concurrent requests for one key share
+// one lookup.
+const ttl = (exit: Exit.Exit<unknown, unknown>) =>
+  Exit.isSuccess(exit) ? "60 seconds" : "5 seconds";
 const CAPACITY = 1000;
 
 export interface DepotInterface {
@@ -104,6 +116,7 @@ export const depotLayer = (url: string) =>
           ),
         ),
         HttpClient.filterStatusOk,
+        HttpClient.transformResponse(Effect.timeout(TIMEOUT)),
         HttpClient.retryTransient(RETRY),
       );
 
@@ -127,13 +140,16 @@ export const depotLayer = (url: string) =>
       // The newest finished or failed workflow from a master push. In this repository only master
       // pushes have the push trigger, and skipping running workflows keeps the badge from flickering.
       const lookup = Effect.fn("Depot.lookup")(function* (key: string) {
+        // SEGMENT in handle keeps spaces out of repo and workflow, so the space splits the key.
         const [repo = "", workflow = ""] = key.split(" ");
         const { workflows = [] } = yield* call(
           "ListWorkflows",
           { repo, name: workflow, trigger: "push", status: ["finished", "failed"], pageSize: 50 },
           WorkflowList,
         );
-        const file = new RegExp(`(?:^|/)${workflow.replaceAll(".", "\\.")}\\.ya?ml$`);
+        const file = new RegExp(
+          `(?:^|/)${workflow.replaceAll(/[$()*+.?[\\\]^{|}]/g, "\\$&")}\\.ya?ml$`,
+        );
         const found = workflows.find((item) => file.test(item.workflowPath));
         if (!found) {
           return Option.none<Workflow>();
@@ -164,6 +180,7 @@ export const socketLayer = (url: string) =>
     Effect.gen(function* () {
       const client = (yield* HttpClient.HttpClient).pipe(
         HttpClient.filterStatusOk,
+        HttpClient.transformResponse(Effect.timeout(TIMEOUT)),
         HttpClient.retryTransient(RETRY),
       );
 
@@ -233,7 +250,7 @@ export const handle = Effect.fn("Badges.handle")(function* (request: Request, en
     // A broken image helps nobody, so the badge shows "unknown" like the Depot badges.
     return yield* socket.badge(`${owner}/${name}`).pipe(
       Effect.map(svg),
-      Effect.tapError(Effect.logError),
+      Effect.tapError(logFailure),
       Effect.orElseSucceed(() =>
         render({ subject: "Socket Security", status: "unknown", color: "grey" }, "svg"),
       ),
@@ -265,7 +282,7 @@ export const handle = Effect.fn("Badges.handle")(function* (request: Request, en
 
   // A broken image helps nobody, so badges show "unknown" on a Depot error.
   const found = yield* depot.latestWorkflow(`${owner}/${name}`, workflow).pipe(
-    Effect.tapError(Effect.logError),
+    Effect.tapError(logFailure),
     Effect.orElseSucceed(() => Option.none<Workflow>()),
   );
   const status = Option.match(found, {
@@ -288,7 +305,8 @@ export const liveLayer = Layer.mergeAll(depotLayer(DEPOT_API), socketLayer(BADGE
 );
 
 // One runtime per isolate, so the caches outlive a single request. The Worker bindings are the
-// config source, so the token is read like any other Config.
+// config source, so the token is read like any other Config. Any failure left, a thrown error
+// included, answers 502 like the worker did before Effect.
 export function makeWorker(layer: Layer.Layer<Depot | Socket>) {
   let runtime: ManagedRuntime.ManagedRuntime<Depot | Socket, never> | undefined;
   return {
@@ -297,9 +315,10 @@ export function makeWorker(layer: Layer.Layer<Depot | Socket>) {
       return runtime.runPromise(
         handle(request, env).pipe(
           Effect.provide(ConfigProvider.layer(ConfigProvider.fromUnknown(env))),
-          Effect.catch((error) =>
-            Effect.logError(error).pipe(Effect.as(new Response("Bad Gateway", { status: 502 }))),
-          ),
+          Effect.tapError(logFailure),
+          Effect.tapDefect((defect) => Effect.logError("Request failed", String(defect))),
+          Effect.catchCause(() => Effect.succeed(new Response("Bad Gateway", { status: 502 }))),
+          Effect.annotateLogs({ path: new URL(request.url).pathname }),
         ),
       );
     },

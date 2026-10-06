@@ -12,6 +12,8 @@ export interface Reply {
   status?: number;
   json?: unknown;
   text?: string;
+  // Accept the request and never answer, like an upstream that stalls.
+  hang?: boolean;
 }
 
 const notFound = (): Reply => ({ status: 404 });
@@ -35,7 +37,10 @@ export async function startServer() {
         body: raw ? JSON.parse(raw) : undefined,
       };
       seen.push(request);
-      const { status = 200, json, text = "" } = reply(request);
+      const { status = 200, json, text = "", hang = false } = reply(request);
+      if (hang) {
+        return;
+      }
       res.writeHead(status, {
         "content-type": json === undefined ? "image/svg+xml" : "application/json",
       });
@@ -56,6 +61,10 @@ export async function startServer() {
     reset() {
       seen.length = 0;
     },
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
   };
 }

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
-import { ConfigProvider, Effect, Layer, Logger, Option } from "effect";
+import { ConfigProvider, Effect, Exit, Fiber, Layer, Logger, Option, References } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { TestClock } from "effect/testing";
-import { afterAll, beforeEach } from "vitest";
+import { afterAll, beforeEach, vi } from "vitest";
 
 import { Depot, DepotError, depotLayer, handle, makeWorker, socketLayer } from "../src/badges";
 import type { Env } from "../src/env";
@@ -55,9 +55,16 @@ function failing(times: number, first: Reply) {
   return (request: Seen) => (count++ < times ? first : upstream(request));
 }
 
-// The real layers on the real fetch client, pointed at the local server, without log output.
+// Every log line of the worker, as text with its annotations, instead of console output.
+const logs: string[] = [];
+const capture = Logger.make(({ message, fiber }) => {
+  const annotations = fiber.getRef(References.CurrentLogAnnotations);
+  logs.push([[message].flat().map(String).join(" "), JSON.stringify(annotations)].join(" "));
+});
+
+// The real layers on the real fetch client, pointed at the local server, logging into `logs`.
 function layers(depot = depotUrl, badgen = server.url) {
-  return Layer.mergeAll(depotLayer(depot), socketLayer(badgen), Logger.layer([])).pipe(
+  return Layer.mergeAll(depotLayer(depot), socketLayer(badgen), Logger.layer([capture])).pipe(
     Layer.provide(FetchHttpClient.layer),
   );
 }
@@ -81,6 +88,7 @@ async function closedUrl(): Promise<string> {
 
 beforeEach(() => {
   server.reset();
+  logs.length = 0;
   server.reply(upstream);
   app = makeWorker(layers());
 });
@@ -249,11 +257,11 @@ describe("caching", () => {
     ]);
   });
 
-  it("does not keep a failure, so the next request asks again", async () => {
-    server.reply(failing(1, { status: 401 }));
+  it("keeps a failure, so a failing Depot gets one lookup per key and not one per request", async () => {
+    server.reply(() => ({ status: 500 }));
 
     await expect(json("/ci/check.json")).resolves.toMatchObject({ status: "unknown" });
-    await expect(json("/ci/check.json")).resolves.toMatchObject({ status: "passing" });
+    await expect(json("/ci/test.json")).resolves.toMatchObject({ status: "unknown" });
     expect(server.seen).toHaveLength(3);
   });
 
@@ -291,6 +299,57 @@ describe("caching", () => {
       yield* TestClock.adjust("2 seconds");
       yield* service.latestWorkflow("tunnckoCoreHQ/monarch", "ci");
       expect(server.seen).toHaveLength(4);
+    }).pipe(Effect.provide(depot)),
+  );
+
+  it.effect("asks Depot again 5 seconds after a failure", () =>
+    Effect.gen(function* () {
+      server.reply(failing(1, { status: 401 }));
+      const service = yield* Depot;
+      yield* Effect.flip(service.latestWorkflow("tunnckoCoreHQ/monarch", "ci"));
+
+      yield* TestClock.adjust("4 seconds");
+      yield* Effect.flip(service.latestWorkflow("tunnckoCoreHQ/monarch", "ci"));
+      expect(server.seen).toHaveLength(1);
+
+      yield* TestClock.adjust("2 seconds");
+      const found = yield* service.latestWorkflow("tunnckoCoreHQ/monarch", "ci");
+      expect(Option.isSome(found)).toBe(true);
+      expect(server.seen).toHaveLength(3);
+    }).pipe(Effect.provide(depot)),
+  );
+
+  it.effect("gives each attempt 5 seconds, then retries, and fails after the third", () =>
+    Effect.gen(function* () {
+      server.reply(() => ({ hang: true }));
+      const service = yield* Depot;
+      const fiber = yield* Effect.forkChild(
+        Effect.exit(service.latestWorkflow("tunnckoCoreHQ/monarch", "ci")),
+      );
+
+      for (const attempt of [1, 2, 3]) {
+        yield* Effect.promise(() => vi.waitFor(() => expect(server.seen).toHaveLength(attempt)));
+        yield* TestClock.adjust("5 seconds");
+        yield* TestClock.adjust("1 second");
+      }
+
+      expect(Exit.isFailure(yield* Fiber.join(fiber))).toBe(true);
+      expect(server.seen).toHaveLength(3);
+    }).pipe(Effect.provide(depot)),
+  );
+
+  it.effect("does not keep an interrupted lookup", () =>
+    Effect.gen(function* () {
+      server.reply(() => ({ hang: true }));
+      const service = yield* Depot;
+      const fiber = yield* Effect.forkChild(service.latestWorkflow("tunnckoCoreHQ/monarch", "ci"));
+      yield* Effect.promise(() => vi.waitFor(() => expect(server.seen).toHaveLength(1)));
+      yield* Fiber.interrupt(fiber);
+
+      server.reply(upstream);
+      const found = yield* service.latestWorkflow("tunnckoCoreHQ/monarch", "ci");
+      expect(Option.isSome(found)).toBe(true);
+      expect(server.seen).toHaveLength(3);
     }).pipe(Effect.provide(depot)),
   );
 });
@@ -470,6 +529,55 @@ describe("routing", () => {
     await expect(
       (await worker.fetch(new Request("https://badges.wgw.lol/health"), env)).json(),
     ).resolves.toMatchObject({ commit: "abc123" });
+  });
+
+  it("answers 502 for a thrown error, like the worker before Effect", async () => {
+    const broken = {
+      ...env,
+      get COMMIT_SHA(): string {
+        throw new Error("boom");
+      },
+    };
+
+    expect((await get("/health", broken)).status).toBe(502);
+    expect(logs).toEqual([expect.stringContaining("Request failed Error: boom")]);
+  });
+});
+
+describe("logs", () => {
+  it("names the Depot call, its cause, and the path", async () => {
+    server.reply(() => ({ status: 401 }));
+    await json("/ci/check.json");
+
+    expect(logs).toEqual([
+      expect.stringMatching(
+        /^Depot ListWorkflows failed .*401.*"path":"\/tunnckoCoreHQ\/monarch\/ci\/check.json"/,
+      ),
+    ]);
+  });
+
+  it("names a missing token", async () => {
+    const noToken: Env = { ...env };
+    Reflect.deleteProperty(noToken, "BADGES_DEPOT_TOKEN");
+    await get("/tunnckoCoreHQ/monarch/ci/test.json", noToken);
+
+    expect(logs).toEqual([
+      expect.stringMatching(/^Depot ListWorkflows failed .*BADGES_DEPOT_TOKEN/s),
+    ]);
+  });
+
+  it("names the badgen cause of the Socket badge", async () => {
+    server.reply(() => ({ status: 404 }));
+    await badge("/socket");
+
+    expect(logs).toEqual([expect.stringMatching(/^Socket badge failed .*404/)]);
+  });
+
+  it("logs a failed job redirect once", async () => {
+    server.reply(() => ({ status: 401 }));
+    expect((await badge("/ci/test")).status).toBe(502);
+
+    expect(logs).toEqual([expect.stringMatching(/^Depot ListWorkflows failed .*401/)]);
   });
 });
 
