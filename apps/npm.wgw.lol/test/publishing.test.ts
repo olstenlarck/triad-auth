@@ -3,7 +3,12 @@ import type { JWTPayload } from "jose";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../src/env";
-import app from "../src/index";
+import worker from "../src/index";
+
+const app = {
+  request: (url: string, init: RequestInit, bindings: Env) =>
+    worker.fetch(new Request(url, init), bindings),
+};
 
 const env: Env = {
   ALLOWED_GITHUB_LOGIN: "tunnckoCore",
@@ -143,9 +148,7 @@ describe("OIDC token exchange", () => {
   });
 
   it("issues a token that the publish route accepts", async () => {
-    const { token: exchanged } = (await (await exchange(await token())).json()) as {
-      token: string;
-    };
+    const { token: exchanged } = await (await exchange(await token())).json<{ token: string }>();
     expect((await publish(exchanged)).status).toBe(201);
     expect(upstream.mock.calls[0][1].headers.get("authorization")).toBe(
       "Bearer write-service-token",

@@ -1,200 +1,167 @@
-import { Hono } from "hono";
+import * as Config from "effect/Config";
+import * as ConfigProvider from "effect/ConfigProvider";
+import * as Effect from "effect/Effect";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import * as HttpRouter from "effect/http/HttpRouter";
+import * as HttpServerRequest from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import * as Layer from "effect/Layer";
 
 import type { Env } from "./env";
-import { validatePublishRequest, verifyPublishToken } from "./utils";
-import type { PublishTag } from "./utils";
+import { BadGateway, BadRequest, MethodNotAllowed, NotFound, Unauthorized } from "./errors";
+import { GitHub } from "./github";
+import { DepotIdentity, validatePublishRequest } from "./publishing";
+import { Vlt } from "./vlt";
 
-const app = new Hono<{ Bindings: Env }>();
+const scopedPackage = /^@tunnckocore\/[a-z0-9][a-z0-9._-]*$/;
+
+const decode = (value: string, onError: NotFound | BadRequest) =>
+  Effect.try({ try: () => decodeURIComponent(value), catch: () => onError });
+
+const bearerToken = (request: HttpServerRequest.HttpServerRequest) =>
+  /^Bearer\s+(.+)$/i.exec(request.headers.authorization ?? "")?.[1];
 
 // Registry paths never start with "/-/health", so this cannot shadow a package.
-app.get("/-/health", (c) => {
-  const sha = c.env.COMMIT_SHA;
-  const link =
-    sha === "local"
-      ? "https://github.com/tunnckoCoreHQ/monarch"
-      : `https://github.com/tunnckoCoreHQ/monarch/commit/${sha}`;
+const HealthRoute = Layer.unwrap(
+  Effect.gen(function* () {
+    const commit = yield* Config.String("COMMIT_SHA");
+    const link =
+      commit === "local"
+        ? "https://github.com/tunnckoCoreHQ/monarch"
+        : `https://github.com/tunnckoCoreHQ/monarch/commit/${commit}`;
 
-  return c.json({ ok: true, link, commit: sha });
-});
+    return HttpRouter.add("GET", "/-/health", HttpServerResponse.json({ ok: true, link, commit }));
+  }),
+);
 
 // Trusted publishing: npm-compatible clients POST the Depot CI OIDC token here and use the
 // returned token as the bearer for the publish itself. VLT has no OIDC support, so this worker
-// is the exchange endpoint. The verified Depot token is returned as-is; the write handler
-// below verifies it again on every request.
-app.post("/-/npm/v1/oidc/token/exchange/package/*", async (c) => {
-  let name: string;
-  try {
-    name = decodeURIComponent(c.req.path.slice("/-/npm/v1/oidc/token/exchange/package/".length));
-  } catch {
-    return c.json({ message: "Invalid package name" }, 400);
-  }
-  if (!/^@tunnckocore\/[a-z0-9][a-z0-9._-]*$/.test(name)) {
-    return c.json({ message: "Package not found" }, 404);
-  }
-  const bearer = /^Bearer\s+(.+)$/i.exec(c.req.header("authorization") ?? "")?.[1];
-  if (!bearer) {
-    return c.json({ message: "Unauthorized" }, 401);
-  }
-  try {
-    await verifyPublishToken(bearer);
-  } catch {
-    return c.json({ message: "Unauthorized" }, 401);
-  }
-  return c.json({ token: bearer });
-});
+// is the exchange endpoint. The verified Depot token is returned as-is; the proxy route verifies
+// it again on every write.
+const ExchangeRoute = HttpRouter.add(
+  "POST",
+  "/-/npm/v1/oidc/token/exchange/package/*",
+  Effect.fn("Registry.exchange")(function* (request) {
+    const depot = yield* DepotIdentity;
+    const url = new URL(request.originalUrl);
+
+    const name = yield* decode(
+      url.pathname.slice("/-/npm/v1/oidc/token/exchange/package/".length),
+      new BadRequest({ message: "Invalid package name" }),
+    );
+    if (!scopedPackage.test(name)) {
+      return yield* new NotFound();
+    }
+
+    const bearer = bearerToken(request);
+    if (!bearer) {
+      return yield* new Unauthorized();
+    }
+    yield* depot.verify(bearer);
+
+    return yield* HttpServerResponse.json({ token: bearer });
+  }),
+);
 
 // pnpm asks for package visibility before attaching provenance. VLT packages are private and
 // provenance would publish build metadata to Sigstore's public log, so answer "not public" and
 // pnpm skips provenance without a warning. Publishing to npm is unaffected: pnpm asks npm there.
-app.get("/-/package/:name/visibility", (c) => {
-  let name: string;
-  try {
-    name = decodeURIComponent(c.req.param("name"));
-  } catch {
-    return c.notFound();
-  }
-  if (!/^@tunnckocore\/[a-z0-9][a-z0-9._-]*$/.test(name)) {
-    return c.notFound();
-  }
-  return c.json({ public: false });
-});
+const VisibilityRoute = HttpRouter.add(
+  "GET",
+  "/-/package/:name/visibility",
+  Effect.fn("Registry.visibility")(function* (request) {
+    const url = new URL(request.originalUrl);
+    const [, encodedName = ""] = /^\/-\/package\/(.+)\/visibility$/.exec(url.pathname) ?? [];
 
-app.all("*", async (c) => {
-  const request = c.req.raw;
-  const url = new URL(request.url);
-
-  let path: string;
-  try {
-    path = decodeURIComponent(url.pathname);
-  } catch {
-    return c.notFound();
-  }
-
-  const isPackagePath = /^\/@tunnckocore\/[a-z0-9][a-z0-9._-]*(?:\/.*)?$/.test(path);
-  const isDistTagPath =
-    /^\/-\/package\/@tunnckocore\/[a-z0-9][a-z0-9._-]*\/dist-tags(?:\/.*)?$/.test(path);
-  const hasTraversal = path.split("/").some((segment) => segment === "." || segment === "..");
-
-  if ((!isPackagePath && !isDistTagPath) || hasTraversal) {
-    return c.notFound();
-  }
-
-  const isRead = request.method === "GET" || request.method === "HEAD";
-  const isWrite =
-    request.method === "PUT" || request.method === "POST" || request.method === "DELETE";
-
-  if (!isRead && !isWrite) {
-    return c.text("Method not allowed", 405, { allow: "GET, HEAD, PUT, POST, DELETE" });
-  }
-
-  let token: string;
-  if (isRead) {
-    token = c.env.VLT_READ_TOKEN;
-  } else {
-    const bearer = /^Bearer\s+(.+)$/i.exec(request.headers.get("authorization") ?? "")?.[1];
-    if (!bearer) {
-      return c.text("Unauthorized", 401, {
-        "www-authenticate": `Bearer realm="${url.host}"`,
-      });
+    const name = yield* decode(encodedName, new NotFound());
+    if (!scopedPackage.test(name)) {
+      return yield* new NotFound();
     }
 
-    if (bearer.split(".").length === 3) {
-      let tag: PublishTag;
-      try {
-        tag = await verifyPublishToken(bearer);
-      } catch {
-        return c.text("Unauthorized", 401);
-      }
-      try {
-        if (!(await validatePublishRequest(request, path, tag))) {
-          return c.text("Forbidden", 403);
-        }
-      } catch {
-        return c.text("Invalid publish request", 400);
-      }
-    } else {
-      const github = await fetch("https://api.github.com/user", {
-        headers: {
-          accept: "application/vnd.github+json",
-          authorization: `Bearer ${bearer}`,
-          "user-agent": "vlt-npm-wgw-lol",
-          "x-github-api-version": "2026-03-10",
-        },
-      });
-      if (github.status === 401) {
-        return c.text("Unauthorized", 401);
-      }
-      if (!github.ok) {
-        return c.text("GitHub authorization unavailable", 502);
-      }
+    return yield* HttpServerResponse.json({ public: false });
+  }),
+);
 
-      const profile: unknown = await github.json();
-      if (
-        typeof profile !== "object" ||
-        profile === null ||
-        !("login" in profile) ||
-        typeof profile.login !== "string"
-      ) {
-        return c.text("GitHub authorization unavailable", 502);
-      }
-      if (profile.login.toLowerCase() !== c.env.ALLOWED_GITHUB_LOGIN.toLowerCase()) {
-        return c.text("Forbidden", 403);
-      }
+const ProxyRoute = HttpRouter.add(
+  "*",
+  "/*",
+  Effect.fn("Registry.proxy")(function* (request) {
+    const vlt = yield* Vlt;
+    const source = yield* HttpServerRequest.toWeb(request).pipe(
+      Effect.mapError((cause) => new BadGateway({ message: "Bad gateway", cause })),
+    );
+    const path = yield* decode(new URL(source.url).pathname, new NotFound());
+
+    const isPackagePath = /^\/@tunnckocore\/[a-z0-9][a-z0-9._-]*(?:\/.*)?$/.test(path);
+    const isDistTagPath =
+      /^\/-\/package\/@tunnckocore\/[a-z0-9][a-z0-9._-]*\/dist-tags(?:\/.*)?$/.test(path);
+    const hasTraversal = path.split("/").some((segment) => segment === "." || segment === "..");
+    if ((!isPackagePath && !isDistTagPath) || hasTraversal) {
+      return yield* new NotFound();
     }
 
-    token = c.env.VLT_WRITE_TOKEN;
+    const isRead = request.method === "GET" || request.method === "HEAD";
+    const isWrite =
+      request.method === "PUT" || request.method === "POST" || request.method === "DELETE";
+    if (!isRead && !isWrite) {
+      return yield* new MethodNotAllowed();
+    }
+
+    if (isWrite) {
+      yield* authorizeWrite(request, source, path);
+    }
+
+    const response = yield* vlt.forward(source, {
+      access: isRead ? "read" : "write",
+      path,
+      isDistTagPath,
+    });
+    return HttpServerResponse.raw(response);
+  }),
+);
+
+// A JWT bearer is a Depot CI OIDC token from a publishing workflow; any other bearer is a
+// GitHub token from a local publish.
+const authorizeWrite = Effect.fn("Registry.authorizeWrite")(function* (
+  request: HttpServerRequest.HttpServerRequest,
+  source: Request,
+  path: string,
+) {
+  const bearer = bearerToken(request);
+  if (!bearer) {
+    return yield* new Unauthorized();
   }
 
-  const upstreamPath = isDistTagPath
-    ? url.pathname.replace(/(%40|@)tunnckocore%2f/i, "$1tunnckocore%252F")
-    : url.pathname;
-  const upstream = new URL(upstreamPath.replace(/^\/+/, ""), c.env.VLT_UPSTREAM_URL);
-  upstream.search = url.search;
-
-  const headers = new Headers(request.headers);
-  headers.delete("host");
-  headers.set("authorization", `Bearer ${token}`);
-
-  const isTarball = path.includes("/-/") && path.endsWith(".tgz");
-  const response = await fetch(upstream, {
-    method: request.method,
-    headers,
-    body: request.body,
-    redirect: "follow",
-    cf:
-      isRead && isTarball
-        ? {
-            cacheEverything: true,
-            cacheTtl: 31_536_000,
-          }
-        : undefined,
-  });
-
-  if (!isRead || !response.ok) {
-    return response;
+  if (bearer.split(".").length === 3) {
+    const depot = yield* DepotIdentity;
+    const tag = yield* depot.verify(bearer);
+    return yield* validatePublishRequest(source, path, tag);
   }
 
-  const responseHeaders = new Headers(response.headers);
-  responseHeaders.set(
-    "cache-control",
-    isTarball ? "public, max-age=31536000, immutable" : "public, max-age=60",
-  );
-
-  if (
-    isTarball ||
-    request.method === "HEAD" ||
-    !response.headers.get("content-type")?.includes("json")
-  ) {
-    return new Response(response.body, { status: response.status, headers: responseHeaders });
-  }
-
-  const body = (await response.text()).replaceAll(c.env.VLT_UPSTREAM_URL, `${url.origin}/`);
-  responseHeaders.delete("content-length");
-  responseHeaders.delete("etag");
-
-  return new Response(body, { status: response.status, headers: responseHeaders });
+  const github = yield* GitHub;
+  yield* github.authorize(bearer);
 });
 
-app.onError((_error, c) => c.text("Bad gateway", 502));
+const Services = Layer.mergeAll(DepotIdentity.layer, Vlt.layer, GitHub.layer).pipe(
+  Layer.provide(FetchHttpClient.layer),
+);
 
-export default app;
+// The services are built once with the router and provided to every request.
+const Routes = Layer.mergeAll(HealthRoute, ExchangeRoute, VisibilityRoute, ProxyRoute).pipe(
+  HttpRouter.provideRequest(Services),
+);
+
+// Bindings arrive with the first request, so each isolate builds the app once from them.
+let web: ReturnType<typeof makeWebHandler> | undefined;
+
+function makeWebHandler(env: Env) {
+  const config = ConfigProvider.layer(ConfigProvider.fromUnknown(env));
+  return HttpRouter.toWebHandler(Routes.pipe(Layer.provide(config)), { disableLogger: true });
+}
+
+export default {
+  fetch(request: Request, env: Env) {
+    web ??= makeWebHandler(env);
+    return web.handler(request);
+  },
+} satisfies ExportedHandler<Env>;
