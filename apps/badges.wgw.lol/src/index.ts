@@ -1,4 +1,12 @@
 import { badgen } from "badgen";
+import { Config, ConfigProvider, Context, Effect, Layer, Option, Schema } from "effect";
+import {
+  FetchHttpClient,
+  HttpBody,
+  HttpClient,
+  HttpClientRequest,
+  HttpIncomingMessage,
+} from "effect/http";
 
 import type { Env } from "./env";
 
@@ -17,30 +25,6 @@ interface Badge {
   color: string;
 }
 
-interface ListWorkflowsRequest {
-  repo: string;
-  name: string;
-  trigger: string;
-  status: string[];
-  pageSize: number;
-}
-
-interface GetWorkflowRequest {
-  workflowId: string;
-}
-
-interface ListWorkflowsResponse {
-  workflows?: Array<{ workflowId: string; workflowPath: string }>;
-}
-
-interface GetWorkflowResponse {
-  orgId: string;
-  repo: string;
-  workflowId: string;
-  workflowStatus: string;
-  jobs?: Array<{ jobId: string; jobKey: string; status: string }>;
-}
-
 const STATUS: Record<string, Pick<Badge, "status" | "color">> = {
   finished: { status: "passing", color: "green" },
   failed: { status: "failing", color: "red" },
@@ -48,48 +32,89 @@ const STATUS: Record<string, Pick<Badge, "status" | "color">> = {
   skipped: { status: "skipped", color: "grey" },
 };
 
-async function depot<T>(
-  env: Env,
-  method: string,
-  body: ListWorkflowsRequest | GetWorkflowRequest,
-): Promise<T> {
-  const response = await fetch(`${DEPOT_API}/${method}`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${env.BADGES_DEPOT_TOKEN}`,
-      "connect-protocol-version": "1",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    throw new Error(`Depot ${method} answered ${response.status}`);
-  }
-  // SAFETY: the Depot CI API answers this method with this shape, checked by response.ok above.
-  return response.json();
+const WorkflowList = Schema.Struct({
+  workflows: Schema.optionalKey(
+    Schema.Array(Schema.Struct({ workflowId: Schema.String, workflowPath: Schema.String })),
+  ),
+});
+
+const Workflow = Schema.Struct({
+  orgId: Schema.String,
+  repo: Schema.String,
+  workflowId: Schema.String,
+  workflowStatus: Schema.String,
+  jobs: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({ jobId: Schema.String, jobKey: Schema.String, status: Schema.String }),
+    ),
+  ),
+});
+
+interface Workflow extends Schema.Schema.Type<typeof Workflow> {}
+
+class DepotError extends Schema.TaggedError<DepotError>()("Depot.DepotError", {
+  method: Schema.String,
+  cause: Schema.Defect(),
+}) {}
+
+class BadgenError extends Schema.TaggedError<BadgenError>()("Socket.BadgenError", {
+  cause: Schema.Defect(),
+}) {}
+
+interface DepotInterface {
+  readonly latestWorkflow: (
+    repo: string,
+    workflow: string,
+  ) => Effect.Effect<Option.Option<Workflow>, DepotError>;
 }
 
-// The newest finished or failed workflow from a master push. In this repository only master
-// pushes have the push trigger, and skipping running workflows keeps the badge from flickering.
-async function latestWorkflow(
-  env: Env,
-  repo: string,
-  workflow: string,
-): Promise<GetWorkflowResponse | undefined> {
-  const { workflows = [] } = await depot<ListWorkflowsResponse>(env, "ListWorkflows", {
-    repo,
-    name: workflow,
-    trigger: "push",
-    status: ["finished", "failed"],
-    pageSize: 50,
-  });
-  const file = new RegExp(`(?:^|/)${workflow.replaceAll(".", "\\.")}\\.ya?ml$`);
-  const found = workflows.find((item) => file.test(item.workflowPath));
-  if (!found) {
-    return undefined;
-  }
-  return depot<GetWorkflowResponse>(env, "GetWorkflow", { workflowId: found.workflowId });
-}
+class Depot extends Context.Service<Depot, DepotInterface>()("Badges.Depot") {}
+
+const DepotLive = Layer.effect(
+  Depot,
+  Effect.gen(function* () {
+    // A Depot organization token for pcnr2v598s.
+    const token = yield* Config.Redacted("BADGES_DEPOT_TOKEN");
+    const client = (yield* HttpClient.HttpClient).pipe(
+      HttpClient.mapRequest((request) =>
+        request.pipe(
+          HttpClientRequest.prependUrl(DEPOT_API),
+          HttpClientRequest.bearerToken(token),
+          HttpClientRequest.setHeader("connect-protocol-version", "1"),
+        ),
+      ),
+      HttpClient.filterStatusOk,
+    );
+
+    const call = <S extends Schema.Constraint>(method: string, body: unknown, schema: S) =>
+      client.post(`/${method}`, { body: HttpBody.jsonUnsafe(body) }).pipe(
+        Effect.flatMap(HttpIncomingMessage.schemaBodyJson(schema)),
+        Effect.mapError((cause) => new DepotError({ method, cause })),
+        Effect.withSpan(`Depot.${method}`),
+      );
+
+    // The newest finished or failed workflow from a master push. In this repository only master
+    // pushes have the push trigger, and skipping running workflows keeps the badge from flickering.
+    const latestWorkflow = Effect.fn("Depot.latestWorkflow")(function* (
+      repo: string,
+      workflow: string,
+    ) {
+      const { workflows = [] } = yield* call(
+        "ListWorkflows",
+        { repo, name: workflow, trigger: "push", status: ["finished", "failed"], pageSize: 50 },
+        WorkflowList,
+      );
+      const file = new RegExp(`(?:^|/)${workflow.replaceAll(".", "\\.")}\\.ya?ml$`);
+      const found = workflows.find((item) => file.test(item.workflowPath));
+      if (!found) {
+        return Option.none();
+      }
+      return Option.some(yield* call("GetWorkflow", { workflowId: found.workflowId }, Workflow));
+    });
+
+    return Depot.of({ latestWorkflow });
+  }),
+);
 
 function render(badge: Badge, format: string, icon?: string): Response {
   const headers = { "cache-control": "public, max-age=60" };
@@ -103,29 +128,23 @@ function render(badge: Badge, format: string, icon?: string): Response {
 
 // The badgen GitHub checks badge of the Socket report on master, saying passing and failing
 // like the Depot badges instead of success and failure.
-async function socket(repo: string): Promise<Response> {
-  try {
-    const response = await fetch(
+const socket = Effect.fn("Badges.socket")(function* (repo: string) {
+  const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
+  const svg = yield* client
+    .get(
       `https://badgen.net/github/checks/${repo}/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket`,
+    )
+    .pipe(
+      Effect.flatMap((response) => response.text),
+      Effect.mapError((cause) => new BadgenError({ cause })),
     );
-    if (!response.ok) {
-      throw new Error(`badgen answered ${response.status}`);
-    }
-    const svg = (await response.text())
-      .replaceAll("success", "passing")
-      .replaceAll("failure", "failing");
-    return new Response(svg, {
-      headers: {
-        "cache-control": "public, max-age=60",
-        "content-type": "image/svg+xml; charset=utf-8",
-      },
-    });
-  } catch (error) {
-    // A broken image helps nobody, so the badge shows "unknown" like the Depot badges.
-    console.error(error);
-    return render({ subject: "Socket Security", status: "unknown", color: "grey" }, "svg");
-  }
-}
+  return new Response(svg.replaceAll("success", "passing").replaceAll("failure", "failing"), {
+    headers: {
+      "cache-control": "public, max-age=60",
+      "content-type": "image/svg+xml; charset=utf-8",
+    },
+  });
+});
 
 function health(sha: string): Response {
   const link =
@@ -135,7 +154,7 @@ function health(sha: string): Response {
   return Response.json({ ok: true, link, commit: sha });
 }
 
-async function handle(request: Request, env: Env): Promise<Response> {
+const handle = Effect.fn("Badges.handle")(function* (request: Request, env: Env) {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET, HEAD" } });
   }
@@ -152,48 +171,71 @@ async function handle(request: Request, env: Env): Promise<Response> {
     return new Response("Not Found", { status: 404 });
   }
   if (workflow === "socket" && !job) {
-    return socket(`${owner}/${name}`);
+    // A broken image helps nobody, so the badge shows "unknown" like the Depot badges.
+    return yield* socket(`${owner}/${name}`).pipe(
+      Effect.tapError(Effect.logError),
+      Effect.orElseSucceed(() =>
+        render({ subject: "Socket Security", status: "unknown", color: "grey" }, "svg"),
+      ),
+    );
   }
   if (!format && !job) {
     return Response.redirect(DEPOT_CI_PRODUCT, 302);
   }
 
+  const depot = yield* Depot;
   const subject = job ? `${workflow}: ${job}` : workflow;
-  const unknown: Badge = { subject, status: "unknown", color: "grey" };
-  let found: GetWorkflowResponse | undefined;
-  try {
-    found = await latestWorkflow(env, `${owner}/${name}`, workflow);
-  } catch (error) {
-    // A broken image helps nobody, so badges show "unknown"; the redirect answers 502.
-    if (!format) {
-      throw error;
-    }
-    console.error(error);
-  }
-  const foundJob = found?.jobs?.find((item) => item.jobKey.split(":").at(-1) === job);
 
   if (!format) {
-    if (!found || !foundJob) {
+    // The redirect has no truthful fallback, so a Depot error stays a failure and answers 502.
+    const found = yield* depot.latestWorkflow(`${owner}/${name}`, workflow);
+    const foundJob = Option.getOrUndefined(found)?.jobs?.find(
+      (item) => item.jobKey.split(":").at(-1) === job,
+    );
+    if (Option.isNone(found) || !foundJob) {
       return new Response("Not Found", { status: 404 });
     }
-    const link = new URL(`https://depot.dev/orgs/${found.orgId}/workflows/${found.workflowId}`);
+    const link = new URL(
+      `https://depot.dev/orgs/${found.value.orgId}/workflows/${found.value.workflowId}`,
+    );
     link.searchParams.set("job", foundJob.jobId);
-    link.searchParams.set("repo", found.repo);
+    link.searchParams.set("repo", found.value.repo);
     return Response.redirect(link.href, 302);
   }
 
-  const status = job ? foundJob?.status : found?.workflowStatus;
+  // A broken image helps nobody, so badges show "unknown" on a Depot error.
+  const found = yield* depot.latestWorkflow(`${owner}/${name}`, workflow).pipe(
+    Effect.tapError(Effect.logError),
+    Effect.orElseSucceed(() => Option.none<Workflow>()),
+  );
+  const status = Option.match(found, {
+    onNone: () => undefined,
+    onSome: (item) =>
+      job
+        ? item.jobs?.find((entry) => entry.jobKey.split(":").at(-1) === job)?.status
+        : item.workflowStatus,
+  });
   const known = status ? STATUS[status] : undefined;
-  return render(known ? { subject, ...known } : unknown, format, DEPOT_ICON);
-}
+  return render(
+    known ? { subject, ...known } : { subject, status: "unknown", color: "grey" },
+    format,
+    DEPOT_ICON,
+  );
+});
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    try {
-      return await handle(request, env);
-    } catch (error) {
-      console.error(error);
-      return new Response("Bad Gateway", { status: 502 });
-    }
+  fetch(request: Request, env: Env): Promise<Response> {
+    return handle(request, env).pipe(
+      Effect.provide(DepotLive),
+      Effect.provide(FetchHttpClient.layer),
+      // The Fetch reference caches globalThis.fetch on first use, so each request names it.
+      Effect.provideService(FetchHttpClient.Fetch, fetch),
+      // The Worker bindings are the config source, so the token is read like any other Config.
+      Effect.provide(ConfigProvider.layer(ConfigProvider.fromUnknown(env))),
+      Effect.catch((error) =>
+        Effect.logError(error).pipe(Effect.as(new Response("Bad Gateway", { status: 502 }))),
+      ),
+      Effect.runPromise,
+    );
   },
 } satisfies ExportedHandler<Env>;

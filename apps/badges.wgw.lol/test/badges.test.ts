@@ -128,7 +128,10 @@ describe("socket", () => {
     expect(response.headers.get("content-type")).toBe("image/svg+xml; charset=utf-8");
     expect(await response.text()).toBe("<svg>Socket Security: passing</svg>");
     expect(badgenFetch).toHaveBeenCalledWith(
-      "https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket",
+      new URL(
+        "https://badgen.net/github/checks/tunnckoCoreHQ/monarch/master/Socket%20Security:%20Project%20Report?label=Socket%20Security&labelColor=black&icon=socket",
+      ),
+      expect.anything(),
     );
 
     badgenFetch.mockResolvedValueOnce(new Response("<svg>Socket Security: failure</svg>"));

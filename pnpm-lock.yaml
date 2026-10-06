@@ -230,6 +230,9 @@ importers:
       badgen:
         specifier: 'catalog:'
         version: 3.3.2
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0
     devDependencies:
       alchemy:
         specifier: 'catalog:'
