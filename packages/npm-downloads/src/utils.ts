@@ -156,8 +156,7 @@ export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T
     );
   }
 
-  // SAFETY: callers type the JSON body they expect and validate the fields they read.
-  return response.json() as Promise<T>;
+  return response.json();
 }
 
 /**
