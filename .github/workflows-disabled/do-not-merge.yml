@@ -1,3 +1,8 @@
+# DISABLED BACKUP. GitHub runs workflows only from .github/workflows, so this file never runs.
+# The master ruleset holds pull requests with two required approvals instead. To restore the
+# label hold, move this file back to .github/workflows and require the do-not-merge status in
+# the master ruleset.
+#
 # Holds a pull request to master while it carries the do-not-merge label. The master ruleset
 # requires do-not-merge, so auto-merge waits while it is pending. Each event replaces the
 # do-not-merge commit status on the head commit, so a held pull request shows pending, not a

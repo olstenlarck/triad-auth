@@ -1,7 +1,6 @@
 {
   "strictness": 2,
-  "triggerOnUpdates": false,
-  "excludeAuthors": ["dependabot[bot]"],
+  "autoReview": ["open", "push", "rebase"],
   "ignoreKeywords": "chore: release packages",
   "autoApprove": {
     "enabled": true
