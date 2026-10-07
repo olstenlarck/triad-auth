@@ -1,6 +1,17 @@
 import { describe, expect, it } from "@effect/vitest";
-import { ConfigProvider, Effect, Exit, Fiber, Layer, Logger, Option, References } from "effect";
-import { FetchHttpClient } from "effect/http";
+import {
+  Cause,
+  ConfigProvider,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Logger,
+  Option,
+  References,
+} from "effect";
+import { FetchHttpClient, HttpClient } from "effect/http";
 import { TestClock } from "effect/testing";
 import { afterAll, beforeEach, vi } from "vitest";
 
@@ -89,19 +100,25 @@ async function closedUrl(): Promise<string> {
   return closed.url;
 }
 
-// Moves the test clock a second every few real milliseconds until the lookup ends, so the test
-// does not depend on when the headers reach the client. Without the body timeout, the lookup
-// never ends and the test times out.
-const settle = <A, E>(lookup: Effect.Effect<A, E>) =>
+// The real fetch client, which also signals once the response headers have arrived.
+const signalHeaders = (arrived: Deferred.Deferred<true>) =>
+  Layer.effect(
+    HttpClient.HttpClient,
+    Effect.gen(function* () {
+      const client = yield* HttpClient.HttpClient;
+      return client.pipe(HttpClient.tap(() => Deferred.succeed(arrived, true)));
+    }),
+  ).pipe(Layer.provide(FetchHttpClient.layer));
+
+// Starts the lookup, waits until its headers have arrived so only the stalled body is left, then
+// moves the test clock 5 seconds and returns the error. Without the body timeout, the lookup never
+// ends and the test times out.
+const afterHeaders = <A, E>(arrived: Deferred.Deferred<true>, lookup: Effect.Effect<A, E>) =>
   Effect.gen(function* () {
-    yield* Effect.forkChild(
-      Effect.forever(
-        TestClock.adjust("1 second").pipe(
-          Effect.andThen(Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 5)))),
-        ),
-      ),
-    );
-    return yield* Effect.exit(lookup);
+    const fiber = yield* Effect.forkChild(Effect.flip(lookup));
+    yield* Deferred.await(arrived);
+    yield* TestClock.adjust("5 seconds");
+    return yield* Fiber.join(fiber);
   });
 
 beforeEach(() => {
@@ -371,24 +388,37 @@ describe("caching", () => {
     }).pipe(Effect.provide(depot)),
   );
 
-  it.effect("fails a Depot body that stalls, instead of waiting for it", () =>
+  it.effect("times out a Depot body that stalls after the headers, without a retry", () =>
     Effect.gen(function* () {
       server.reply(() => ({ stall: true }));
-      const service = yield* Depot;
-      const exit = yield* settle(service.latestWorkflow("tunnckoCoreHQ/monarch", "ci"));
+      const arrived = yield* Deferred.make<true>();
+      const layer = Layer.mergeAll(
+        depotLayer(depotUrl).pipe(Layer.provide(signalHeaders(arrived))),
+        ConfigProvider.layer(ConfigProvider.fromUnknown(env)),
+      );
+      const error = yield* Effect.gen(function* () {
+        const service = yield* Depot;
+        return yield* afterHeaders(arrived, service.latestWorkflow("tunnckoCoreHQ/monarch", "ci"));
+      }).pipe(Effect.provide(layer));
 
-      expect(Exit.isFailure(exit)).toBe(true);
-    }).pipe(Effect.provide(depot)),
+      expect(Cause.isTimeoutError(error.cause)).toBe(true);
+      expect(server.seen).toHaveLength(1);
+    }),
   );
 
-  it.effect("fails a badgen body that stalls, instead of waiting for it", () =>
+  it.effect("times out a badgen body that stalls after the headers, without a retry", () =>
     Effect.gen(function* () {
       server.reply(() => ({ stall: true }));
-      const service = yield* Socket;
-      const exit = yield* settle(service.badge("tunnckoCoreHQ/monarch"));
+      const arrived = yield* Deferred.make<true>();
+      const layer = socketLayer(server.url).pipe(Layer.provide(signalHeaders(arrived)));
+      const error = yield* Effect.gen(function* () {
+        const service = yield* Socket;
+        return yield* afterHeaders(arrived, service.badge("tunnckoCoreHQ/monarch"));
+      }).pipe(Effect.provide(layer));
 
-      expect(Exit.isFailure(exit)).toBe(true);
-    }).pipe(Effect.provide(socketLayer(server.url).pipe(Layer.provide(FetchHttpClient.layer)))),
+      expect(Cause.isTimeoutError(error.cause)).toBe(true);
+      expect(server.seen).toHaveLength(1);
+    }),
   );
 });
 
