@@ -4,6 +4,7 @@ import { local } from "@flue/runtime/node";
 import * as v from "valibot";
 
 import { github } from "../github";
+import { model } from "../model";
 
 // The workflow sets these for each run. The tools read them here, so the model cannot point a
 // tool at another pull request or at a thread that the agent did not open.
@@ -12,8 +13,9 @@ const pull = `/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}`;
 // Root comment id -> thread id of the agent's unresolved threads.
 const openThreads: Record<string, string> = JSON.parse(OPEN_THREADS ?? "{}");
 
-// The status job finds the agent's reviews by this marker.
-const marker = "<!-- review-agent -->";
+// The status job finds the agent's reviews by this marker, and the workflow reads the model from it,
+// so a model picked with /review stays for the later runs of the pull request.
+const marker = `<!-- review-agent model=${model} -->`;
 
 const Comment = v.object({
   path: v.pipe(v.string(), v.description("File path from the repository root.")),
@@ -66,7 +68,7 @@ When the message is a reply in one of your threads:
 Write plainly: short sentences, active voice, no filler, no praise.`;
 
 export function Reviewer() {
-  useModel("cloudflare-ai-gateway/workers-ai/@cf/qwen/qwen3.8-27b");
+  useModel(model);
   // flue run starts in packages/review-agent; the agent works on the whole repository.
   useSandbox(local({ cwd: "../.." }));
 

@@ -69,6 +69,7 @@ catalogs:
     badgen: 3.3.2
     "@flue/runtime": 2.2.2
     "@flue/cli": 2.2.2
+    "@earendil-works/pi-ai": 0.87.1
   types:
     "@cloudflare/workers-types": 5.20260928.1
     "@types/bun": ^1.4.2

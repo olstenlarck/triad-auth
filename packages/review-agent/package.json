@@ -8,6 +8,7 @@
     "check": "ultracite fix --type-aware --type-check"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "catalog:",
     "@flue/runtime": "catalog:",
     "valibot": "catalog:"
   },

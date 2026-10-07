@@ -44,6 +44,9 @@ catalogs:
     '@coinbase/cdp-sdk':
       specifier: ^1.57.0
       version: 1.57.0
+    '@earendil-works/pi-ai':
+      specifier: 0.87.1
+      version: 0.87.1
     '@effect/platform-node':
       specifier: ^4.0.0
       version: 4.0.0
@@ -394,6 +397,9 @@ importers:
 
   packages/review-agent:
     dependencies:
+      '@earendil-works/pi-ai':
+        specifier: 'catalog:'
+        version: 0.87.1(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(supports-color@10.2.2)(ws@8.22.0)(zod@4.6.5)
       '@flue/runtime':
         specifier: 'catalog:'
         version: 2.2.2(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(supports-color@10.2.2)(typescript@7.0.2)(ws@8.22.0)(zod@4.6.5)
