@@ -1,8 +1,9 @@
 import type { oauthProvider } from "@better-auth/oauth-provider";
-import type { HookEndpointContext } from "better-auth";
+import { betterAuth, type HookEndpointContext } from "better-auth";
+import { memoryAdapter } from "better-auth/adapters/memory";
 import { describe, expect, it } from "vitest";
 
-import { createTriadAuth } from "../../src/better-auth/auth";
+import { createTriadAuth, createTriadAuthOptions } from "../../src/better-auth/auth";
 import { createTriadConfiguration } from "../../src/better-auth/configuration";
 import type { TriadEnv } from "../../src/better-auth/env";
 import {
@@ -104,6 +105,105 @@ async function sessionQueries(path: string): Promise<string[]> {
   return queries.filter((query) => query.includes('from "session"'));
 }
 
+const APP_CALLBACK = "https://app.example.com/callback";
+
+function authRequest(path: string, cookie: string, body?: Record<string, unknown>): Request {
+  return new Request(`https://auth.example.com/api/auth${path}`, {
+    method: body ? "POST" : "GET",
+    headers: {
+      cookie,
+      origin: "https://auth.example.com",
+      ...(body ? { "content-type": "application/json" } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+}
+
+async function browserCookies(activeToken: string, accountTokens: string[]): Promise<string> {
+  const multiCookies = await Promise.all(
+    accountTokens.map(
+      async (token) =>
+        `${SESSION_COOKIE}_multi-${token.toLowerCase()}=${await signedCookieValue(token)}`,
+    ),
+  );
+
+  return [`${SESSION_COOKIE}=${await signedCookieValue(activeToken)}`, ...multiCookies].join("; ");
+}
+
+function activeSessionToken(response: Response): string | undefined {
+  const cookie = response.headers
+    .getSetCookie()
+    .find((value) => value.startsWith(`${SESSION_COOKIE}=`));
+  const value = cookie?.slice(SESSION_COOKIE.length + 1).split(";")[0];
+
+  return value ? decodeURIComponent(value).split(".")[0] : undefined;
+}
+
+function authorizationPath(): string {
+  const query = new URLSearchParams({
+    response_type: "code",
+    client_id: "two-account-client",
+    redirect_uri: APP_CALLBACK,
+    scope: "openid",
+    state: "state",
+    code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+    code_challenge_method: "S256",
+  });
+
+  return `/oauth2/authorize?${query}`;
+}
+
+async function twoAccounts() {
+  const memory = new Proxy<Record<string, unknown[]>>(
+    {},
+    { get: (tables, model: string) => (tables[model] ??= []) },
+  );
+  const env = createEnv(recordingDatabase([]));
+  const auth = betterAuth({
+    ...createTriadAuthOptions(env, createTriadConfiguration(env)),
+    database: memoryAdapter(memory),
+  });
+  const context = await auth.$context;
+  await context.adapter.create({
+    model: "oauthClient",
+    data: {
+      clientId: "two-account-client",
+      redirectUris: [APP_CALLBACK],
+      scopes: ["openid"],
+      skipConsent: true,
+      tokenEndpointAuthMethod: "none",
+      grantTypes: ["authorization_code"],
+      responseTypes: ["code"],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+
+  const signIn = async (provider: "google" | "twitter", digit: string) => {
+    const accountSub = `acc_${digit.repeat(64)}`;
+    await context.internalAdapter.createUser(
+      {
+        name: accountSub,
+        email: `${accountSub}@identity.invalid`,
+        emailVerified: false,
+        provider,
+        providerSub: `pid_${provider}_${digit.repeat(64)}`,
+      },
+      { method: provider },
+    );
+    const session = await context.internalAdapter.createSession(accountSub);
+
+    return { accountSub, token: session.token };
+  };
+
+  return {
+    auth,
+    memory,
+    google: await signIn("google", "a"),
+    twitter: await signIn("twitter", "b"),
+  };
+}
+
 describe("Triad multi-session", () => {
   it("keeps one signed-in account per Identity Source sign-in", () => {
     const configuration = createTriadConfiguration(createEnv(recordingDatabase([])));
@@ -165,5 +265,71 @@ describe("Triad multi-session", () => {
 
     expect(verification({ response: {}, createSession: true })).toBe(true);
     expect(verification({ response: {}, name: "laptop" })).toBe(false);
+  });
+
+  it("lists, switches, and signs out of two separate accounts", async () => {
+    const { auth, google, twitter } = await twoAccounts();
+    const cookie = await browserCookies(google.token, [google.token, twitter.token]);
+
+    const listed = await auth.handler(authRequest("/multi-session/list-device-sessions", cookie));
+    const accounts: Array<{ user: { id: string; provider: string } }> = await listed.json();
+    expect(accounts.map(({ user }) => [user.id, user.provider])).toEqual([
+      [google.accountSub, "google"],
+      [twitter.accountSub, "twitter"],
+    ]);
+
+    const switched = await auth.handler(
+      authRequest("/multi-session/set-active", cookie, { sessionToken: twitter.token }),
+    );
+    expect(switched.status).toBe(200);
+    expect(activeSessionToken(switched)).toBe(twitter.token);
+
+    const twitterCookie = await browserCookies(twitter.token, [google.token, twitter.token]);
+    const revoked = await auth.handler(
+      authRequest("/multi-session/revoke", twitterCookie, { sessionToken: twitter.token }),
+    );
+    expect(revoked.status).toBe(200);
+    expect(activeSessionToken(revoked)).toBe(google.token);
+    await expect(
+      auth.$context.then((context) => context.internalAdapter.findSession(twitter.token)),
+    ).resolves.toBeNull();
+  });
+
+  it("continues an authorization with the account the person chooses", async () => {
+    const { auth, memory, google, twitter } = await twoAccounts();
+    const authorization = authorizationPath();
+
+    const single = await auth.handler(
+      authRequest(authorization, await browserCookies(google.token, [google.token])),
+    );
+    expect(single.headers.get("location")).toMatch(/^https:\/\/app\.example\.com\/callback\?/);
+
+    const cookie = await browserCookies(google.token, [google.token, twitter.token]);
+    const chooser = await auth.handler(authRequest(authorization, cookie));
+    const chooserLocation = chooser.headers.get("location") ?? "";
+    expect(chooserLocation).toMatch(/^\/me\?/);
+
+    await auth.handler(
+      authRequest("/multi-session/set-active", cookie, { sessionToken: twitter.token }),
+    );
+    const continued = await auth.handler(
+      authRequest(
+        "/oauth2/continue",
+        await browserCookies(twitter.token, [google.token, twitter.token]),
+        {
+          selected: true,
+          oauth_query: chooserLocation.slice("/me?".length),
+        },
+      ),
+    );
+    const { url }: { url: string } = await continued.json();
+    // Better Auth stores authorization codes hashed, so the test reads the stored grants in order.
+    const grants = memory.verification
+      .map((row) => JSON.parse(String(Reflect.get(row as object, "value"))))
+      .filter((value) => value.type === "authorization_code");
+
+    expect(new URL(url).origin).toBe("https://app.example.com");
+    expect(new URL(url).searchParams.get("code")).toBeTruthy();
+    expect(grants.map(({ userId }) => userId)).toEqual([google.accountSub, twitter.accountSub]);
   });
 });

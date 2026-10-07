@@ -1194,9 +1194,9 @@ export const prerender = true;
       button.textContent = "CONTINUING";
 
       try {
-        if (session.accountSub !== activeAccountSub) {
-          await setActiveSession(session);
-        }
+        // A failed earlier attempt may have switched the browser already, so the
+        // chosen account is always set before the authorization continues.
+        await setActiveSession(session);
 
         const response = await fetch("/api/auth/oauth2/continue", {
           method: "POST",
