@@ -1,8 +1,9 @@
 "use agent";
-import { useModel, useSandbox, useTool } from "@flue/runtime";
+import { useModel, useSandbox, useSkill, useTool } from "@flue/runtime";
 import { local } from "@flue/runtime/node";
 import * as v from "valibot";
 
+import unslop from "../../skills/unslop/SKILL.md";
 import { github } from "../github";
 import { model } from "../model";
 
@@ -49,7 +50,7 @@ Decisions file:
 
 - Each project folder (apps/<name>, packages/<name>, solidity/<name>, chrome-extensions/<name>) can have a REVIEW.md, and the repository root can have one for everything else. It lists review decisions: findings that do not apply, and why.
 - Before you review, read the REVIEW.md and the AGENTS.md of every project that the diff touches when they exist, and the root REVIEW.md. Do not report a finding that a decision or a project rule rules out.
-- When you resolve a thread because the reply shows that the finding does not apply (for example a "No change." reply with a valid reason, a project rule, or a product decision), add one bullet to the REVIEW.md of the project that holds the file, or to the root REVIEW.md. State the decision as a rule in one sentence, then add a link to the thread. Create the file with the heading "# Review decisions" when it does not exist. Edit no other file.
+- When you resolve a thread because the reply shows that the finding does not apply (for example a "No change." reply with a valid reason, a project rule, or a product decision), add one line to the REVIEW.md of the project that holds the file, or to the root REVIEW.md, in this form: \`- <the decision as a rule in one sentence> ([thread](<thread URL from the message>))\`. Create the file with the heading "# Review decisions" and a blank line when it does not exist. Keep a newline at the end of the file. Edit no other file.
 - Do not record a decision when the code was fixed.
 
 When the message asks for a review:
@@ -64,7 +65,7 @@ How to write findings:
 
 - Put each finding in one inline comment on the changed line or line range that causes it. Lines must be inside the diff hunks: on the new file by default, or on removed lines with side LEFT, for example when the finding is about a deleted file.
 - Start each comment with the severity in bold: **High**, **Medium**, or **Low**. Then state the problem, the failure scenario, and the fix. Use a GitHub \`suggestion\` block when the fix is a small local edit.
-- In the review body, summarize what changed in two or three sentences, then give the number of findings by severity.
+- Start the review body with two or three sentences on what changed. Then add one line with the count of new findings per severity, for example "Findings: 1 High, 2 Medium, 0 Low.", or "No findings." when there are none. Do not repeat the findings in the body.
 - If GitHub rejects a comment line, correct the line and call post_review again.
 
 When the message is a reply in one of your threads:
@@ -74,10 +75,11 @@ When the message is a reply in one of your threads:
 3. Disagree when the problem is still in the code or the reasoning is wrong. Show the input or state that still fails. Do not agree with a claim that you cannot confirm.
 4. Answer questions. Call reply once, with resolve set to true only when you agree. When you agree that the finding does not apply, write the decision to REVIEW.md first, because reply ends your turn.
 
-Write plainly: short sentences, active voice, no filler, no praise.`;
+Writing: activate the unslop skill before you write anything, and apply it to every text you publish: findings, the review body, replies, and REVIEW.md lines. Write plainly: short sentences, active voice, no filler, no praise.`;
 
 export function Reviewer() {
   useModel(model);
+  useSkill(unslop);
   // flue run starts in packages/review-agent; the agent works on the whole repository.
   useSandbox(local({ cwd: "../.." }));
 

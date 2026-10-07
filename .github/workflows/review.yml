@@ -149,8 +149,8 @@ jobs:
               echo "Skipped: the reply is not in an unresolved thread of the agent" | tee -a "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
-            jq -r --arg pr "$PR_NUMBER" --arg title "$title" '
-              "A reply in your thread on pull request #\($pr): \($title)\n\nThread on \(.path), line \(.line // "outdated"):\n\n"
+            jq -r --arg pr "$PR_NUMBER" --arg title "$title" --arg repo "$GITHUB_REPOSITORY" '
+              "A reply in your thread on pull request #\($pr): \($title)\n\nThread URL: https://github.com/\($repo)/pull/\($pr)#discussion_r\(.root.nodes[0].databaseId)\n\nThread on \(.path), line \(.line // "outdated"):\n\n"
               + ([.root.nodes + .latest.nodes | unique_by(.databaseId)[] | "@\(.author.login):\n\n\(.body)"] | join("\n\n---\n\n"))' <<< "$thread" > "$RUNNER_TEMP/message.md"
             {
               echo "COMMENT_ID=$ROOT"
@@ -202,25 +202,50 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
         run: pnpm exec flue run src/agents/reviewer.ts --message "$(cat "$RUNNER_TEMP/message.md")"
-      # Commits each REVIEW.md that the agent created or changed through the contents API with the job
+      # Commits the decisions the agent added to each REVIEW.md through the contents API with the job
       # token. The API, not git, makes the commits, so nothing the agent wrote into .git runs next to a
-      # token. The sha is the file's blob at the reviewed head, so a newer copy on the branch makes the
-      # commit fail with a conflict instead of being overwritten.
+      # token. Decisions only add lines, so the step appends the added lines to the branch copy, and
+      # retries with a fresh copy when a concurrent run committed to the same file first.
       - if: steps.context.outputs.run
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.pull.outputs.branch }}
         run: |
           find . -name REVIEW.md -not -path '*/node_modules/*' -printf '%P\n' | while read -r path; do
-            if cmp -s "$path" "$RUNNER_TEMP/review-before/$path"; then
+            before="$RUNNER_TEMP/review-before/$path"
+            if [ -f "$before" ]; then
+              added=$(grep -vxF -f "$before" "$path" | sed '/^$/d')
+            else
+              added=$(cat "$path")
+            fi
+            if [ -z "$added" ]; then
               continue
             fi
-            args=(-f branch="$BRANCH" -f content="$(base64 -w0 < "$path")" -f message="docs: record review decisions in $path")
-            if [ -f "$RUNNER_TEMP/review-before/$path" ]; then
-              args+=(-f sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path?ref=$HEAD_SHA" --jq .sha)")
-            fi
-            gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/$path" "${args[@]}" > /dev/null
-            echo "Committed $path" | tee -a "$GITHUB_STEP_SUMMARY"
+            for attempt in 1 2 3; do
+              current=$(gh api "repos/$GITHUB_REPOSITORY/contents/$path?ref=$BRANCH" 2> /dev/null || echo '{}')
+              sha=$(jq -r '.sha // empty' <<< "$current")
+              args=(-f branch="$BRANCH" -f message="docs: record review decisions in $path")
+              if [ -n "$sha" ]; then
+                branch_copy=$(jq -r .content <<< "$current" | base64 -d)
+                new=$(grep -vxF -f <(printf '%s\n' "$branch_copy") <<< "$added" | sed '/^$/d')
+                if [ -z "$new" ]; then
+                  break
+                fi
+                content=$(printf '%s\n%s' "$branch_copy" "$new")
+                args+=(-f sha="$sha")
+              else
+                content=$added
+              fi
+              if gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/$path" -f content="$(printf '%s\n' "$content" | base64 -w0)" "${args[@]}" > /dev/null; then
+                echo "Committed $path" | tee -a "$GITHUB_STEP_SUMMARY"
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "::error::Could not commit $path"
+                exit 1
+              fi
+              sleep 5
+            done
           done
 
   # Runs after every pull request event and every /review, so each new head commit gets the status.
