@@ -3,7 +3,6 @@ import { useInitialData, useModel, useSandbox, useTool } from "@flue/runtime";
 import { local } from "@flue/runtime/node";
 import * as v from "valibot";
 
-import { model } from "../gateway";
 import { github } from "../github";
 
 interface Pull {
@@ -44,7 +43,7 @@ How to write the review:
 
 export function Review() {
   const pull = useInitialData<Pull>();
-  useModel(model, { thinkingLevel: "high" });
+  useModel("cloudflare-ai-gateway/workers-ai/@cf/moonshotai/kimi-k2.6");
   // flue run starts in packages/review-agent; the review reads the whole repository.
   useSandbox(local({ cwd: "../.." }));
   useTool({

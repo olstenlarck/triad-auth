@@ -4,8 +4,9 @@
 # status: pending until the agent has reviewed the pull request and while one of its threads is
 # unresolved, success after that. Dependabot and release pull requests get success without a review.
 #
-# The model is Claude Opus 5 through Cloudflare AI Gateway. The CLOUDFLARE_API_KEY (an AI Gateway
-# token), CLOUDFLARE_ACCOUNT_ID, and CLOUDFLARE_GATEWAY_ID repository secrets configure it. The
+# The model is Kimi K2.6 from Workers AI through Cloudflare AI Gateway. The CLOUDFLARE_API_KEY (a
+# Cloudflare API token with Workers AI and AI Gateway access), CLOUDFLARE_ACCOUNT_ID, and
+# CLOUDFLARE_GATEWAY_ID repository secrets configure it. The
 # agent posts with the job token as github-actions[bot]. Events from that token start no workflow
 # runs, so the agent never answers itself, and a thread resolved by hand updates the status only
 # at the next event of the pull request.

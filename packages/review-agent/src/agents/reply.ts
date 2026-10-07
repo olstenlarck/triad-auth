@@ -3,7 +3,6 @@ import { useInitialData, useModel, useSandbox, useTool } from "@flue/runtime";
 import { local } from "@flue/runtime/node";
 import * as v from "valibot";
 
-import { model } from "../gateway";
 import { github } from "../github";
 
 interface Thread {
@@ -29,7 +28,7 @@ Call the reply tool once. Write the answer plainly: short sentences, active voic
 
 export function Reply() {
   const thread = useInitialData<Thread>();
-  useModel(model, { thinkingLevel: "high" });
+  useModel("cloudflare-ai-gateway/workers-ai/@cf/moonshotai/kimi-k2.6");
   // flue run starts in packages/review-agent; the answer reads the whole repository.
   useSandbox(local({ cwd: "../.." }));
   useTool({
