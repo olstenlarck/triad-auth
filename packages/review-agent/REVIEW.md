@@ -1,5 +1,5 @@
 # Review decisions
 
-- The review-agent package has no `test` script, because it is a GitHub Actions worker without tests by the maintainer's decision. ([thread](https://github.com/tunnckoCoreHQ/monarch/pull/143#discussion_r4212410083))
-- No guard needed for provider registration because each flue run is a separate process that resolves one model once at startup. ([thread](https://github.com/tunnckoCoreHQ/monarch/pull/143#discussion_r4212410090))
-- Flue returns tool errors to the model for GitHub API calls; the model decides whether to retry. Automatic retries would duplicate non-idempotent POST calls (create comments/reviews). ([thread](https://github.com/tunnckoCoreHQ/monarch/pull/143#discussion_r4212410080))
+- The review-agent package has no `test` script, by the maintainer's decision.
+- The agent needs no guard against registering a provider twice, because each `flue run` resolves one model once.
+- Tools need no automatic retries for GitHub calls: Flue returns tool errors to the model, and retried POST calls would post duplicates.

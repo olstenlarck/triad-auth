@@ -7,12 +7,18 @@ import unslop from "../../skills/unslop/SKILL.md";
 import { github } from "../github";
 import { model } from "../model";
 
+interface Finding {
+  thread: string;
+  path: string;
+  line: number | null;
+}
+
 // The workflow sets these for each run. The tools read them here, so the model cannot point a
 // tool at another pull request or at a thread that the agent did not open.
 const { COMMENT_ID, GITHUB_REPOSITORY, HEAD_SHA, OPEN_THREADS, PR_NUMBER, THREAD_ID } = process.env;
 const pull = `/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}`;
-// Root comment id -> thread id of the agent's unresolved threads.
-const openThreads: Record<string, string> = JSON.parse(OPEN_THREADS ?? "{}");
+// Root comment id -> the agent's unresolved finding.
+const openFindings: Record<string, Finding> = JSON.parse(OPEN_THREADS ?? "{}");
 
 // The status job finds the agent's reviews by this marker, and the workflow reads the model from it,
 // so a model picked with /review stays for the later runs of the pull request.
@@ -46,12 +52,11 @@ const resolve = (threadId: string) =>
 
 const instructions = `You review GitHub pull requests of this repository, and you answer replies to your findings. The working directory is the repository at the head of the pull request. AGENTS.md has the project rules.
 
-Decisions file:
+Review decisions:
 
 - Each project folder (apps/<name>, packages/<name>, solidity/<name>, chrome-extensions/<name>) can have a REVIEW.md, and the repository root can have one for everything else. It lists review decisions: findings that do not apply, and why.
-- Before you review, read the REVIEW.md and the AGENTS.md of every project that the diff touches when they exist, and the root REVIEW.md. Do not report a finding that a decision or a project rule rules out.
-- When you resolve a thread because the reply shows that the finding does not apply (for example a "No change." reply with a valid reason, a project rule, or a product decision), add one line to the REVIEW.md of the project that holds the file, or to the root REVIEW.md, in this form: \`- <the decision as a rule in one sentence> ([thread](<thread URL from the message>))\`. Create the file with the heading "# Review decisions" and a blank line when it does not exist. Keep a newline at the end of the file. Edit no other file.
-- Do not record a decision when the code was fixed.
+- Before you review, read the REVIEW.md and the AGENTS.md of every project that the diff touches when they exist, and the root REVIEW.md. The message also lists the decisions already agreed in this pull request. Do not report a finding that a decision or a project rule rules out.
+- Never edit a REVIEW.md yourself. When you resolve a thread because the finding does not apply, pass the decision to the reply tool, and the workflow records it.
 
 When the message asks for a review:
 
@@ -73,9 +78,10 @@ When the message is a reply in one of your threads:
 1. Read the current code at the file and line. When the reply says that a commit fixed the finding, read that change with git.
 2. Agree when the current code fixes the problem, when the reply shows that the finding is wrong, or when the reply gives a valid reason why the finding does not apply.
 3. Disagree when the problem is still in the code or the reasoning is wrong. Show the input or state that still fails. Do not agree with a claim that you cannot confirm.
-4. Answer questions. Call reply once, with resolve set to true only when you agree. When you agree that the finding does not apply, write the decision to REVIEW.md first, because reply ends your turn.
+4. Answer questions. Call reply once, with resolve set to true only when you agree.
+5. When you agree because the finding does not apply (for example a "No change." reply with a valid reason, a project rule, or a product decision), also set decision: the rule in one sentence, so a later review does not report the same thing. Leave decision out when the code was fixed.
 
-Writing: activate the unslop skill before you write anything, and apply it to every text you publish: findings, the review body, replies, and REVIEW.md lines. Write plainly: short sentences, active voice, no filler, no praise.`;
+Writing: activate the unslop skill before you write anything, and apply it to every text you publish: findings, the review body, replies, and decisions. Write plainly: short sentences, active voice, no filler, no praise.`;
 
 export function Reviewer() {
   useModel(model);
@@ -87,10 +93,27 @@ export function Reviewer() {
     useTool({
       name: "reply",
       description:
-        "Post your answer in the thread. Set resolve to true when you agree that the finding needs no more work; the thread is then resolved.",
-      input: v.object({ body: v.string(), resolve: v.boolean() }),
+        "Post your answer in the thread. Set resolve to true when you agree that the finding needs no more work; the thread is then resolved. Set decision only when the finding does not apply.",
+      input: v.object({
+        body: v.string(),
+        resolve: v.boolean(),
+        decision: v.optional(
+          v.pipe(
+            v.string(),
+            v.description(
+              "Only when you resolve because the finding does not apply: the rule in one sentence, for REVIEW.md.",
+            ),
+          ),
+        ),
+      }),
       async run({ data }) {
-        await github(`${pull}/comments/${COMMENT_ID}/replies`, { body: data.body });
+        // The decision rides in the reply as a hidden comment. The status job collects these from the
+        // resolved threads and commits them to REVIEW.md once, before it approves.
+        const decision =
+          data.resolve && data.decision
+            ? `\n\n<!-- review-decision: ${data.decision.replaceAll("--", "-").replaceAll(/\s+/g, " ").trim()} -->`
+            : "";
+        await github(`${pull}/comments/${COMMENT_ID}/replies`, { body: data.body + decision });
         if (data.resolve) {
           await resolve(THREAD_ID);
         }
@@ -112,13 +135,13 @@ export function Reviewer() {
       body: v.string(),
     }),
     async run({ data }) {
-      const threadId = openThreads[String(data.commentId)];
+      const finding = openFindings[String(data.commentId)];
       // Another reviewer's thread, or one already resolved: leave it alone.
-      if (!threadId) {
+      if (!finding) {
         return `Skipped: comment ${data.commentId} is not one of your unresolved findings.`;
       }
       await github(`${pull}/comments/${data.commentId}/replies`, { body: data.body });
-      await resolve(threadId);
+      await resolve(finding.thread);
       return "Resolved.";
     },
   });
@@ -128,11 +151,15 @@ export function Reviewer() {
       "Publish the review: the summary body and one inline comment per new finding. Call it once, after the review is complete.",
     input: v.object({ body: v.string(), comments: v.array(Comment) }),
     async run({ data }) {
+      // Models repeat their open findings despite the instructions, so a comment on the same line as
+      // an unresolved finding is dropped here.
+      const open = new Set(Object.values(openFindings).map(({ path, line }) => `${path}:${line}`));
+      const comments = data.comments.filter(({ path, line }) => !open.has(`${path}:${line}`));
       await github(`${pull}/reviews`, {
         commit_id: HEAD_SHA,
         event: "COMMENT",
         body: `${data.body}\n\n${marker}`,
-        comments: data.comments.map(({ path, side, line, startLine, body }) => ({
+        comments: comments.map(({ path, side, line, startLine, body }) => ({
           path,
           line,
           side,
@@ -140,7 +167,11 @@ export function Reviewer() {
           ...(startLine && startLine < line ? { start_line: startLine, start_side: side } : {}),
         })),
       });
-      return { output: "The review is published.", terminate: true };
+      const dropped = data.comments.length - comments.length;
+      return {
+        output: `The review is published.${dropped ? ` ${dropped} comments repeated open findings and were dropped.` : ""}`,
+        terminate: true,
+      };
     },
   });
   return instructions;
