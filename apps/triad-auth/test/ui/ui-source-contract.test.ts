@@ -175,6 +175,16 @@ describe("preserved Better Auth UI wiring", () => {
     expect(account).not.toContain("walletAddress: address");
   });
 
+  it("keeps several signed-in accounts and lets an authorization choose one", () => {
+    expect(account).toContain("/api/auth/multi-session/list-device-sessions");
+    expect(account).toContain("/api/auth/multi-session/set-active");
+    expect(account).toContain("/api/auth/multi-session/revoke");
+    expect(account).toContain("/api/auth/oauth2/continue");
+    expect(account).toContain("selected: true");
+    expect(account).toContain("ADD ANOTHER ACCOUNT");
+    expect(account).toContain("SIGN OUT OF ALL ACCOUNTS");
+  });
+
   it("describes delete-consent as consent removal rather than token revocation", () => {
     expect(account).toContain("REMOVE CONSENT");
     expect(account).toContain("Existing tokens may remain valid until expiry");

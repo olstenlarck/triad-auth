@@ -14,6 +14,7 @@ import {
   type PasskeyUsernameGeneratorOptions,
 } from "./passkey-username";
 import { sealProfileEncryptedData } from "./profile";
+import { withoutActiveSessionCookies } from "./session";
 import { isSocialProvider, passkeyUpstreamId, providerSubject } from "./subjects";
 
 const PASSKEY_ATTACHMENT_FRESHNESS_MS = 5 * 60 * 1_000;
@@ -49,6 +50,22 @@ function validateAttachmentProvider(session: Awaited<ReturnType<typeof getSessio
   if (provider !== "passkey" && !isSocialProvider(provider)) {
     rejectPasskey("Triad account identity source is invalid");
   }
+}
+
+// Passkey sign-in and Identity Passkey registration add a separate Triad Account
+// to the browser. They must not narrow to, or attach to, the active account.
+function isAccountSignInCeremony(context: HookEndpointContext): boolean {
+  if (context.path === "/passkey/generate-authenticate-options") {
+    return true;
+  }
+  if (context.path === "/passkey/generate-register-options") {
+    return typeof context.query?.context === "string";
+  }
+  if (context.path === "/passkey/verify-registration") {
+    return isRecord(context.body) && context.body.createSession === true;
+  }
+
+  return false;
 }
 
 async function requireFreshAttachmentSession(ctx: Parameters<typeof getSessionFromCtx>[0]) {
@@ -258,6 +275,22 @@ export function createPasskeyAuthentication(
     },
     hooks: {
       before: [
+        {
+          matcher: isAccountSignInCeremony,
+          handler: createAuthMiddleware(async (ctx) => {
+            if (!ctx.headers?.has("cookie")) {
+              return;
+            }
+
+            const { sessionToken, sessionData } = ctx.context.authCookies;
+            const headers = withoutActiveSessionCookies(ctx.headers, [
+              sessionToken.name,
+              sessionData.name,
+            ]);
+
+            return { context: { headers } };
+          }),
+        },
         {
           matcher: (context: HookEndpointContext) => context.path === "/passkey/delete-passkey",
           handler: createAuthMiddleware(async (ctx) => {

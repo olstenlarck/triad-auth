@@ -12,6 +12,20 @@ export const prerender = true;
       <p id="account-summary" class="lede" aria-live="polite">Loading your session...</p>
     </div>
 
+    <section id="device-sessions-panel" class="account-panel" aria-labelledby="sessions-title" hidden>
+      <div class="panel-heading">
+        <h2 id="sessions-title">SIGNED-IN ACCOUNTS</h2>
+        <span id="session-count">0</span>
+      </div>
+      <p class="account-panel-copy">
+        This browser can stay signed in to several Triad accounts. Triad keeps them separate and never links them.
+      </p>
+      <div id="device-sessions" class="account-passkeys"></div>
+      <div class="actions account-session-actions">
+        <button id="add-account" class="button secondary" type="button">ADD ANOTHER ACCOUNT</button>
+      </div>
+    </section>
+
     <div id="signed-out" class="signed-out" hidden>
       <p>
         Choose one credential. Triad derives a separate account from that provider, wallet, or passkey and
@@ -63,7 +77,7 @@ export const prerender = true;
         <div id="authorized-apps" class="authorized-apps"></div>
       </section>
       <div class="actions account-actions">
-        <button id="logout" class="button danger" type="button">SIGN OUT</button>
+        <button id="logout" class="button danger" type="button">SIGN OUT OF ALL ACCOUNTS</button>
       </div>
 
       <section class="account-panel account-danger" aria-labelledby="delete-account-title">
@@ -110,6 +124,7 @@ export const prerender = true;
     };
     type PublicClient = { client_id?: string; client_name?: string };
     type SessionResult = { user?: { id?: string; provider?: string } } | null;
+    type DeviceSession = { token: string; accountSub: string; provider: string };
     type AccountPasskey = {
       id: string;
       name: string | null;
@@ -234,6 +249,35 @@ export const prerender = true;
       };
     }
 
+    function decodeDestination(value: unknown): Record<string, string | undefined> {
+      return decodeOptionalString(value, "url", "Triad returned an invalid destination.");
+    }
+
+    function decodeDeviceSessions(value: unknown): DeviceSession[] {
+      if (!Array.isArray(value)) {
+        throw new Error("Triad returned invalid signed-in accounts.");
+      }
+
+      return value.map((item) => {
+        if (
+          !isRecord(item) ||
+          !isRecord(item.session) ||
+          !isRecord(item.user) ||
+          typeof item.session.token !== "string" ||
+          typeof item.user.id !== "string" ||
+          typeof item.user.provider !== "string"
+        ) {
+          throw new Error("Triad returned an invalid signed-in account.");
+        }
+
+        return {
+          token: item.session.token,
+          accountSub: item.user.id,
+          provider: item.user.provider,
+        };
+      });
+    }
+
     function decodeLinkedAccounts(value: unknown): LinkedAccount[] {
       if (!Array.isArray(value)) {
         throw new Error("Triad returned invalid linked identities.");
@@ -286,6 +330,10 @@ export const prerender = true;
     const attachPasskeyForm = document.querySelector<HTMLFormElement>("#attach-passkey-form")!;
     const attachPasskeyButton = document.querySelector<HTMLButtonElement>("#attach-passkey")!;
     const attachedPasskeyName = document.querySelector<HTMLInputElement>("#attached-passkey-name")!;
+    const sessionsPanel = document.querySelector<HTMLElement>("#device-sessions-panel")!;
+    const sessionsList = document.querySelector<HTMLElement>("#device-sessions")!;
+    const sessionCount = document.querySelector<HTMLElement>("#session-count")!;
+    const addAccount = document.querySelector<HTMLButtonElement>("#add-account")!;
     let loadController: AbortController | null = null;
     let loading = false;
     let activeAccountSub: string | undefined;
@@ -301,6 +349,10 @@ export const prerender = true;
     function setMutationControls(disabled: boolean) {
       logout.disabled = disabled;
       deleteAccountButton.disabled = disabled;
+      addAccount.disabled = disabled;
+      sessionsList.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+        button.disabled = disabled;
+      });
       attachPasskeyForm.querySelectorAll<HTMLButtonElement | HTMLInputElement>("button, input").forEach((control) => {
         control.disabled = disabled;
       });
@@ -318,6 +370,20 @@ export const prerender = true;
       }
 
       return inspectOAuthQuery(location.search).oauthQuery;
+    }
+
+    // A sign-in that carries the signed query lets Better Auth continue the
+    // authorization with the new account instead of asking to choose again.
+    function authorizationBody(): { oauth_query?: string } {
+      const oauthQuery = currentOAuthQuery();
+
+      return oauthQuery ? { oauth_query: oauthQuery } : {};
+    }
+
+    function requiresNewSignIn(): boolean {
+      const prompts = new URLSearchParams(location.search).get("prompt")?.split(" ") ?? [];
+
+      return prompts.includes("login") || prompts.includes("create");
     }
 
     function returnDestination(): string | undefined {
@@ -384,6 +450,15 @@ export const prerender = true;
 
       const oauthQuery = currentOAuthQuery();
       location.assign(oauthQuery ? `/api/auth/oauth2/authorize?${oauthQuery}` : "/me");
+    }
+
+    function finishSignIn(destination: string | undefined) {
+      if (destination) {
+        location.assign(destination);
+        return;
+      }
+
+      resumeAuthorization();
     }
 
     async function signIn(provider: (typeof providers)[number], button: HTMLButtonElement) {
@@ -532,7 +607,7 @@ export const prerender = true;
       }
     }
 
-    async function authenticatePasskey(): Promise<void> {
+    async function authenticatePasskey(): Promise<string | undefined> {
       const optionsResponse = await fetch("/api/auth/passkey/generate-authenticate-options", {
         headers: { accept: "application/json" },
       });
@@ -549,9 +624,11 @@ export const prerender = true;
       const verifyResponse = await fetch("/api/auth/passkey/verify-authentication", {
         method: "POST",
         headers: { accept: "application/json", "content-type": "application/json" },
-        body: JSON.stringify({ response: serializedResponse }),
+        body: JSON.stringify({ response: serializedResponse, ...authorizationBody() }),
       });
-      await jsonResponse(verifyResponse, "Triad rejected the passkey assertion.", decodeNothing);
+      const { url } = await jsonResponse(verifyResponse, "Triad rejected the passkey assertion.", decodeDestination);
+
+      return url;
     }
 
     async function signInWithPasskey(button: HTMLButtonElement) {
@@ -561,8 +638,7 @@ export const prerender = true;
       button.textContent = "CHECKING PASSKEY";
 
       try {
-        await authenticatePasskey();
-        resumeAuthorization();
+        finishSignIn(await authenticatePasskey());
       } catch (reason) {
         button.textContent = "RETRY PASSKEY";
         setMutationControls(false);
@@ -601,11 +677,15 @@ export const prerender = true;
         const verifyResponse = await fetch("/api/auth/passkey/verify-registration", {
           method: "POST",
           headers: { accept: "application/json", "content-type": "application/json" },
-          body: JSON.stringify({ response, createSession: true }),
+          body: JSON.stringify({ response, createSession: true, ...authorizationBody() }),
         });
-        await jsonResponse(verifyResponse, "Triad rejected the passkey registration.", decodeNothing);
+        const { url } = await jsonResponse(
+          verifyResponse,
+          "Triad rejected the passkey registration.",
+          decodeDestination,
+        );
 
-        resumeAuthorization();
+        finishSignIn(url);
       } catch (reason) {
         button.textContent = "RETRY REGISTER PASSKEY";
         setMutationControls(false);
@@ -1073,6 +1153,167 @@ export const prerender = true;
       }
     }
 
+    // An account-list failure must not hide sign-in and sign-out controls, so it
+    // returns undefined and load() shows the error with a retry.
+    async function deviceSessions(signal: AbortSignal): Promise<DeviceSession[] | undefined> {
+      try {
+        const response = await fetch("/api/auth/multi-session/list-device-sessions", {
+          headers: { accept: "application/json" },
+          signal,
+        });
+
+        return await jsonResponse(response, "Could not load signed-in accounts.", decodeDeviceSessions);
+      } catch (reason) {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          throw reason;
+        }
+
+        return undefined;
+      }
+    }
+
+    async function setActiveSession(session: DeviceSession) {
+      const response = await fetch("/api/auth/multi-session/set-active", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ sessionToken: session.token }),
+      });
+      await jsonResponse(response, "Could not switch to this account.", decodeNothing);
+    }
+
+    async function switchAccount(session: DeviceSession, button: HTMLButtonElement) {
+      setMutationControls(true);
+      error.hidden = true;
+      retry.hidden = true;
+      button.textContent = "SWITCHING";
+
+      try {
+        await setActiveSession(session);
+        location.reload();
+      } catch (reason) {
+        button.textContent = "RETRY SWITCH";
+        setMutationControls(false);
+        showError(reason, "Could not switch to this account.");
+      }
+    }
+
+    async function continueAs(session: DeviceSession, button: HTMLButtonElement) {
+      setMutationControls(true);
+      error.hidden = true;
+      retry.hidden = true;
+      button.textContent = "CONTINUING";
+
+      try {
+        // A failed earlier attempt may have switched the browser already, so the
+        // chosen account is always set before the authorization continues.
+        await setActiveSession(session);
+
+        const response = await fetch("/api/auth/oauth2/continue", {
+          method: "POST",
+          headers: { accept: "application/json", "content-type": "application/json" },
+          body: JSON.stringify({ selected: true, ...authorizationBody() }),
+        });
+        const { url } = await jsonResponse(response, "Triad could not continue the authorization.", decodeDestination);
+        if (!url) {
+          throw new Error("Triad did not return a destination.");
+        }
+
+        location.assign(url);
+      } catch (reason) {
+        button.textContent = "RETRY CONTINUE";
+        setMutationControls(false);
+        showError(reason, "Triad could not continue the authorization.");
+      }
+    }
+
+    async function signOutAccount(session: DeviceSession, button: HTMLButtonElement) {
+      setMutationControls(true);
+      error.hidden = true;
+      retry.hidden = true;
+      button.textContent = "SIGNING OUT";
+
+      try {
+        const response = await fetch("/api/auth/multi-session/revoke", {
+          method: "POST",
+          headers: { accept: "application/json", "content-type": "application/json" },
+          body: JSON.stringify({ sessionToken: session.token }),
+        });
+        await jsonResponse(response, "Could not sign out of this account.", decodeNothing);
+        location.reload();
+      } catch (reason) {
+        button.textContent = "RETRY SIGN OUT";
+        setMutationControls(false);
+        showError(reason, "Could not sign out of this account.");
+      }
+    }
+
+    function sessionAction(label: string, className: string, action: (button: HTMLButtonElement) => Promise<void>) {
+      const button = document.createElement("button");
+      button.className = `button ${className}`;
+      button.type = "button";
+      button.textContent = label;
+      button.addEventListener("click", () => {
+        void action(button);
+      });
+
+      return button;
+    }
+
+    // Account selection offers only accounts whose Identity Source can disclose
+    // every requested claim. Outside an authorization, it switches and signs out.
+    function renderDeviceSessions(sessions: DeviceSession[], selecting: boolean) {
+      sessionsList.replaceChildren();
+      sessionCount.textContent = String(sessions.length);
+      sessionsPanel.hidden = sessions.length === 0;
+
+      for (const session of sessions) {
+        const active = session.accountSub === activeAccountSub;
+
+        const title = document.createElement("h3");
+        title.textContent = session.provider.toUpperCase();
+        const badges = document.createElement("div");
+        badges.className = "passkey-badges";
+        if (active) {
+          const badge = document.createElement("span");
+          badge.className = "passkey-required";
+          badge.textContent = "ACTIVE";
+          badges.append(badge);
+        }
+        const detail = document.createElement("small");
+        detail.textContent = session.accountSub;
+        const copy = document.createElement("div");
+        copy.append(title, badges, detail);
+
+        const actions = document.createElement("div");
+        actions.className = "passkey-actions";
+        if (selecting && supportsRequestedScopes(session.provider)) {
+          actions.append(sessionAction("CONTINUE", "primary", (button) => continueAs(session, button)));
+        } else if (selecting) {
+          const unsupported = document.createElement("small");
+          unsupported.textContent = "CANNOT SHARE THE REQUESTED CLAIMS";
+          actions.append(unsupported);
+        } else {
+          if (!active) {
+            actions.append(sessionAction("SWITCH", "secondary", (button) => switchAccount(session, button)));
+          }
+          if (activeAccountSub) {
+            actions.append(sessionAction("SIGN OUT", "danger", (button) => signOutAccount(session, button)));
+          }
+        }
+
+        const row = document.createElement("article");
+        row.className = "account-passkey";
+        row.append(copy, actions);
+        sessionsList.append(row);
+      }
+    }
+
+    function showSignIn() {
+      addAccount.hidden = true;
+      signedOut.hidden = false;
+      renderProviderActions();
+    }
+
     async function load() {
       if (loading) {
         return;
@@ -1088,24 +1329,47 @@ export const prerender = true;
       document.querySelector("#account-summary")!.textContent = "Loading your session...";
 
       try {
-        const sessionResponse = await fetch("/api/auth/get-session", {
-          headers: { accept: "application/json" },
-          signal: controller.signal,
-        });
-        const session = await jsonResponse(sessionResponse, "Could not load your session.", decodeSession);
-        if (!session?.user?.id) {
-          activeAccountSub = undefined;
-          activeProvider = undefined;
+        const [session, loadedSessions] = await Promise.all([
+          fetch("/api/auth/get-session", {
+            headers: { accept: "application/json" },
+            signal: controller.signal,
+          }).then((response) => jsonResponse(response, "Could not load your session.", decodeSession)),
+          deviceSessions(controller.signal),
+        ]);
+        const sessions = loadedSessions ?? [];
+        if (!loadedSessions) {
+          showError(undefined, "Could not load your signed-in accounts. Retry to list them.");
+        }
+        activeAccountSub = session?.user?.id;
+        activeProvider = session?.user?.provider;
+
+        if (!activeAccountSub) {
           document.querySelector("#account-summary")!.textContent =
-            "No active authorization session on this browser.";
+            sessions.length > 0
+              ? "No account is active. Switch to a signed-in account or sign in with another credential."
+              : "No active authorization session on this browser.";
+          renderDeviceSessions(sessions, false);
           content.hidden = true;
-          signedOut.hidden = false;
-          renderProviderActions();
+          showSignIn();
           return;
         }
 
-        activeAccountSub = session.user.id;
-        activeProvider = session.user.provider;
+        if (currentOAuthQuery()) {
+          const selecting = !requiresNewSignIn();
+          document.querySelector("#account-summary")!.textContent = selecting
+            ? "Choose the account that continues to the application, or sign in with another credential."
+            : "The application asks you to sign in again.";
+          renderDeviceSessions(selecting ? sessions : [], selecting);
+          content.hidden = true;
+          showSignIn();
+          return;
+        }
+
+        renderDeviceSessions(sessions, false);
+        // A session from before multi-session, or a failed list, has no rows,
+        // but the active account can still add another one.
+        sessionsPanel.hidden = false;
+        addAccount.hidden = false;
         attachPasskeyForm.hidden = activeProvider === "ethereum";
         attachPasskeyButton.textContent = "ATTACH PASSKEY";
         passkeyCopy.textContent =
@@ -1169,6 +1433,7 @@ export const prerender = true;
     logout.addEventListener("click", () => {
       void signOut();
     });
+    addAccount.addEventListener("click", showSignIn);
     deleteAccountButton.addEventListener("click", () => {
       void deleteAccount();
     });
