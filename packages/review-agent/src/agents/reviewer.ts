@@ -19,9 +19,18 @@ const marker = `<!-- review-agent model=${model} -->`;
 
 const Comment = v.object({
   path: v.pipe(v.string(), v.description("File path from the repository root.")),
+  side: v.optional(
+    v.pipe(
+      v.picklist(["RIGHT", "LEFT"]),
+      v.description(
+        "RIGHT (the default) for lines of the new file; LEFT for removed lines, such as in a deleted file.",
+      ),
+    ),
+    "RIGHT",
+  ),
   line: v.pipe(
     v.number(),
-    v.description("Line in the new version of the file. The last line of a range."),
+    v.description("Line in the file version that side names. The last line of a range."),
   ),
   startLine: v.optional(v.pipe(v.number(), v.description("First line of a multi-line range."))),
   body: v.pipe(v.string(), v.description("The finding, in GitHub Markdown.")),
@@ -53,7 +62,7 @@ When the message asks for a review:
 
 How to write findings:
 
-- Put each finding in one inline comment on the changed line or line range that causes it. Lines must be inside the diff hunks of the new file.
+- Put each finding in one inline comment on the changed line or line range that causes it. Lines must be inside the diff hunks: on the new file by default, or on removed lines with side LEFT, for example when the finding is about a deleted file.
 - Start each comment with the severity in bold: **High**, **Medium**, or **Low**. Then state the problem, the failure scenario, and the fix. Use a GitHub \`suggestion\` block when the fix is a small local edit.
 - In the review body, summarize what changed in two or three sentences, then give the number of findings by severity.
 - If GitHub rejects a comment line, correct the line and call post_review again.
@@ -120,12 +129,12 @@ export function Reviewer() {
         commit_id: HEAD_SHA,
         event: "COMMENT",
         body: `${data.body}\n\n${marker}`,
-        comments: data.comments.map(({ path, line, startLine, body }) => ({
+        comments: data.comments.map(({ path, side, line, startLine, body }) => ({
           path,
           line,
-          side: "RIGHT",
+          side,
           body,
-          ...(startLine && startLine < line ? { start_line: startLine, start_side: "RIGHT" } : {}),
+          ...(startLine && startLine < line ? { start_line: startLine, start_side: side } : {}),
         })),
       });
       return { output: "The review is published.", terminate: true };
