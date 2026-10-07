@@ -111,8 +111,9 @@ export function Reviewer() {
     }),
     async run({ data }) {
       const threadId = openThreads[String(data.commentId)];
+      // Another reviewer's thread, or one already resolved: leave it alone.
       if (!threadId) {
-        throw new Error(`Comment ${data.commentId} is not one of your unresolved findings.`);
+        return `Skipped: comment ${data.commentId} is not one of your unresolved findings.`;
       }
       await github(`${pull}/comments/${data.commentId}/replies`, { body: data.body });
       await resolve(threadId);
