@@ -55,7 +55,7 @@ Filter Patterns:
 
 ## Alchemy apps
 
-- Alchemy apps deploy with the Alchemy CLI, not `cf` or Workers Builds. The stack is `alchemy.run.ts` in the app folder and replaces `cloudflare.config.ts`. Astro apps use `Cloudflare.Website.Astro`, which injects the adapter, so `astro.config.*` declares none. `apps/triad-auth` is the exception: its Worker entrypoint is its own `src/index.ts`, which `Website.Astro` cannot run, so it is a plain `Cloudflare.Worker` whose static assets are a static `astro build` of `dist/`, and its `build` script is that build.
+- Alchemy apps deploy with the Alchemy CLI, not `cf` or Workers Builds. The stack is `alchemy.run.ts` in the app folder and replaces `cloudflare.config.ts`. Astro apps use `Cloudflare.Website.Astro`, which injects the adapter, so `astro.config.*` declares none.
 - State lives in the remote Cloudflare state store, `Cloudflare.state()`. Local deploys use the `cf-equator` Alchemy profile.
 - Alchemy apps deploy through `deploy:nightly` and `deploy:prod` scripts. Solidity projects keep `deploy`, and CI never runs it.
 - A prod-only app has only `deploy:nightly`, and it deploys the `prod` stage. `apps/x402-router.wgw.lol`, `apps/npm.wgw.lol`, and `apps/badges.wgw.lol` are that shape.
