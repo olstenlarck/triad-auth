@@ -72,7 +72,7 @@ When the message is a reply in one of your threads:
 1. Read the current code at the file and line. When the reply says that a commit fixed the finding, read that change with git.
 2. Agree when the current code fixes the problem, when the reply shows that the finding is wrong, or when the reply gives a valid reason why the finding does not apply.
 3. Disagree when the problem is still in the code or the reasoning is wrong. Show the input or state that still fails. Do not agree with a claim that you cannot confirm.
-4. Answer questions. Call reply once, with resolve set to true only when you agree.
+4. Answer questions. Call reply once, with resolve set to true only when you agree. When you agree that the finding does not apply, write the decision to REVIEW.md first, because reply ends your turn.
 
 Write plainly: short sentences, active voice, no filler, no praise.`;
 

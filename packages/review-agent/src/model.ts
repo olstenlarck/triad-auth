@@ -1,34 +1,33 @@
 import { createProvider, envApiKeyAuth } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
-import { opencodeProvider } from "@earendil-works/pi-ai/providers/opencode";
-import { withOpenCodeSessionHeader } from "@earendil-works/pi-ai/providers/opencode-headers";
+import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
 import { setProvider } from "@flue/runtime";
 
-const defaultModel = "muse-spark-1.3-contributor-free";
+const defaultModel = "thinkingmachines/inkling:free";
 
-// Turns the OpenCode Zen model id that the workflow passes in REVIEW_MODEL, with or without the
-// "opencode/" prefix, into a Flue model specifier.
+// Turns the OpenRouter model id that the workflow passes in REVIEW_MODEL, with or without the
+// "openrouter/" prefix, into a Flue model specifier.
 function resolve(spec: string): string {
-  const id = spec.replace(/^opencode\//, "");
-  // Zen adds free models faster than the catalog that Flue ships. A missing one is served from
-  // Zen's chat completions endpoint, which all of its free models use.
+  const id = spec.replace(/^openrouter\//, "");
+  // OpenRouter adds models faster than the catalog that Flue ships. A missing one is served from
+  // OpenRouter's chat completions endpoint, which all of its models support.
   if (
-    !opencodeProvider()
+    !openrouterProvider()
       .getModels()
       .some((model) => model.id === id)
   ) {
     setProvider(
       createProvider({
-        id: "opencode",
-        name: "OpenCode Zen",
-        auth: { apiKey: envApiKeyAuth("OpenCode API key", ["OPENCODE_API_KEY"]) },
+        id: "openrouter",
+        name: "OpenRouter",
+        auth: { apiKey: envApiKeyAuth("OpenRouter API key", ["OPENROUTER_API_KEY"]) },
         models: [
           {
             id,
             name: id,
             api: "openai-completions",
-            provider: "opencode",
-            baseUrl: "https://opencode.ai/zen/v1",
+            provider: "openrouter",
+            baseUrl: "https://openrouter.ai/api/v1",
             reasoning: true,
             input: ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -36,11 +35,11 @@ function resolve(spec: string): string {
             maxTokens: 32_000,
           },
         ],
-        api: withOpenCodeSessionHeader(openAICompletionsApi()),
+        api: openAICompletionsApi(),
       }),
     );
   }
-  return `opencode/${id}`;
+  return `openrouter/${id}`;
 }
 
 export const model = resolve(process.env.REVIEW_MODEL || defaultModel);

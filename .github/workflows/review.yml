@@ -1,4 +1,4 @@
-# Flue review agent from packages/review-agent, on OpenCode Zen. It reviews each pull request when it
+# Flue review agent from packages/review-agent, on OpenRouter. It reviews each pull request when it
 # opens, then the commits after the last one it reviewed on every push, with inline findings. When a
 # collaborator replies in one of its threads, it answers, and it resolves the thread when it agrees.
 # When it agrees that a finding does not apply, it records the decision in a REVIEW.md, which this
@@ -11,10 +11,11 @@
 # cannot approve pull requests that olstenlarck opened.
 #
 # A /review comment from tunnckoCore runs a full review again, and "/review <model>" also switches
-# the OpenCode Zen model for that pull request. The review body records the model, and later runs
-# keep it. The default is the free Muse Spark 1.3. issue_comment runs use this file from master.
+# the OpenRouter model for that pull request. The review body records the model, and later runs
+# keep it. The default is the free Inkling from Thinking Machines (thinkingmachines/inkling:free).
+# issue_comment runs use this file from master.
 #
-# The review-agent environment holds OPENCODE_API_KEY; only this workflow uses it. The agent posts
+# The review-agent environment holds OPENROUTER_API_KEY; only this workflow uses it. The agent posts
 # reviews and replies as olstenlarck with OLSTENLARCK_HQ_PAT, and its comments start runs here, so
 # the agent job skips olstenlarck. The job token commits REVIEW.md, so olstenlarck is never the last
 # pusher, and those commits start no workflow runs.
@@ -23,7 +24,8 @@
 # never run the agent unless tunnckoCore asks with /review. The status job still marks them success
 # without approving, because the ruleset requires the review status on every pull request.
 #
-# SECURITY: the agent runs pull request code and shell commands next to the Zen key and the PAT.
+# SECURITY: the agent runs pull request code and shell commands next to the OpenRouter key and the
+# PAT.
 # Only same-repository pull requests, replies from the owner, members, and collaborators, and
 # /review from tunnckoCore start it. A thread resolved by hand updates the status only at the next
 # event of the pull request, because GitHub Actions has no trigger for it.
@@ -197,7 +199,7 @@ jobs:
       - if: steps.context.outputs.run
         working-directory: packages/review-agent
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
         run: pnpm exec flue run src/agents/reviewer.ts --message "$(cat "$RUNNER_TEMP/message.md")"
       # Commits each REVIEW.md that the agent created or changed through the contents API with the job
