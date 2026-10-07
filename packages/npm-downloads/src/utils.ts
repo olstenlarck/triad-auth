@@ -156,7 +156,9 @@ export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T
     );
   }
 
-  return response.json();
+  // SAFETY: callers type the JSON body they expect and validate the fields they read.
+  // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- the cast marks where the unchecked JSON becomes T.
+  return response.json() as Promise<T>;
 }
 
 /**
