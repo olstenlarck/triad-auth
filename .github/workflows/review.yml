@@ -1,19 +1,23 @@
-# Flue review agent from packages/review-agent. It reviews each pull request once, when it opens or
-# leaves draft, with inline comments. When someone replies in one of its threads, it answers, and it
-# resolves the thread when it agrees with the reply. The master ruleset requires the review commit
-# status: pending until the agent has reviewed the pull request and while one of its threads is
-# unresolved, success after that. Dependabot and release pull requests get success without a review.
+# Flue review agent from packages/review-agent. It reviews each pull request when it opens or leaves
+# draft, and again on every push, with inline findings. When a collaborator replies in one of its
+# threads, it answers, and it resolves the thread when it agrees. When it agrees that a finding does
+# not apply, it records the decision in a REVIEW.md, which this workflow commits to the pull request
+# branch; later reviews read those files. The master ruleset requires the review commit status:
+# pending until the agent has reviewed the pull request and while one of its threads is unresolved.
 #
-# The model is Kimi K2.6 from Workers AI through Cloudflare AI Gateway. The CLOUDFLARE_API_KEY (a
-# Cloudflare API token with Workers AI and AI Gateway access), CLOUDFLARE_ACCOUNT_ID, and
-# CLOUDFLARE_GATEWAY_ID repository secrets configure it. The
-# agent posts with the job token as github-actions[bot]. Events from that token start no workflow
-# runs, so the agent never answers itself, and a thread resolved by hand updates the status only
-# at the next event of the pull request.
+# The agent runs Qwen 3.8 27B from Workers AI through the review-agent Cloudflare AI Gateway. The
+# review-agent environment holds CLOUDFLARE_API_KEY (an account token with AI Gateway Run and Workers
+# AI access), CLOUDFLARE_ACCOUNT_ID, and CLOUDFLARE_GATEWAY_ID; only this workflow uses it. The agent
+# posts and commits as olstenlarck with OLSTENLARCK_HQ_PAT. Its own pushes and comments start runs
+# here, so the agent job skips them.
 #
-# SECURITY: the agent job runs pull request code with the gateway token. Fork pull requests get no
-# secrets and a read-only token, so both jobs skip them. The agent's shell inherits neither token;
-# the GitHub token stays in the tools that post the review and the replies.
+# Dependabot and release pull requests never run the agent. The status job still marks them
+# success, because the ruleset requires the review status on every pull request.
+#
+# SECURITY: the agent runs pull request code and shell commands next to the gateway token and the
+# PAT. Only same-repository pull requests and replies from the owner, members, and collaborators
+# start it; fork pull requests get no secrets. A thread resolved by hand updates the status only at
+# the next event of the pull request, because GitHub Actions has no trigger for it.
 
 name: review
 
@@ -28,15 +32,25 @@ permissions: {}
 jobs:
   agent:
     if: >-
-      github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && !startsWith(github.event.pull_request.title, 'chore: release packages') && ((github.event_name == 'pull_request' && github.event.action != 'synchronize' && !github.event.pull_request.draft) || (github.event_name == 'pull_request_review_comment' && github.event.comment.in_reply_to_id && github.event.comment.user.type != 'Bot'))
+      github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && !startsWith(github.event.pull_request.title, 'chore: release packages') && ((github.event_name == 'pull_request' && !github.event.pull_request.draft && !(github.event.action == 'synchronize' && github.event.sender.login == 'olstenlarck')) || (github.event_name == 'pull_request_review_comment' && github.event.comment.in_reply_to_id && github.event.comment.user.login != 'olstenlarck' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)))
+    environment:
+      name: review-agent
+      deployment: false
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: read
+      statuses: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      # A review gets the pull request. A reply gets its thread, and only when the agent opened the
-      # thread and it is still unresolved.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          # Full history so the agent can diff against the base and the previous head.
+          fetch-depth: 0
+          persist-credentials: false
+      # A review gets the diff and the agent's unresolved findings. A reply gets its thread, and only
+      # when the agent opened the thread and it is still unresolved.
       - id: context
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,18 +58,12 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
           BODY: ${{ github.event.pull_request.body }}
           BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
           ROOT: ${{ github.event.comment.in_reply_to_id }}
+          ACTION: ${{ github.event.action }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            printf 'Review pull request #%s: %s\n\nBase commit: %s\nHead commit: %s\n\nDescription:\n\n%s\n' \
-              "$PR" "$TITLE" "$BASE" "$HEAD" "$BODY" > "$RUNNER_TEMP/message.md"
-            jq -n --arg repo "$GITHUB_REPOSITORY" --argjson number "$PR" --arg head "$HEAD" \
-              '{ repo: $repo, number: $number, head: $head }' > "$RUNNER_TEMP/data.json"
-            echo agent=review >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          thread=$(gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F number="$PR" -f query='
+          head=$(git rev-parse HEAD)
+          threads=$(gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F number="$PR" -f query='
             query($owner: String!, $name: String!, $number: Int!) {
               repository(owner: $owner, name: $name) {
                 pullRequest(number: $number) {
@@ -70,41 +78,86 @@ jobs:
                   }
                 }
               }
-            }' --jq ".data.repository.pullRequest.reviewThreads.nodes[] | select(.comments.nodes[0].databaseId == $ROOT)")
-          if [ -z "$thread" ] || [ "$(jq -r '.comments.nodes[0].author.login' <<< "$thread")" != github-actions ] || [ "$(jq -r .isResolved <<< "$thread")" = true ]; then
-            echo "Skipped: the reply is not in an unresolved thread of the agent" | tee -a "$GITHUB_STEP_SUMMARY"
+            }' --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved | not) | select(.comments.nodes[0].author.login == "olstenlarck")]')
+          {
+            echo "PR_NUMBER=$PR"
+            echo "HEAD_SHA=$head"
+          } >> "$GITHUB_ENV"
+
+          if [ "$GITHUB_EVENT_NAME" = pull_request_review_comment ]; then
+            thread=$(jq -c --argjson root "$ROOT" '.[] | select(.comments.nodes[0].databaseId == $root)' <<< "$threads")
+            if [ -z "$thread" ]; then
+              echo "Skipped: the reply is not in an unresolved thread of the agent" | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            jq -r --arg pr "$PR" --arg title "$TITLE" '
+              "A reply in your thread on pull request #\($pr): \($title)\n\nThread on \(.path), line \(.line // "outdated"):\n\n"
+              + ([.comments.nodes[] | "@\(.author.login):\n\n\(.body)"] | join("\n\n---\n\n"))' <<< "$thread" > "$RUNNER_TEMP/message.md"
+            {
+              echo "COMMENT_ID=$ROOT"
+              echo "THREAD_ID=$(jq -r .id <<< "$thread")"
+            } >> "$GITHUB_ENV"
+            echo run=true >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          jq -r --arg pr "$PR" --arg title "$TITLE" '
-            "Pull request #\($pr): \($title)\n\nThread on \(.path), line \(.line // "outdated"):\n\n"
-            + ([.comments.nodes[] | "@\(.author.login):\n\n\(.body)"] | join("\n\n---\n\n"))' <<< "$thread" > "$RUNNER_TEMP/message.md"
-          jq --arg repo "$GITHUB_REPOSITORY" --argjson number "$PR" --argjson commentId "$ROOT" \
-            '{ repo: $repo, number: $number, commentId: $commentId, threadId: .id }' <<< "$thread" > "$RUNNER_TEMP/data.json"
-          echo agent=reply >> "$GITHUB_OUTPUT"
-      - if: steps.context.outputs.agent
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          # Full history so the agent can diff against the base commit.
-          fetch-depth: 0
-          persist-credentials: false
-      - if: steps.context.outputs.agent
+
+          # A push reviews only the new commits, unless the previous head is gone after a force push.
+          if [ "$ACTION" = synchronize ] && git merge-base --is-ancestor "$BEFORE" "$head" 2> /dev/null; then
+            diff="git diff $BEFORE $head"
+          else
+            diff="git diff $BASE...$head"
+          fi
+          {
+            printf 'Review pull request #%s: %s\n\nRead the diff with `%s`. The base commit is %s.\n\n' "$PR" "$TITLE" "$diff" "$BASE"
+            printf 'Your unresolved findings:\n\n'
+            jq -r 'if length == 0 then "None." else .[] | "- Comment \(.comments.nodes[0].databaseId) on \(.path), line \(.line // "outdated"):\n\n\(.comments.nodes[0].body)\n" end' <<< "$threads"
+            printf '\nDescription:\n\n%s\n' "$BODY"
+          } > "$RUNNER_TEMP/message.md"
+          echo "OPEN_THREADS=$(jq -c 'map({key: (.comments.nodes[0].databaseId | tostring), value: .id}) | from_entries' <<< "$threads")" >> "$GITHUB_ENV"
+          echo run=true >> "$GITHUB_OUTPUT"
+      - if: steps.context.outputs.run && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" -f state=pending -f context=review \
+            -f description="Reviewing" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > /dev/null
+      - if: steps.context.outputs.run
         uses: ./.depot/actions/setup
-      - if: steps.context.outputs.agent
+      - if: steps.context.outputs.run
         working-directory: packages/review-agent
         env:
-          AGENT: ${{ steps.context.outputs.agent }}
           CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_GATEWAY_ID: ${{ secrets.CLOUDFLARE_GATEWAY_ID }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm exec flue run "src/agents/$AGENT.ts" --message "$(cat "$RUNNER_TEMP/message.md")" --data "$(cat "$RUNNER_TEMP/data.json")"
+          GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+        run: pnpm exec flue run src/agents/reviewer.ts --message "$(cat "$RUNNER_TEMP/message.md")"
+      # Commits each new or changed REVIEW.md through the contents API. The API, not git, makes the
+      # commits, so nothing the agent wrote into .git runs next to the PAT.
+      - if: steps.context.outputs.run
+        env:
+          GH_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          find . -name REVIEW.md -not -path '*/node_modules/*' -printf '%P\n' | while read -r path; do
+            current=$(gh api "repos/$GITHUB_REPOSITORY/contents/$path?ref=$BRANCH" --jq '{sha, content}' 2> /dev/null || echo '{}')
+            content=$(base64 -w0 < "$path")
+            if [ "$(jq -r '.content // "" | gsub("\n"; "")' <<< "$current")" = "$content" ]; then
+              continue
+            fi
+            args=(-f branch="$BRANCH" -f content="$content" -f message="docs: record review decisions in $path")
+            sha=$(jq -r '.sha // empty' <<< "$current")
+            if [ -n "$sha" ]; then
+              args+=(-f sha="$sha")
+            fi
+            gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/$path" "${args[@]}" > /dev/null
+            echo "Committed $path" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
 
   # Runs after every event, so each new head commit gets the status. The concurrency group runs one
   # at a time per pull request, so the last status reads the newest thread state.
   status:
     needs: agent
-    if: always() && github.event.pull_request.head.repo.full_name == github.repository
+    if: always() && github.event.pull_request.head.repo.full_name == github.repository && github.event.comment.user.login != 'olstenlarck'
     permissions:
       pull-requests: read
       statuses: write
@@ -125,7 +178,7 @@ jobs:
               repository(owner: $owner, name: $name) {
                 pullRequest(number: $number) {
                   headRefOid
-                  reviews(first: 100) { nodes { author { login } } }
+                  reviews(first: 100) { nodes { author { login } body } }
                   reviewThreads(first: 100) {
                     nodes { isResolved comments(first: 1) { nodes { author { login } } } }
                   }
@@ -133,12 +186,12 @@ jobs:
               }
             }' --jq '.data.repository.pullRequest | [
               .headRefOid,
-              ([.reviews.nodes[] | select(.author.login == "github-actions")] | length),
-              ([.reviewThreads.nodes[] | select((.isResolved | not) and .comments.nodes[0].author.login == "github-actions")] | length)
+              ([.reviews.nodes[] | select(.author.login == "olstenlarck" and (.body | contains("<!-- review-agent -->")))] | length),
+              ([.reviewThreads.nodes[] | select((.isResolved | not) and .comments.nodes[0].author.login == "olstenlarck")] | length)
             ] | @tsv')
           read -r head reviewed open <<< "$result"
           if [ "$AUTHOR" = 'dependabot[bot]' ] || [[ $TITLE == 'chore: release packages'* ]]; then
-            state=success description="Skipped for Dependabot and release pull requests"
+            state=success description="Not reviewed: Dependabot and release pull requests"
           elif [ "$AGENT" = failure ] || [ "$AGENT" = cancelled ]; then
             state=failure description="The agent run failed; re-run the workflow"
           elif [ "$reviewed" -eq 0 ]; then
