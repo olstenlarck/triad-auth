@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // Rescues ethscriptions from a compromised wallet through EIP-7702.
 //
 // The compromised wallet signs an authorization that delegates its code to the
@@ -7,9 +8,10 @@
 //
 // Usage:
 //   COMPROMISED_KEY=0x... SPONSOR_KEY=0x... RPC_URL=https://... [API_URL=...] \
-//   node scripts/rescue.ts --to <address> [--all | <id or number>...] [--dry-run]
+//   ethscriptions-rescue --to <address> [--all | <id or number>...] [--dry-run]
 
 import { parseArgs } from "node:util";
+
 import {
   type Address,
   createWalletClient,
@@ -42,7 +44,8 @@ async function api<T>(path: string): Promise<T | undefined> {
   if (res.status === 404) {
     return undefined;
   }
-  const body = (await res.json()) as T & { error?: { message: string } };
+  // The API answers JSON with `result` on success and `error.message` on failure.
+  const body: T & { error?: { message: string } } = JSON.parse(await res.text());
   if (!res.ok) {
     throw new Error(`${path}: ${body.error?.message ?? res.statusText}`);
   }
@@ -86,7 +89,7 @@ async function allIdsOwnedBy(owner: Address): Promise<Hex[]> {
   });
   for (;;) {
     const page = await api<{
-      result: { transaction_hash: Hex }[];
+      result: Array<{ transaction_hash: Hex }>;
       pagination: { page_key: string; has_more: boolean };
     }>(`/ethscriptions?${query}`);
     if (!page) {

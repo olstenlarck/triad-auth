@@ -1,0 +1,42 @@
+{
+  "name": "ethscriptions-rescue",
+  "version": "0.0.0",
+  "description": "Rescue ethscriptions from a compromised wallet with EIP-7702, while another wallet pays the gas",
+  "keywords": [
+    "cli",
+    "drainer",
+    "eip-7702",
+    "ethereum",
+    "ethscriptions",
+    "rescue",
+    "sweeper"
+  ],
+  "license": "Apache-2.0",
+  "author": "tunnckoCore",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tunnckoCoreHQ/monarch.git",
+    "directory": "packages/ethscriptions-rescue"
+  },
+  "bin": {
+    "ethscriptions-rescue": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check": "ultracite fix --type-aware --type-check",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "viem": "catalog:"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}

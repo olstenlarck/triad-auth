@@ -1,10 +1,10 @@
 // Runs the rescue CLI against a local anvil chain and a mocked calldata.space API.
-// The EthscriptionsProtocol runtime code comes from `forge build`, set at its mainnet address.
+// The EthscriptionsProtocol runtime code is the deployed mainnet code, set at the same address.
 
 import { type ChildProcess, execFile, spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { promisify } from "node:util";
+
 import {
   type Address,
   createPublicClient,
@@ -18,6 +18,8 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
 import { afterAll, beforeAll, expect, test } from "vitest";
+
+import { PROTOCOL_CODE } from "./protocol-code";
 
 const PROTOCOL: Address = "0xdBB21c21A873fFe51eC6354A2b909aCBdb20F24f";
 // Anvil's first default account, funded at genesis.
@@ -64,10 +66,13 @@ function mockApi(req: { url?: string }): { status: number; body: unknown } {
     };
   }
   const key = url.pathname.split("/")[2] ?? "";
-  const byNumber: Record<string, Hex> = { "101": owned[0] as Hex, "102": owned[1] as Hex };
+  const byNumber: Record<string, Hex> = { "101": owned[0], "102": owned[1] };
   const id = byNumber[key] ?? key;
-  if (owned.includes(id as Hex)) {
-    return { status: 200, body: { result: { transaction_hash: id, current_owner: compromised.address } } };
+  if (owned.includes(id)) {
+    return {
+      status: 200,
+      body: { result: { transaction_hash: id, current_owner: compromised.address } },
+    };
   }
   if (id === notOwned) {
     return { status: 200, body: { result: { transaction_hash: id, current_owner: stranger } } };
@@ -76,7 +81,7 @@ function mockApi(req: { url?: string }): { status: number; body: unknown } {
 }
 
 function rescue(...args: string[]) {
-  return promisify(execFile)("node", ["scripts/rescue.ts", "--to", safe, ...args], {
+  return promisify(execFile)("node", ["src/cli.ts", "--to", safe, ...args], {
     env: {
       ...process.env,
       API_URL: `http://127.0.0.1:${API_PORT}`,
@@ -88,7 +93,11 @@ function rescue(...args: string[]) {
 }
 
 async function rescuedLogs() {
-  const logs = await client.getLogs({ address: compromised.address, event: TRANSFER, fromBlock: 0n });
+  const logs = await client.getLogs({
+    address: compromised.address,
+    event: TRANSFER,
+    fromBlock: 0n,
+  });
   for (const log of logs) {
     expect(log.args.recipient).toBe(safe);
   }
@@ -111,10 +120,7 @@ beforeAll(async () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
-  const artifact = JSON.parse(
-    readFileSync("out/EthscriptionsProtocol.sol/EthscriptionsProtocol.json", "utf8"),
-  );
-  await testClient.setCode({ address: PROTOCOL, bytecode: artifact.deployedBytecode.object });
+  await testClient.setCode({ address: PROTOCOL, bytecode: PROTOCOL_CODE });
 });
 
 afterAll(() => {
@@ -129,25 +135,35 @@ test("--dry-run lists the owned ethscriptions and sends nothing", async () => {
   expect(await client.getCode({ address: compromised.address })).toBeUndefined();
 });
 
-test("--all pages through the API and sends two batches with one authorization", async () => {
-  await rescue("--all");
+test(
+  "--all pages through the API and sends two batches with one authorization",
+  async () => {
+    await rescue("--all");
 
-  const logs = await rescuedLogs();
-  expect(logs.map((log) => log.args.ethscriptionId)).toEqual(owned);
-  expect(new Set(logs.map((log) => log.transactionHash)).size).toBe(2);
-  // Each applied authorization bumps the compromised wallet's nonce.
-  expect(await client.getTransactionCount({ address: compromised.address })).toBe(1);
-  expect(await client.getCode({ address: compromised.address })).toBe(
-    `0xef0100${PROTOCOL.slice(2).toLowerCase()}`,
-  );
-  expect(await client.getBalance({ address: compromised.address })).toBe(0n);
-}, SEND_TIMEOUT);
+    const logs = await rescuedLogs();
+    expect(logs.map((log) => log.args.ethscriptionId)).toEqual(owned);
+    expect(new Set(logs.map((log) => log.transactionHash)).size).toBe(2);
+    // Each applied authorization bumps the compromised wallet's nonce.
+    expect(await client.getTransactionCount({ address: compromised.address })).toBe(1);
+    expect(await client.getCode({ address: compromised.address })).toBe(
+      `0xef0100${PROTOCOL.slice(2).toLowerCase()}`,
+    );
+    expect(await client.getBalance({ address: compromised.address })).toBe(0n);
+  },
+  SEND_TIMEOUT,
+);
 
-test("ids and numbers reuse the delegation and skip what the wallet does not own", async () => {
-  const { stderr } = await rescue("101", owned[1] as Hex, notOwned);
+test(
+  "ids and numbers reuse the delegation and skip what the wallet does not own",
+  async () => {
+    const { stderr } = await rescue("101", owned[1], notOwned);
 
-  expect(stderr).toContain(`skip ${notOwned}: owned by ${stranger}`);
-  const logs = await rescuedLogs();
-  expect(logs.slice(owned.length).map((log) => log.args.ethscriptionId)).toEqual(owned.slice(0, 2));
-  expect(await client.getTransactionCount({ address: compromised.address })).toBe(1);
-}, SEND_TIMEOUT);
+    expect(stderr).toContain(`skip ${notOwned}: owned by ${stranger}`);
+    const logs = await rescuedLogs();
+    expect(logs.slice(owned.length).map((log) => log.args.ethscriptionId)).toEqual(
+      owned.slice(0, 2),
+    );
+    expect(await client.getTransactionCount({ address: compromised.address })).toBe(1);
+  },
+  SEND_TIMEOUT,
+);

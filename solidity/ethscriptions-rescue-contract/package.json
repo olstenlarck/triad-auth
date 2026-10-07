@@ -1,15 +1,14 @@
 {
-  "name": "ethscriptions-rescue",
+  "name": "ethscriptions-rescue-contract",
   "version": "0.0.0",
   "private": true,
-  "description": "Rescue ethscriptions from a compromised wallet with EIP-7702 and the EthscriptionsProtocol contract",
+  "description": "EthscriptionsProtocol contract, the EIP-7702 delegation target for rescuing ethscriptions from a compromised wallet",
   "license": "Apache-2.0",
   "author": "tunnckoCore",
-  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tunnckoCoreHQ/monarch.git",
-    "directory": "solidity/ethscriptions-rescue"
+    "directory": "solidity/ethscriptions-rescue-contract"
   },
   "scripts": {
     "build": "forge build",
@@ -17,18 +16,11 @@
     "fmt": "forge fmt",
     "gas": "forge snapshot --no-match-test testFuzz",
     "lint": "forge lint --deny warnings",
-    "rescue": "node scripts/rescue.ts",
     "snapshot": "if [ -f .gas-snapshot ]; then exec forge snapshot --check --no-match-test testFuzz; else exec pnpm run gas; fi",
-    "test": "forge test && vitest run",
+    "test": "forge test",
     "test:fork": "FOUNDRY_PROFILE=fork forge test --match-contract ForkTest$ --fork-url ${RPC_URL:-https://ethereum-rpc.publicnode.com}"
   },
-  "dependencies": {
-    "viem": "catalog:"
-  },
   "devDependencies": {
-    "@types/node": "catalog:types",
-    "forge-std": "github:foundry-rs/forge-std#v1.16.1",
-    "typescript": "catalog:types",
-    "vitest": "catalog:"
+    "forge-std": "github:foundry-rs/forge-std#v1.16.1"
   }
 }

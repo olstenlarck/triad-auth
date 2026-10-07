@@ -24,5 +24,5 @@ The sponsor pays all gas. No ETH goes to the compromised wallet, so the sweeper 
 ## Risks
 
 - The attacker has the same key. If they send any transaction from the compromised wallet before the rescue lands, its nonce changes and the signed authorization becomes invalid. They can also sign their own delegation. Send the rescue through a private RPC so that it does not wait in the public mempool.
-- The `escapeEthscriptions` function has no access control. While the delegation is active, anyone can call the compromised wallet and move what it owns. Rescue everything in one run with `--all`. Anything sent to the compromised wallet later is open to anyone.
-- An event for an ethscription that the compromised wallet does not own moves nothing and only wastes gas. The script checks the current owner of each id or number before it sends.
+- The `escapeEthscriptions` function has no access control. While the delegation is active, anyone can call the compromised wallet and move what it owns. Rescue everything in one run, with the `--all` flag of the [`ethscriptions-rescue`](../../../packages/ethscriptions-rescue) CLI. Anything sent to the compromised wallet later is open to anyone.
+- An event for an ethscription that the compromised wallet does not own moves nothing and only wastes gas. The CLI checks the current owner of each id or number before it sends.
