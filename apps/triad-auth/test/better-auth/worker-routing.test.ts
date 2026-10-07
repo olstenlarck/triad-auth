@@ -29,11 +29,6 @@ function createServices() {
 
     return new Response("wallet");
   });
-  const handleAstro = vi.fn(async () => {
-    calls.push("astro");
-
-    return new Response("astro");
-  });
   const fetchAssets = vi.fn(async () => {
     calls.push("assets");
 
@@ -47,7 +42,6 @@ function createServices() {
       createTriadConfiguration,
       createTriadAuth,
       handleWalletBroker,
-      handleAstro,
       fetchAssets,
     },
     spies: {
@@ -57,7 +51,6 @@ function createServices() {
       getSession,
       signJWT,
       handleWalletBroker,
-      handleAstro,
       fetchAssets,
     },
   };
@@ -92,7 +85,6 @@ describe("Triad Worker routing", () => {
       expect(spies.createTriadConfiguration).toHaveBeenCalledWith(env);
       expect(spies.createTriadAuth).toHaveBeenCalledWith(env, configuration);
       expect(spies.authHandler).toHaveBeenCalledWith(request);
-      expect(spies.handleAstro).not.toHaveBeenCalled();
       expect(spies.fetchAssets).not.toHaveBeenCalled();
     },
   );
@@ -112,7 +104,6 @@ describe("Triad Worker routing", () => {
     expect(spies.createTriadConfiguration).not.toHaveBeenCalled();
     expect(spies.createTriadAuth).not.toHaveBeenCalled();
     expect(spies.authHandler).not.toHaveBeenCalled();
-    expect(spies.handleAstro).not.toHaveBeenCalled();
   });
 
   it("routes wallet broker endpoints through authenticated configuration", async () => {
@@ -128,24 +119,6 @@ describe("Triad Worker routing", () => {
     expect(calls).toEqual(["configuration", "auth", "wallet"]);
     expect(spies.createTriadAuth).toHaveBeenCalledWith(env, configuration);
     expect(spies.handleWalletBroker).toHaveBeenCalledWith(request, env, expect.any(Object));
-    expect(spies.authHandler).not.toHaveBeenCalled();
-    expect(spies.fetchAssets).not.toHaveBeenCalled();
-  });
-
-  it("routes Astro internals through Astro only", async () => {
-    const { calls, services, spies } = createServices();
-    const worker = createWorker(services);
-    const request = new Request("https://auth.example.com/__astro_page") as Parameters<
-      typeof worker.fetch
-    >[0];
-
-    const response = await worker.fetch(request, env, context);
-
-    expect(await response.text()).toBe("astro");
-    expect(calls).toEqual(["astro"]);
-    expect(spies.handleAstro).toHaveBeenCalledWith(request, env, context);
-    expect(spies.createTriadConfiguration).not.toHaveBeenCalled();
-    expect(spies.createTriadAuth).not.toHaveBeenCalled();
     expect(spies.authHandler).not.toHaveBeenCalled();
     expect(spies.fetchAssets).not.toHaveBeenCalled();
   });

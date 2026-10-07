@@ -32,7 +32,6 @@ function createServices() {
   const createTriadConfiguration = vi.fn(() => ({ application: "triad" }));
   const createTriadAuth = vi.fn(() => ({ api: { getSession, signJWT }, handler: authHandler }));
   const handleWalletBroker = vi.fn(async () => new Response("wallet"));
-  const handleAstro = vi.fn(async () => new Response("astro"));
   const fetchAssets = vi.fn(async () => new Response("assets"));
 
   return {
@@ -40,7 +39,6 @@ function createServices() {
       createTriadConfiguration,
       createTriadAuth,
       handleWalletBroker,
-      handleAstro,
       fetchAssets,
     },
     spies: {
@@ -50,7 +48,6 @@ function createServices() {
       createTriadConfiguration,
       createTriadAuth,
       handleWalletBroker,
-      handleAstro,
       fetchAssets,
     },
   };
@@ -117,7 +114,6 @@ describe("Triad protected-resource metadata routing", () => {
       expect(spies.createTriadConfiguration).not.toHaveBeenCalled();
       expect(spies.createTriadAuth).not.toHaveBeenCalled();
       expect(spies.authHandler).not.toHaveBeenCalled();
-      expect(spies.handleAstro).not.toHaveBeenCalled();
       expect(spies.fetchAssets).not.toHaveBeenCalled();
     },
   );

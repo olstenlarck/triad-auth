@@ -12,14 +12,14 @@ The canonical domain language is defined in [`CONTEXT.md`](./CONTEXT.md). Archit
 
 ```sh
 pnpm install
+pnpm run build
 pnpm run dev
 turbo run check --filter=triad-auth
-pnpm run build
 ```
 
 ## Deployment
 
-Triad runs as two Cloudflare Workers with two D1 databases. Pull requests merge into `master`, which Workers Builds deploys to `triad-auth-nightly` at `https://triad-auth-nightly.wgw.lol`. Moving the `release/triad-auth` branch forward deploys `triad-auth` at `https://triad-auth.wgw.lol`. Other branches do not deploy.
+Triad runs as two Cloudflare Workers with two D1 databases, deployed with Alchemy from Depot CI. Pull requests merge into `master`, and `deploy-nightly` deploys each merge that touches the app to `triad-auth-nightly` at `https://triad-auth-nightly.wgw.lol`. `pnpm run promote` deploys the `master` head to `triad-auth` at `https://triad-auth.wgw.lol`. Other branches do not deploy.
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full flow, first-time setup, and secrets.
 

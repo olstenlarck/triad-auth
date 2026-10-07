@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import cloudflareConfig from "../../cloudflare.config";
+import { stackConfig } from "../../alchemy.run";
 import { authSchemaDatabase } from "../../scripts/auth-schema-database";
 
 function readSource(path: string): string {
@@ -86,7 +86,7 @@ const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, "package.jso
   devDependencies: Record<string, string>;
   scripts: Record<string, string>;
 };
-const cloudflareConfigSource = readSource("cloudflare.config.ts");
+const alchemyStackSource = readSource("alchemy.run.ts");
 const schemaSource = readSource("src/better-auth/schema.ts");
 const schemaDatabaseSource = readSource("scripts/auth-schema-database.ts");
 const migrationFiles = readdirSync(resolve(repositoryRoot, "migrations"))
@@ -94,13 +94,13 @@ const migrationFiles = readdirSync(resolve(repositoryRoot, "migrations"))
   .toSorted();
 const initialMigration = readSource("migrations/0001-initial.sql");
 
-// cloudflare.config.ts exports a function of the build mode; `cf build --mode nightly` selects nightly.
-function workerConfig(mode: string | undefined) {
-  return cloudflareConfig({ mode, isPreview: false }).worker;
-}
-
-const productionDatabaseId = "40220009-d502-4afd-ab7b-54495016720f";
-const nightlyDatabaseId = "c4c8e874-a463-4c22-8389-8911627c055d";
+// alchemy.run.ts is a function of the deploy stage; `alchemy deploy --stage nightly` selects nightly.
+const assetsConfig = {
+  directory: "dist",
+  htmlHandling: "drop-trailing-slash",
+  notFoundHandling: "404-page",
+  runWorkerFirst: false,
+};
 
 describe("Better Auth schema tooling", () => {
   it("keeps one squashed initial migration", () => {
@@ -143,60 +143,53 @@ describe("Better Auth schema tooling", () => {
     expect(initialMigration).not.toContain("alter table");
   });
 
-  it.each(["production", "development", undefined])(
-    "configures the production Worker and D1 database for mode %s",
-    (mode) => {
-      const worker = workerConfig(mode);
+  it("configures the production Worker and D1 database for stage prod", () => {
+    const { worker, database, authOrigin } = stackConfig("prod");
 
-      expect(worker.name).toBe("triad-auth");
-      expect(worker.entrypoint).toBe("src/index.ts");
-      expect(worker.workersDev).toBe(false);
-      expect(worker.previewUrls).toBe(false);
-      expect(worker.triggers).toEqual([
-        { type: "fetch", pattern: "triad-auth.wgw.lol/*", zone: "wgw.lol" },
+    expect(worker.name).toBe("triad-auth");
+    expect(worker.main).toBe("src/index.ts");
+    expect(worker.workersDev).toBe(false);
+    expect(worker.domain).toBeNull();
+    expect(worker.routes).toEqual([{ pattern: "triad-auth.wgw.lol/*", zoneName: "wgw.lol" }]);
+    expect(authOrigin).toBe("https://triad-auth.wgw.lol");
+    expect(database).toEqual({ name: "triad-auth", migrations: "migrations" });
+  });
+
+  it.each(["dev_user", "live_user"])(
+    "keeps stage %s away from the production and nightly resources",
+    (stage) => {
+      const { worker, database, authOrigin } = stackConfig(stage);
+
+      expect(worker.name).toBe(`triad-auth-${stage}`);
+      expect(worker.routes).toEqual([
+        { pattern: `triad-auth-${stage}.wgw.lol/*`, zoneName: "wgw.lol" },
       ]);
-      expect(worker.env.AUTH_ORIGIN).toEqual({
-        type: "text",
-        value: "https://triad-auth.wgw.lol",
-      });
-      expect(worker.env.DB).toEqual({ type: "d1", name: "triad-auth", id: productionDatabaseId });
-      expect(worker.env.ASSETS).toEqual({ type: "assets" });
+      expect(authOrigin).toBe(`https://triad-auth-${stage}.wgw.lol`);
+      expect(database).toEqual({ name: `triad-auth-${stage}`, migrations: "migrations" });
     },
   );
 
   it("configures the nightly Worker and D1 database", () => {
-    const worker = workerConfig("nightly");
+    const { worker, database, authOrigin } = stackConfig("nightly");
 
     expect(worker.name).toBe("triad-auth-nightly");
-    expect(worker.entrypoint).toBe("src/index.ts");
+    expect(worker.main).toBe("src/index.ts");
     expect(worker.workersDev).toBe(false);
-    expect(worker.previewUrls).toBe(false);
-    expect(worker.triggers).toEqual([
-      { type: "fetch", pattern: "triad-auth-nightly.wgw.lol/*", zone: "wgw.lol" },
+    expect(worker.domain).toBeNull();
+    expect(worker.routes).toEqual([
+      { pattern: "triad-auth-nightly.wgw.lol/*", zoneName: "wgw.lol" },
     ]);
-    expect(worker.env.AUTH_ORIGIN).toEqual({
-      type: "text",
-      value: "https://triad-auth-nightly.wgw.lol",
-    });
-    expect(worker.env.DB).toEqual({
-      type: "d1",
-      name: "triad-auth-nightly",
-      id: nightlyDatabaseId,
-    });
-    expect(worker.env.ASSETS).toEqual({ type: "assets" });
+    expect(authOrigin).toBe("https://triad-auth-nightly.wgw.lol");
+    expect(database).toEqual({ name: "triad-auth-nightly", migrations: "migrations" });
   });
 
-  it("serves static assets with the same runtime behavior in both modes", () => {
-    for (const mode of [undefined, "nightly"]) {
-      expect(workerConfig(mode).assets).toEqual({
-        htmlHandling: "drop-trailing-slash",
-        notFoundHandling: "404-page",
-        runWorkerFirst: false,
+  it("serves static assets with the same runtime behavior in both stages", () => {
+    for (const stage of ["prod", "nightly"]) {
+      expect(stackConfig(stage).worker.assets).toEqual(assetsConfig);
+      expect(stackConfig(stage).worker.compatibility).toEqual({
+        date: "2026-07-09",
+        flags: ["nodejs_compat", "global_fetch_strictly_public"],
       });
-      expect(workerConfig(mode).compatibilityFlags).toEqual([
-        "nodejs_compat",
-        "global_fetch_strictly_public",
-      ]);
     }
   });
 
@@ -204,20 +197,17 @@ describe("Better Auth schema tooling", () => {
     expect(packageJson.scripts["db:generate"]).toBe(
       "pnpm exec auth generate --config src/better-auth/schema.ts --output .ignore/auth-schema.sql --yes",
     );
-    expect(packageJson.scripts["db:migrate:local"]).toBe(
-      `pnpm exec cf d1 migrations apply ${productionDatabaseId} --local --persist-to .cloudflare/state`,
-    );
-    expect(packageJson.scripts.build).toBe("pnpm exec cf build");
-    expect(packageJson.scripts["build:nightly"]).toBe("pnpm exec cf build --mode nightly");
-    expect(packageJson.scripts.deploy).toBe(
-      `pnpm exec cf d1 migrations apply ${productionDatabaseId} && pnpm exec cf deploy --prebuilt --mode production`,
-    );
+    expect(packageJson.scripts.build).toBe("pnpm exec astro build");
     expect(packageJson.scripts["deploy:nightly"]).toBe(
-      `pnpm exec cf d1 migrations apply ${nightlyDatabaseId} && pnpm exec cf deploy --prebuilt --mode nightly`,
+      "pnpm run build && pnpm exec alchemy deploy --stage nightly",
+    );
+    expect(packageJson.scripts["deploy:prod"]).toBe(
+      "pnpm run build && pnpm exec alchemy deploy --stage prod",
     );
     expect(packageJson.scripts.promote).toBe(
-      "git fetch origin && git push origin origin/master:release/triad-auth",
+      "depot ci dispatch --repo tunnckoCoreHQ/monarch --workflow deploy-prod.yml --ref master --input app=triad-auth",
     );
+    expect(packageJson.scripts.deploy).toBeUndefined();
     expect(packageJson.scripts["deploy:staging"]).toBeUndefined();
     expect(packageJson.scripts.test).toBe("vitest run");
   });
@@ -230,7 +220,7 @@ describe("Better Auth schema tooling", () => {
     const toolingSource = [
       dependencyNames,
       JSON.stringify(packageJson.scripts),
-      cloudflareConfigSource,
+      alchemyStackSource,
       schemaSource,
       schemaDatabaseSource,
     ].join("\n");
@@ -239,7 +229,7 @@ describe("Better Auth schema tooling", () => {
       /drizzle|miniflare|better-sqlite3|bun:sqlite|node:sqlite|sqlite3/i,
     );
     expect(toolingSource).not.toMatch(/triad-better-auth|triad-auth-broker/);
-    expect(dependencyNames).not.toMatch(/wrangler/);
+    expect(dependencyNames).not.toMatch(/^(wrangler|cf|@astrojs\/cloudflare)$/m);
   });
 
   it("builds the schema auth instance through the canonical configuration", () => {
