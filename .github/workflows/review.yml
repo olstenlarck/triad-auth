@@ -6,16 +6,18 @@
 #
 # The master ruleset requires the review commit status: pending until the agent has reviewed the
 # pull request and while one of its threads is unresolved, success after that. On success, the
-# status job approves the head commit as github-actions[bot]; approve-command.yml stays as a manual
-# fallback.
+# status job approves the head commit as olstenlarck with OLSTENLARCK_HQ_PAT, because a job-token
+# approval may not count toward the ruleset; approve-command.yml stays as a manual fallback. It
+# cannot approve pull requests that olstenlarck opened.
 #
 # A /review comment from tunnckoCore runs a full review again, and "/review <model>" also switches
 # the OpenCode Zen model for that pull request. The review body records the model, and later runs
 # keep it. The default is the free Muse Spark 1.3. issue_comment runs use this file from master.
 #
 # The review-agent environment holds OPENCODE_API_KEY; only this workflow uses it. The agent posts
-# and commits as olstenlarck with OLSTENLARCK_HQ_PAT. Its own pushes and comments start runs here,
-# so the agent job skips them.
+# reviews and replies as olstenlarck with OLSTENLARCK_HQ_PAT, and its comments start runs here, so
+# the agent job skips olstenlarck. The job token commits REVIEW.md, so olstenlarck is never the last
+# pusher, and those commits start no workflow runs.
 #
 # Dependabot pull requests and the release pull request (olstenlarck's changeset-release/master)
 # never run the agent unless tunnckoCore asks with /review. The status job still marks them success
@@ -46,7 +48,8 @@ jobs:
       name: review-agent
       deployment: false
     permissions:
-      contents: read
+      # Commits REVIEW.md to the pull request branch.
+      contents: write
       pull-requests: read
       statuses: write
     runs-on: ubuntu-latest
@@ -185,11 +188,11 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
         run: pnpm exec flue run src/agents/reviewer.ts --message "$(cat "$RUNNER_TEMP/message.md")"
-      # Commits each new or changed REVIEW.md through the contents API. The API, not git, makes the
-      # commits, so nothing the agent wrote into .git runs next to the PAT.
+      # Commits each new or changed REVIEW.md through the contents API with the job token. The API, not
+      # git, makes the commits, so nothing the agent wrote into .git runs next to a token.
       - if: steps.context.outputs.run
         env:
-          GH_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+          GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.pull.outputs.branch }}
         run: |
           find . -name REVIEW.md -not -path '*/node_modules/*' -printf '%P\n' | while read -r path; do
@@ -214,7 +217,7 @@ jobs:
     needs: agent
     if: always() && github.event.comment.user.login != 'olstenlarck' && (github.event_name != 'issue_comment' || needs.agent.result != 'skipped')
     permissions:
-      pull-requests: write
+      pull-requests: read
       statuses: write
     concurrency:
       group: review-status-${{ github.event.pull_request.number || github.event.issue.number }}
@@ -225,6 +228,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
           AGENT: ${{ needs.agent.result }}
+          APPROVER_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
         run: |
           owner=${GITHUB_REPOSITORY%/*}
           name=${GITHUB_REPOSITORY#*/}
@@ -237,17 +241,18 @@ jobs:
                   isCrossRepository
                   author { login }
                   reviews(author: "olstenlarck", last: 100) { nodes { body commit { oid } } }
-                  approvals: reviews(author: "github-actions[bot]", states: APPROVED, last: 20) { nodes { commit { oid } } }
+                  approvals: reviews(author: "olstenlarck", states: APPROVED, last: 20) { nodes { commit { oid } } }
                 }
               }
             }' --jq '.data.repository.pullRequest | [
               .headRefOid,
               .isCrossRepository,
+              .author.login,
               (.author.login == "dependabot" or (.author.login == "olstenlarck" and .headRefName == "changeset-release/master")),
               ([.reviews.nodes[] | select(.body | contains("<!-- review-agent model="))] | last.commit.oid // "none"),
               (.headRefOid as $head | [.approvals.nodes[] | select(.commit.oid == $head)] | length)
             ] | @tsv')
-          read -r head fork skipped reviewed approved <<< "$result"
+          read -r head fork author skipped reviewed approved <<< "$result"
           # The agent covers the head when it reviewed that commit, or when the commits after the
           # reviewed one change only REVIEW.md files, which the agent commits itself.
           covered=false
@@ -288,8 +293,8 @@ jobs:
           echo "review: $state, $description" | tee -a "$GITHUB_STEP_SUMMARY"
           # The agent is satisfied: it reviewed the pull request and none of its threads is open. A
           # new push dismisses the approval, and the next satisfied run approves the new head.
-          if [ "$description" = "No unresolved review threads" ] && [ "$approved" -eq 0 ]; then
-            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/reviews" -f commit_id="$head" -f event=APPROVE \
+          if [ "$description" = "No unresolved review threads" ] && [ "$approved" -eq 0 ] && [ "$author" != olstenlarck ]; then
+            GH_TOKEN=$APPROVER_TOKEN gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/reviews" -f commit_id="$head" -f event=APPROVE \
               -f body="The review agent has no unresolved findings on this commit." > /dev/null
             echo "Approved $head" | tee -a "$GITHUB_STEP_SUMMARY"
           fi

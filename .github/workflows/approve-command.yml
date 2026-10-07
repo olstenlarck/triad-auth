@@ -1,10 +1,8 @@
-# Approves a pull request when tunnckoCore comments /approve on it. The approval comes from
-# github-actions[bot] through the job token, which the repository lets approve pull requests. It
-# satisfies the one approval the master ruleset requires, also after the review agent pushes a
-# REVIEW.md as olstenlarck, because the ruleset only rejects approvals from the last pusher.
+# Approves a pull request when tunnckoCore comments /approve on it. The approval comes from the
+# PAT owner, which satisfies the one approval the master ruleset requires.
 #
-# SECURITY: the job runs no repository code. The token is used only to approve. Keep the author
-# gate; do not extend it to other users.
+# SECURITY: the job runs no repository code. The PAT is used only to approve. Keep the author gate;
+# do not extend it to other users.
 
 name: approve-command
 
@@ -18,11 +16,9 @@ jobs:
   approve:
     if: >-
       github.event.issue.pull_request && github.event.comment.user.login == 'tunnckoCore' && contains(github.event.comment.body, '/approve')
-    permissions:
-      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
           PR: ${{ github.event.issue.number }}
         run: gh pr review "$PR" --repo "$GITHUB_REPOSITORY" --approve
