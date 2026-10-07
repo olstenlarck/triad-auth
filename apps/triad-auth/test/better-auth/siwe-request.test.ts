@@ -1,6 +1,9 @@
+import { betterAuth } from "better-auth";
+import { memoryAdapter } from "better-auth/adapters/memory";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it } from "vitest";
 
-import { createTriadAuth } from "../../src/better-auth/auth";
+import { createTriadAuth, createTriadAuthOptions } from "../../src/better-auth/auth";
 import { createTriadConfiguration } from "../../src/better-auth/configuration";
 import type { TriadEnv } from "../../src/better-auth/env";
 
@@ -13,6 +16,28 @@ const meta = {
   changed_db: false,
   changes: 0,
 };
+
+const TABLES = [
+  "user",
+  "session",
+  "account",
+  "verification",
+  "deviceCode",
+  "walletAddress",
+  "passkey",
+  "passkeyUsername",
+  "oauthClient",
+  "oauthResource",
+  "oauthClientResource",
+  "oauthRefreshToken",
+  "oauthAccessToken",
+  "oauthConsent",
+  "oauthClientAssertion",
+  "jwks",
+  "rateLimit",
+  "walletRequest",
+  "walletCapabilityRequest",
+];
 
 function emptyDatabase(): D1Database {
   const statement: D1PreparedStatement = {
@@ -62,17 +87,19 @@ function createEnv(): TriadEnv {
   };
 }
 
+function siweRequest(path: string, body: string): Request {
+  return new Request(`https://auth.example.com/api/auth${path}`, {
+    method: "POST",
+    headers: { origin: "https://auth.example.com", "content-type": "application/json" },
+    body,
+  });
+}
+
 async function postSiwe(path: string, body: string): Promise<Response> {
   const env = createEnv();
   const auth = createTriadAuth(env, createTriadConfiguration(env));
 
-  return auth.handler(
-    new Request(`https://auth.example.com/api/auth${path}`, {
-      method: "POST",
-      headers: { origin: "https://auth.example.com", "content-type": "application/json" },
-      body,
-    }),
-  );
+  return auth.handler(siweRequest(path, body));
 }
 
 describe("SIWE request bodies", () => {
@@ -99,5 +126,45 @@ describe("SIWE request bodies", () => {
     );
 
     expect(response.status).toBe(400);
+  });
+
+  it("signs in with a valid wallet signature and stores the signed chain", async () => {
+    // The memory adapter copies plain arrays during a transaction and needs every
+    // table from migrations/0001-initial.sql up front.
+    const memory: Record<string, Array<Record<string, unknown>>> = Object.fromEntries(
+      TABLES.map((table) => [table, []]),
+    );
+    const env = createEnv();
+    const auth = betterAuth({
+      ...createTriadAuthOptions(env, createTriadConfiguration(env)),
+      database: memoryAdapter(memory),
+    });
+    const wallet = privateKeyToAccount(generatePrivateKey());
+
+    const nonceResponse = await auth.handler(siweRequest("/siwe/nonce", "{}"));
+    const { nonce }: { nonce: string } = await nonceResponse.json();
+    const message = [
+      "auth.example.com wants you to sign in with your Ethereum account:",
+      wallet.address,
+      "",
+      "Sign in to Triad.",
+      "",
+      "URI: https://auth.example.com",
+      "Version: 1",
+      "Chain ID: 8453",
+      `Nonce: ${nonce}`,
+      `Issued At: ${new Date().toISOString()}`,
+    ].join("\n");
+    const signature = await wallet.signMessage({ message });
+
+    const verifyResponse = await auth.handler(
+      siweRequest("/siwe/verify", JSON.stringify({ message, signature })),
+    );
+
+    expect(verifyResponse.status).toBe(200);
+    expect(verifyResponse.headers.get("set-cookie")).toContain("better-auth.session_token=");
+    expect(memory.session).toHaveLength(1);
+    expect(memory.session[0]).toMatchObject({ authenticationChainId: 8453 });
+    expect(memory.walletAddress[0]).toMatchObject({ chainId: 8453 });
   });
 });
