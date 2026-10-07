@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from "node:fs";
+
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
@@ -17,27 +19,16 @@ const meta = {
   changes: 0,
 };
 
-const TABLES = [
-  "user",
-  "session",
-  "account",
-  "verification",
-  "deviceCode",
-  "walletAddress",
-  "passkey",
-  "passkeyUsername",
-  "oauthClient",
-  "oauthResource",
-  "oauthClientResource",
-  "oauthRefreshToken",
-  "oauthAccessToken",
-  "oauthConsent",
-  "oauthClientAssertion",
-  "jwks",
-  "rateLimit",
-  "walletRequest",
-  "walletCapabilityRequest",
-];
+const MIGRATIONS = new URL("../../migrations/", import.meta.url);
+
+function migratedTables(): string[] {
+  const statements = readdirSync(MIGRATIONS)
+    .filter((file) => file.endsWith(".sql"))
+    .map((file) => readFileSync(new URL(file, MIGRATIONS), "utf-8"))
+    .join("\n");
+
+  return [...statements.matchAll(/create table "(\w+)"/g)].map(([, table]) => table ?? "");
+}
 
 function emptyDatabase(): D1Database {
   const statement: D1PreparedStatement = {
@@ -110,61 +101,76 @@ describe("SIWE request bodies", () => {
     await expect(response.json()).resolves.toMatchObject({ nonce: expect.any(String) });
   });
 
-  it("accepts the message and signature body the account page sends", async () => {
+  it("passes schema validation for the message and signature body the account page sends", async () => {
     const response = await postSiwe(
       "/siwe/verify",
       JSON.stringify({ message: "not a SIWE message", signature: "0x00" }),
     );
 
+    // A strict-schema failure is 400. The 401 comes later, from the fake message.
     expect(response.status).toBe(401);
   });
 
   it("rejects the wallet fields the account page used to send", async () => {
-    const response = await postSiwe(
-      "/siwe/nonce",
-      JSON.stringify({ walletAddress: "0x0000000000000000000000000000000000000001", chainId: 1 }),
+    const walletFields = {
+      walletAddress: "0x0000000000000000000000000000000000000001",
+      chainId: 1,
+    };
+
+    const nonce = await postSiwe("/siwe/nonce", JSON.stringify(walletFields));
+    const verify = await postSiwe(
+      "/siwe/verify",
+      JSON.stringify({ message: "not a SIWE message", signature: "0x00", ...walletFields }),
     );
 
-    expect(response.status).toBe(400);
+    expect(nonce.status).toBe(400);
+    expect(verify.status).toBe(400);
   });
 
-  it("signs in with a valid wallet signature and stores the signed chain", async () => {
-    // The memory adapter copies plain arrays during a transaction and needs every
-    // table from migrations/0001-initial.sql up front.
-    const memory: Record<string, Array<Record<string, unknown>>> = Object.fromEntries(
-      TABLES.map((table) => [table, []]),
-    );
-    const env = createEnv();
-    const auth = betterAuth({
-      ...createTriadAuthOptions(env, createTriadConfiguration(env)),
-      database: memoryAdapter(memory),
-    });
-    const wallet = privateKeyToAccount(generatePrivateKey());
+  it.each([
+    ["one Chain ID line", []],
+    ["a later Chain ID line that is not a number", ["Chain ID: not-a-number"]],
+  ])(
+    "signs in with a valid wallet signature and stores the signed chain with %s",
+    async (_case, trailing: string[]) => {
+      // The memory adapter copies plain arrays during a transaction and needs every
+      // migrated table up front.
+      const memory: Record<string, Array<Record<string, unknown>>> = Object.fromEntries(
+        migratedTables().map((table) => [table, []]),
+      );
+      const env = createEnv();
+      const auth = betterAuth({
+        ...createTriadAuthOptions(env, createTriadConfiguration(env)),
+        database: memoryAdapter(memory),
+      });
+      const wallet = privateKeyToAccount(generatePrivateKey());
 
-    const nonceResponse = await auth.handler(siweRequest("/siwe/nonce", "{}"));
-    const { nonce }: { nonce: string } = await nonceResponse.json();
-    const message = [
-      "auth.example.com wants you to sign in with your Ethereum account:",
-      wallet.address,
-      "",
-      "Sign in to Triad.",
-      "",
-      "URI: https://auth.example.com",
-      "Version: 1",
-      "Chain ID: 8453",
-      `Nonce: ${nonce}`,
-      `Issued At: ${new Date().toISOString()}`,
-    ].join("\n");
-    const signature = await wallet.signMessage({ message });
+      const nonceResponse = await auth.handler(siweRequest("/siwe/nonce", "{}"));
+      const { nonce }: { nonce: string } = await nonceResponse.json();
+      const message = [
+        "auth.example.com wants you to sign in with your Ethereum account:",
+        wallet.address,
+        "",
+        "Sign in to Triad.",
+        "",
+        "URI: https://auth.example.com",
+        "Version: 1",
+        "Chain ID: 8453",
+        `Nonce: ${nonce}`,
+        `Issued At: ${new Date().toISOString()}`,
+        ...trailing,
+      ].join("\n");
+      const signature = await wallet.signMessage({ message });
 
-    const verifyResponse = await auth.handler(
-      siweRequest("/siwe/verify", JSON.stringify({ message, signature })),
-    );
+      const verifyResponse = await auth.handler(
+        siweRequest("/siwe/verify", JSON.stringify({ message, signature })),
+      );
 
-    expect(verifyResponse.status).toBe(200);
-    expect(verifyResponse.headers.get("set-cookie")).toContain("better-auth.session_token=");
-    expect(memory.session).toHaveLength(1);
-    expect(memory.session[0]).toMatchObject({ authenticationChainId: 8453 });
-    expect(memory.walletAddress[0]).toMatchObject({ chainId: 8453 });
-  });
+      expect(verifyResponse.status).toBe(200);
+      expect(verifyResponse.headers.get("set-cookie")).toContain("better-auth.session_token=");
+      expect(memory.session).toHaveLength(1);
+      expect(memory.session[0]).toMatchObject({ authenticationChainId: 8453 });
+      expect(memory.walletAddress[0]).toMatchObject({ chainId: 8453 });
+    },
+  );
 });

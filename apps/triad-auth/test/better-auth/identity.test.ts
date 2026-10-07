@@ -431,4 +431,30 @@ describe("Triad provider identity configuration", () => {
       "data.authenticationChainId",
     );
   });
+
+  it.each([
+    ["a later line that is not an integer", "Chain ID: not-a-number", 8453],
+    ["a later empty value", "Chain ID: ", undefined],
+    ["a later integer beyond the safe range", "Chain ID: 9007199254740993", undefined],
+  ])("reads the chain like the Better Auth parser with %s", async (_case, trailing, expected) => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const session = {
+      id: "session-id",
+      userId: "acc_subject",
+      token: "session-token",
+      expiresAt: new Date("2030-01-01T00:00:00Z"),
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+    const message = ["Chain ID: 8453", trailing].join("\n");
+
+    const result = await configuration.databaseHooks.session.create.before(session, {
+      path: "/siwe/verify",
+      body: { message, signature: "0x00" },
+    } as never);
+
+    expect(Reflect.get(Reflect.get(result ?? {}, "data") ?? {}, "authenticationChainId")).toBe(
+      expected,
+    );
+  });
 });

@@ -166,7 +166,8 @@ function clearSessionRequestMetadata(session: Record<string, unknown>) {
 }
 
 // Better Auth takes the chain from the signed SIWE message, so the session
-// records the same value. As in its parser, the last "Chain ID" line wins.
+// records the same value. As in its parser, the last "Chain ID" line whose
+// value is an integer wins. An unsafe integer is not recorded.
 function siweAuthenticationChainId(context: unknown): number | undefined {
   if (
     !isRecord(context) ||
@@ -177,12 +178,21 @@ function siweAuthenticationChainId(context: unknown): number | undefined {
     return undefined;
   }
 
-  const chainLines = context.body.message
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith(SIWE_CHAIN_ID_FIELD));
-  const chainId = Number(chainLines.at(-1)?.slice(SIWE_CHAIN_ID_FIELD.length));
+  let chainId: number | undefined;
+  for (const line of context.body.message.split(/\r?\n/)) {
+    if (!line.startsWith(SIWE_CHAIN_ID_FIELD)) {
+      continue;
+    }
 
-  return Number.isSafeInteger(chainId) && chainId > 0 ? chainId : undefined;
+    const parsed = Number(line.slice(SIWE_CHAIN_ID_FIELD.length));
+    if (Number.isInteger(parsed)) {
+      chainId = parsed;
+    }
+  }
+
+  return chainId !== undefined && Number.isSafeInteger(chainId) && chainId > 0
+    ? chainId
+    : undefined;
 }
 
 export function createIdentityConfiguration(env: TriadEnv) {
