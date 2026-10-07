@@ -35,28 +35,31 @@ const compromisedKey = generatePrivateKey();
 const compromised = privateKeyToAccount(compromisedKey);
 const safe = privateKeyToAccount(generatePrivateKey()).address;
 const stranger = privateKeyToAccount(generatePrivateKey()).address;
-const owned = [1, 2, 3].map((n) => keccak256(toHex(`owned ${n}`)));
+// More ids than one batch of 1000, so `--all` sends two transactions.
+const owned = Array.from({ length: 1003 }, (_, n) => keccak256(toHex(`owned ${n}`)));
+// Reserved URL characters check that the CLI encodes the page cursor.
+const PAGE_KEY = "next+&#";
 const notOwned = keccak256(toHex("not owned"));
 
 const client = createPublicClient({ chain: mainnet, transport: http(RPC_URL) });
 let anvil: ChildProcess;
 let api: Server;
 
-// Serves the two endpoints the CLI uses. The owner listing has two pages.
+// Serves the two endpoints the CLI uses. The owner listing has two pages: 2 ids, then the rest.
 function mockApi(req: { url?: string }): { status: number; body: unknown } {
   const url = new URL(req.url ?? "/", "http://api");
   if (url.pathname === "/ethscriptions") {
     if (url.searchParams.get("current_owner") !== compromised.address) {
       return { status: 404, body: { error: { message: "No profile results found" } } };
     }
-    const second = url.searchParams.get("page_key") === "next";
+    const second = url.searchParams.get("page_key") === PAGE_KEY;
     return {
       status: 200,
       body: {
         result: (second ? owned.slice(2) : owned.slice(0, 2)).map((id) => ({
           transaction_hash: id,
         })),
-        pagination: { page_key: second ? "" : "next", has_more: !second },
+        pagination: { page_key: second ? "" : PAGE_KEY, has_more: !second },
       },
     };
   }
@@ -84,12 +87,12 @@ function rescue(...args: string[]) {
   });
 }
 
-async function rescuedIds(): Promise<Hex[]> {
+async function rescuedLogs() {
   const logs = await client.getLogs({ address: compromised.address, event: TRANSFER, fromBlock: 0n });
   for (const log of logs) {
     expect(log.args.recipient).toBe(safe);
   }
-  return logs.map((log) => log.args.ethscriptionId as Hex);
+  return logs;
 }
 
 beforeAll(async () => {
@@ -122,26 +125,29 @@ afterAll(() => {
 test("--dry-run lists the owned ethscriptions and sends nothing", async () => {
   const { stdout } = await rescue("--all", "--dry-run");
 
-  expect(stdout).toContain(`3 ethscriptions from ${compromised.address}`);
+  expect(stdout).toContain(`${owned.length} ethscriptions from ${compromised.address}`);
   expect(await client.getCode({ address: compromised.address })).toBeUndefined();
 });
 
-test("ids and numbers delegate the wallet and skip what it does not own", async () => {
-  const { stderr } = await rescue("101", owned[1] as Hex, notOwned);
+test("--all pages through the API and sends two batches with one authorization", async () => {
+  await rescue("--all");
 
-  expect(stderr).toContain(`skip ${notOwned}: owned by ${stranger}`);
-  expect(await rescuedIds()).toEqual(owned.slice(0, 2));
+  const logs = await rescuedLogs();
+  expect(logs.map((log) => log.args.ethscriptionId)).toEqual(owned);
+  expect(new Set(logs.map((log) => log.transactionHash)).size).toBe(2);
+  // Each applied authorization bumps the compromised wallet's nonce.
+  expect(await client.getTransactionCount({ address: compromised.address })).toBe(1);
   expect(await client.getCode({ address: compromised.address })).toBe(
     `0xef0100${PROTOCOL.slice(2).toLowerCase()}`,
   );
   expect(await client.getBalance({ address: compromised.address })).toBe(0n);
 }, SEND_TIMEOUT);
 
-test("--all pages through the API and reuses the delegation", async () => {
-  const nonce = await client.getTransactionCount({ address: compromised.address });
-  await rescue("--all");
+test("ids and numbers reuse the delegation and skip what the wallet does not own", async () => {
+  const { stderr } = await rescue("101", owned[1] as Hex, notOwned);
 
-  expect(await rescuedIds()).toEqual([...owned.slice(0, 2), ...owned]);
-  // A new authorization would bump the compromised wallet's nonce.
-  expect(await client.getTransactionCount({ address: compromised.address })).toBe(nonce);
+  expect(stderr).toContain(`skip ${notOwned}: owned by ${stranger}`);
+  const logs = await rescuedLogs();
+  expect(logs.slice(owned.length).map((log) => log.args.ethscriptionId)).toEqual(owned.slice(0, 2));
+  expect(await client.getTransactionCount({ address: compromised.address })).toBe(1);
 }, SEND_TIMEOUT);

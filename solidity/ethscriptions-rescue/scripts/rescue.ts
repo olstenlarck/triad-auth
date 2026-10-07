@@ -79,14 +79,16 @@ async function idsOwnedBy(owner: Address, inputs: string[]): Promise<Hex[]> {
 
 async function allIdsOwnedBy(owner: Address): Promise<Hex[]> {
   const ids: Hex[] = [];
-  let pageKey = "";
+  const query = new URLSearchParams({
+    current_owner: owner,
+    only: "transaction_hash",
+    per_page: "100",
+  });
   for (;;) {
     const page = await api<{
       result: { transaction_hash: Hex }[];
       pagination: { page_key: string; has_more: boolean };
-    }>(
-      `/ethscriptions?current_owner=${owner}&only=transaction_hash&per_page=100${pageKey && `&page_key=${pageKey}`}`,
-    );
+    }>(`/ethscriptions?${query}`);
     if (!page) {
       return ids;
     }
@@ -94,7 +96,7 @@ async function allIdsOwnedBy(owner: Address): Promise<Hex[]> {
     if (!page.pagination.has_more) {
       return ids;
     }
-    pageKey = page.pagination.page_key;
+    query.set("page_key", page.pagination.page_key);
   }
 }
 
@@ -123,12 +125,16 @@ if (values.all === positionals.length > 0) {
 }
 
 const to = getAddress(values.to);
+const rpcUrl = process.env.RPC_URL;
+if (!rpcUrl) {
+  throw new Error("Set RPC_URL to an Ethereum mainnet RPC, preferably a private one");
+}
 const compromised = privateKeyToAccount(env("COMPROMISED_KEY"));
 const sponsor = privateKeyToAccount(env("SPONSOR_KEY"));
 const client = createWalletClient({
   account: sponsor,
   chain: mainnet,
-  transport: http(process.env.RPC_URL),
+  transport: http(rpcUrl),
 }).extend(publicActions);
 
 const ids = values.all
