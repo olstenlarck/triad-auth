@@ -170,6 +170,11 @@ describe("preserved Better Auth UI wiring", () => {
     expect(account).not.toMatch(/\/api\/me|\/session\/logout/);
   });
 
+  it("sends only the SIWE fields Better Auth accepts", () => {
+    expect(account).toContain("JSON.stringify({ message, signature })");
+    expect(account).not.toContain("walletAddress: address");
+  });
+
   it("describes delete-consent as consent removal rather than token revocation", () => {
     expect(account).toContain("REMOVE CONSENT");
     expect(account).toContain("Existing tokens may remain valid until expiry");

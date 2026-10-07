@@ -397,7 +397,7 @@ describe("Triad provider identity configuration", () => {
     },
   );
 
-  it("records the chain used to create a SIWE session", async () => {
+  it("records the chain from the signed SIWE message", async () => {
     const configuration = createIdentityConfiguration(createEnv());
     const session = {
       id: "session-id",
@@ -407,12 +407,54 @@ describe("Triad provider identity configuration", () => {
       createdAt: new Date("2026-01-01T00:00:00Z"),
       updatedAt: new Date("2026-01-01T00:00:00Z"),
     };
-
-    await expect(
+    const createSession = (body: Record<string, unknown>) =>
       configuration.databaseHooks.session.create.before(session, {
         path: "/siwe/verify",
-        body: { chainId: 1 },
-      } as never),
-    ).resolves.toMatchObject({ data: { authenticationChainId: 1 } });
+        body,
+      } as never);
+    const message = [
+      "auth.example.com wants you to sign in with your Ethereum account:",
+      "0x0000000000000000000000000000000000000001",
+      "",
+      "Chain ID: 5",
+      "",
+      "URI: https://auth.example.com",
+      "Version: 1",
+      "Chain ID: 8453",
+      "Nonce: abcdefgh",
+    ].join("\n");
+
+    await expect(createSession({ message, signature: "0x00" })).resolves.toMatchObject({
+      data: { authenticationChainId: 8453 },
+    });
+    await expect(createSession({ message: "no chain", chainId: 1 })).resolves.not.toHaveProperty(
+      "data.authenticationChainId",
+    );
+  });
+
+  it.each([
+    ["a later line that is not an integer", "Chain ID: not-a-number", 8453],
+    ["a later empty value", "Chain ID: ", undefined],
+    ["a later integer beyond the safe range", "Chain ID: 9007199254740993", undefined],
+  ])("reads the chain like the Better Auth parser with %s", async (_case, trailing, expected) => {
+    const configuration = createIdentityConfiguration(createEnv());
+    const session = {
+      id: "session-id",
+      userId: "acc_subject",
+      token: "session-token",
+      expiresAt: new Date("2030-01-01T00:00:00Z"),
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      updatedAt: new Date("2026-01-01T00:00:00Z"),
+    };
+    const message = ["Chain ID: 8453", trailing].join("\n");
+
+    const result = await configuration.databaseHooks.session.create.before(session, {
+      path: "/siwe/verify",
+      body: { message, signature: "0x00" },
+    } as never);
+
+    expect(Reflect.get(Reflect.get(result ?? {}, "data") ?? {}, "authenticationChainId")).toBe(
+      expected,
+    );
   });
 });
