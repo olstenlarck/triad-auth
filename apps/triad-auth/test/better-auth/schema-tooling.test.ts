@@ -143,18 +143,29 @@ describe("Better Auth schema tooling", () => {
     expect(initialMigration).not.toContain("alter table");
   });
 
-  it.each(["prod", "dev_user", "live_user"])(
-    "configures the production Worker and D1 database for stage %s",
+  it("configures the production Worker and D1 database for stage prod", () => {
+    const { worker, database, authOrigin } = stackConfig("prod");
+
+    expect(worker.name).toBe("triad-auth");
+    expect(worker.main).toBe("src/index.ts");
+    expect(worker.workersDev).toBe(false);
+    expect(worker.domain).toBeNull();
+    expect(worker.routes).toEqual([{ pattern: "triad-auth.wgw.lol/*", zoneName: "wgw.lol" }]);
+    expect(authOrigin).toBe("https://triad-auth.wgw.lol");
+    expect(database).toEqual({ name: "triad-auth", migrations: "migrations" });
+  });
+
+  it.each(["dev_user", "live_user"])(
+    "keeps stage %s away from the production and nightly resources",
     (stage) => {
       const { worker, database, authOrigin } = stackConfig(stage);
 
-      expect(worker.name).toBe("triad-auth");
-      expect(worker.main).toBe("src/index.ts");
-      expect(worker.workersDev).toBe(false);
-      expect(worker.domain).toBeNull();
-      expect(worker.routes).toEqual([{ pattern: "triad-auth.wgw.lol/*", zoneName: "wgw.lol" }]);
-      expect(authOrigin).toBe("https://triad-auth.wgw.lol");
-      expect(database).toEqual({ name: "triad-auth", migrations: "migrations" });
+      expect(worker.name).toBe(`triad-auth-${stage}`);
+      expect(worker.routes).toEqual([
+        { pattern: `triad-auth-${stage}.wgw.lol/*`, zoneName: "wgw.lol" },
+      ]);
+      expect(authOrigin).toBe(`https://triad-auth-${stage}.wgw.lol`);
+      expect(database).toEqual({ name: `triad-auth-${stage}`, migrations: "migrations" });
     },
   );
 

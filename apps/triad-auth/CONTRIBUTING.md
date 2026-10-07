@@ -11,7 +11,7 @@ Triad is a Better Auth OAuth/OIDC server on Cloudflare Workers, D1, and Astro. T
 
 `master` is the default branch. Every pull request targets it. Nothing deploys from a pull request or from any other branch.
 
-Both Workers are described by one `alchemy.run.ts`. The stack is a function of the Alchemy stage: `--stage nightly` selects the nightly Worker, every other stage selects production. The two Workers share nothing. Each has its own D1 database, its own secrets, and its own `AUTH_ORIGIN`. Alchemy keeps the stack state in the remote Cloudflare state store.
+Both Workers are described by one `alchemy.run.ts`. The stack is a function of the Alchemy stage: `--stage prod` selects `triad-auth`, `--stage nightly` selects `triad-auth-nightly`, and any other stage gets its own `triad-auth-<stage>` Worker and database. The two Workers share nothing. Each has its own D1 database, its own secrets, and its own `AUTH_ORIGIN`. Alchemy keeps the stack state in the remote Cloudflare state store.
 
 ## Local development
 
@@ -60,7 +60,7 @@ Every page footer shows a `BUILD <sha>` link with the commit the running Worker 
 | `pnpm run deploy:prod`    | `pnpm run build`, then `alchemy deploy --stage prod`    |
 | `pnpm run promote`        | dispatches `deploy-prod` for `triad-auth` on `master`   |
 
-`alchemy deploy` bundles `src/index.ts`, uploads `dist/` as the Worker's static assets, applies the pending files in `migrations/` to the stage's D1 database, and sets the secrets from the environment. Depot CI runs the deploy scripts. Do not run them by hand unless asked; a local deploy needs the `cf-equator` Alchemy profile and the ten secrets in the environment.
+`alchemy deploy` bundles `src/index.ts`, uploads `dist/` as the Worker's static assets, applies the pending files in `migrations/` to the stage's D1 database, and sets the secrets from the environment. Depot CI runs the deploy scripts. Do not run them by hand unless asked; a local deploy needs the `cf-equator` Alchemy profile and the ten secrets in the environment, and `alchemy deploy` reads `.env` from this folder, so a local deploy uploads the values in that file.
 
 ## Secrets
 

@@ -3,26 +3,22 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 
-// One Worker per stage. `--stage nightly` targets `triad-auth-nightly`; every other stage targets
-// `triad-auth`. Each Worker has its own D1 database, its own secrets, and its own AUTH_ORIGIN.
-const workers = {
-  production: { name: "triad-auth", database: "triad-auth" },
-  nightly: { name: "triad-auth-nightly", database: "triad-auth-nightly" },
-} as const;
-
+// One Worker and one D1 database per stage. `prod` targets `triad-auth` and `nightly` targets
+// `triad-auth-nightly`. Any other stage, such as the `dev_<user>` stage of `alchemy dev`, gets its
+// own names, so it never touches those two. Each Worker has its own secrets and AUTH_ORIGIN.
 export function stackConfig(stage: string) {
-  const target = stage === "nightly" ? workers.nightly : workers.production;
-  const host = `${target.name}.wgw.lol`;
+  const name = stage === "prod" ? "triad-auth" : `triad-auth-${stage}`;
+  const host = `${name}.wgw.lol`;
 
   return {
     // Alchemy adopts the database by name and takes over the `d1_migrations` history that
     // `cf d1 migrations apply` left in it, then applies pending migrations on every deploy.
     database: {
-      name: target.database,
+      name,
       migrations: "migrations",
     } satisfies Cloudflare.D1.DatabaseProps,
     worker: {
-      name: target.name,
+      name,
       main: "src/index.ts",
       // A zone route, not a custom domain: wgw.lol hosts many subdomains on routes.
       domain: null,
@@ -53,7 +49,10 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* () {
     const config = stackConfig(yield* Alchemy.Stage);
-    const database = yield* Cloudflare.D1.Database("Database", config.database);
+    // The database holds the accounts, sessions, and JWKS: `alchemy destroy` leaves it in place.
+    const database = yield* Cloudflare.D1.Database("Database", config.database).pipe(
+      Alchemy.RemovalPolicy.retain(),
+    );
     const worker = yield* Cloudflare.Worker("Worker", {
       ...config.worker,
       env: {
