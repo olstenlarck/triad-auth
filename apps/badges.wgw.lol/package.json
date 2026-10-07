@@ -10,9 +10,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "badgen": "catalog:"
+    "badgen": "catalog:",
+    "effect": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "alchemy": "catalog:"
   }
 }
