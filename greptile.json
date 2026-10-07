@@ -1,9 +1,12 @@
 {
   "strictness": 2,
   "triggerOnUpdates": false,
-  "excludeAuthors": ["dependabot[bot]"],
+  "excludeAuthors": [
+    "dependabot[bot]"
+  ],
   "ignoreKeywords": "chore: release packages",
   "autoApprove": {
     "enabled": true
-  }
+  },
+  "shouldUpdateDescription": false
 }

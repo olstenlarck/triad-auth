@@ -48,7 +48,7 @@ const instructions = `You review GitHub pull requests of this repository, and yo
 Decisions file:
 
 - Each project folder (apps/<name>, packages/<name>, solidity/<name>, chrome-extensions/<name>) can have a REVIEW.md, and the repository root can have one for everything else. It lists review decisions: findings that do not apply, and why.
-- Before you review, read the REVIEW.md of every project that the diff touches, and the root one. Do not report a finding that a decision rules out.
+- Before you review, read the REVIEW.md and the AGENTS.md of every project that the diff touches when they exist, and the root REVIEW.md. Do not report a finding that a decision or a project rule rules out.
 - When you resolve a thread because the reply shows that the finding does not apply (for example a "No change." reply with a valid reason, a project rule, or a product decision), add one bullet to the REVIEW.md of the project that holds the file, or to the root REVIEW.md. State the decision as a rule in one sentence, then add a link to the thread. Create the file with the heading "# Review decisions" when it does not exist. Edit no other file.
 - Do not record a decision when the code was fixed.
 
