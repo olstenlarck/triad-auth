@@ -1,7 +1,7 @@
 import { deviceCodeGrant, oauthProvider } from "@better-auth/oauth-provider";
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError } from "better-auth/api";
-import { jwt } from "better-auth/plugins";
+import { jwt, multiSession } from "better-auth/plugins";
 
 import { createClientAdmissionFragment } from "./admission";
 import type { TriadAuthConfiguration } from "./auth";
@@ -18,6 +18,7 @@ import {
   createPasskeyAuthentication,
   createProfileClaimResolver,
   createSessionClaimResolver,
+  hasOtherDeviceSession,
   isSocialProvider,
   pairwiseSubject,
 } from "./identity";
@@ -86,11 +87,16 @@ export function createTriadConfiguration(env: TriadEnv) {
     createEthereumAuthentication(env),
     createPasskeyAuthentication(env),
     walletBrokerPlugin,
+    multiSession(),
     oauthProvider({
       ...tokenOptions,
       ...admissionOptions,
       consentPage: "/consent",
       loginPage: "/me",
+      selectAccount: {
+        page: "/me",
+        shouldRedirect: ({ headers, session }) => hasOtherDeviceSession(headers, session.token),
+      },
       postLogin: {
         page: "/me",
         shouldRedirect: ({ user, scopes }) => {

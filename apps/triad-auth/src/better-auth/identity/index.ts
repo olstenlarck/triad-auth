@@ -22,7 +22,11 @@ export {
   type ProfileIdentityUser,
 } from "./profile";
 export { createEthereumAuthentication } from "./siwe";
-export { createSessionClaimResolver } from "./session";
+export {
+  createSessionClaimResolver,
+  hasOtherDeviceSession,
+  withoutActiveSessionCookies,
+} from "./session";
 export {
   accountSubject,
   type AuthenticationProvider,

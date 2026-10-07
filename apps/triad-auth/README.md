@@ -37,6 +37,8 @@ Rate-limit buckets are HMAC-derived with `RATE_LIMIT_SECRET` from Better Auth's 
 
 The signed-in account page can delete the account. Deletion removes the profile envelope, sessions, provider account, device and wallet request records, consents, grants, and user-bound token records. Already issued short-lived JWTs may remain valid until expiry, and deletion does not remove data held by an upstream provider.
 
+One browser can stay signed in to up to five Triad Accounts at once, for example a Google account, a Twitter account, and a Passkey account. Better Auth's `multiSession` plugin keeps one signed cookie per account. The accounts stay separate: one of them is active, and the account page can switch the active account or sign out of one account. A passkey sign-in or a new Identity Passkey ignores the active account, so it never narrows to or attaches to that account. When an authorization request arrives and the browser holds more than one account, Triad asks which account continues.
+
 ## Wallet authorization
 
 A registered client starts a wallet request at `/wallet/authorize` with `client_id`, its exact registered `redirect_uri`, a state value of at least 16 characters, the message to approve, and a required `wallet_profile`. `namespace` defaults to `client` and accepts `account`, `client`, or `source`. `account_index` defaults to `0`. Raw derivation paths are not accepted. The supported profiles are `evm`, `solana`, `bitcoin-native-segwit-mainnet`, `bitcoin-native-segwit-testnet`, `bitcoin-taproot-mainnet`, and `bitcoin-taproot-testnet`. Bitcoin therefore always has an explicit address type and network.
