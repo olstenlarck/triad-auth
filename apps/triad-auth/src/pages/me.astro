@@ -1153,8 +1153,9 @@ export const prerender = true;
       }
     }
 
-    // An account-list failure must not hide sign-in and sign-out controls.
-    async function deviceSessions(signal: AbortSignal): Promise<DeviceSession[]> {
+    // An account-list failure must not hide sign-in and sign-out controls, so it
+    // returns undefined and load() shows the error with a retry.
+    async function deviceSessions(signal: AbortSignal): Promise<DeviceSession[] | undefined> {
       try {
         const response = await fetch("/api/auth/multi-session/list-device-sessions", {
           headers: { accept: "application/json" },
@@ -1167,7 +1168,7 @@ export const prerender = true;
           throw reason;
         }
 
-        return [];
+        return undefined;
       }
     }
 
@@ -1328,13 +1329,17 @@ export const prerender = true;
       document.querySelector("#account-summary")!.textContent = "Loading your session...";
 
       try {
-        const [session, sessions] = await Promise.all([
+        const [session, loadedSessions] = await Promise.all([
           fetch("/api/auth/get-session", {
             headers: { accept: "application/json" },
             signal: controller.signal,
           }).then((response) => jsonResponse(response, "Could not load your session.", decodeSession)),
           deviceSessions(controller.signal),
         ]);
+        const sessions = loadedSessions ?? [];
+        if (!loadedSessions) {
+          showError(undefined, "Could not load your signed-in accounts. Retry to list them.");
+        }
         activeAccountSub = session?.user?.id;
         activeProvider = session?.user?.provider;
 
