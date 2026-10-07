@@ -17,7 +17,6 @@ interface WorkerServices<Configuration> {
   createTriadConfiguration(env: TriadEnv): Configuration;
   createTriadAuth(env: TriadEnv, configuration: Configuration): TriadAuthService;
   handleWalletBroker(request: Request, env: TriadEnv, auth: TriadAuthService): Promise<Response>;
-  handleAstro(request: Request, env: TriadEnv, context: ExecutionContext): Promise<Response>;
   fetchAssets(request: Request, env: TriadEnv): Promise<Response>;
 }
 
@@ -137,7 +136,7 @@ async function handleDeviceDisclosure(
 
 export function createWorker<Configuration>(services: WorkerServices<Configuration>) {
   return {
-    async fetch(request, env, context) {
+    async fetch(request, env, _context) {
       const url = new URL(request.url);
       const resourceDocument = protectedResourceDocument(url, env);
       if (resourceDocument) {
@@ -176,14 +175,6 @@ export function createWorker<Configuration>(services: WorkerServices<Configurati
         return withSecurityHeaders(authResponse, env, url.pathname);
       }
 
-      if (url.pathname.startsWith("/__astro_")) {
-        return withSecurityHeaders(
-          await services.handleAstro(request, env, context),
-          env,
-          url.pathname,
-        );
-      }
-
       return withSecurityHeaders(await services.fetchAssets(request, env), env, url.pathname);
     },
   } satisfies ExportedHandler<TriadEnv>;
@@ -193,11 +184,6 @@ export default createWorker({
   createTriadConfiguration,
   createTriadAuth,
   handleWalletBroker: handleWalletBrokerRequest,
-  async handleAstro(request, env, context) {
-    const { handle } = await import("@astrojs/cloudflare/handler");
-
-    return handle(request, env, context);
-  },
   fetchAssets(request, env) {
     return env.ASSETS.fetch(request);
   },

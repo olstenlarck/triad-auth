@@ -47,6 +47,16 @@ jobs:
           VLT_READ_TOKEN: ${{ secrets.VLT_READ_TOKEN }}
           VLT_UPSTREAM_URL: ${{ secrets.VLT_UPSTREAM_URL }}
           VLT_WRITE_TOKEN: ${{ secrets.VLT_WRITE_TOKEN }}
+          # The triad-auth secrets. The four Better Auth ones are the nightly variant, scoped to this workflow.
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          IDENTIFIER_SECRET: ${{ secrets.IDENTIFIER_SECRET }}
+          RATE_LIMIT_SECRET: ${{ secrets.RATE_LIMIT_SECRET }}
+          ENCRYPTION_SECRETS: ${{ secrets.ENCRYPTION_SECRETS }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+          TWITTER_CLIENT_ID: ${{ secrets.TWITTER_CLIENT_ID }}
+          TWITTER_CLIENT_SECRET: ${{ secrets.TWITTER_CLIENT_SECRET }}
         # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
-        # triad-auth has its own deploy:nightly, which Workers Builds runs.
-        run: pnpm exec turbo run deploy:nightly --affected --filter='!triad-auth' -- --yes
+        run: pnpm exec turbo run deploy:nightly --affected -- --yes

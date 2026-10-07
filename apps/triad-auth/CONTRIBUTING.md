@@ -4,25 +4,25 @@ Triad is a Better Auth OAuth/OIDC server on Cloudflare Workers, D1, and Astro. T
 
 ## Environments
 
-| Branch | Worker | Mode | D1 | Origin |
+| Stage | Worker | D1 | Origin | Deployed by |
 | --- | --- | --- | --- | --- |
-| `master` | `triad-auth-nightly` | `nightly` | `triad-auth-nightly` | `https://triad-auth-nightly.wgw.lol` |
-| `release/triad-auth` | `triad-auth` | `production` | `triad-auth` | `https://triad-auth.wgw.lol` |
+| `nightly` | `triad-auth-nightly` | `triad-auth-nightly` | `https://triad-auth-nightly.wgw.lol` | `deploy-nightly`, after every `master` push that touches the app |
+| `prod` | `triad-auth` | `triad-auth` | `https://triad-auth.wgw.lol` | `deploy-prod`, started by hand |
 
-`master` is the default branch. Every pull request targets it. Cloudflare Workers Builds deploys `master` to nightly on each push. `release/triad-auth` is the production pointer. Builds deploys it to production when it moves. No other branch deploys.
+`master` is the default branch. Every pull request targets it. Nothing deploys from a pull request or from any other branch.
 
-Both Workers are described by one `cloudflare.config.ts`. The file exports a function of the build mode: `--mode nightly` returns the nightly Worker, every other mode returns production. The two Workers share nothing. Each has its own D1 database, its own secrets, and its own `AUTH_ORIGIN`.
+Both Workers are described by one `alchemy.run.ts`. The stack is a function of the Alchemy stage: `--stage nightly` selects the nightly Worker, every other stage selects production. The two Workers share nothing. Each has its own D1 database, its own secrets, and its own `AUTH_ORIGIN`. Alchemy keeps the stack state in the remote Cloudflare state store.
 
 ## Local development
 
 ```sh
 pnpm install --frozen-lockfile
-cp .dev.vars.example .dev.vars
-pnpm run db:migrate:local
+cp .env.example .env
+pnpm run build
 pnpm run dev
 ```
 
-Fill `.dev.vars` with local values. `pnpm run dev` runs `cf dev`, which starts Astro with the production bindings from `cloudflare.config.ts` against local D1 storage in `.cloudflare/state/`. `db:migrate:local` applies the migrations to that same local storage.
+Fill `.env` with local values. `pnpm run dev` runs `alchemy dev`, which serves the Worker from `src/index.ts` with the secrets from `.env`, a local D1 database with the migrations applied, and the pages built into `dist/`. Run `pnpm run build` again after changing a page.
 
 ## Making a change
 
@@ -36,8 +36,8 @@ Fill `.dev.vars` with local values. `pnpm run dev` runs `cf dev`, which starts A
    turbo run build --filter=triad-auth
    ```
 
-4. Open a pull request into `master`. The Depot CI `ci` workflow runs `turbo run check` and `turbo run test` for the affected packages Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
-5. Squash-merge. Builds deploys the merge commit to nightly. The build command targets the nightly mode, and the deploy command applies pending migrations first, then uploads the Worker.
+4. Open a pull request into `master`. The Depot CI `ci` workflow runs `turbo run check` and `turbo run test` for the affected packages. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
+5. Squash-merge. `deploy-nightly` runs after `ci` succeeds on `master`: it builds the pages, applies pending migrations to the nightly database, and uploads the Worker.
 
 ## Releasing to production
 
@@ -47,54 +47,24 @@ Confirm nightly is healthy at `https://triad-auth-nightly.wgw.lol`, then:
 pnpm run promote
 ```
 
-This fast-forwards `release/triad-auth` to `origin/master`. Builds deploys it to `triad-auth`. To release a specific commit instead, push it directly: `git push origin <sha>:refs/heads/release/triad-auth`.
+This dispatches the `deploy-prod` Depot workflow for this app on `master`. It builds the pages from the `master` head, applies pending migrations to the production database, and uploads the `triad-auth` Worker. `pnpm run apps:deploy:prod` from the repository root does the same for every app with a `deploy:prod` script.
 
-Every page footer shows a `BUILD <sha>` link with the commit the running Worker was built from. It can trail the branch pointer: Builds skips a push whose changes fall outside the watch paths, so a promote that only touches other apps or root tooling does not rebuild this Worker.
+Every page footer shows a `BUILD <sha>` link with the commit the running Worker was built from.
 
 ## Build and deploy scripts
 
-| Script | What it does |
-| --- | --- |
-| `pnpm run build` | `cf build`: Astro build for the production Worker |
-| `pnpm run build:nightly` | `cf build --mode nightly`: Astro build for the nightly Worker |
-| `pnpm run deploy` | `cf d1 migrations apply <production D1 id>`, then `cf deploy --prebuilt --mode production` |
-| `pnpm run deploy:nightly` | `cf d1 migrations apply <nightly D1 id>`, then `cf deploy --prebuilt --mode nightly` |
-| `pnpm run promote` | `git fetch origin && git push origin origin/master:release/triad-auth` |
+| Script                    | What it does                                            |
+| ------------------------- | ------------------------------------------------------- |
+| `pnpm run build`          | `astro build`: prerenders every page into `dist/`       |
+| `pnpm run deploy:nightly` | `pnpm run build`, then `alchemy deploy --stage nightly` |
+| `pnpm run deploy:prod`    | `pnpm run build`, then `alchemy deploy --stage prod`    |
+| `pnpm run promote`        | dispatches `deploy-prod` for `triad-auth` on `master`   |
 
-`cf build` runs `astro build` and writes Build Output to `.cloudflare/output/v0/`. The `deploy` scripts pass `--prebuilt`, so they upload that output instead of building again, and the mode has to match the build. Always run the matching build before a deploy.
+`alchemy deploy` bundles `src/index.ts`, uploads `dist/` as the Worker's static assets, applies the pending files in `migrations/` to the stage's D1 database, and sets the secrets from the environment. Depot CI runs the deploy scripts. Do not run them by hand unless asked; a local deploy needs the `cf-equator` Alchemy profile and the ten secrets in the environment.
 
-Builds runs the build and deploy scripts. Do not run them by hand except during first-time setup.
+## Secrets
 
-## First-time setup
-
-Done once per Cloudflare account. Skip this if both Workers already exist.
-
-### Databases and Workers
-
-```sh
-pnpm exec cf auth login
-pnpm exec cf d1 create --name triad-auth-nightly
-pnpm exec cf d1 create --name triad-auth
-```
-
-Copy each database `id` into `cloudflare.config.ts` and the matching `deploy` script. Then build and deploy each Worker once so it exists:
-
-```sh
-pnpm run build:nightly && pnpm run deploy:nightly
-pnpm run build && pnpm run deploy
-```
-
-Create two proxied DNS records in the `wgw.lol` zone, `triad-auth-nightly` and `triad-auth`, so the route patterns resolve.
-
-### Secrets
-
-Each Worker needs the same ten secret names with its own values. `cf` cannot set a single secret yet, so set them with Wrangler by Worker name, or upload a file with a new version:
-
-```sh
-npx wrangler secret put <NAME> --name triad-auth-nightly
-npx wrangler secret put <NAME> --name triad-auth
-pnpm exec cf deploy --prebuilt --mode nightly --secrets-file <path>
-```
+Each Worker needs the same ten secret names. The stack reads them from the environment at deploy time, so they live as Depot CI secrets under the same names. The first four in the table differ per Worker through Depot variants: `nightly` is scoped to `deploy-nightly.yml` and `prod` to `deploy-prod.yml`. The six provider values are one `default` variant shared by both Workers, because one OAuth app per provider registers both callback origins. A missing secret fails the Alchemy plan before anything is uploaded. Set or rotate one with `depot ci secrets set <NAME> [variant] --from-stdin`, then redeploy. A secret set on the Worker directly is overwritten by the next deploy.
 
 | Name | Value |
 | --- | --- |
@@ -106,21 +76,14 @@ pnpm exec cf deploy --prebuilt --mode nightly --secrets-file <path>
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | From the GitHub OAuth app |
 | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET` | From the X developer portal |
 
-Generate random values with `openssl rand -base64 32 | tr '+/' '-_' | tr -d '='`. Never reuse a value between the two Workers. Better Auth owns ES256 signing and JWKS persistence, so there is no signing secret.
+Generate random values with `openssl rand -base64 32 | tr '+/' '-_' | tr -d '='`. Never reuse one of the first four values between the two Workers. Better Auth owns ES256 signing and JWKS persistence, so there is no signing secret.
 
 Register the callback URI `/api/auth/callback/<provider>` on both origins with each provider.
 
-### Workers Builds
+## First-time setup
 
-In the Cloudflare dashboard, connect the GitHub repository to both Workers:
+Done once per Cloudflare account. Skip this if both Workers already exist.
 
-| Setting                            | `triad-auth-nightly`      | `triad-auth`         |
-| ---------------------------------- | ------------------------- | -------------------- |
-| Production branch                  | `master`                  | `release/triad-auth` |
-| Build command                      | `pnpm run build:nightly`  | `pnpm run build`     |
-| Deploy command                     | `pnpm run deploy:nightly` | `pnpm run deploy`    |
-| Builds for non-production branches | Off                       | Off                  |
+Set the Depot secrets, then deploy each stage once from Depot CI: merge the app to `master` for nightly and run `pnpm run promote` for production. Alchemy creates each stage's D1 database, Worker, and route, and applies the migrations. Create two proxied DNS records in the `wgw.lol` zone, `triad-auth-nightly` and `triad-auth`, so the route patterns resolve.
 
-`cf` needs Node.js 22.18 or later; the Builds image ships Node.js 24 by default. The auto-generated Builds API token lacks D1 permission. Under My Profile, API Tokens, add D1 Edit to it. Migrations fail without it.
-
-No secrets live in GitHub. Depot CI runs the checks; GitHub Actions only automates Dependabot merges and Socket Optimize.
+No secrets live in GitHub. Depot CI runs the checks and the deploys; GitHub Actions only automates Dependabot merges and Socket Optimize.

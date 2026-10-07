@@ -43,9 +43,9 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "out/**", ".cloudflare/output/**"],
+      "outputs": ["dist/**", "out/**"],
       "inputs": ["$TURBO_DEFAULT$", "!test/**"],
-      "env": ["WORKERS_CI_COMMIT_SHA"]
+      "env": ["COMMIT_SHA"]
     },
     "deploy:nightly": {
       "cache": false,
@@ -56,12 +56,36 @@
         "COMMIT_SHA",
         "VLT_READ_TOKEN",
         "VLT_UPSTREAM_URL",
-        "VLT_WRITE_TOKEN"
+        "VLT_WRITE_TOKEN",
+        "BETTER_AUTH_SECRET",
+        "IDENTIFIER_SECRET",
+        "RATE_LIMIT_SECRET",
+        "ENCRYPTION_SECRETS",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "TWITTER_CLIENT_ID",
+        "TWITTER_CLIENT_SECRET"
       ]
     },
     "deploy:prod": {
       "cache": false,
-      "passThroughEnv": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "COMMIT_SHA"]
+      "passThroughEnv": [
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CLOUDFLARE_API_TOKEN",
+        "COMMIT_SHA",
+        "BETTER_AUTH_SECRET",
+        "IDENTIFIER_SECRET",
+        "RATE_LIMIT_SECRET",
+        "ENCRYPTION_SECRETS",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "TWITTER_CLIENT_ID",
+        "TWITTER_CLIENT_SECRET"
+      ]
     }
   },
   "futureFlags": {

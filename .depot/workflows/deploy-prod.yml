@@ -38,5 +38,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           COMMIT_SHA: ${{ github.sha }}
+          # The triad-auth secrets. The four Better Auth ones are the prod variant, scoped to this workflow.
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          IDENTIFIER_SECRET: ${{ secrets.IDENTIFIER_SECRET }}
+          RATE_LIMIT_SECRET: ${{ secrets.RATE_LIMIT_SECRET }}
+          ENCRYPTION_SECRETS: ${{ secrets.ENCRYPTION_SECRETS }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+          TWITTER_CLIENT_ID: ${{ secrets.TWITTER_CLIENT_ID }}
+          TWITTER_CLIENT_SECRET: ${{ secrets.TWITTER_CLIENT_SECRET }}
         # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
         run: pnpm exec turbo run deploy:prod ${APP:+--filter="$APP"} -- --yes
