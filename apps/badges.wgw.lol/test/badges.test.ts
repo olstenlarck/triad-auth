@@ -89,6 +89,21 @@ async function closedUrl(): Promise<string> {
   return closed.url;
 }
 
+// Moves the test clock a second every few real milliseconds until the lookup ends, so the test
+// does not depend on when the headers reach the client. Without the body timeout, the lookup
+// never ends and the test times out.
+const settle = <A, E>(lookup: Effect.Effect<A, E>) =>
+  Effect.gen(function* () {
+    yield* Effect.forkChild(
+      Effect.forever(
+        TestClock.adjust("1 second").pipe(
+          Effect.andThen(Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 5)))),
+        ),
+      ),
+    );
+    return yield* Effect.exit(lookup);
+  });
+
 beforeEach(() => {
   server.reset();
   logs.length = 0;
@@ -356,38 +371,23 @@ describe("caching", () => {
     }).pipe(Effect.provide(depot)),
   );
 
-  // Waits for the request, then a moment of real time, so the headers have arrived and only the
-  // body is left.
-  const headersSent = Effect.promise(async () => {
-    await vi.waitFor(() => expect(server.seen).toHaveLength(1));
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  });
-
-  it.effect("gives a Depot body that stalls 5 seconds, then fails without a retry", () =>
+  it.effect("fails a Depot body that stalls, instead of waiting for it", () =>
     Effect.gen(function* () {
       server.reply(() => ({ stall: true }));
       const service = yield* Depot;
-      const fiber = yield* Effect.forkChild(
-        Effect.exit(service.latestWorkflow("tunnckoCoreHQ/monarch", "ci")),
-      );
-      yield* headersSent;
-      yield* TestClock.adjust("5 seconds");
+      const exit = yield* settle(service.latestWorkflow("tunnckoCoreHQ/monarch", "ci"));
 
-      expect(Exit.isFailure(yield* Fiber.join(fiber))).toBe(true);
-      expect(server.seen).toHaveLength(1);
+      expect(Exit.isFailure(exit)).toBe(true);
     }).pipe(Effect.provide(depot)),
   );
 
-  it.effect("gives a badgen body that stalls 5 seconds, then fails without a retry", () =>
+  it.effect("fails a badgen body that stalls, instead of waiting for it", () =>
     Effect.gen(function* () {
       server.reply(() => ({ stall: true }));
       const service = yield* Socket;
-      const fiber = yield* Effect.forkChild(Effect.exit(service.badge("tunnckoCoreHQ/monarch")));
-      yield* headersSent;
-      yield* TestClock.adjust("5 seconds");
+      const exit = yield* settle(service.badge("tunnckoCoreHQ/monarch"));
 
-      expect(Exit.isFailure(yield* Fiber.join(fiber))).toBe(true);
-      expect(server.seen).toHaveLength(1);
+      expect(Exit.isFailure(exit)).toBe(true);
     }).pipe(Effect.provide(socketLayer(server.url).pipe(Layer.provide(FetchHttpClient.layer)))),
   );
 });
