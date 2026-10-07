@@ -1,23 +1,49 @@
-# Holds a pull request while it carries the do-not-merge label. The master ruleset requires this
-# check, so auto-merge waits until the owner removes the label and the check reruns green.
-# synchronize is listed so every new head commit gets the check; required checks must exist on it.
+# Holds a pull request while it carries the do-not-merge label. The master ruleset requires the
+# do-not-merge status, so auto-merge waits while the status is pending. Each event replaces the
+# status on the head commit, so a held pull request shows pending, not a failure, and the status
+# turns green as soon as the label is removed.
+#
+# Dependabot pull_request runs get a read-only token, so Dependabot pull requests use
+# pull_request_target and every other pull request uses pull_request: one run per event.
+#
+# SECURITY: the job runs no repository code. It reads the labels and writes one commit status.
 
 name: do-not-merge
 
 on:
   pull_request:
     types: [opened, reopened, synchronize, labeled, unlabeled]
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
 
 permissions: {}
 
+concurrency:
+  group: do-not-merge-${{ github.event.pull_request.number }}
+
 jobs:
-  do-not-merge:
+  hold:
+    if: (github.event_name == 'pull_request_target') == (github.event.pull_request.user.login == 'dependabot[bot]')
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      statuses: write
     steps:
-      - name: Fail while the label is present
-        if: contains(github.event.pull_request.labels.*.name, 'do-not-merge')
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          echo "Held by the do-not-merge label" | tee -a "$GITHUB_STEP_SUMMARY"
-          exit 1
-      - name: Pass without the label
-        run: echo "No hold"
+          if gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' | grep -qx do-not-merge; then
+            state=pending
+            description="Held by the do-not-merge label"
+          else
+            state=success
+            description="No hold"
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" \
+            -f state="$state" \
+            -f context=do-not-merge \
+            -f description="$description" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > /dev/null
+          echo "$description" | tee -a "$GITHUB_STEP_SUMMARY"
