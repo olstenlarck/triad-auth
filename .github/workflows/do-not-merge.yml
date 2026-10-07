@@ -13,10 +13,10 @@ name: do-not-merge
 on:
   pull_request:
     branches: [master]
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+    types: [opened, reopened, synchronize, edited, labeled, unlabeled]
   pull_request_target:
     branches: [master]
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+    types: [opened, reopened, synchronize, edited, labeled, unlabeled]
 
 permissions: {}
 
