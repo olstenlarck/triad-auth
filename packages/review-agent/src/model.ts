@@ -3,7 +3,7 @@ import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completio
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
 import { setProvider } from "@flue/runtime";
 
-const defaultModel = "thinkingmachines/inkling:free";
+const defaultModel = "nvidia/nemotron-3-ultra-550b-a55b:free";
 
 // Turns the OpenRouter model id that the workflow passes in REVIEW_MODEL, with or without the
 // "openrouter/" prefix, into a Flue model specifier.

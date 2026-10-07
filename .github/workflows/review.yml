@@ -12,7 +12,7 @@
 #
 # A /review comment from tunnckoCore runs a full review again, and "/review <model>" also switches
 # the OpenRouter model for that pull request. The review body records the model, and later runs
-# keep it. The default is the free Inkling from Thinking Machines (thinkingmachines/inkling:free).
+# keep it. The default is the free NVIDIA Nemotron 3 Ultra (nvidia/nemotron-3-ultra-550b-a55b:free).
 # issue_comment runs use this file from master.
 #
 # The review-agent environment holds OPENROUTER_API_KEY; only this workflow uses it. The agent posts
