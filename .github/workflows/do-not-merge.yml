@@ -1,9 +1,9 @@
-# Holds a pull request while it carries the do-not-merge label. The master ruleset requires the
-# do-not-merge status, so auto-merge waits while the status is pending. Each event replaces the
-# status on the head commit, so a held pull request shows pending, not a failure, and the status
-# turns green as soon as the label is removed.
+# Holds a pull request to master while it carries the do-not-merge label. The master ruleset
+# requires the do-not-merge status, so auto-merge waits while the status is pending. Each event
+# replaces the status on the head commit, so a held pull request shows pending, not a failure, and
+# the status turns green as soon as the label is removed.
 #
-# Dependabot pull_request runs get a read-only token, so Dependabot pull requests use
+# Dependabot and fork pull_request runs get a read-only token, so those pull requests use
 # pull_request_target and every other pull request uses pull_request: one run per event.
 #
 # SECURITY: the job runs no repository code. It reads the labels and writes one commit status.
@@ -12,8 +12,10 @@ name: do-not-merge
 
 on:
   pull_request:
+    branches: [master]
     types: [opened, reopened, synchronize, labeled, unlabeled]
   pull_request_target:
+    branches: [master]
     types: [opened, reopened, synchronize, labeled, unlabeled]
 
 permissions: {}
@@ -23,7 +25,8 @@ concurrency:
 
 jobs:
   hold:
-    if: (github.event_name == 'pull_request_target') == (github.event.pull_request.user.login == 'dependabot[bot]')
+    if: >-
+      (github.event_name == 'pull_request') == (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -34,7 +37,8 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' | grep -qx do-not-merge; then
+          labels="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')"
+          if grep -qx do-not-merge <<< "$labels"; then
             state=pending
             description="Held by the do-not-merge label"
           else
