@@ -1153,13 +1153,22 @@ export const prerender = true;
       }
     }
 
+    // An account-list failure must not hide sign-in and sign-out controls.
     async function deviceSessions(signal: AbortSignal): Promise<DeviceSession[]> {
-      const response = await fetch("/api/auth/multi-session/list-device-sessions", {
-        headers: { accept: "application/json" },
-        signal,
-      });
+      try {
+        const response = await fetch("/api/auth/multi-session/list-device-sessions", {
+          headers: { accept: "application/json" },
+          signal,
+        });
 
-      return jsonResponse(response, "Could not load signed-in accounts.", decodeDeviceSessions);
+        return await jsonResponse(response, "Could not load signed-in accounts.", decodeDeviceSessions);
+      } catch (reason) {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          throw reason;
+        }
+
+        return [];
+      }
     }
 
     async function setActiveSession(session: DeviceSession) {
@@ -1352,6 +1361,9 @@ export const prerender = true;
         }
 
         renderDeviceSessions(sessions, false);
+        // A session from before multi-session, or a failed list, has no rows,
+        // but the active account can still add another one.
+        sessionsPanel.hidden = false;
         addAccount.hidden = false;
         attachPasskeyForm.hidden = activeProvider === "ethereum";
         attachPasskeyButton.textContent = "ATTACH PASSKEY";
