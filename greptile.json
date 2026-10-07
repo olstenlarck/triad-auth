@@ -1,6 +1,6 @@
 {
   "strictness": 2,
-  "autoReview": ["open", "push", "rebase"],
+  "autoReview": ["open"],
   "shouldUpdateDescription": false,
   "autoApprove": {
     "enabled": true
