@@ -5,6 +5,5 @@
   "ignoreKeywords": "chore: release packages",
   "autoApprove": {
     "enabled": true
-  },
-  "shouldUpdateDescription": false
+  }
 }
