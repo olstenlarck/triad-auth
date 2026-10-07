@@ -397,7 +397,7 @@ describe("Triad provider identity configuration", () => {
     },
   );
 
-  it("records the chain used to create a SIWE session", async () => {
+  it("records the chain from the signed SIWE message", async () => {
     const configuration = createIdentityConfiguration(createEnv());
     const session = {
       id: "session-id",
@@ -407,12 +407,28 @@ describe("Triad provider identity configuration", () => {
       createdAt: new Date("2026-01-01T00:00:00Z"),
       updatedAt: new Date("2026-01-01T00:00:00Z"),
     };
-
-    await expect(
+    const createSession = (body: Record<string, unknown>) =>
       configuration.databaseHooks.session.create.before(session, {
         path: "/siwe/verify",
-        body: { chainId: 1 },
-      } as never),
-    ).resolves.toMatchObject({ data: { authenticationChainId: 1 } });
+        body,
+      } as never);
+    const message = [
+      "auth.example.com wants you to sign in with your Ethereum account:",
+      "0x0000000000000000000000000000000000000001",
+      "",
+      "Chain ID: 5",
+      "",
+      "URI: https://auth.example.com",
+      "Version: 1",
+      "Chain ID: 8453",
+      "Nonce: abcdefgh",
+    ].join("\n");
+
+    await expect(createSession({ message, signature: "0x00" })).resolves.toMatchObject({
+      data: { authenticationChainId: 8453 },
+    });
+    await expect(createSession({ message: "no chain", chainId: 1 })).resolves.not.toHaveProperty(
+      "data.authenticationChainId",
+    );
   });
 });

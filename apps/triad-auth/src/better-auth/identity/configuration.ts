@@ -15,6 +15,7 @@ import {
 const ACCOUNT_SUB_PATTERN = /^acc_[0-9a-f]{64}$/;
 const GOOGLE_SUB_PATTERN = /^[\x21-\x7e]{1,255}$/;
 const DECIMAL_ID_PATTERN = /^[1-9][0-9]*$/;
+const SIWE_CHAIN_ID_FIELD = "Chain ID: ";
 const IDENTITY_PROVIDERS: AuthenticationProvider[] = [
   "google",
   "github",
@@ -164,16 +165,24 @@ function clearSessionRequestMetadata(session: Record<string, unknown>) {
   };
 }
 
+// Better Auth takes the chain from the signed SIWE message, so the session
+// records the same value. As in its parser, the last "Chain ID" line wins.
 function siweAuthenticationChainId(context: unknown): number | undefined {
-  if (!isRecord(context) || context.path !== "/siwe/verify" || !isRecord(context.body)) {
+  if (
+    !isRecord(context) ||
+    context.path !== "/siwe/verify" ||
+    !isRecord(context.body) ||
+    typeof context.body.message !== "string"
+  ) {
     return undefined;
   }
 
-  const chainId = context.body.chainId;
+  const chainLines = context.body.message
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith(SIWE_CHAIN_ID_FIELD));
+  const chainId = Number(chainLines.at(-1)?.slice(SIWE_CHAIN_ID_FIELD.length));
 
-  return typeof chainId === "number" && Number.isSafeInteger(chainId) && chainId > 0
-    ? chainId
-    : undefined;
+  return Number.isSafeInteger(chainId) && chainId > 0 ? chainId : undefined;
 }
 
 export function createIdentityConfiguration(env: TriadEnv) {
