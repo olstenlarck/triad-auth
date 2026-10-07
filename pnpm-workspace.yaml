@@ -5,8 +5,11 @@ packages:
   - "solidity/*"
 
 allowBuilds:
+  "@google/genai": false
+  core-js-pure: false
   esbuild: true
   msgpackr-extract: true
+  protobufjs: false
   sharp: true
   workerd: true
 
@@ -64,6 +67,9 @@ catalogs:
     valibot: ^1.5.0
     '@standard-schema/spec': ^1.1.0
     badgen: 3.3.2
+    "@flue/runtime": 2.2.2
+    "@flue/cli": 2.2.2
+    "@earendil-works/pi-ai": 0.87.1
   types:
     "@cloudflare/workers-types": 5.20260928.1
     "@types/bun": ^1.4.2
