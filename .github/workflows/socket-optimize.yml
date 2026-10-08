@@ -1,0 +1,42 @@
+# Runs Socket Optimize on Mondays at 06:00 UTC, or by hand: `gh workflow run socket-optimize.yml
+# --ref master`. Verified overrides are pushed straight to master by the PAT owner, a repository
+# admin. When the overrides fail verification, the diff is opened as a pull request that needs
+# attention. When there is nothing to push, an issue links the failed run.
+#
+# SECURITY: this job reads the Socket token and the PAT. The nightly environment and the master
+# guard keep a modified branch away from them.
+
+name: socket-optimize
+
+on:
+  schedule:
+    # Mondays 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+concurrency:
+  group: socket-optimize
+  cancel-in-progress: false
+
+jobs:
+  socket-optimize:
+    if: github.ref == 'refs/heads/master'
+    environment: nightly
+    permissions:
+      contents: read
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: bash scripts/socket-optimize.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+          SOCKET_SECURITY_API_TOKEN: ${{ secrets.SOCKET_SECURITY_API_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

@@ -45,17 +45,17 @@
 
   customManagers: [
     {
-      // Foundry is pinned in the RWX definitions: `foundryup" --install v1.7.1`.
+      // Foundry is pinned in the setup action: `version: v1.7.1`.
       customType: "regex",
-      managerFilePatterns: ["/^\\.rwx/[^/]+\\.ya?ml$/"],
-      matchStrings: ["foundryup\" --install (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      managerFilePatterns: ["/^\\.github/actions/setup/action\\.yml$/"],
+      matchStrings: ["version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
       depNameTemplate: "foundry-rs/foundry",
       datasourceTemplate: "github-releases",
     },
     {
-      // Node is pinned in the RWX definitions: `node-version: 24.21.0`.
+      // Node is pinned in the setup action: `node-version: 24.21.0`.
       customType: "regex",
-      managerFilePatterns: ["/^\\.rwx/[^/]+\\.ya?ml$/"],
+      managerFilePatterns: ["/^\\.github/actions/setup/action\\.yml$/"],
       matchStrings: ["node-version: (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       depNameTemplate: "node",
       datasourceTemplate: "node-version",

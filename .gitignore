@@ -26,5 +26,5 @@ out/
 .turbo/
 coverage/
 
-# Vitest JSON results that the RWX test task collects.
+# Vitest JSON results.
 .vitest-results.json

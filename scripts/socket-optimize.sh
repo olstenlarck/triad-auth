@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs Socket Optimize from the RWX socket-optimize task. Verified overrides are pushed straight to
+# Runs Socket Optimize from the socket-optimize workflow. Verified overrides are pushed straight to
 # master by the PAT owner, a repository admin, so the push is a real push that runs ci and needs
 # no pull request. When the overrides fail verification, the diff is opened as a pull request that
 # needs attention. When there is nothing to push, an issue links the failed run.
@@ -17,12 +17,12 @@ git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 open_failure_issue() {
   existing=$(gh issue list --repo tunnckoCoreHQ/monarch --state open --search "\"$failure_title\" in:title" --json number,title --jq ".[] | select(.title == \"$failure_title\") | .number" | head -1)
   if [ -n "$existing" ]; then
-    gh issue comment "$existing" --repo tunnckoCoreHQ/monarch --body "Failed again: $RWX_TASK_URL"
+    gh issue comment "$existing" --repo tunnckoCoreHQ/monarch --body "Failed again: $RUN_URL"
   else
     gh issue create --repo tunnckoCoreHQ/monarch --title "$failure_title" \
-      --body "Socket Optimize failed before producing any changes: $RWX_TASK_URL
+      --body "Socket Optimize failed before producing any changes: $RUN_URL
 
-Fix the cause, then rerun it with \`rwx dispatch monarch-socket-optimize --ref master\` or from the RWX dashboard."
+Fix the cause, then rerun it with \`gh workflow run socket-optimize.yml --ref master\`."
   fi
   exit 1
 }
@@ -33,11 +33,11 @@ open_attention_pr() {
   git diff --cached --quiet || git commit --no-verify -m "chore(deps): apply socket optimize overrides"
   git push --force "$remote" "HEAD:refs/heads/$branch"
   if gh pr view "$branch" --repo tunnckoCoreHQ/monarch --json number > /dev/null 2>&1; then
-    gh pr comment "$branch" --repo tunnckoCoreHQ/monarch --body "Verification failed again: $RWX_TASK_URL"
+    gh pr comment "$branch" --repo tunnckoCoreHQ/monarch --body "Verification failed again: $RUN_URL"
   else
     gh pr create --repo tunnckoCoreHQ/monarch --base master --head "$branch" \
       --title "$attention_title" \
-      --body "Socket Optimize produced overrides that failed verification: $RWX_TASK_URL
+      --body "Socket Optimize produced overrides that failed verification: $RUN_URL
 
 Read the failing check, point the broken override back at the original package in pnpm-workspace.yaml (optimize keeps any override that is not an @socketregistry spec), or fix the code the replacement exposed. Then approve and merge."
   fi

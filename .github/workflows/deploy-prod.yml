@@ -1,0 +1,52 @@
+# Deploys apps to production through their deploy:prod scripts. It runs only by hand on master:
+# `pnpm run apps:deploy:prod` from the root, or an app's `promote` script. Without the app input
+# it deploys every app that has a deploy:prod script.
+
+name: deploy-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Package name of the app to deploy. Empty deploys every app with deploy:prod.
+        required: false
+        default: ""
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    environment: latest
+    permissions:
+      contents: read
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
+      - env:
+          APP: ${{ inputs.app }}
+          COMMIT_SHA: ${{ github.sha }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # The triad-auth secrets. The four Better Auth ones are the prod variant.
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          IDENTIFIER_SECRET: ${{ secrets.IDENTIFIER_SECRET }}
+          RATE_LIMIT_SECRET: ${{ secrets.RATE_LIMIT_SECRET }}
+          ENCRYPTION_SECRETS: ${{ secrets.ENCRYPTION_SECRETS }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          TWITTER_CLIENT_ID: ${{ secrets.TWITTER_CLIENT_ID }}
+          TWITTER_CLIENT_SECRET: ${{ secrets.TWITTER_CLIENT_SECRET }}
+        run: pnpm exec turbo run deploy:prod ${APP:+--filter="$APP"} -- --yes

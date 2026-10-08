@@ -1,0 +1,173 @@
+# GitHub Actions on Namespace runners. Checks, tests, and builds every package, TypeScript and
+# Solidity, on every pull request and every push to master; turbo caches each task in the Namespace
+# Turborepo cache. After those pass on a master push, the same run publishes nightly packages,
+# deploys the apps the push changed, maintains the release PR, and publishes the stable versions
+# when the push is the merged release PR. deploy-prod.yml, deploy-nightly.yml, publish-prod.yml,
+# and socket-optimize.yml also run by hand with `gh workflow run <file> --ref master`.
+#
+# SECURITY: every secret lives in the nightly or latest GitHub environment, and both environments
+# allow only master, so pull request runs get no secrets and no OIDC token that npm.wgw.lol takes.
+
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  # Pull requests check, test, and build only what the branch changed; master runs everything and
+  # replays unchanged tasks from the cache.
+  TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+  AFFECTED: ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+
+# A new push to a pull request cancels its running run. Each master commit gets its own run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The master ruleset requires check, test, and build. Keep the job names.
+  check:
+    # Master pushes and same-repository pull requests. Pull requests from forks do not reach the
+    # Namespace runners.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          # turbo --affected compares against the base commit.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          solidity: true
+      - run: pnpm exec turbo run check $AFFECTED
+
+  test:
+    needs: check
+    permissions:
+      contents: read
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          solidity: true
+      # Five forge runs start at once and race to install solc; compile one project first so the
+      # compiler is in place before turbo fans out. The ethscriptions-rescue tests start anvil.
+      - run: forge build --root solidity/template
+      - run: pnpm exec turbo run test $AFFECTED
+
+  # Builds the npm packages and the Solidity projects. Workers Builds builds the apps.
+  build:
+    needs: check
+    permissions:
+      contents: read
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          solidity: true
+      - run: forge build --root solidity/template
+      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./solidity/*' $AFFECTED
+
+  # Publishes nightly versions of the packages this push changed. Each registry has its own job,
+  # which builds and publishes only its packages with only its credential. pnpm takes the GitHub
+  # OIDC token of the nightly environment to npm.wgw.lol, which lets it write only nightly.
+  publish-nightly-vlt:
+    if: github.event_name == 'push'
+    needs: [check, test, build]
+    environment: nightly
+    permissions:
+      contents: read
+      id-token: write
+    # Runs one at a time, so an older push never moves the nightly dist-tag back.
+    concurrency:
+      group: publish-nightly-vlt
+      cancel-in-progress: false
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: bash scripts/publish-nightly.sh vlt
+        env:
+          # @changesets/changelog-github reads commit and PR data through the GitHub API.
+          GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+
+  publish-nightly-npm:
+    if: github.event_name == 'push'
+    needs: [check, test, build]
+    environment: nightly
+    permissions:
+      contents: read
+    concurrency:
+      group: publish-nightly-npm
+      cancel-in-progress: false
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: bash scripts/publish-nightly.sh npm
+        env:
+          GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Opens or updates the release PR from pending changesets.
+  release-pr:
+    if: github.event_name == 'push'
+    needs: [check, test, build]
+    environment: nightly
+    permissions:
+      contents: read
+    # A newer push replaces a waiting one, so the release PR follows the newest master.
+    concurrency:
+      group: release-pr
+      cancel-in-progress: false
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: bash scripts/release-pr.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+
+  # Publishes the stable versions when the push is the merged release PR.
+  publish-prod:
+    if: >-
+      github.event_name == 'push' && startsWith(github.event.head_commit.message, 'chore: release packages')
+    needs: [check, test, build]
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-prod.yml
+
+  # Deploys the apps this push changed.
+  deploy-nightly:
+    if: github.event_name == 'push'
+    needs: [check, test, build]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-nightly.yml

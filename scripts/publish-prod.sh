@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Publishes the stable versions one registry is missing, with latest and package tags, then pushes
 # the new tags and creates a GitHub Release for each, with its changelog entry. The vlt argument
-# takes the @tunnckocore packages, which go to npm.wgw.lol with the prod vault's OIDC token. The
+# takes the @tunnckocore packages, which go to npm.wgw.lol with the latest environment's OIDC token. The
 # npm argument takes the unscoped packages, which go to npmjs.com with NPM_TOKEN. Each share
 # builds and publishes only its own packages, so either one can move to another CI on its own.
 # Usage: pnpm run packages:publish <vlt|npm>
@@ -29,7 +29,7 @@ pnpm exec turbo run build "${builds[@]}"
 pnpm exec changeset publish-plan --output "$out/plan.json"
 jq ".plan |= (map(map(select(.name | $share))) | map(select(length > 0)))" "$out/plan.json" > "$out/share.json"
 pnpm exec changeset pack --from-publish-plan "$out/share.json" --out-dir "$out/pack"
-# The vlt share needs no auth here: pnpm exchanges NPM_ID_TOKEN at npm.wgw.lol, as it did on Depot.
+# The vlt share needs no auth here: pnpm takes the GitHub OIDC token of the job to npm.wgw.lol.
 [ "$1" = vlt ] || echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> "$HOME/.npmrc"
 # changeset publish creates the local tags and reports each one as a git-tag event.
 CHANGESETS_OUTPUT="$out/events.jsonl" pnpm exec changeset publish --from-pack-dir "$out/pack"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publishes nightly versions of the packages the pushed commit changed, for one registry. The vlt
-# argument takes the @tunnckocore packages, which go to npm.wgw.lol with the nightly vault's OIDC
+# argument takes the @tunnckocore packages, which go to npm.wgw.lol with the nightly environment's OIDC
 # token; the Worker allows it to write only the nightly dist-tag. The npm argument takes the
 # unscoped packages, which go to npmjs.com with NPM_TOKEN. Each share builds and publishes only
 # its own packages. Pending changesets for other packages stay untouched for their stable
@@ -39,7 +39,7 @@ if [ "${#published[@]}" -eq 0 ]; then
   exit 0
 fi
 pnpm exec turbo run build "${filters[@]}"
-# The vlt share needs no auth here: pnpm exchanges NPM_ID_TOKEN at npm.wgw.lol, as it did on Depot.
+# The vlt share needs no auth here: pnpm takes the GitHub OIDC token of the job to npm.wgw.lol.
 [ "$scoped" = true ] || echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> "$HOME/.npmrc"
 pnpm publish -r "${filters[@]}" --tag nightly --no-git-checks
 printf 'Published %s with nightly\n' "${published[@]}"

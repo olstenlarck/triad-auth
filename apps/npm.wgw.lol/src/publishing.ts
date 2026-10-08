@@ -7,18 +7,20 @@ import { createRemoteJWKSet, customFetch, jwtVerify } from "jose";
 
 import { BadRequest, Forbidden, Unauthorized } from "./errors";
 
-// Package managers present the RWX OIDC token with audience `npm:<registry host>`, either as the
-// publish bearer or at the exchange route in index.ts.
+// Package managers present the GitHub Actions OIDC token with audience `npm:<registry host>`,
+// either as the publish bearer or at the exchange route in index.ts.
 export const publishAudience = "npm:npm.wgw.lol";
 
 export type PublishTag = "nightly" | "latest";
 
-// RWX tokens carry no repository, ref, or workflow claim. The subject names the vault that issued
-// the token, and both vaults are locked to master of this repository, so the vault decides the
-// dist-tag: the monarch_nightly vault may write nightly and the monarch_prod vault may write latest.
-export const vaultTags: Record<string, PublishTag> = {
-  "org:tckdev:vault:monarch_nightly": "nightly",
-  "org:tckdev:vault:monarch_prod": "latest",
+const issuer = "https://token.actions.githubusercontent.com";
+
+// The subject names the repository and the GitHub environment of the job. Both environments allow
+// only master, so the environment decides the dist-tag: nightly may write nightly and latest may
+// write latest. The ref claim checks master once more.
+export const environmentTags: Record<string, PublishTag> = {
+  "repo:tunnckoCoreHQ/monarch:environment:nightly": "nightly",
+  "repo:tunnckoCoreHQ/monarch:environment:latest": "latest",
 };
 
 const versionPatterns: Record<PublishTag, RegExp> = {
@@ -26,8 +28,9 @@ const versionPatterns: Record<PublishTag, RegExp> = {
   latest: /^\d+\.\d+\.\d+$/,
 };
 
-const RwxClaims = Schema.Struct({
-  sub: Schema.Literals(Object.keys(vaultTags)),
+const CiClaims = Schema.Struct({
+  sub: Schema.Literals(Object.keys(environmentTags)),
+  ref: Schema.Literal("refs/heads/master"),
 });
 
 const Packument = Schema.Struct({
@@ -35,23 +38,23 @@ const Packument = Schema.Struct({
   "dist-tags": Schema.Record(Schema.String, Schema.String),
 });
 
-export class RwxIdentity extends Context.Service<
-  RwxIdentity,
+export class CiIdentity extends Context.Service<
+  CiIdentity,
   { readonly verify: (token: string) => Effect.Effect<PublishTag, Unauthorized> }
->()("RwxIdentity") {
+>()("CiIdentity") {
   static readonly layer = Layer.effect(
-    RwxIdentity,
+    CiIdentity,
     Effect.gen(function* () {
       const fetch = yield* FetchHttpClient.Fetch;
-      const keys = createRemoteJWKSet(new URL("https://cloud.rwx.com/mint/.well-known/jwks.json"), {
+      const keys = createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks`), {
         [customFetch]: fetch,
       });
 
-      const verify = Effect.fn("RwxIdentity.verify")(function* (token: string) {
+      const verify = Effect.fn("CiIdentity.verify")(function* (token: string) {
         const { payload } = yield* Effect.tryPromise({
           try: () =>
             jwtVerify(token, keys, {
-              issuer: "https://cloud.rwx.com/mint",
+              issuer,
               audience: publishAudience,
               algorithms: ["RS256"],
               requiredClaims: ["exp", "iat", "sub"],
@@ -59,14 +62,14 @@ export class RwxIdentity extends Context.Service<
             }),
           catch: () => new Unauthorized(),
         });
-        const claims = yield* Schema.decodeUnknownEffect(RwxClaims)(payload).pipe(
+        const claims = yield* Schema.decodeUnknownEffect(CiClaims)(payload).pipe(
           Effect.mapError(() => new Unauthorized()),
         );
 
-        return vaultTags[claims.sub];
+        return environmentTags[claims.sub];
       });
 
-      return RwxIdentity.of({ verify });
+      return CiIdentity.of({ verify });
     }),
   );
 }

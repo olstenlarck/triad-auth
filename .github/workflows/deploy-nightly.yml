@@ -1,0 +1,73 @@
+# Deploys apps to the nightly stage through their deploy:nightly scripts. ci.yml calls it after a
+# master push passes and deploys the apps that push changed. Run it by hand on master to deploy a
+# push that missed or failed: `gh workflow run deploy-nightly.yml --ref master [-f app=<name>]`.
+
+name: deploy-nightly
+
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Package name of the app to deploy. Empty deploys every app with deploy:nightly.
+        required: false
+        default: ""
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/master'
+    environment: nightly
+    permissions:
+      contents: read
+    concurrency:
+      group: deploy-nightly
+      cancel-in-progress: false
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # A master push deploys the apps it changed; a manual run deploys one app, or every app.
+      # master takes squash merges, so the pushed commit's parent is the previous master. A direct
+      # push of several commits only counts the last one. badges.wgw.lol is skipped: it still needs
+      # a Depot token, and the app is going away. --continue lets the other apps deploy when one
+      # fails. Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
+      - env:
+          EVENT: ${{ github.event_name }}
+          APP: ${{ inputs.app }}
+          TURBO_SCM_BASE: ${{ github.sha }}^1
+          TURBO_SCM_HEAD: ${{ github.sha }}
+          COMMIT_SHA: ${{ github.sha }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # The npm.wgw.lol Worker's VLT service tokens and upstream registry.
+          VLT_READ_TOKEN: ${{ secrets.VLT_READ_TOKEN }}
+          VLT_UPSTREAM_URL: ${{ secrets.VLT_UPSTREAM_URL }}
+          VLT_WRITE_TOKEN: ${{ secrets.VLT_WRITE_TOKEN }}
+          # The triad-auth secrets. The four Better Auth ones are the nightly variant.
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          IDENTIFIER_SECRET: ${{ secrets.IDENTIFIER_SECRET }}
+          RATE_LIMIT_SECRET: ${{ secrets.RATE_LIMIT_SECRET }}
+          ENCRYPTION_SECRETS: ${{ secrets.ENCRYPTION_SECRETS }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+          TWITTER_CLIENT_ID: ${{ secrets.TWITTER_CLIENT_ID }}
+          TWITTER_CLIENT_SECRET: ${{ secrets.TWITTER_CLIENT_SECRET }}
+        run: |
+          if [ -n "$APP" ]; then
+            scope=(--filter="$APP")
+          elif [ "$EVENT" = workflow_dispatch ]; then
+            scope=(--filter='!badges.wgw.lol')
+          else
+            scope=(--affected --filter='!badges.wgw.lol')
+          fi
+          pnpm exec turbo run deploy:nightly "${scope[@]}" --continue -- --yes

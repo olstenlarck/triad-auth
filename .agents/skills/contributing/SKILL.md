@@ -46,18 +46,20 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 - Add `check` and `test` scripts.
 - The `deploy:nightly` script runs on every merge to `master`. It does not mean unstable.
 - A one-environment app, like `apps/npm.wgw.lol` or `apps/x402-router.wgw.lol`, has only `deploy:nightly`, and that script deploys production.
-- A two-environment app, like `apps/triad-auth`, has `deploy:nightly` for the nightly stage and `deploy:prod` for production. Its `promote` script dispatches `monarch-deploy-prod` on RWX, which runs `deploy:prod`.
-- For each secret: add it to the `monarch_master` RWX vault (or to `monarch_nightly` and `monarch_prod` when the two stages differ), pass it under `env` of the `deploy-nightly` and `deploy-prod` tasks in `.rwx/ci.yml`, and add it to `passThroughEnv` of the deploy tasks in `turbo.json`.
+- A two-environment app, like `apps/triad-auth`, has `deploy:nightly` for the nightly stage and `deploy:prod` for production. Its `promote` script runs the `deploy-prod.yml` workflow, which runs `deploy:prod`.
+- For each secret: add it to the `nightly` and `latest` GitHub environments with `gh secret set <NAME> --env <environment>`, pass it under `env` of the deploy step in `.github/workflows/deploy-nightly.yml` and `.github/workflows/deploy-prod.yml`, and add it to `passThroughEnv` of the deploy tasks in `turbo.json`. Secret names cannot start with `GITHUB_`.
 - The app needs no workflow of its own.
 - Never run a deploy script locally unless the user asks.
 
 ## CI and releases
 
-- CI runs on RWX from `.rwx/ci.yml`, and `/approve` comments reach `.rwx/approve.yml` through a GitHub repository webhook. The old Depot and GitHub Actions workflows stay in `.depot/workflows-disabled/` and `.github/workflows-disabled/`, which neither service reads.
-- Every secret and OIDC token lives in an RWX vault locked to `master`, so pull request runs get none of them.
-- `rwx sandbox exec -- <command>` runs a command in the CI toolchain from `.rwx/sandbox.yml`.
+- CI runs on GitHub Actions with Namespace runners (the `namespace-profile-monarch` profile) from `.github/workflows/`. `ci.yml` checks, tests, and builds; the other workflows run by hand with `gh workflow run <file> --ref master`. `.github/actions/setup` installs the toolchain and points turbo at the Namespace Turborepo cache. Pull requests read that cache and never write it.
+- `approve.yml` approves a pull request when tunnckoCore comments `/approve` on it.
+- The old RWX, Depot, and GitHub Actions configurations stay in `.rwx-disabled/`, `.depot/workflows-disabled/`, and `.github/workflows-disabled/`, which no service reads.
+- Every secret lives in the `nightly` or `latest` GitHub environment, and both allow only `master`, so pull request runs get none of them. npm.wgw.lol takes the GitHub OIDC token of a job in one of those environments and lets it write only that dist-tag.
+- Locally, `export $(nsc cache turborepo setup --team main)` points turbo at the same cache. Run `nsc login` once first.
 - Renovate opens every dependency pull request, from `renovate.json5`. Dependabot only raises security alerts, which Renovate reads.
-- The `ci` run checks, tests, and builds on pull requests and on `master`. Each Vitest run writes JSON results, which RWX shows on the run.
+- The `ci` workflow checks, tests, and builds on pull requests and on `master`.
 - After those pass, a push to `master` publishes `nightly` packages, runs `deploy:nightly` for the apps it changed, and opens or updates the release pull request.
 - The release pull request (`chore: release packages`) publishes `latest`. The owner merges it by hand.
 - Production deploys of two-environment apps run only by hand and only when the user asks: `promote` for one app, `pnpm run apps:deploy:prod` for all.
@@ -76,7 +78,7 @@ The master ruleset:
 
 - Squash merges only, with linear history and signed commits.
 - No force pushes and no branch deletion.
-- Required checks: the RWX `check`, `test`, and `build` status checks. The branch must be up to date with `master`.
+- Required checks: the GitHub Actions `check`, `test`, and `build` jobs. The branch must be up to date with `master`.
 - 5 approvals, and the latest push needs an approval from someone other than its author.
 - A new push dismisses earlier approvals.
 - Every review thread must be resolved.

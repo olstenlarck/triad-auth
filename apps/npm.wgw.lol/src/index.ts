@@ -11,7 +11,7 @@ import * as Layer from "effect/Layer";
 import type { Env } from "./env";
 import { errorResponse, MethodNotAllowed, NotFound, Unauthorized } from "./errors";
 import { GitHub } from "./github";
-import { RwxIdentity, validatePublishRequest } from "./publishing";
+import { CiIdentity, validatePublishRequest } from "./publishing";
 import { Vlt } from "./vlt";
 
 const scopedPackage = /^@tunnckocore\/[a-z0-9][a-z0-9._-]*$/;
@@ -36,15 +36,15 @@ const HealthRoute = Layer.unwrap(
   }),
 );
 
-// Trusted publishing: npm-compatible clients POST the RWX OIDC token here and use the
+// Trusted publishing: npm-compatible clients POST the GitHub Actions OIDC token here and use the
 // returned token as the bearer for the publish itself. VLT has no OIDC support, so this worker
-// is the exchange endpoint. The verified RWX token is returned as-is; the proxy route verifies
+// is the exchange endpoint. The verified token is returned as-is; the proxy route verifies
 // it again on every write.
 const ExchangeRoute = HttpRouter.add(
   "POST",
   "/-/npm/v1/oidc/token/exchange/package/*",
   Effect.fn("Registry.exchange")(function* (request) {
-    const rwx = yield* RwxIdentity;
+    const ci = yield* CiIdentity;
     const { "*": name = "" } = yield* HttpRouter.params;
     if (!scopedPackage.test(name)) {
       return yield* new NotFound();
@@ -54,7 +54,7 @@ const ExchangeRoute = HttpRouter.add(
     if (!bearer) {
       return yield* new Unauthorized();
     }
-    yield* rwx.verify(bearer);
+    yield* ci.verify(bearer);
 
     return HttpServerResponse.jsonUnsafe({ token: bearer });
   }),
@@ -113,7 +113,7 @@ const ProxyRoute = HttpRouter.add(
   }),
 );
 
-// A JWT bearer is an RWX OIDC token from a publishing task; any other bearer is a
+// A JWT bearer is a GitHub Actions OIDC token from a publishing job; any other bearer is a
 // GitHub token from a local publish.
 const authorizeWrite = Effect.fn("Registry.authorizeWrite")(function* (
   request: HttpServerRequest.HttpServerRequest,
@@ -126,8 +126,8 @@ const authorizeWrite = Effect.fn("Registry.authorizeWrite")(function* (
   }
 
   if (bearer.split(".").length === 3) {
-    const rwx = yield* RwxIdentity;
-    const tag = yield* rwx.verify(bearer);
+    const ci = yield* CiIdentity;
+    const tag = yield* ci.verify(bearer);
     return yield* validatePublishRequest(source, path, tag);
   }
 
@@ -135,7 +135,7 @@ const authorizeWrite = Effect.fn("Registry.authorizeWrite")(function* (
   yield* github.authorize(bearer);
 });
 
-const Services = Layer.mergeAll(RwxIdentity.layer, Vlt.layer, GitHub.layer).pipe(
+const Services = Layer.mergeAll(CiIdentity.layer, Vlt.layer, GitHub.layer).pipe(
   Layer.provide(FetchHttpClient.layer),
 );
 

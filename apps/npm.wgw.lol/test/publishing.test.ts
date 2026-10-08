@@ -2,20 +2,20 @@ import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import type { JWTPayload } from "jose";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { vaultTags } from "../src/publishing";
+import { environmentTags } from "../src/publishing";
 import { env, network, registry } from "./utils";
 
 const subject = (tag: string) =>
-  Object.entries(vaultTags).find(([, vaultTag]) => vaultTag === tag)?.[0];
+  Object.entries(environmentTags).find(([, environmentTag]) => environmentTag === tag)?.[0];
 
 const claims: JWTPayload = {
-  iss: "https://cloud.rwx.com/mint",
+  iss: "https://token.actions.githubusercontent.com",
   aud: "npm:npm.wgw.lol",
   sub: subject("nightly"),
-  run_id: "run_test",
-  run_url: "https://cloud.rwx.com/mint/tunnckocorehq/runs/run_test",
-  task_id: "task_test",
-  task_url: "https://cloud.rwx.com/mint/tunnckocorehq/tasks/task_test",
+  ref: "refs/heads/master",
+  repository: "tunnckoCoreHQ/monarch",
+  environment: "nightly",
+  workflow_ref: "tunnckoCoreHQ/monarch/.github/workflows/ci.yml@refs/heads/master",
 };
 const exchangeUrl = "https://npm.wgw.lol/-/npm/v1/oidc/token/exchange/package/@tunnckocore%2fcalc";
 let privateKey: CryptoKey;
@@ -28,12 +28,12 @@ const upstreamCalls = () => net.calls.filter((call) => call.url.startsWith(env.V
 beforeAll(async () => {
   const pair = await generateKeyPair("RS256");
   privateKey = pair.privateKey;
-  jwks = { keys: [{ ...(await exportJWK(pair.publicKey)), kid: "rwx-test", alg: "RS256" }] };
+  jwks = { keys: [{ ...(await exportJWK(pair.publicKey)), kid: "github-test", alg: "RS256" }] };
 });
 
 beforeEach(() => {
   net = network((call) => {
-    if (call.url === "https://cloud.rwx.com/mint/.well-known/jwks.json") {
+    if (call.url === "https://token.actions.githubusercontent.com/.well-known/jwks") {
       return Response.json(jwks);
     }
     if (call.url === "https://api.github.com/user") {
@@ -48,14 +48,14 @@ afterEach(() => app.dispose());
 
 async function token(overrides: JWTPayload = {}, key = privateKey) {
   return new SignJWT({ ...claims, ...overrides })
-    .setProtectedHeader({ alg: "RS256", kid: "rwx-test" })
+    .setProtectedHeader({ alg: "RS256", kid: "github-test" })
     .setIssuedAt(overrides.iat)
     .setExpirationTime(overrides.exp ?? "5m")
     .sign(key);
 }
 
 function latestToken() {
-  return token({ sub: subject("latest") });
+  return token({ sub: subject("latest"), environment: "latest" });
 }
 
 function exchange(bearer: string | undefined, url = exchangeUrl) {
@@ -91,9 +91,13 @@ function setDistTag(bearer: string, tag: string, version: string) {
 
 const invalidClaims: JWTPayload[] = [
   { sub: undefined },
-  { sub: "org:tckdev:vault:monarch_master" },
-  { sub: "org:other:vault:monarch_nightly" },
-  { iss: "https://identity.depot.dev" },
+  { sub: "repo:tunnckoCoreHQ/monarch:ref:refs/heads/master" },
+  { sub: "repo:tunnckoCoreHQ/monarch:pull_request" },
+  { sub: "repo:other/monarch:environment:nightly" },
+  { ref: undefined },
+  { ref: "refs/heads/feature" },
+  { ref: "refs/pull/1/merge" },
+  { iss: "https://cloud.rwx.com/mint" },
   { iss: "https://attacker.example" },
   { aud: "https://npm.wgw.lol" },
   { aud: "npm:registry.npmjs.org" },
@@ -102,7 +106,7 @@ const invalidClaims: JWTPayload[] = [
 ];
 
 describe("OIDC token exchange", () => {
-  it("returns the verified RWX token for a scoped package", async () => {
+  it("returns the verified GitHub Actions token for a scoped package", async () => {
     const bearer = await token();
     const response = await exchange(bearer);
     expect(response.status).toBe(200);
@@ -166,12 +170,12 @@ describe("CI publishing authorization", () => {
     expect(upstreamCalls()[0].headers.get("authorization")).toBe("Bearer write-service-token");
   });
 
-  it("lets the prod vault publish stable versions as latest", async () => {
+  it("lets the latest environment publish stable versions as latest", async () => {
     expect((await publish(await latestToken(), "latest", "0.1.3")).status).toBe(201);
     expect((await setDistTag(await latestToken(), "latest", "0.1.3")).status).toBe(201);
   });
 
-  it("keeps the nightly vault away from latest and the prod vault away from nightly", async () => {
+  it("keeps the nightly environment away from latest and the latest environment away from nightly", async () => {
     expect((await publish(await token(), "latest", "0.1.3")).status).toBe(403);
     expect((await setDistTag(await token(), "latest", "0.1.3")).status).toBe(403);
     expect((await publish(await latestToken())).status).toBe(403);
