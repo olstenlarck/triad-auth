@@ -251,8 +251,6 @@ tasks:
       COMMIT_SHA: ${{ init.commit-sha }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vaults.monarch_master.secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ vaults.monarch_master.secrets.CLOUDFLARE_API_TOKEN }}
-      # The badges.wgw.lol Worker's Depot organization token.
-      BADGES_DEPOT_TOKEN: ${{ vaults.monarch_master.secrets.BADGES_DEPOT_TOKEN }}
       # The npm.wgw.lol Worker's VLT service tokens and upstream registry.
       VLT_READ_TOKEN: ${{ vaults.monarch_master.secrets.VLT_READ_TOKEN }}
       VLT_UPSTREAM_URL: ${{ vaults.monarch_master.secrets.VLT_UPSTREAM_URL }}
@@ -307,5 +305,4 @@ tasks:
     env:
       TURBO_TELEMETRY_DISABLED: 1
       GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
-      SOCKET_SECURITY_API_TOKEN: ${{ vaults.monarch_master.secrets.SOCKET_SECURITY_API_TOKEN }}
     run: bash scripts/socket-optimize.sh
