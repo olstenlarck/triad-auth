@@ -2,20 +2,19 @@ import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import type { JWTPayload } from "jose";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { environmentTags } from "../src/publishing";
+import { workflowTags } from "../src/publishing";
 import { env, network, registry } from "./utils";
 
-const subject = (tag: string) =>
-  Object.entries(environmentTags).find(([, environmentTag]) => environmentTag === tag)?.[0];
+const workflow = (tag: string) =>
+  Object.entries(workflowTags).find(([, workflowTag]) => workflowTag === tag)?.[0];
 
 const claims: JWTPayload = {
   iss: "https://token.actions.githubusercontent.com",
   aud: "npm:npm.wgw.lol",
-  sub: subject("nightly"),
+  sub: "repo:tunnckoCoreHQ/monarch:ref:refs/heads/master",
   ref: "refs/heads/master",
   repository: "tunnckoCoreHQ/monarch",
-  environment: "nightly",
-  workflow_ref: "tunnckoCoreHQ/monarch/.github/workflows/ci.yml@refs/heads/master",
+  workflow_ref: workflow("nightly"),
 };
 const exchangeUrl = "https://npm.wgw.lol/-/npm/v1/oidc/token/exchange/package/@tunnckocore%2fcalc";
 let privateKey: CryptoKey;
@@ -55,7 +54,7 @@ async function token(overrides: JWTPayload = {}, key = privateKey) {
 }
 
 function latestToken() {
-  return token({ sub: subject("latest"), environment: "latest" });
+  return token({ workflow_ref: workflow("latest") });
 }
 
 function exchange(bearer: string | undefined, url = exchangeUrl) {
@@ -90,13 +89,13 @@ function setDistTag(bearer: string, tag: string, version: string) {
 }
 
 const invalidClaims: JWTPayload[] = [
-  { sub: undefined },
-  { sub: "repo:tunnckoCoreHQ/monarch:ref:refs/heads/master" },
-  { sub: "repo:tunnckoCoreHQ/monarch:pull_request" },
-  { sub: "repo:other/monarch:environment:nightly" },
-  { ref: undefined },
-  { ref: "refs/heads/feature" },
-  { ref: "refs/pull/1/merge" },
+  { workflow_ref: undefined },
+  { workflow_ref: "tunnckoCoreHQ/monarch/.github/workflows/ci.yml@refs/heads/master" },
+  {
+    workflow_ref: "tunnckoCoreHQ/monarch/.github/workflows/publish-nightly.yml@refs/heads/feature",
+  },
+  { workflow_ref: "tunnckoCoreHQ/monarch/.github/workflows/publish-prod.yml@refs/pull/1/merge" },
+  { workflow_ref: "other/monarch/.github/workflows/publish-nightly.yml@refs/heads/master" },
   { iss: "https://cloud.rwx.com/mint" },
   { iss: "https://attacker.example" },
   { aud: "https://npm.wgw.lol" },
@@ -170,12 +169,12 @@ describe("CI publishing authorization", () => {
     expect(upstreamCalls()[0].headers.get("authorization")).toBe("Bearer write-service-token");
   });
 
-  it("lets the latest environment publish stable versions as latest", async () => {
+  it("lets publish-prod.yml publish stable versions as latest", async () => {
     expect((await publish(await latestToken(), "latest", "0.1.3")).status).toBe(201);
     expect((await setDistTag(await latestToken(), "latest", "0.1.3")).status).toBe(201);
   });
 
-  it("keeps the nightly environment away from latest and the latest environment away from nightly", async () => {
+  it("keeps publish-nightly.yml away from latest and publish-prod.yml away from nightly", async () => {
     expect((await publish(await token(), "latest", "0.1.3")).status).toBe(403);
     expect((await setDistTag(await token(), "latest", "0.1.3")).status).toBe(403);
     expect((await publish(await latestToken())).status).toBe(403);

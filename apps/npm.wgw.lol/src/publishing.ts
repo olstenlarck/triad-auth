@@ -15,12 +15,12 @@ export type PublishTag = "nightly" | "latest";
 
 const issuer = "https://token.actions.githubusercontent.com";
 
-// The subject names the repository and the GitHub environment of the job. Both environments allow
-// only master, so the environment decides the dist-tag: nightly may write nightly and latest may
-// write latest. The ref claim checks master once more.
-export const environmentTags: Record<string, PublishTag> = {
-  "repo:tunnckoCoreHQ/monarch:environment:nightly": "nightly",
-  "repo:tunnckoCoreHQ/monarch:environment:latest": "latest",
+// The workflow_ref claim names the workflow file and the ref it ran from. Only the two publishing
+// workflows on master get a dist-tag: publish-nightly.yml may write nightly and publish-prod.yml
+// may write latest. A pull request or another branch carries a different ref and is rejected.
+export const workflowTags: Record<string, PublishTag> = {
+  "tunnckoCoreHQ/monarch/.github/workflows/publish-nightly.yml@refs/heads/master": "nightly",
+  "tunnckoCoreHQ/monarch/.github/workflows/publish-prod.yml@refs/heads/master": "latest",
 };
 
 const versionPatterns: Record<PublishTag, RegExp> = {
@@ -29,8 +29,7 @@ const versionPatterns: Record<PublishTag, RegExp> = {
 };
 
 const CiClaims = Schema.Struct({
-  sub: Schema.Literals(Object.keys(environmentTags)),
-  ref: Schema.Literal("refs/heads/master"),
+  workflow_ref: Schema.Literals(Object.keys(workflowTags)),
 });
 
 const Packument = Schema.Struct({
@@ -57,7 +56,7 @@ export class CiIdentity extends Context.Service<
               issuer,
               audience: publishAudience,
               algorithms: ["RS256"],
-              requiredClaims: ["exp", "iat", "sub"],
+              requiredClaims: ["exp", "iat", "workflow_ref"],
               maxTokenAge: "10m",
             }),
           catch: () => new Unauthorized(),
@@ -66,7 +65,7 @@ export class CiIdentity extends Context.Service<
           Effect.mapError(() => new Unauthorized()),
         );
 
-        return environmentTags[claims.sub];
+        return workflowTags[claims.workflow_ref];
       });
 
       return CiIdentity.of({ verify });

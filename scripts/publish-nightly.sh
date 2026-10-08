@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publishes nightly versions of the packages the pushed commit changed, for one registry. The vlt
-# argument takes the @tunnckocore packages, which go to npm.wgw.lol with the nightly environment's OIDC
+# argument takes the @tunnckocore packages, which go to npm.wgw.lol with the GitHub OIDC token of publish-nightly.yml
 # token; the Worker allows it to write only the nightly dist-tag. The npm argument takes the
 # unscoped packages, which go to npmjs.com with NPM_TOKEN. Each share builds and publishes only
 # its own packages. Pending changesets for other packages stay untouched for their stable

@@ -3,8 +3,8 @@
 # admin. When the overrides fail verification, the diff is opened as a pull request that needs
 # attention. When there is nothing to push, an issue links the failed run.
 #
-# SECURITY: this job reads the Socket token and the PAT. The nightly environment and the master
-# guard keep a modified branch away from them.
+# SECURITY: this job reads the Socket token and the PAT. Keep the master-only guard: without it, a
+# manual run could execute modified workflow code with those credentials.
 
 name: socket-optimize
 
@@ -26,7 +26,6 @@ concurrency:
 jobs:
   socket-optimize:
     if: github.ref == 'refs/heads/master'
-    environment: nightly
     permissions:
       contents: read
     runs-on: namespace-profile-monarch

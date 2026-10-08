@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Opens or updates the release PR from pending changesets, from the ci release-pr job. Merging the
+# Opens or updates the release PR from pending changesets, from the prepare-publish workflow. Merging the
 # PR runs publish-prod. GITHUB_TOKEN is the PAT, so the PR is a real user PR that receives checks.
 
 set -euo pipefail
@@ -15,7 +15,7 @@ fi
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 git checkout -B "$branch"
-# packages:version without its check and test: this job runs after the CI jobs that ran them.
+# packages:version without its check and test: this workflow runs after the ci workflow that ran them.
 pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile
 pnpm exec changeset version
 git add -A

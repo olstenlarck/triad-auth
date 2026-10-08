@@ -47,16 +47,15 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 - The `deploy:nightly` script runs on every merge to `master`. It does not mean unstable.
 - A one-environment app, like `apps/npm.wgw.lol` or `apps/x402-router.wgw.lol`, has only `deploy:nightly`, and that script deploys production.
 - A two-environment app, like `apps/triad-auth`, has `deploy:nightly` for the nightly stage and `deploy:prod` for production. Its `promote` script runs the `deploy-prod.yml` workflow, which runs `deploy:prod`.
-- For each secret: add it to the `nightly` and `latest` GitHub environments with `gh secret set <NAME> --env <environment>`, pass it under `env` of the deploy step in `.github/workflows/deploy-nightly.yml` and `.github/workflows/deploy-prod.yml`, and add it to `passThroughEnv` of the deploy tasks in `turbo.json`. Secret names cannot start with `GITHUB_`.
+- Worker secrets live only on the Workers in Cloudflare. CI passes none, and a deploy keeps the secrets the Worker already has, through `patches/alchemy@2.0.0-beta.80.patch`. To add or rotate one, list it in the `secrets(...)` call of `alchemy.run.ts`, then deploy once locally with it exported: `set -a; . ./.env.<stage>; set +a`.
 - The app needs no workflow of its own.
 - Never run a deploy script locally unless the user asks.
 
 ## CI and releases
 
-- CI runs on GitHub Actions with Namespace runners (the `namespace-profile-monarch` profile) from `.github/workflows/`. `ci.yml` checks, tests, and builds; the other workflows run by hand with `gh workflow run <file> --ref master`. `.github/actions/setup` installs the toolchain and points turbo at the Namespace Turborepo cache. Pull requests read that cache and never write it.
-- `approve.yml` approves a pull request when tunnckoCore comments `/approve` on it.
+- CI runs on GitHub Actions with Namespace runners (the `namespace-profile-monarch` profile) from `.github/workflows/`. `ci.yml` checks, tests, and builds pull requests and `master`. After it passes on a `master` push, `publish-nightly.yml`, `prepare-publish.yml`, `deploy-nightly.yml`, and `publish-prod.yml` (for the merged release PR) run on their own, so none of them appear on pull requests. `deploy-prod.yml`, `socket-optimize.yml`, and the others run by hand with `gh workflow run <file>`. `.github/actions/setup` installs the toolchain and points turbo at the Namespace Turborepo cache; pull requests only read it.
 - The old RWX, Depot, and GitHub Actions configurations stay in `.rwx-disabled/`, `.depot/workflows-disabled/`, and `.github/workflows-disabled/`, which no service reads.
-- Every secret lives in the `nightly` or `latest` GitHub environment, and both allow only `master`, so pull request runs get none of them. npm.wgw.lol takes the GitHub OIDC token of a job in one of those environments and lets it write only that dist-tag.
+- The repository secrets are `OLSTENLARCK_HQ_PAT`, `NPM_TOKEN`, `SOCKET_SECURITY_API_TOKEN`, `CLOUDFLARE_API_TOKEN`, and `CLOUDFLARE_ACCOUNT_ID`. npm.wgw.lol takes the GitHub OIDC token of `publish-nightly.yml` on `master` for `nightly` and of `publish-prod.yml` on `master` for `latest`.
 - Locally, `export $(nsc cache turborepo setup --team main)` points turbo at the same cache. Run `nsc login` once first.
 - Renovate opens every dependency pull request, from `renovate.json5`. Dependabot only raises security alerts, which Renovate reads.
 - The `ci` workflow checks, tests, and builds on pull requests and on `master`.

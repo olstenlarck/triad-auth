@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Publishes the stable versions one registry is missing, with latest and package tags, then pushes
 # the new tags and creates a GitHub Release for each, with its changelog entry. The vlt argument
-# takes the @tunnckocore packages, which go to npm.wgw.lol with the latest environment's OIDC token. The
+# takes the @tunnckocore packages, which go to npm.wgw.lol with the GitHub OIDC token of publish-prod.yml. The
 # npm argument takes the unscoped packages, which go to npmjs.com with NPM_TOKEN. Each share
 # builds and publishes only its own packages, so either one can move to another CI on its own.
 # Usage: pnpm run packages:publish <vlt|npm>

@@ -1,0 +1,62 @@
+# After ci succeeds for a master push, publishes nightly versions of the packages that push
+# changed. The vlt job publishes the @tunnckocore packages to npm.wgw.lol: pnpm takes the GitHub
+# OIDC token there, and the Worker maps the workflow_ref claim of this file on master to the
+# nightly dist-tag. The npm job publishes the unscoped packages to npmjs.com with NPM_TOKEN.
+#
+# SECURITY: the OIDC token here can publish nightly prereleases and nothing else.
+
+name: publish-nightly
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [master]
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  vlt:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    permissions:
+      contents: read
+      id-token: write
+    # One at a time, so an older push never moves the nightly dist-tag back.
+    concurrency:
+      group: publish-nightly-vlt
+      cancel-in-progress: false
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: bash scripts/publish-nightly.sh vlt
+        env:
+          # @changesets/changelog-github reads commit and PR data through the GitHub API.
+          GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+
+  npm:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    permissions:
+      contents: read
+    concurrency:
+      group: publish-nightly-npm
+      cancel-in-progress: false
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: bash scripts/publish-nightly.sh npm
+        env:
+          GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

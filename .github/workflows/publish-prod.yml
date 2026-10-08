@@ -1,16 +1,20 @@
 # Publishes the stable versions with latest, then pushes the package tags and creates the GitHub
-# Releases. ci.yml calls it for the merged release PR commit; run it by hand on master to publish
-# whatever a failed release left missing: `gh workflow run publish-prod.yml --ref master`. Like
-# the nightly, each registry has its own job.
+# Releases. Runs after ci succeeds for the merged release PR commit, or by hand on master to
+# publish whatever a failed release left missing: `gh workflow run publish-prod.yml`. The vlt job
+# publishes the @tunnckocore packages to npm.wgw.lol, which maps the workflow_ref claim of this
+# file on master to the latest dist-tag. The npm job publishes the unscoped packages to npmjs.com.
 #
-# SECURITY: the only jobs in the latest environment that publish. pnpm takes the GitHub OIDC token
-# of the latest environment to npm.wgw.lol, which lets it write only latest.
+# SECURITY: the only workflow with a latest-capable OIDC token, and it runs only after a human
+# merged the release PR or started it by hand on master.
 
 name: publish-prod
 
 on:
-  workflow_call:
   workflow_dispatch:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [master]
 
 permissions: {}
 
@@ -19,8 +23,10 @@ env:
 
 jobs:
   vlt:
-    if: github.ref == 'refs/heads/master'
-    environment: latest
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       startsWith(github.event.workflow_run.head_commit.message, 'chore: release packages'))
     permissions:
       contents: read
       id-token: write
@@ -31,6 +37,7 @@ jobs:
     steps:
       - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
@@ -39,8 +46,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
 
   npm:
-    if: github.ref == 'refs/heads/master'
-    environment: latest
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       startsWith(github.event.workflow_run.head_commit.message, 'chore: release packages'))
     permissions:
       contents: read
     concurrency:
@@ -50,6 +59,7 @@ jobs:
     steps:
       - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
