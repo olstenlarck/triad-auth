@@ -5,6 +5,7 @@ packages:
   - "solidity/*"
 
 allowBuilds:
+  bun: true
   esbuild: true
   msgpackr-extract: true
   sharp: true
@@ -64,6 +65,7 @@ catalogs:
     valibot: ^1.5.0
     '@standard-schema/spec': ^1.1.0
     badgen: 3.3.2
+    bun: ^1.4.2
   types:
     "@cloudflare/workers-types": 5.20260928.1
     "@types/bun": ^1.4.2

@@ -224,7 +224,7 @@ tasks:
     env:
       TURBO_TELEMETRY_DISABLED: 1
       # @changesets/changelog-github reads commit and PR data through the GitHub API.
-      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
       # pnpm exchanges this OIDC token at npm.wgw.lol, like the Depot OIDC token before.
       NPM_ID_TOKEN: ${{ vaults.monarch_nightly.oidc.vlt }}
     run: bash scripts/publish-nightly.sh vlt
@@ -236,7 +236,7 @@ tasks:
     cache: false
     env:
       TURBO_TELEMETRY_DISABLED: 1
-      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
       NPM_TOKEN: ${{ vaults.monarch_master.secrets.NPM_TOKEN }}
     run: bash scripts/publish-nightly.sh npm
 
@@ -244,7 +244,8 @@ tasks:
   - key: release-pr
     if: ${{ init.master }}
     after: [check, test, test-solidity, build]
-    use: [deps, gh]
+    # packages:version runs the tests, and the ethscriptions-rescue tests start anvil from Foundry.
+    use: [deps, gh, foundry]
     cache: false
     env:
       TURBO_TELEMETRY_DISABLED: 1
