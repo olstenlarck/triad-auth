@@ -1,8 +1,4 @@
 {
-  "remoteCache": {
-    "teamId": "pcnr2v598s",
-    "apiUrl": "https://cache.depot.dev"
-  },
   "$schema": "https://turborepo.dev/schema.json",
   "globalDependencies": [
     "pnpm-workspace.yaml",
@@ -15,16 +11,7 @@
   "concurrency": "4",
   "tasks": {
     "//#check": {
-      "inputs": [
-        "*.md",
-        "*.json",
-        "*.ts",
-        ".changeset/**",
-        "scripts/**",
-        ".depot/**",
-        ".github/**",
-        ".zed/**"
-      ],
+      "inputs": ["*.md", "*.json", "*.ts", ".changeset/**", "scripts/**", ".zed/**", ".rwx/**"],
       "outputs": []
     },
     "check": {
@@ -87,8 +74,5 @@
         "TWITTER_CLIENT_SECRET"
       ]
     }
-  },
-  "futureFlags": {
-    "githubActionsRemoteBaseRefFallback": true
   }
 }

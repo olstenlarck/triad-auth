@@ -46,17 +46,19 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 - Add `check` and `test` scripts.
 - The `deploy:nightly` script runs on every merge to `master`. It does not mean unstable.
 - A one-environment app, like `apps/npm.wgw.lol` or `apps/x402-router.wgw.lol`, has only `deploy:nightly`, and that script deploys production.
-- A two-environment app, like `apps/triad-auth`, has `deploy:nightly` for the nightly stage and `deploy:prod` for production. Its `promote` script dispatches the Depot `deploy-prod` workflow, which runs `deploy:prod`.
-- For each secret: add a Depot secret, pass it under `env` of the deploy step in `.depot/workflows/deploy-nightly.yml` and `deploy-prod.yml`, and add it to `passThroughEnv` of the deploy tasks in `turbo.json`.
+- A two-environment app, like `apps/triad-auth`, has `deploy:nightly` for the nightly stage and `deploy:prod` for production. Its `promote` script dispatches `monarch-deploy-prod` on RWX, which runs `deploy:prod`.
+- For each secret: add it to the `monarch_master` RWX vault (or to `monarch_nightly` and `monarch_prod` when the two stages differ), pass it under `env` of the `deploy-nightly` and `deploy-prod` tasks in `.rwx/ci.yml`, and add it to `passThroughEnv` of the deploy tasks in `turbo.json`.
 - The app needs no workflow of its own.
 - Never run a deploy script locally unless the user asks.
 
 ## CI and releases
 
-- CI runs on Depot CI from `.depot/workflows/`. GitHub Actions only publishes unscoped packages and handles `/approve` comments.
+- CI runs on RWX from `.rwx/ci.yml`, and `/approve` comments reach `.rwx/approve.yml` through a GitHub webhook. There are no GitHub Actions workflows.
+- Every secret and OIDC token lives in an RWX vault locked to `master`, so pull request runs get none of them.
+- `rwx sandbox exec -- <command>` runs a command in the CI toolchain from `.rwx/sandbox.yml`.
 - Renovate opens every dependency pull request, from `renovate.json5`. Dependabot only raises security alerts, which Renovate reads.
-- The `ci` workflow runs `check`, `test`, and `build` on pull requests and on `master`.
-- A push to `master` publishes `nightly` packages and runs `deploy:nightly` for the apps it changed.
+- The `ci` run checks, tests, and builds on pull requests and on `master`. Each Vitest run writes JSON results, which RWX shows on the run.
+- After those pass, a push to `master` publishes `nightly` packages, runs `deploy:nightly` for the apps it changed, and opens or updates the release pull request.
 - The release pull request (`chore: release packages`) publishes `latest`. The owner merges it by hand.
 - Production deploys of two-environment apps run only by hand and only when the user asks: `promote` for one app, `pnpm run apps:deploy:prod` for all.
 
@@ -74,7 +76,7 @@ The master ruleset:
 
 - Squash merges only, with linear history and signed commits.
 - No force pushes and no branch deletion.
-- Required checks: `ci / check`, `ci / test`, and `ci / build`. The branch must be up to date with `master`.
+- Required checks: the RWX `check`, `test`, and `build` status checks. The branch must be up to date with `master`.
 - 5 approvals, and the latest push needs an approval from someone other than its author.
 - A new push dismisses earlier approvals.
 - Every review thread must be resolved.

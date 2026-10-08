@@ -7,41 +7,27 @@ import { createRemoteJWKSet, customFetch, jwtVerify } from "jose";
 
 import { BadRequest, Forbidden, Unauthorized } from "./errors";
 
-const repository = "tunnckoCoreHQ/monarch";
-const depotOrgId = "pcnr2v598s";
-const subjectPrefix = `spiffe://identity.depot.dev/org/${depotOrgId}/ci/github/${repository}/ref/refs/heads/master/sandbox/`;
-
-// Package managers request the Depot CI OIDC token with audience `npm:<registry host>` and
-// exchange it at the registry; see the exchange route in index.ts.
+// Package managers present the RWX OIDC token with audience `npm:<registry host>`, either as the
+// publish bearer or at the exchange route in index.ts.
 export const publishAudience = "npm:npm.wgw.lol";
 
 export type PublishTag = "nightly" | "latest";
 
-// Depot CI tokens have no environment claim, so the workflow file decides the dist-tag:
-// publish-nightly.yml may write nightly and publish-prod.yml may write latest. GitHub formats
-// workflow_ref as owner/repo/.github/workflows/file.yml@ref; Depot's documented example omits the
-// directory, so both forms are accepted.
-const workflowTags: Record<string, PublishTag> = {
-  "publish-nightly": "nightly",
-  "publish-prod": "latest",
+// RWX tokens carry no repository, ref, or workflow claim. The subject names the vault that issued
+// the token, and both vaults are locked to master of this repository, so the vault decides the
+// dist-tag: the monarch_nightly vault may write nightly and the monarch_prod vault may write latest.
+export const vaultTags: Record<string, PublishTag> = {
+  NIGHTLY_SUBJECT: "nightly",
+  PROD_SUBJECT: "latest",
 };
-const workflowRef = new RegExp(
-  `^${repository}/(?:\\.depot/workflows/)?(publish-nightly|publish-prod)\\.yml@refs/heads/master$`,
-);
 
 const versionPatterns: Record<PublishTag, RegExp> = {
   nightly: /^\d+\.\d+\.\d+-nightly\.[\da-z.-]+$/,
   latest: /^\d+\.\d+\.\d+$/,
 };
 
-const DepotClaims = Schema.Struct({
-  org_id: Schema.Literal(depotOrgId),
-  repository: Schema.Literal(repository),
-  repository_id: Schema.Literal("1299813376"),
-  repository_owner_id: Schema.Literal("51462759"),
-  ref: Schema.Literal("refs/heads/master"),
-  sub: Schema.String.check(Schema.isStartingWith(subjectPrefix)),
-  workflow_ref: Schema.String.check(Schema.isPattern(workflowRef)),
+const RwxClaims = Schema.Struct({
+  sub: Schema.Literals(Object.keys(vaultTags)),
 });
 
 const Packument = Schema.Struct({
@@ -49,39 +35,38 @@ const Packument = Schema.Struct({
   "dist-tags": Schema.Record(Schema.String, Schema.String),
 });
 
-export class DepotIdentity extends Context.Service<
-  DepotIdentity,
+export class RwxIdentity extends Context.Service<
+  RwxIdentity,
   { readonly verify: (token: string) => Effect.Effect<PublishTag, Unauthorized> }
->()("DepotIdentity") {
+>()("RwxIdentity") {
   static readonly layer = Layer.effect(
-    DepotIdentity,
+    RwxIdentity,
     Effect.gen(function* () {
       const fetch = yield* FetchHttpClient.Fetch;
-      const keys = createRemoteJWKSet(new URL("https://identity.depot.dev/keys"), {
+      const keys = createRemoteJWKSet(new URL("https://cloud.rwx.com/mint/.well-known/jwks.json"), {
         [customFetch]: fetch,
       });
 
-      const verify = Effect.fn("DepotIdentity.verify")(function* (token: string) {
+      const verify = Effect.fn("RwxIdentity.verify")(function* (token: string) {
         const { payload } = yield* Effect.tryPromise({
           try: () =>
             jwtVerify(token, keys, {
-              issuer: "https://identity.depot.dev",
+              issuer: "https://cloud.rwx.com/mint",
               audience: publishAudience,
-              algorithms: ["ES256", "ES384", "RS256"],
-              requiredClaims: ["exp", "iat", "sub", "workflow_ref"],
+              algorithms: ["RS256"],
+              requiredClaims: ["exp", "iat", "sub"],
               maxTokenAge: "10m",
             }),
           catch: () => new Unauthorized(),
         });
-        const claims = yield* Schema.decodeUnknownEffect(DepotClaims)(payload).pipe(
+        const claims = yield* Schema.decodeUnknownEffect(RwxClaims)(payload).pipe(
           Effect.mapError(() => new Unauthorized()),
         );
 
-        const [, workflow] = workflowRef.exec(claims.workflow_ref) ?? [];
-        return workflowTags[workflow];
+        return vaultTags[claims.sub];
       });
 
-      return DepotIdentity.of({ verify });
+      return RwxIdentity.of({ verify });
     }),
   );
 }

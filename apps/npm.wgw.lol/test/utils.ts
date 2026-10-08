@@ -23,7 +23,7 @@ export interface Call {
 }
 
 // The network the worker sees in tests: every outgoing request is recorded and answered by
-// `respond`, so tests never touch the real Depot, GitHub, or VLT.
+// `respond`, so tests never touch the real RWX, GitHub, or VLT.
 export function network(respond: (call: Call) => Response | Promise<Response>) {
   const calls: Call[] = [];
   const send = async (input: RequestInfo | URL, init?: RequestInit) => {

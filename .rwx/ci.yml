@@ -1,0 +1,301 @@
+# RWX CI. Checks, tests, and builds every package, TypeScript and Solidity, on every pull request
+# and every push to master. After those pass on a master push, the same run publishes nightly
+# packages, deploys the apps the push changed, maintains the release PR, and publishes the stable
+# versions when the push is the merged release PR. Dispatches run one job by hand on master:
+# `rwx dispatch monarch-deploy-prod`, `rwx dispatch monarch-publish-prod`, and
+# `rwx dispatch monarch-socket-optimize`.
+#
+# SECURITY: every secret and OIDC token lives in a vault locked to master, so pull request runs
+# get none of them. monarch_nightly and monarch_prod each hold one OIDC token for npm.wgw.lol;
+# the Worker maps the nightly vault to the nightly dist-tag and the prod vault to latest.
+
+on:
+  github:
+    pull_request:
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        affected-base: ${{ event.github.pull_request.pull_request.base.sha }}
+        master: false
+        release: false
+        app: ""
+      status-checks: &status-checks
+        - tasks: check
+          name: check
+        - tasks: [test, test-solidity]
+          name: test
+        - tasks: build
+          name: build
+    push:
+      if: ${{ event.git.branch == 'master' }}
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        affected-base: ""
+        master: true
+        release: "${{ starts-with(event.github.push.head_commit.message, 'chore: release packages') }}"
+        app: ""
+      status-checks: *status-checks
+  dispatch:
+    - key: monarch-deploy-prod
+      params:
+        - key: app
+          description: Package name of the app to deploy. Empty deploys every app with deploy:prod.
+          default: ""
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        affected-base: ""
+        master: false
+        release: false
+        app: ${{ event.dispatch.params.app }}
+      target: deploy-prod
+    # Publishes whatever a failed release left missing.
+    - key: monarch-publish-prod
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        affected-base: ""
+        master: false
+        release: true
+        app: ""
+      target: publish-prod
+    - key: monarch-socket-optimize
+      init: &socket-optimize-init
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        affected-base: ""
+        master: false
+        release: false
+        app: ""
+      target: socket-optimize
+  cron:
+    - key: monarch-socket-optimize
+      # Mondays 06:00 UTC
+      schedule: "0 6 * * 1"
+      init: *socket-optimize-init
+      target: socket-optimize
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      affected-base: ""
+      master: false
+      release: false
+      app: ""
+
+# Runs on master queue in push order, so the nightly publish and the release PR never see an older
+# tree after a newer one. A new push to a pull request branch cancels the branch's running run.
+concurrency-pools:
+  - id: tunnckoCoreHQ/monarch:master
+    if: ${{ init.branch == 'master' }}
+    capacity: 1
+    on-overflow: queue
+  - id: tunnckoCoreHQ/monarch:branch-${{ init.branch }}
+    if: ${{ init.branch != 'master' }}
+    capacity: 1
+    on-overflow: cancel-running
+
+base:
+  image: ubuntu:24.04
+  config: rwx/base 1.2.0
+
+# Only master runs write the tool caches; pull requests read what master left.
+tool-cache:
+  vault: monarch_master
+
+aliases:
+  turbo-env: &turbo-env
+    TURBO_TELEMETRY_DISABLED: 1
+    TURBO_SCM_BASE: ${{ init.affected-base }}
+    AFFECTED: "${{ init.affected-base == '' ? '' : '--affected' }}"
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/tunnckoCoreHQ/monarch.git
+      ref: ${{ init.commit-sha }}
+      github-token: ${{ github.token }}
+      # turbo --affected, the nightly publish, and the release PR read the history.
+      preserve-git-dir: true
+      fetch-full-depth: true
+
+  - key: node
+    call: nodejs/install 1.2.0
+    with:
+      node-version: 24.21.0
+
+  - key: gh
+    call: github/install-cli 1.1.0
+
+  - key: foundry
+    # Pinned to the forge release used locally. 1.8 adds lint rules this code does not pass yet.
+    run: |
+      curl -fsSL https://foundry.paradigm.xyz | bash
+      "$HOME/.foundry/bin/foundryup" --install v1.7.1
+      echo "$HOME/.foundry/bin" > "$RWX_ENV/PATH"
+
+  # Socket Firewall Free blocks known malicious packages while pnpm downloads them.
+  - key: deps
+    use: [code, node]
+    run: |
+      npm install --global "$(jq -r .packageManager package.json)" sfw
+      sfw pnpm install --frozen-lockfile
+    filter:
+      - package.json
+      - "**/package.json"
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .npmrc
+      - patches
+
+  - key: check
+    use: [deps, foundry]
+    tool-cache: ci-check
+    env: *turbo-env
+    run: pnpm exec turbo run check $AFFECTED
+
+  # Every Vitest run writes JSON results, which RWX shows as test results.
+  - key: test
+    use: deps
+    tool-cache: ci-test
+    env: *turbo-env
+    run: |
+      status=0
+      pnpm exec turbo run test --filter='!./solidity/*' $AFFECTED -- \
+        --reporter=default --reporter=json --outputFile.json=.vitest-results.json || status=$?
+      for file in */*/.vitest-results.json; do
+        [ -e "$file" ] && cp "$file" "$RWX_TEST_RESULTS/$(dirname "$file" | tr / -).json"
+      done
+      exit "$status"
+
+  # Five forge runs start at once and race to install solc; compile one project first so the
+  # compiler is in place before turbo fans out.
+  - key: test-solidity
+    use: [deps, foundry]
+    tool-cache: ci-test-solidity
+    env: *turbo-env
+    run: |
+      forge build --root solidity/template
+      pnpm exec turbo run test --filter='./solidity/*' $AFFECTED
+
+  # Builds the npm packages and the Solidity projects. Workers Builds builds the apps.
+  - key: build
+    use: [deps, foundry]
+    tool-cache: ci-build
+    env: *turbo-env
+    run: |
+      forge build --root solidity/template
+      pnpm exec turbo run build --filter='./packages/*' --filter='./solidity/*' $AFFECTED
+
+  # Publishes nightly versions of the packages this push changed, to npm.wgw.lol and npmjs.com.
+  - key: publish-nightly
+    if: ${{ init.master }}
+    after: [check, test, test-solidity, build]
+    use: deps
+    cache: false
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+      # @changesets/changelog-github reads commit and PR data through the GitHub API.
+      GITHUB_TOKEN: ${{ github.token }}
+      VLT_TOKEN_FILE: ${{ vaults.monarch_nightly.oidc.vlt.path }}
+      NPM_TOKEN: ${{ vaults.monarch_master.secrets.NPM_TOKEN }}
+    run: bash scripts/publish-nightly.sh
+
+  # Opens or updates the release PR from pending changesets.
+  - key: release-pr
+    if: ${{ init.master }}
+    after: [check, test, test-solidity, build]
+    use: [deps, gh]
+    cache: false
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+      GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
+    run: bash scripts/release-pr.sh
+
+  # Publishes the stable versions with latest, then pushes the package tags and creates the
+  # GitHub Releases. Runs for the merged release PR commit, or by hand to finish a failed release.
+  - key: publish-prod
+    if: ${{ init.release }}
+    after: [check, test, test-solidity, build]
+    use: [deps, gh]
+    cache: false
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+      GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
+      VLT_TOKEN_FILE: ${{ vaults.monarch_prod.oidc.vlt.path }}
+      NPM_TOKEN: ${{ vaults.monarch_master.secrets.NPM_TOKEN }}
+    run: bash scripts/publish-prod.sh
+
+  # Deploys the apps this push changed through their deploy:nightly scripts. master takes squash
+  # merges, so the pushed commit's parent is the previous master. A direct push of several commits
+  # only counts the last one.
+  - key: deploy-nightly
+    if: ${{ init.master }}
+    after: [check, test, test-solidity, build]
+    use: deps
+    cache: false
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+      TURBO_SCM_BASE: ${{ init.commit-sha }}^1
+      TURBO_SCM_HEAD: ${{ init.commit-sha }}
+      COMMIT_SHA: ${{ init.commit-sha }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vaults.monarch_master.secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ vaults.monarch_master.secrets.CLOUDFLARE_API_TOKEN }}
+      # The badges.wgw.lol Worker's Depot organization token.
+      BADGES_DEPOT_TOKEN: ${{ vaults.monarch_master.secrets.BADGES_DEPOT_TOKEN }}
+      # The npm.wgw.lol Worker's VLT service tokens and upstream registry.
+      VLT_READ_TOKEN: ${{ vaults.monarch_master.secrets.VLT_READ_TOKEN }}
+      VLT_UPSTREAM_URL: ${{ vaults.monarch_master.secrets.VLT_UPSTREAM_URL }}
+      VLT_WRITE_TOKEN: ${{ vaults.monarch_master.secrets.VLT_WRITE_TOKEN }}
+      # The triad-auth secrets. The four Better Auth ones are the nightly variant.
+      BETTER_AUTH_SECRET: ${{ vaults.monarch_nightly.secrets.BETTER_AUTH_SECRET }}
+      IDENTIFIER_SECRET: ${{ vaults.monarch_nightly.secrets.IDENTIFIER_SECRET }}
+      RATE_LIMIT_SECRET: ${{ vaults.monarch_nightly.secrets.RATE_LIMIT_SECRET }}
+      ENCRYPTION_SECRETS: ${{ vaults.monarch_nightly.secrets.ENCRYPTION_SECRETS }}
+      GOOGLE_CLIENT_ID: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_SECRET }}
+      GITHUB_CLIENT_ID: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_ID }}
+      GITHUB_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_SECRET }}
+      TWITTER_CLIENT_ID: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_ID }}
+      TWITTER_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_SECRET }}
+    # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
+    run: pnpm exec turbo run deploy:nightly --affected -- --yes
+
+  # Deploys apps to production through their deploy:prod scripts, only by dispatch. Without the
+  # app param it deploys every app that has a deploy:prod script.
+  - key: deploy-prod
+    use: deps
+    cache: false
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+      APP: ${{ init.app }}
+      COMMIT_SHA: ${{ init.commit-sha }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vaults.monarch_master.secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ vaults.monarch_master.secrets.CLOUDFLARE_API_TOKEN }}
+      # The triad-auth secrets. The four Better Auth ones are the prod variant.
+      BETTER_AUTH_SECRET: ${{ vaults.monarch_prod.secrets.BETTER_AUTH_SECRET }}
+      IDENTIFIER_SECRET: ${{ vaults.monarch_prod.secrets.IDENTIFIER_SECRET }}
+      RATE_LIMIT_SECRET: ${{ vaults.monarch_prod.secrets.RATE_LIMIT_SECRET }}
+      ENCRYPTION_SECRETS: ${{ vaults.monarch_prod.secrets.ENCRYPTION_SECRETS }}
+      GOOGLE_CLIENT_ID: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_SECRET }}
+      GITHUB_CLIENT_ID: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_ID }}
+      GITHUB_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_SECRET }}
+      TWITTER_CLIENT_ID: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_ID }}
+      TWITTER_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_SECRET }}
+    # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
+    run: pnpm exec turbo run deploy:prod ${APP:+--filter="$APP"} -- --yes
+
+  # Runs Socket Optimize. Verified overrides are pushed straight to master by the PAT owner, a
+  # repository admin. When the overrides fail verification, the diff is opened as a pull request
+  # that needs attention. When there is nothing to push, an issue links the failed run.
+  - key: socket-optimize
+    use: [deps, gh]
+    cache: false
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+      GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
+      SOCKET_SECURITY_API_TOKEN: ${{ vaults.monarch_master.secrets.SOCKET_SECURITY_API_TOKEN }}
+    run: bash scripts/socket-optimize.sh

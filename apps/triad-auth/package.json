@@ -13,7 +13,7 @@
     "deploy:prod": "pnpm run build && pnpm exec alchemy deploy --stage prod",
     "dev": "pnpm exec alchemy dev",
     "preview": "pnpm run build && pnpm exec astro preview",
-    "promote": "depot ci dispatch --repo tunnckoCoreHQ/monarch --workflow deploy-prod.yml --ref master --input app=triad-auth",
+    "promote": "rwx dispatch monarch-deploy-prod --ref master --param app=triad-auth",
     "test": "vitest run"
   },
   "dependencies": {
