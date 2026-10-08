@@ -29,7 +29,7 @@
     },
     "test": {
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!**/*.{yml,yaml}"],
-      "outputs": []
+      "outputs": [".vitest-results.json", "coverage/**"]
     },
     "fmt": {
       "outputs": []

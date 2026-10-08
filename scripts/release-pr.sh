@@ -18,6 +18,16 @@ git checkout -B "$branch"
 pnpm run packages:version
 git add -A
 git commit --no-verify -m "$title"
+
+# Push only when the release itself changed. When the versions and changelogs come out the same,
+# the push would only move the branch onto the new master, and GitHub's Update branch does that
+# before merging. The release content is the diff from master, whatever master it is based on.
+pr=$(gh pr list --repo tunnckoCoreHQ/monarch --head "$branch" --base master --state open --json number --jq '.[0].number // empty')
+if [ -n "$pr" ] && git fetch -q origin "refs/heads/$branch" &&
+  [ "$(git diff HEAD~1...FETCH_HEAD | git patch-id --stable)" = "$(git diff HEAD~1 HEAD | git patch-id --stable)" ]; then
+  echo "Release PR #$pr is unchanged: the versions and changelogs are the same"
+  exit 0
+fi
 git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/tunnckoCoreHQ/monarch.git" "HEAD:refs/heads/$branch"
 
 body=$(mktemp)
@@ -33,7 +43,6 @@ for manifest in $(git diff --name-only HEAD~1 -- '*/*/package.json'); do
     "$(dirname "$manifest")/CHANGELOG.md" >> "$body"
 done
 
-pr=$(gh pr list --repo tunnckoCoreHQ/monarch --head "$branch" --base master --state open --json number --jq '.[0].number // empty')
 if [ -n "$pr" ]; then
   gh pr edit "$pr" --repo tunnckoCoreHQ/monarch --title "$title" --body-file "$body"
 else

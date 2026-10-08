@@ -3,6 +3,6 @@
   "extends": ["//"],
   "tasks": {
     "check": { "dependsOn": ["build"] },
-    "test": { "dependsOn": ["build"], "outputs": ["coverage/**"] }
+    "test": { "dependsOn": ["build"] }
   }
 }
