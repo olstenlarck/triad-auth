@@ -2,8 +2,8 @@ import { bindings, defineConfig, triggers } from "cf/config";
 
 // One Worker per mode. The default (production) build targets `triad-auth`; `deploy:nightly` passes
 // `--mode nightly` to target `triad-auth-nightly`. Each Worker has its own D1
-// database, its own secrets, and its own AUTH_ORIGIN. Secrets are set on the Worker and are not
-// declared here. The deploy scripts apply the pending files in `migrations/` before each deploy.
+// database, its own secrets, and its own AUTH_ORIGIN. The deploy scripts apply the pending files in
+// `migrations/` before each deploy.
 export const workers = {
   production: {
     name: "triad-auth",
@@ -37,9 +37,21 @@ export default defineConfig(({ mode }) => {
         runWorkerFirst: false,
       },
       env: {
-        AUTH_ORIGIN: bindings.text(`https://${host}`),
+        // Typed as string, so tests and local tools can pass any origin.
+        AUTH_ORIGIN: bindings.text<string>(`https://${host}`),
         DB: bindings.d1(target.database),
         ASSETS: bindings.assets(),
+        // The ten secrets live on each Worker; `.env` holds local values.
+        BETTER_AUTH_SECRET: bindings.secret(),
+        IDENTIFIER_SECRET: bindings.secret(),
+        RATE_LIMIT_SECRET: bindings.secret(),
+        ENCRYPTION_SECRETS: bindings.secret(),
+        GOOGLE_CLIENT_ID: bindings.secret(),
+        GOOGLE_CLIENT_SECRET: bindings.secret(),
+        GITHUB_CLIENT_ID: bindings.secret(),
+        GITHUB_CLIENT_SECRET: bindings.secret(),
+        TWITTER_CLIENT_ID: bindings.secret(),
+        TWITTER_CLIENT_SECRET: bindings.secret(),
       },
     },
   };
