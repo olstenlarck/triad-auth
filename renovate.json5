@@ -1,0 +1,93 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    // config:recommended plus: pinned action digests, config migration PRs,
+    // abandoned-package warnings, weekly lockfile maintenance, npm release-age guard.
+    "config:best-practices",
+    // Every non-major update in one PR, like Dependabot's minor-and-patch group.
+    "group:allNonMajor",
+    // Early Monday mornings, before 04:00.
+    "schedule:weekly",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)",
+    ":semanticCommitScope(deps)",
+  ],
+  // best-practices pins devDependencies to exact versions; the catalogs keep ranges.
+  ignorePresets: [":pinDevDependencies"],
+  timezone: "Etc/UTC",
+  labels: ["dependencies"],
+
+  // Never take a release younger than a week, like Dependabot's cooldown and pnpm's minimumReleaseAge.
+  minimumReleaseAge: "7 days",
+
+  // GitHub auto-merge; GitHub merges when the ruleset is satisfied.
+  // renovate-approve and renovate-approve-2 give the two approvals.
+  automerge: true,
+  automergeType: "pr",
+  platformAutomerge: true,
+  automergeStrategy: "squash",
+  // The ruleset requires branches to be up to date with master.
+  rebaseWhen: "behind-base-branch",
+
+  prConcurrentLimit: 5,
+  // A table of every update in the squash commit body.
+  commitBodyTable: true,
+  postUpdateOptions: ["pnpmDedupe"],
+
+  lockFileMaintenance: { enabled: true, automerge: true },
+
+  // Majors wait for a tick in the Dependency Dashboard issue; no PR until then.
+  major: { automerge: false, dependencyDashboardApproval: true },
+
+  // Security fixes skip the schedule and the release-age wait.
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: { labels: ["security"], automerge: true, minimumReleaseAge: null },
+
+  // Depot CI uses the GitHub Actions syntax outside .github/.
+  "github-actions": {
+    managerFilePatterns: [
+      "/^\\.depot/workflows/[^/]+\\.ya?ml$/",
+      "/^\\.depot/actions/.+/action\\.ya?ml$/",
+    ],
+  },
+
+  customManagers: [
+    {
+      // Foundry is pinned in the Depot setup action: `version: v1.7.1`.
+      customType: "regex",
+      managerFilePatterns: ["/^\\.depot/actions/setup/action\\.ya?ml$/"],
+      matchStrings: ["foundry-rs/foundry-toolchain@[^\\n]+\\n(?:.*\\n)*?\\s+version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      depNameTemplate: "foundry-rs/foundry",
+      datasourceTemplate: "github-releases",
+    },
+  ],
+
+  packageRules: [
+    {
+      description: "Workflow actions commit as ci(deps), like Dependabot's ci prefix",
+      matchManagers: ["github-actions"],
+      semanticCommitType: "ci",
+    },
+    {
+      description: "Better Auth stays on the release candidate the app is built against. Bump by hand.",
+      matchPackageNames: ["auth", "better-auth", "@better-auth/**"],
+      enabled: false,
+    },
+    {
+      description: "Pinned majors. Bump by hand.",
+      matchPackageNames: ["typescript", "@types/node"],
+      matchUpdateTypes: ["major"],
+      enabled: false,
+    },
+    {
+      description: "Socket Optimize owns these overrides.",
+      matchPackageNames: ["@socketregistry/**"],
+      enabled: false,
+    },
+    {
+      description: "Forge 1.8 adds lint rules the code does not pass yet. Offer it in the dashboard only.",
+      matchPackageNames: ["foundry-rs/foundry"],
+      dependencyDashboardApproval: true,
+    },
+  ],
+}
