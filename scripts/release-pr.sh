@@ -15,7 +15,9 @@ fi
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 git checkout -B "$branch"
-pnpm run packages:version
+# packages:version without its check and test: this task runs after the CI tasks that ran them.
+pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile
+pnpm exec changeset version
 git add -A
 git commit --no-verify -m "$title"
 
