@@ -143,12 +143,13 @@ tasks:
       "$HOME/.foundry/bin/foundryup" --install v1.7.1
       echo "$HOME/.foundry/bin" > "$RWX_ENV/PATH"
 
-  # Socket Firewall Free blocks known malicious packages while pnpm downloads them.
+  # Corepack, which ships with Node 24, provides the pnpm from packageManager. Socket Firewall Free
+  # blocks known malicious packages while pnpm downloads them.
   - key: deps
     use: [code, node]
     run: |
-      npm install --global "$(jq -r .packageManager package.json)" sfw
-      sfw pnpm install --frozen-lockfile
+      corepack enable pnpm
+      pnpm dlx sfw pnpm install --frozen-lockfile
     filter:
       - package.json
       - "**/package.json"
