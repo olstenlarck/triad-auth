@@ -246,6 +246,7 @@ tasks:
   # tests start anvil from Foundry.
   - key: test
     use: [deps, foundry]
+    after: check
     tool-cache: ci-test
     runner: *turbo-runner
     env: *turbo-env
@@ -262,6 +263,7 @@ tasks:
   # compiler is in place before turbo fans out.
   - key: test-solidity
     use: [deps, foundry]
+    after: check
     tool-cache: ci-test-solidity
     runner: *turbo-runner
     env: *turbo-env
@@ -272,6 +274,7 @@ tasks:
   # Builds the npm packages and the Solidity projects. Workers Builds builds the apps.
   - key: build
     use: [deps, foundry]
+    after: [test, test-solidity]
     tool-cache: ci-build
     runner: *turbo-runner
     env: *turbo-env
@@ -312,6 +315,9 @@ tasks:
     # packages:version runs the tests, and the ethscriptions-rescue tests start anvil from Foundry.
     use: [deps, gh, foundry]
     cache: false
+    # packages:version runs turbo check and test again; they replay from this cache.
+    tool-cache: ci-release-pr
+    runner: *turbo-runner
     env:
       TURBO_TELEMETRY_DISABLED: 1
       GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
