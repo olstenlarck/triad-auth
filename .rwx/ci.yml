@@ -21,6 +21,7 @@ on:
         master: false
         release: false
         app: ""
+        job: ""
       status-checks: &status-checks
         - tasks: check
           name: check
@@ -37,6 +38,7 @@ on:
         master: true
         release: "${{ starts-with(event.github.push.head_commit.message, 'chore: release packages') }}"
         app: ""
+        job: ""
       status-checks: *status-checks
   dispatch:
     - key: monarch-deploy-prod
@@ -51,6 +53,7 @@ on:
         master: false
         release: false
         app: ${{ event.dispatch.params.app }}
+        job: deploy-prod
       target: deploy-prod
     # Publishes whatever a failed release left missing.
     - key: monarch-publish-prod
@@ -61,6 +64,7 @@ on:
         master: false
         release: true
         app: ""
+        job: ""
       target: publish-prod
     - key: monarch-socket-optimize
       init: &socket-optimize-init
@@ -70,6 +74,7 @@ on:
         master: false
         release: false
         app: ""
+        job: socket-optimize
       target: socket-optimize
   cron:
     - key: monarch-socket-optimize
@@ -85,6 +90,7 @@ on:
       master: false
       release: false
       app: ""
+      job: ""
 
 # Runs on master queue in push order, so the nightly publish and the release PR never see an older
 # tree after a newer one. A new push to a pull request branch cancels the branch's running run.
@@ -268,6 +274,7 @@ tasks:
   # Deploys apps to production through their deploy:prod scripts, only by dispatch. Without the
   # app param it deploys every app that has a deploy:prod script.
   - key: deploy-prod
+    if: ${{ init.job == 'deploy-prod' }}
     use: deps
     cache: false
     env:
@@ -294,6 +301,7 @@ tasks:
   # repository admin. When the overrides fail verification, the diff is opened as a pull request
   # that needs attention. When there is nothing to push, an issue links the failed run.
   - key: socket-optimize
+    if: ${{ init.job == 'socket-optimize' }}
     use: [deps, gh]
     cache: false
     env:
