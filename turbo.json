@@ -1,8 +1,4 @@
 {
-  "remoteCache": {
-    "teamId": "pcnr2v598s",
-    "apiUrl": "https://cache.depot.dev"
-  },
   "$schema": "https://turborepo.dev/schema.json",
   "globalDependencies": [
     "pnpm-workspace.yaml",
@@ -23,6 +19,7 @@
         "scripts/**",
         ".depot/**",
         ".github/**",
+        ".rwx/**",
         ".zed/**"
       ],
       "outputs": []
@@ -52,7 +49,6 @@
       "passThroughEnv": [
         "CLOUDFLARE_ACCOUNT_ID",
         "CLOUDFLARE_API_TOKEN",
-        "BADGES_DEPOT_TOKEN",
         "COMMIT_SHA",
         "VLT_READ_TOKEN",
         "VLT_UPSTREAM_URL",
@@ -87,8 +83,5 @@
         "TWITTER_CLIENT_SECRET"
       ]
     }
-  },
-  "futureFlags": {
-    "githubActionsRemoteBaseRefFallback": true
   }
 }

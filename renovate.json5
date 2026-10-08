@@ -43,31 +43,26 @@
   osvVulnerabilityAlerts: true,
   vulnerabilityAlerts: { labels: ["security"], automerge: true, minimumReleaseAge: null },
 
-  // Depot CI uses the GitHub Actions syntax outside .github/.
-  "github-actions": {
-    managerFilePatterns: [
-      "/^\\.depot/workflows/[^/]+\\.ya?ml$/",
-      "/^\\.depot/actions/.+/action\\.ya?ml$/",
-    ],
-  },
-
   customManagers: [
     {
-      // Foundry is pinned in the Depot setup action: `version: v1.7.1`.
+      // Foundry is pinned in the RWX definitions: `foundryup" --install v1.7.1`.
       customType: "regex",
-      managerFilePatterns: ["/^\\.depot/actions/setup/action\\.ya?ml$/"],
-      matchStrings: ["foundry-rs/foundry-toolchain@[^\\n]+\\n(?:.*\\n)*?\\s+version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      managerFilePatterns: ["/^\\.rwx/[^/]+\\.ya?ml$/"],
+      matchStrings: ["foundryup\" --install (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
       depNameTemplate: "foundry-rs/foundry",
       datasourceTemplate: "github-releases",
+    },
+    {
+      // Node is pinned in the RWX definitions: `node-version: 24.21.0`.
+      customType: "regex",
+      managerFilePatterns: ["/^\\.rwx/[^/]+\\.ya?ml$/"],
+      matchStrings: ["node-version: (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      depNameTemplate: "node",
+      datasourceTemplate: "node-version",
     },
   ],
 
   packageRules: [
-    {
-      description: "Workflow actions commit as ci(deps), like Dependabot's ci prefix",
-      matchManagers: ["github-actions"],
-      semanticCommitType: "ci",
-    },
     {
       description: "Better Auth stays on the release candidate the app is built against. Bump by hand.",
       matchPackageNames: ["auth", "better-auth", "@better-auth/**"],

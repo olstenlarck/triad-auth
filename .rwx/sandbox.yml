@@ -1,0 +1,59 @@
+# RWX sandbox. `rwx sandbox exec -- <command>` syncs the local changes up, runs the command in the
+# CI toolchain, and syncs the results back. Each branch and worktree gets its own sandbox.
+
+on:
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+
+base:
+  image: ubuntu:24.04
+  config: rwx/base 1.2.0
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/tunnckoCoreHQ/monarch.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+
+  - key: node
+    call: nodejs/install 1.2.0
+    with:
+      node-version: 24.21.0
+
+  # Pinned to the forge release used locally, like in ci.yml.
+  - key: foundry
+    run: |
+      curl -fsSL https://foundry.paradigm.xyz | bash
+      "$HOME/.foundry/bin/foundryup" --install v1.7.1
+      echo "$HOME/.foundry/bin" > "$RWX_ENV/PATH"
+
+  # The standalone pnpm, like in ci.yml.
+  - key: pnpm
+    use: code
+    filter: [package.json]
+    run: |
+      export PNPM_HOME="$HOME/.local/share/pnpm"
+      curl -fsSL https://get.pnpm.io/install.sh |
+        PNPM_VERSION="$(jq -r '.packageManager | sub("^pnpm@"; "")' package.json)" SHELL=bash sh -
+      echo "$PNPM_HOME" > "$RWX_ENV/PNPM_HOME"
+      echo "$PNPM_HOME/bin" > "$RWX_ENV/PATH"
+
+  - key: deps
+    use: [code, node, pnpm]
+    run: pnpm dlx sfw pnpm install --frozen-lockfile
+    filter:
+      - package.json
+      - "**/package.json"
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .npmrc
+      - patches
+
+  - key: sandbox
+    use: [deps, foundry]
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+    run: rwx-sandbox

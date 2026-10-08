@@ -16,7 +16,7 @@ export const Worker = Cloudflare.Worker("Worker", {
     ALLOWED_GITHUB_LOGIN: "tunnckoCore",
     // The deploy workflow passes the commit being deployed; local deploys get "local".
     COMMIT_SHA: process.env.COMMIT_SHA ?? "local",
-    // VLT service tokens and the upstream registry come from the Depot CI secrets.
+    // VLT service tokens and the upstream registry come from the RWX monarch_master vault.
     VLT_READ_TOKEN: Config.Redacted("VLT_READ_TOKEN"),
     VLT_WRITE_TOKEN: Config.Redacted("VLT_WRITE_TOKEN"),
     VLT_UPSTREAM_URL: Config.Redacted("VLT_UPSTREAM_URL"),

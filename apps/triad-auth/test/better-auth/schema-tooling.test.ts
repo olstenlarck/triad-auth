@@ -205,7 +205,7 @@ describe("Better Auth schema tooling", () => {
       "pnpm run build && pnpm exec alchemy deploy --stage prod",
     );
     expect(packageJson.scripts.promote).toBe(
-      "depot ci dispatch --repo tunnckoCoreHQ/monarch --workflow deploy-prod.yml --ref master --input app=triad-auth",
+      "rwx dispatch monarch-deploy-prod --ref master --param app=triad-auth",
     );
     expect(packageJson.scripts.deploy).toBeUndefined();
     expect(packageJson.scripts["deploy:staging"]).toBeUndefined();
