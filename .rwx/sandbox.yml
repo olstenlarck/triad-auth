@@ -30,11 +30,17 @@ tasks:
       "$HOME/.foundry/bin/foundryup" --install v1.7.1
       echo "$HOME/.foundry/bin" > "$RWX_ENV/PATH"
 
-  - key: deps
-    use: [code, node]
+  # The standalone pnpm, like in ci.yml.
+  - key: pnpm
     run: |
-      corepack enable pnpm
-      pnpm dlx sfw pnpm install --frozen-lockfile
+      export PNPM_HOME="$HOME/.local/share/pnpm"
+      curl -fsSL https://get.pnpm.io/install.sh | SHELL=bash sh -
+      echo "$PNPM_HOME" > "$RWX_ENV/PNPM_HOME"
+      echo "$PNPM_HOME/bin" > "$RWX_ENV/PATH"
+
+  - key: deps
+    use: [code, node, pnpm]
+    run: pnpm dlx sfw pnpm install --frozen-lockfile
     filter:
       - package.json
       - "**/package.json"
