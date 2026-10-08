@@ -2,8 +2,8 @@
 # deploy:nightly scripts. Run it by hand on master to deploy one app or every app:
 # `gh workflow run deploy-nightly.yml [-f app=<name>]`.
 #
-# The deploys pass no Worker secrets: each Worker keeps the secrets it already has. Only the
-# Cloudflare credentials for Alchemy come from the repository secrets.
+# The deploys pass no Worker secrets; the Workers keep theirs in Cloudflare. Only the Cloudflare
+# credentials for the deploy come from the repository secrets.
 
 name: deploy-nightly
 
@@ -44,8 +44,7 @@ jobs:
       - uses: ./.github/actions/setup
       # A master push deploys the apps it changed; master takes squash merges, so the pushed
       # commit's parent is the previous master. A manual run deploys one app, or every app.
-      # --continue lets the other apps deploy when one fails. Arguments after -- reach every deploy
-      # script; --yes answers the Alchemy prompts.
+      # --continue lets the other apps deploy when one fails.
       - env:
           APP: ${{ inputs.app }}
           EVENT: ${{ github.event_name }}
@@ -62,4 +61,4 @@ jobs:
           else
             scope=(--affected)
           fi
-          pnpm exec turbo run deploy:nightly "${scope[@]}" --continue -- --yes
+          pnpm exec turbo run deploy:nightly "${scope[@]}" --continue

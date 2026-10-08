@@ -3,15 +3,6 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 
-// Sets only the secrets exported in the shell, for a first deploy or a rotation:
-// `set -a; . ./.env.<stage>; set +a` before the deploy. CI passes none, and the deploy keeps the secrets
-// the Worker already has (patches/alchemy@2.0.0-beta.80.patch).
-// SAFETY: the Worker keeps every secret a deploy does not pass, so each name is bound at runtime.
-const secrets = <const Name extends string>(...names: Name[]) =>
-  Object.fromEntries(
-    names.filter((name) => process.env[name]).map((name) => [name, Config.Redacted(name)]),
-  ) as Record<Name, ReturnType<typeof Config.Redacted>>;
-
 // One Worker and one D1 database per stage. `prod` targets `triad-auth` and `nightly` targets
 // `triad-auth-nightly`. Any other stage, such as the `dev_<user>` stage of `alchemy dev`, gets its
 // own names, so it never touches those two. Each Worker has its own secrets and AUTH_ORIGIN.
@@ -67,19 +58,18 @@ export default Alchemy.Stack(
       env: {
         AUTH_ORIGIN: config.authOrigin,
         DB: database,
-        // The ten secrets, from `.env.nightly` or `.env.prod`.
-        ...secrets(
-          "BETTER_AUTH_SECRET",
-          "IDENTIFIER_SECRET",
-          "RATE_LIMIT_SECRET",
-          "ENCRYPTION_SECRETS",
-          "GOOGLE_CLIENT_ID",
-          "GOOGLE_CLIENT_SECRET",
-          "GITHUB_CLIENT_ID",
-          "GITHUB_CLIENT_SECRET",
-          "TWITTER_CLIENT_ID",
-          "TWITTER_CLIENT_SECRET",
-        ),
+        // The ten secrets come from the environment at deploy time: the Depot CI secrets in the
+        // deploy workflows, `.env` locally. A missing one fails the plan before any upload.
+        BETTER_AUTH_SECRET: Config.Redacted("BETTER_AUTH_SECRET"),
+        IDENTIFIER_SECRET: Config.Redacted("IDENTIFIER_SECRET"),
+        RATE_LIMIT_SECRET: Config.Redacted("RATE_LIMIT_SECRET"),
+        ENCRYPTION_SECRETS: Config.Redacted("ENCRYPTION_SECRETS"),
+        GOOGLE_CLIENT_ID: Config.Redacted("GOOGLE_CLIENT_ID"),
+        GOOGLE_CLIENT_SECRET: Config.Redacted("GOOGLE_CLIENT_SECRET"),
+        GITHUB_CLIENT_ID: Config.Redacted("GITHUB_CLIENT_ID"),
+        GITHUB_CLIENT_SECRET: Config.Redacted("GITHUB_CLIENT_SECRET"),
+        TWITTER_CLIENT_ID: Config.Redacted("TWITTER_CLIENT_ID"),
+        TWITTER_CLIENT_SECRET: Config.Redacted("TWITTER_CLIENT_SECRET"),
       },
     });
 

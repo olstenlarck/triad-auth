@@ -3,15 +3,6 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 
-// Sets only the secrets exported in the shell, for a first deploy or a rotation:
-// `set -a; . ./.env.<stage>; set +a` before the deploy. CI passes none, and the deploy keeps the secrets
-// the Worker already has (patches/alchemy@2.0.0-beta.80.patch).
-// SAFETY: the Worker keeps every secret a deploy does not pass, so each name is bound at runtime.
-const secrets = <const Name extends string>(...names: Name[]) =>
-  Object.fromEntries(
-    names.filter((name) => process.env[name]).map((name) => [name, Config.Redacted(name)]),
-  ) as Record<Name, ReturnType<typeof Config.Redacted>>;
-
 export const Worker = Cloudflare.Worker("Worker", {
   name: "vlt-npm-wgw-lol",
   main: "./src/index.ts",
@@ -25,8 +16,10 @@ export const Worker = Cloudflare.Worker("Worker", {
     ALLOWED_GITHUB_LOGIN: "tunnckoCore",
     // The deploy workflow passes the commit being deployed; local deploys get "local".
     COMMIT_SHA: process.env.COMMIT_SHA ?? "local",
-    // The VLT service tokens and the upstream registry.
-    ...secrets("VLT_READ_TOKEN", "VLT_WRITE_TOKEN", "VLT_UPSTREAM_URL"),
+    // VLT service tokens and the upstream registry come from the RWX monarch_master vault.
+    VLT_READ_TOKEN: Config.Redacted("VLT_READ_TOKEN"),
+    VLT_WRITE_TOKEN: Config.Redacted("VLT_WRITE_TOKEN"),
+    VLT_UPSTREAM_URL: Config.Redacted("VLT_UPSTREAM_URL"),
   },
 });
 

@@ -47,7 +47,7 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 - The `deploy:nightly` script runs on every merge to `master`. It does not mean unstable.
 - A one-environment app, like `apps/npm.wgw.lol` or `apps/x402-router.wgw.lol`, has only `deploy:nightly`, and that script deploys production.
 - A two-environment app, like `apps/triad-auth`, has `deploy:nightly` for the nightly stage and `deploy:prod` for production. Its `promote` script runs the `deploy-prod.yml` workflow, which runs `deploy:prod`.
-- Worker secrets live only on the Workers in Cloudflare. CI passes none, and a deploy keeps the secrets the Worker already has, through `patches/alchemy@2.0.0-beta.80.patch`. To add or rotate one, list it in the `secrets(...)` call of `alchemy.run.ts`, then deploy once locally with it exported: `set -a; . ./.env.<stage>; set +a`.
+- Worker secrets live on the Workers in Cloudflare, not in GitHub. CI deploys pass only `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 - The app needs no workflow of its own.
 - Never run a deploy script locally unless the user asks.
 

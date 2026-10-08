@@ -36,8 +36,8 @@ Fill `.env` with local values. `pnpm run dev` runs `alchemy dev`, which serves t
    turbo run build --filter=triad-auth
    ```
 
-4. Open a pull request into `master`. The `ci` workflow checks and tests the affected packages on Namespace runners. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
-5. Squash-merge. The `deploy-nightly` workflow runs after `ci` passes on `master`: it builds the pages, applies pending migrations to the nightly database, and uploads the Worker.
+4. Open a pull request into `master`. The RWX `ci` run checks and tests the affected packages. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
+5. Squash-merge. `deploy-nightly` runs after `ci` succeeds on `master`: it builds the pages, applies pending migrations to the nightly database, and uploads the Worker.
 
 ## Releasing to production
 
@@ -47,7 +47,7 @@ Confirm nightly is healthy at `https://triad-auth-nightly.wgw.lol`, then:
 pnpm run promote
 ```
 
-This runs the `deploy-prod.yml` workflow for this app on `master`. It builds the pages from the `master` head, applies pending migrations to the production database, and uploads the `triad-auth` Worker. `pnpm run apps:deploy:prod` from the repository root does the same for every app with a `deploy:prod` script.
+This dispatches `monarch-deploy-prod` on RWX for this app on `master`. It builds the pages from the `master` head, applies pending migrations to the production database, and uploads the `triad-auth` Worker. `pnpm run apps:deploy:prod` from the repository root does the same for every app with a `deploy:prod` script.
 
 Every page footer shows a `BUILD <sha>` link with the commit the running Worker was built from.
 
@@ -58,13 +58,13 @@ Every page footer shows a `BUILD <sha>` link with the commit the running Worker 
 | `pnpm run build`          | `astro build`: prerenders every page into `dist/`       |
 | `pnpm run deploy:nightly` | `pnpm run build`, then `alchemy deploy --stage nightly` |
 | `pnpm run deploy:prod`    | `pnpm run build`, then `alchemy deploy --stage prod`    |
-| `pnpm run promote`        | runs `deploy-prod.yml` for `triad-auth`                 |
+| `pnpm run promote`        | dispatches `monarch-deploy-prod` for `triad-auth`       |
 
-`alchemy deploy` bundles `src/index.ts`, uploads `dist/` as the Worker's static assets, applies the pending files in `migrations/` to the stage's D1 database, and sets the secrets exported in the shell. GitHub Actions runs the deploy scripts with no secrets, and the Worker keeps the ones it has. Do not run them by hand unless asked; a local deploy needs the `cf-equator` Alchemy profile.
+`alchemy deploy` bundles `src/index.ts`, uploads `dist/` as the Worker's static assets, applies the pending files in `migrations/` to the stage's D1 database, and sets the secrets from the environment. RWX runs the deploy scripts. Do not run them by hand unless asked; a local deploy needs the `cf-equator` Alchemy profile and the ten secrets in the environment, and `alchemy deploy` reads `.env` from this folder, so a local deploy uploads the values in that file.
 
 ## Secrets
 
-Each Worker needs the same ten secret names. They live on the Workers in Cloudflare, and nowhere in GitHub. A deploy passes only the secrets exported in its shell and keeps the rest, so CI deploys pass none. The values are in `.env.nightly` and `.env.prod` in this folder. The first four in the table differ per Worker. The six provider values are the same in both files, because one OAuth app per provider registers both callback origins. To set or rotate one, edit the file, then deploy that stage locally with the file exported: `set -a; . ./.env.nightly; set +a; pnpm run deploy:nightly`.
+Each Worker needs the same ten secret names. The stack reads them from the environment at deploy time, so they live in RWX vaults locked to `master`. The first four in the table differ per Worker: the nightly values are in the `monarch_nightly` vault and the prod values in `monarch_prod`. The six provider values are in `monarch_master`, shared by both Workers, because one OAuth app per provider registers both callback origins. A missing secret fails the Alchemy plan before anything is uploaded. Set or rotate one with `rwx vaults secrets set --vault <vault> <NAME>=<value>`, then redeploy. A secret set on the Worker directly is overwritten by the next deploy.
 
 | Name | Value |
 | --- | --- |
@@ -84,6 +84,6 @@ Register the callback URI `/api/auth/callback/<provider>` on both origins with e
 
 Done once per Cloudflare account. Skip this if both Workers already exist.
 
-Deploy each stage once locally with its env file exported, so the Worker gets its secrets. After that, GitHub Actions deploys it: a merge to `master` for nightly, and `pnpm run promote` for production. Alchemy creates each stage's D1 database, Worker, and route, and applies the migrations. Create two proxied DNS records in the `wgw.lol` zone, `triad-auth-nightly` and `triad-auth`, so the route patterns resolve.
+Set the vault secrets, then deploy each stage once from RWX: merge the app to `master` for nightly and run `pnpm run promote` for production. Alchemy creates each stage's D1 database, Worker, and route, and applies the migrations. Create two proxied DNS records in the `wgw.lol` zone, `triad-auth-nightly` and `triad-auth`, so the route patterns resolve.
 
-GitHub Actions runs the checks and the deploys on Namespace runners.
+No secrets live in GitHub. RWX runs the checks and the deploys.
