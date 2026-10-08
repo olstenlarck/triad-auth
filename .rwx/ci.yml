@@ -22,24 +22,63 @@ on:
         release: false
         app: ""
         job: ""
-      status-checks: &status-checks
+      status-checks:
         - tasks: check
           name: check
         - tasks: [test, test-solidity]
           name: test
         - tasks: build
           name: build
+    # Two push triggers, so each master commit gets a status for exactly the tasks it runs: the
+    # merged release PR commit also publishes the stable versions. RWX reports a skipped task in a
+    # status as failed, so a status lists only tasks that run for that commit.
     push:
-      if: ${{ event.git.branch == 'master' }}
-      init:
-        commit-sha: ${{ event.git.sha }}
-        branch: ${{ event.git.branch }}
-        affected-base: ""
-        master: true
-        release: "${{ starts-with(event.github.push.head_commit.message, 'chore: release packages') }}"
-        app: ""
-        job: ""
-      status-checks: *status-checks
+      - if: "${{ event.git.branch == 'master' && event.github.push.head_commit.message !~ '^chore: release packages' }}"
+        init:
+          commit-sha: ${{ event.git.sha }}
+          branch: ${{ event.git.branch }}
+          affected-base: ""
+          master: true
+          release: false
+          app: ""
+          job: ""
+        status-checks:
+          - tasks: check
+            name: check
+          - tasks: [test, test-solidity]
+            name: test
+          - tasks: build
+            name: build
+          - tasks: [publish-nightly-vlt, publish-nightly-npm]
+            name: publish-nightly
+          - tasks: deploy-nightly
+            name: deploy-nightly
+          - tasks: release-pr
+            name: release-pr
+      - if: "${{ event.git.branch == 'master' && event.github.push.head_commit.message =~ '^chore: release packages' }}"
+        init:
+          commit-sha: ${{ event.git.sha }}
+          branch: ${{ event.git.branch }}
+          affected-base: ""
+          master: true
+          release: true
+          app: ""
+          job: ""
+        status-checks:
+          - tasks: check
+            name: check
+          - tasks: [test, test-solidity]
+            name: test
+          - tasks: build
+            name: build
+          - tasks: [publish-nightly-vlt, publish-nightly-npm]
+            name: publish-nightly
+          - tasks: deploy-nightly
+            name: deploy-nightly
+          - tasks: release-pr
+            name: release-pr
+          - tasks: [publish-prod-vlt, publish-prod-npm]
+            name: publish-prod
   dispatch:
     - key: monarch-deploy-prod
       params:
@@ -55,6 +94,9 @@ on:
         app: ${{ event.dispatch.params.app }}
         job: deploy-prod
       target: deploy-prod
+      status-checks:
+        enabled: true
+        name: deploy-prod
     # Deploys the nightly stage by hand, for a deploy that a master push missed or failed.
     - key: monarch-deploy-nightly
       params:
@@ -70,6 +112,9 @@ on:
         app: ${{ event.dispatch.params.app }}
         job: deploy-nightly
       target: deploy-nightly
+      status-checks:
+        enabled: true
+        name: deploy-nightly
     # Publishes whatever a failed release left missing.
     - key: monarch-publish-prod
       init:
@@ -81,6 +126,9 @@ on:
         app: ""
         job: ""
       target: [publish-prod-vlt, publish-prod-npm]
+      status-checks:
+        enabled: true
+        name: publish-prod
     - key: monarch-socket-optimize
       init: &socket-optimize-init
         commit-sha: ${{ event.git.sha }}
