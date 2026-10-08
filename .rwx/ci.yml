@@ -55,6 +55,21 @@ on:
         app: ${{ event.dispatch.params.app }}
         job: deploy-prod
       target: deploy-prod
+    # Deploys the nightly stage by hand, for a deploy that a master push missed or failed.
+    - key: monarch-deploy-nightly
+      params:
+        - key: app
+          description: Package name of the app to deploy. Empty deploys every app with deploy:nightly.
+          default: ""
+      init:
+        commit-sha: ${{ event.git.sha }}
+        branch: ${{ event.git.branch }}
+        affected-base: ""
+        master: false
+        release: false
+        app: ${{ event.dispatch.params.app }}
+        job: deploy-nightly
+      target: deploy-nightly
     # Publishes whatever a failed release left missing.
     - key: monarch-publish-prod
       init:
@@ -152,7 +167,9 @@ tasks:
     use: code
     filter: [package.json]
     run: |
-      export PNPM_HOME="$HOME/.local/share/pnpm"
+      # Not under /home/ubuntu: alchemy runs Bun when npm_execpath contains "bun", and "ubuntu" does.
+      export PNPM_HOME=/opt/pnpm
+      sudo mkdir -p "$PNPM_HOME" && sudo chown "$(id -un):$(id -gn)" "$PNPM_HOME"
       curl -fsSL https://get.pnpm.io/install.sh |
         PNPM_VERSION="$(jq -r '.packageManager | sub("^pnpm@"; "")' package.json)" SHELL=bash sh -
       echo "$PNPM_HOME" > "$RWX_ENV/PNPM_HOME"
@@ -224,7 +241,7 @@ tasks:
     env:
       TURBO_TELEMETRY_DISABLED: 1
       # @changesets/changelog-github reads commit and PR data through the GitHub API.
-      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
       # pnpm exchanges this OIDC token at npm.wgw.lol, like the Depot OIDC token before.
       NPM_ID_TOKEN: ${{ vaults.monarch_nightly.oidc.vlt }}
     run: bash scripts/publish-nightly.sh vlt
@@ -236,7 +253,7 @@ tasks:
     cache: false
     env:
       TURBO_TELEMETRY_DISABLED: 1
-      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
       NPM_TOKEN: ${{ vaults.monarch_master.secrets.NPM_TOKEN }}
     run: bash scripts/publish-nightly.sh npm
 
@@ -244,7 +261,8 @@ tasks:
   - key: release-pr
     if: ${{ init.master }}
     after: [check, test, test-solidity, build]
-    use: [deps, gh]
+    # packages:version runs the tests, and the ethscriptions-rescue tests start anvil from Foundry.
+    use: [deps, gh, foundry]
     cache: false
     env:
       TURBO_TELEMETRY_DISABLED: 1
@@ -280,12 +298,14 @@ tasks:
   # merges, so the pushed commit's parent is the previous master. A direct push of several commits
   # only counts the last one.
   - key: deploy-nightly
-    if: ${{ init.master }}
+    if: ${{ init.master || init.job == 'deploy-nightly' }}
     after: [check, test, test-solidity, build]
     use: deps
     cache: false
     env:
       TURBO_TELEMETRY_DISABLED: 1
+      APP: ${{ init.app }}
+      JOB: ${{ init.job }}
       TURBO_SCM_BASE: ${{ init.commit-sha }}^1
       TURBO_SCM_HEAD: ${{ init.commit-sha }}
       COMMIT_SHA: ${{ init.commit-sha }}
@@ -306,10 +326,19 @@ tasks:
       GITHUB_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_SECRET }}
       TWITTER_CLIENT_ID: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_ID }}
       TWITTER_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_SECRET }}
+    # A master push deploys the apps it changed; the dispatch deploys one app, or every app.
     # badges.wgw.lol is skipped: it still needs a Depot token, and the app is going away. --continue
     # lets the other apps deploy when one fails. Arguments after -- reach every deploy script;
     # --yes answers the Alchemy prompts.
-    run: pnpm exec turbo run deploy:nightly --affected --filter='!badges.wgw.lol' --continue -- --yes
+    run: |
+      if [ -n "$APP" ]; then
+        scope=(--filter="$APP")
+      elif [ "$JOB" = deploy-nightly ]; then
+        scope=(--filter='!badges.wgw.lol')
+      else
+        scope=(--affected --filter='!badges.wgw.lol')
+      fi
+      pnpm exec turbo run deploy:nightly "${scope[@]}" --continue -- --yes
 
   # Deploys apps to production through their deploy:prod scripts, only by dispatch. Without the
   # app param it deploys every app that has a deploy:prod script.
