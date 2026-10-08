@@ -8,10 +8,11 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 ## Layout
 
 - TypeScript packages live in `packages/*`. Scoped `@tunnckocore/*` packages publish to the VLT registry at `npm.wgw.lol`. Unscoped packages publish to npmjs.com.
-- Cloudflare apps live in `apps/*`. They deploy primarily with Alchemy (`alchemy.run.ts`). An app can also use the Vite-based `cloudflare.config.ts`.
+- Cloudflare apps live in `apps/*`. Most deploy with Alchemy from `alchemy.run.ts`. An app can instead use `cloudflare.config.ts`, the typed config of the new Cloudflare CLI `cf` (beta): `cf build` runs Vite with the Cloudflare Vite plugin, and `cf deploy` deploys.
 - Solidity projects live in `solidity/*` and build with Foundry.
 - Chrome extensions live in `chrome-extensions/*`, load unpacked, and have only a `check` script.
 - The workspace runs on pnpm and Turborepo. TypeScript uses ultracite (oxlint, oxfmt, tsgolint) and Vitest.
+- Dependency versions come from the catalogs in `pnpm-workspace.yaml`.
 
 ## Commands
 
@@ -48,12 +49,12 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 - A two-environment app, like `apps/triad-auth`, has `deploy:nightly` for the nightly stage and `deploy:prod` for production. Its `promote` script dispatches the Depot `deploy-prod` workflow, which runs `deploy:prod`.
 - For each secret: add a Depot secret, pass it under `env` of the deploy step in `.depot/workflows/deploy-nightly.yml` and `deploy-prod.yml`, and add it to `passThroughEnv` of the deploy tasks in `turbo.json`.
 - The app needs no workflow of its own.
-- Never run a deploy or `promote` script locally unless the user asks.
+- Never run a deploy script locally unless the user asks.
 
 ## CI and releases
 
 - CI runs on Depot CI from `.depot/workflows/`. GitHub Actions only publishes unscoped packages and handles `/approve` comments.
-- Renovate updates dependencies from `renovate.json5`. Dependabot is off; its old config is `.github/dependabot.yml.disabled`.
+- Renovate opens every dependency pull request, from `renovate.json5`. Dependabot only raises security alerts, which Renovate reads.
 - The `ci` workflow runs `check`, `test`, and `build` on pull requests and on `master`.
 - A push to `master` publishes `nightly` packages and runs `deploy:nightly` for the apps it changed.
 - The release pull request (`chore: release packages`) publishes `latest`. The owner merges it by hand.
