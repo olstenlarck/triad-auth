@@ -1,6 +1,8 @@
-import type * as Cloudflare from "alchemy/Cloudflare";
+import type { InferEnv, UnwrapConfig } from "cf/config";
 
-import type { Worker } from "../alchemy.run";
+import type config from "../cloudflare.config";
 
-// Bindings are inferred from alchemy.run.ts, so the stack is the single source of truth.
-export type Env = Cloudflare.InferEnv<typeof Worker>;
+// Bindings are inferred from cloudflare.config.ts, so the config is the single source of truth.
+type WorkerConfig = UnwrapConfig<UnwrapConfig<typeof config>["worker"]>;
+
+export type Env = InferEnv<WorkerConfig>;

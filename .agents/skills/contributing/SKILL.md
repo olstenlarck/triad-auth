@@ -8,7 +8,7 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 ## Layout
 
 - TypeScript packages live in `packages/*`. Scoped `@tunnckocore/*` packages publish to the VLT registry at `npm.wgw.lol`. Unscoped packages publish to npmjs.com.
-- Cloudflare apps live in `apps/*`. Most deploy with Alchemy from `alchemy.run.ts`. An app can instead use `cloudflare.config.ts`, the typed config of the new Cloudflare CLI `cf` (beta): `cf build` runs Vite with the Cloudflare Vite plugin, and `cf deploy` deploys.
+- Cloudflare apps live in `apps/*`. Each one has a `cloudflare.config.ts`, the typed config of the Cloudflare CLI `cf` (beta): `cf build` runs Vite (or Astro) with the Cloudflare Vite plugin, and `cf deploy` deploys. An app with secrets deploys through `node ../../scripts/cf-deploy.ts <SECRET...>`, which passes them from the environment to `cf deploy --secrets-file`.
 - Solidity projects live in `solidity/*` and build with Foundry.
 - Chrome extensions live in `chrome-extensions/*`, load unpacked, and have only a `check` script.
 - The workspace runs on pnpm and Turborepo. TypeScript uses ultracite (oxlint, oxfmt, tsgolint) and Vitest.
@@ -42,7 +42,7 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 
 ## New app
 
-- Create `apps/<name>` with `package.json`, `alchemy.run.ts`, and `tsconfig.json` that extends the root one.
+- Create `apps/<name>` with `package.json`, `cloudflare.config.ts`, and `tsconfig.json` that extends the root one. A plain Worker also needs a `vite.config.ts` with the `cloudflare()` plugin; an Astro app uses the `@astrojs/cloudflare` adapter instead.
 - Add `check` and `test` scripts.
 - The `deploy:nightly` script runs on every merge to `master`. It does not mean unstable.
 - A one-environment app, like `apps/npm.wgw.lol` or `apps/x402-router.wgw.lol`, has only `deploy:nightly`, and that script deploys production.

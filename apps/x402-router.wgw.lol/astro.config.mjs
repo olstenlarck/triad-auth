@@ -1,9 +1,11 @@
+import cloudflare from "@astrojs/cloudflare";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, sessionDrivers } from "astro/config";
 
 // https://astro.build/config
-// Alchemy injects the Cloudflare adapter at deploy time; see alchemy.run.ts.
 export default defineConfig({
+  // The adapter reads cloudflare.config.ts.
+  adapter: cloudflare({ imageService: "passthrough" }),
   output: "server",
   session: { driver: sessionDrivers.lruCache() },
   security: {

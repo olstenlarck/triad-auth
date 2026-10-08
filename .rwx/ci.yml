@@ -215,7 +215,6 @@ tasks:
     use: code
     filter: [package.json]
     run: |
-      # Not under /home/ubuntu: alchemy runs Bun when npm_execpath contains "bun", and "ubuntu" does.
       export PNPM_HOME=/opt/pnpm
       sudo mkdir -p "$PNPM_HOME" && sudo chown "$(id -un):$(id -gn)" "$PNPM_HOME"
       curl -fsSL https://get.pnpm.io/install.sh |
@@ -392,8 +391,7 @@ tasks:
       TWITTER_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_SECRET }}
     # A master push deploys the apps it changed; the dispatch deploys one app, or every app.
     # badges.wgw.lol is skipped: it still needs a Depot token, and the app is going away. --continue
-    # lets the other apps deploy when one fails. Arguments after -- reach every deploy script;
-    # --yes answers the Alchemy prompts.
+    # lets the other apps deploy when one fails.
     run: |
       if [ -n "$APP" ]; then
         scope=(--filter="$APP")
@@ -402,7 +400,7 @@ tasks:
       else
         scope=(--affected --filter='!badges.wgw.lol')
       fi
-      pnpm exec turbo run deploy:nightly "${scope[@]}" --continue -- --yes
+      pnpm exec turbo run deploy:nightly "${scope[@]}" --continue
 
   # Deploys apps to production through their deploy:prod scripts, only by dispatch. Without the
   # app param it deploys every app that has a deploy:prod script.
@@ -427,8 +425,7 @@ tasks:
       GITHUB_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_SECRET }}
       TWITTER_CLIENT_ID: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_ID }}
       TWITTER_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_SECRET }}
-    # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
-    run: pnpm exec turbo run deploy:prod ${APP:+--filter="$APP"} -- --yes
+    run: pnpm exec turbo run deploy:prod ${APP:+--filter="$APP"}
 
   # Runs Socket Optimize. Verified overrides are pushed straight to master by the PAT owner, a
   # repository admin. When the overrides fail verification, the diff is opened as a pull request

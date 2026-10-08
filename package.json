@@ -25,7 +25,6 @@
     "@types/bun": "catalog:types",
     "@types/node": "catalog:types",
     "@vitest/coverage-v8": "catalog:",
-    "alchemy": "catalog:",
     "cf": "catalog:",
     "effect": "catalog:",
     "oxfmt": "catalog:",

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { stackConfig } from "../../alchemy.run";
+import config from "../../cloudflare.config";
 import { authSchemaDatabase } from "../../scripts/auth-schema-database";
 
 function readSource(path: string): string {
@@ -86,7 +86,7 @@ const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, "package.jso
   devDependencies: Record<string, string>;
   scripts: Record<string, string>;
 };
-const alchemyStackSource = readSource("alchemy.run.ts");
+const cloudflareConfigSource = readSource("cloudflare.config.ts");
 const schemaSource = readSource("src/better-auth/schema.ts");
 const schemaDatabaseSource = readSource("scripts/auth-schema-database.ts");
 const migrationFiles = readdirSync(resolve(repositoryRoot, "migrations"))
@@ -94,13 +94,27 @@ const migrationFiles = readdirSync(resolve(repositoryRoot, "migrations"))
   .toSorted();
 const initialMigration = readSource("migrations/0001-initial.sql");
 
-// alchemy.run.ts is a function of the deploy stage; `alchemy deploy --stage nightly` selects nightly.
-const assetsConfig = {
-  directory: "dist",
-  htmlHandling: "drop-trailing-slash",
-  notFoundHandling: "404-page",
-  runWorkerFirst: false,
-};
+// cloudflare.config.ts is a function of the mode; `--mode nightly` selects the nightly Worker.
+async function workerConfig(mode: string) {
+  const resolved = typeof config === "function" ? await config({ mode, isPreview: false }) : config;
+
+  return resolved.worker;
+}
+
+const secretNames = [
+  "BETTER_AUTH_SECRET",
+  "IDENTIFIER_SECRET",
+  "RATE_LIMIT_SECRET",
+  "ENCRYPTION_SECRETS",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "GITHUB_CLIENT_ID",
+  "GITHUB_CLIENT_SECRET",
+  "TWITTER_CLIENT_ID",
+  "TWITTER_CLIENT_SECRET",
+];
+const productionDatabaseId = "40220009-d502-4afd-ab7b-54495016720f";
+const nightlyDatabaseId = "c4c8e874-a463-4c22-8389-8911627c055d";
 
 describe("Better Auth schema tooling", () => {
   it("keeps one squashed initial migration", () => {
@@ -143,53 +157,44 @@ describe("Better Auth schema tooling", () => {
     expect(initialMigration).not.toContain("alter table");
   });
 
-  it("configures the production Worker and D1 database for stage prod", () => {
-    const { worker, database, authOrigin } = stackConfig("prod");
+  it.each([
+    ["production", "triad-auth", productionDatabaseId],
+    ["development", "triad-auth", productionDatabaseId],
+    ["nightly", "triad-auth-nightly", nightlyDatabaseId],
+  ])("configures the Worker and D1 database for mode %s", async (mode, name, databaseId) => {
+    const worker = await workerConfig(mode);
 
-    expect(worker.name).toBe("triad-auth");
-    expect(worker.main).toBe("src/index.ts");
-    expect(worker.workersDev).toBe(false);
-    expect(worker.domain).toBeNull();
-    expect(worker.routes).toEqual([{ pattern: "triad-auth.wgw.lol/*", zoneName: "wgw.lol" }]);
-    expect(authOrigin).toBe("https://triad-auth.wgw.lol");
-    expect(database).toEqual({ name: "triad-auth", migrations: "migrations" });
-  });
-
-  it.each(["dev_user", "live_user"])(
-    "keeps stage %s away from the production and nightly resources",
-    (stage) => {
-      const { worker, database, authOrigin } = stackConfig(stage);
-
-      expect(worker.name).toBe(`triad-auth-${stage}`);
-      expect(worker.routes).toEqual([
-        { pattern: `triad-auth-${stage}.wgw.lol/*`, zoneName: "wgw.lol" },
-      ]);
-      expect(authOrigin).toBe(`https://triad-auth-${stage}.wgw.lol`);
-      expect(database).toEqual({ name: `triad-auth-${stage}`, migrations: "migrations" });
-    },
-  );
-
-  it("configures the nightly Worker and D1 database", () => {
-    const { worker, database, authOrigin } = stackConfig("nightly");
-
-    expect(worker.name).toBe("triad-auth-nightly");
-    expect(worker.main).toBe("src/index.ts");
-    expect(worker.workersDev).toBe(false);
-    expect(worker.domain).toBeNull();
-    expect(worker.routes).toEqual([
-      { pattern: "triad-auth-nightly.wgw.lol/*", zoneName: "wgw.lol" },
+    expect(worker?.name).toBe(name);
+    expect(worker?.entrypoint).toBe("src/index.ts");
+    expect(worker?.workersDev).toBe(false);
+    expect(worker?.triggers).toEqual([
+      { type: "fetch", pattern: `${name}.wgw.lol/*`, zone: "wgw.lol" },
     ]);
-    expect(authOrigin).toBe("https://triad-auth-nightly.wgw.lol");
-    expect(database).toEqual({ name: "triad-auth-nightly", migrations: "migrations" });
+    expect(worker?.env?.AUTH_ORIGIN).toMatchObject({ value: `https://${name}.wgw.lol` });
+    expect(worker?.env?.DB).toMatchObject({ name, id: databaseId });
   });
 
-  it("serves static assets with the same runtime behavior in both stages", () => {
-    for (const stage of ["prod", "nightly"]) {
-      expect(stackConfig(stage).worker.assets).toEqual(assetsConfig);
-      expect(stackConfig(stage).worker.compatibility).toEqual({
-        date: "2026-07-09",
-        flags: ["nodejs_compat", "global_fetch_strictly_public"],
+  it("serves static assets with the same runtime behavior in both modes", async () => {
+    for (const mode of ["production", "nightly"]) {
+      const worker = await workerConfig(mode);
+
+      expect(worker?.assets).toEqual({
+        htmlHandling: "drop-trailing-slash",
+        notFoundHandling: "404-page",
+        runWorkerFirst: false,
       });
+      expect(worker?.compatibilityDate).toBe("2026-07-09");
+      expect(worker?.compatibilityFlags).toEqual(["nodejs_compat", "global_fetch_strictly_public"]);
+    }
+  });
+
+  it("declares the ten secrets in both modes", async () => {
+    for (const mode of ["production", "nightly"]) {
+      const env: Record<string, unknown> = (await workerConfig(mode))?.env ?? {};
+
+      for (const name of secretNames) {
+        expect(env[name]).toMatchObject({ type: "secret" });
+      }
     }
   });
 
@@ -197,12 +202,12 @@ describe("Better Auth schema tooling", () => {
     expect(packageJson.scripts["db:generate"]).toBe(
       "pnpm exec auth generate --config src/better-auth/schema.ts --output .ignore/auth-schema.sql --yes",
     );
-    expect(packageJson.scripts.build).toBe("pnpm exec astro build");
+    expect(packageJson.scripts.build).toBe("pnpm exec cf build");
     expect(packageJson.scripts["deploy:nightly"]).toBe(
-      "pnpm run build && pnpm exec alchemy deploy --stage nightly",
+      `pnpm exec cf d1 migrations apply ${nightlyDatabaseId} && node ../../scripts/cf-deploy.ts ${secretNames.join(" ")} -- --mode nightly`,
     );
     expect(packageJson.scripts["deploy:prod"]).toBe(
-      "pnpm run build && pnpm exec alchemy deploy --stage prod",
+      `pnpm exec cf d1 migrations apply ${productionDatabaseId} && node ../../scripts/cf-deploy.ts ${secretNames.join(" ")} -- --mode production`,
     );
     expect(packageJson.scripts.promote).toBe(
       "rwx dispatch monarch-deploy-prod --ref master --param app=triad-auth --wait",
@@ -212,7 +217,7 @@ describe("Better Auth schema tooling", () => {
     expect(packageJson.scripts.test).toBe("vitest run");
   });
 
-  it("does not add an adapter, emulator, SQLite driver, or legacy resource name", () => {
+  it("does not add Wrangler, an emulator, a SQLite driver, or a legacy resource name", () => {
     const dependencyNames = [
       ...Object.keys(packageJson.dependencies),
       ...Object.keys(packageJson.devDependencies),
@@ -220,7 +225,7 @@ describe("Better Auth schema tooling", () => {
     const toolingSource = [
       dependencyNames,
       JSON.stringify(packageJson.scripts),
-      alchemyStackSource,
+      cloudflareConfigSource,
       schemaSource,
       schemaDatabaseSource,
     ].join("\n");
@@ -229,7 +234,7 @@ describe("Better Auth schema tooling", () => {
       /drizzle|miniflare|better-sqlite3|bun:sqlite|node:sqlite|sqlite3/i,
     );
     expect(toolingSource).not.toMatch(/triad-better-auth|triad-auth-broker/);
-    expect(dependencyNames).not.toMatch(/^(wrangler|cf|@astrojs\/cloudflare)$/m);
+    expect(dependencyNames).not.toMatch(/^wrangler$/m);
   });
 
   it("builds the schema auth instance through the canonical configuration", () => {

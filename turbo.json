@@ -40,7 +40,7 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "out/**"],
+      "outputs": ["dist/**", "out/**", ".cloudflare/output/**"],
       "inputs": ["$TURBO_DEFAULT$", "!test/**"],
       "env": ["COMMIT_SHA"]
     },

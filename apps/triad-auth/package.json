@@ -6,17 +6,19 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "build": "pnpm exec astro build",
+    "build": "pnpm exec cf build",
     "check": "ultracite fix --type-aware --type-check",
     "db:generate": "pnpm exec auth generate --config src/better-auth/schema.ts --output .ignore/auth-schema.sql --yes",
-    "deploy:nightly": "pnpm run build && pnpm exec alchemy deploy --stage nightly",
-    "deploy:prod": "pnpm run build && pnpm exec alchemy deploy --stage prod",
-    "dev": "pnpm exec alchemy dev",
+    "db:migrate:local": "pnpm exec cf d1 migrations apply 40220009-d502-4afd-ab7b-54495016720f --local --persist-to .cloudflare/state",
+    "deploy:nightly": "pnpm exec cf d1 migrations apply c4c8e874-a463-4c22-8389-8911627c055d && node ../../scripts/cf-deploy.ts BETTER_AUTH_SECRET IDENTIFIER_SECRET RATE_LIMIT_SECRET ENCRYPTION_SECRETS GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET TWITTER_CLIENT_ID TWITTER_CLIENT_SECRET -- --mode nightly",
+    "deploy:prod": "pnpm exec cf d1 migrations apply 40220009-d502-4afd-ab7b-54495016720f && node ../../scripts/cf-deploy.ts BETTER_AUTH_SECRET IDENTIFIER_SECRET RATE_LIMIT_SECRET ENCRYPTION_SECRETS GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET TWITTER_CLIENT_ID TWITTER_CLIENT_SECRET -- --mode production",
+    "dev": "pnpm exec cf dev",
     "preview": "pnpm run build && pnpm exec astro preview",
     "promote": "rwx dispatch monarch-deploy-prod --ref master --param app=triad-auth --wait",
     "test": "vitest run"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "catalog:",
     "@better-auth/cimd": "catalog:better-auth",
     "@better-auth/oauth-provider": "catalog:better-auth",
     "@better-auth/passkey": "catalog:better-auth",
@@ -40,8 +42,7 @@
     "@cloudflare/workers-types": "catalog:types",
     "@types/bun": "catalog:types",
     "@types/node": "catalog:types",
-    "alchemy": "catalog:",
-    "effect": "catalog:",
+    "cf": "catalog:",
     "typescript": "catalog:types"
   },
   "packageManager": "pnpm@11.21.0"
