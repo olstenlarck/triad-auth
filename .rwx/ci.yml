@@ -113,6 +113,10 @@ tool-cache:
   vault: monarch_master
 
 aliases:
+  # The turbo tasks run on 4 CPUs, like the Depot runners did. The rest use the 2 CPU default.
+  turbo-runner: &turbo-runner
+    cpus: 4
+    memory: 16gb
   turbo-env: &turbo-env
     TURBO_TELEMETRY_DISABLED: 1
     TURBO_SCM_BASE: ${{ init.affected-base }}
@@ -169,6 +173,7 @@ tasks:
   - key: check
     use: [deps, foundry]
     tool-cache: ci-check
+    runner: *turbo-runner
     env: *turbo-env
     run: pnpm exec turbo run check $AFFECTED
 
@@ -177,6 +182,7 @@ tasks:
   - key: test
     use: [deps, foundry]
     tool-cache: ci-test
+    runner: *turbo-runner
     env: *turbo-env
     run: |
       status=0
@@ -192,6 +198,7 @@ tasks:
   - key: test-solidity
     use: [deps, foundry]
     tool-cache: ci-test-solidity
+    runner: *turbo-runner
     env: *turbo-env
     run: |
       forge build --root solidity/template
@@ -201,6 +208,7 @@ tasks:
   - key: build
     use: [deps, foundry]
     tool-cache: ci-build
+    runner: *turbo-runner
     env: *turbo-env
     run: |
       forge build --root solidity/template
