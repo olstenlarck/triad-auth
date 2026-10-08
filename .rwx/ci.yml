@@ -152,7 +152,9 @@ tasks:
     use: code
     filter: [package.json]
     run: |
-      export PNPM_HOME="$HOME/.local/share/pnpm"
+      # Not under /home/ubuntu: alchemy runs Bun when npm_execpath contains "bun", and "ubuntu" does.
+      export PNPM_HOME=/opt/pnpm
+      sudo mkdir -p "$PNPM_HOME" && sudo chown "$(id -un):$(id -gn)" "$PNPM_HOME"
       curl -fsSL https://get.pnpm.io/install.sh |
         PNPM_VERSION="$(jq -r '.packageManager | sub("^pnpm@"; "")' package.json)" SHELL=bash sh -
       echo "$PNPM_HOME" > "$RWX_ENV/PNPM_HOME"
