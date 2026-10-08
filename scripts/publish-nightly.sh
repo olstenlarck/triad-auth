@@ -39,11 +39,7 @@ if [ "${#published[@]}" -eq 0 ]; then
   exit 0
 fi
 pnpm exec turbo run build "${filters[@]}"
-# Read the OIDC token file last: RWX refreshes it, and npm.wgw.lol rejects tokens older than 10m.
-if [ "$scoped" = true ]; then
-  echo "//npm.wgw.lol/:_authToken=$(cat "$VLT_TOKEN_FILE")" >> "$HOME/.npmrc"
-else
-  echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> "$HOME/.npmrc"
-fi
+# The vlt share needs no auth here: pnpm exchanges NPM_ID_TOKEN at npm.wgw.lol, as it did on Depot.
+[ "$scoped" = true ] || echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> "$HOME/.npmrc"
 pnpm publish -r "${filters[@]}" --tag nightly --no-git-checks
 printf 'Published %s with nightly\n' "${published[@]}"

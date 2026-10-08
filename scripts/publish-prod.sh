@@ -12,12 +12,10 @@ case "${1:-}" in
   vlt)
     share='startswith("@tunnckocore/")'
     builds=(--filter='@tunnckocore/*')
-    registry=npm.wgw.lol
     ;;
   npm)
     share='startswith("@tunnckocore/") | not'
     builds=(--filter='./packages/*' --filter='!@tunnckocore/*')
-    registry=registry.npmjs.org
     ;;
   *)
     echo "Usage: pnpm run packages:publish <vlt|npm>" >&2
@@ -31,9 +29,8 @@ pnpm exec turbo run build "${builds[@]}"
 pnpm exec changeset publish-plan --output "$out/plan.json"
 jq ".plan |= (map(map(select(.name | $share))) | map(select(length > 0)))" "$out/plan.json" > "$out/share.json"
 pnpm exec changeset pack --from-publish-plan "$out/share.json" --out-dir "$out/pack"
-# Read the OIDC token file last: RWX refreshes it, and npm.wgw.lol rejects tokens older than 10m.
-if [ "$registry" = npm.wgw.lol ]; then token=$(cat "$VLT_TOKEN_FILE"); else token=$NPM_TOKEN; fi
-echo "//$registry/:_authToken=$token" >> "$HOME/.npmrc"
+# The vlt share needs no auth here: pnpm exchanges NPM_ID_TOKEN at npm.wgw.lol, as it did on Depot.
+[ "$1" = vlt ] || echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> "$HOME/.npmrc"
 # changeset publish creates the local tags and reports each one as a git-tag event.
 CHANGESETS_OUTPUT="$out/events.jsonl" pnpm exec changeset publish --from-pack-dir "$out/pack"
 

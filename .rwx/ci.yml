@@ -225,7 +225,8 @@ tasks:
       TURBO_TELEMETRY_DISABLED: 1
       # @changesets/changelog-github reads commit and PR data through the GitHub API.
       GITHUB_TOKEN: ${{ github.token }}
-      VLT_TOKEN_FILE: ${{ vaults.monarch_nightly.oidc.vlt.path }}
+      # pnpm exchanges this OIDC token at npm.wgw.lol, like the Depot OIDC token before.
+      NPM_ID_TOKEN: ${{ vaults.monarch_nightly.oidc.vlt }}
     run: bash scripts/publish-nightly.sh vlt
 
   - key: publish-nightly-npm
@@ -261,7 +262,7 @@ tasks:
     env:
       TURBO_TELEMETRY_DISABLED: 1
       GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
-      VLT_TOKEN_FILE: ${{ vaults.monarch_prod.oidc.vlt.path }}
+      NPM_ID_TOKEN: ${{ vaults.monarch_prod.oidc.vlt }}
     run: bash scripts/publish-prod.sh vlt
 
   - key: publish-prod-npm
