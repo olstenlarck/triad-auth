@@ -16,7 +16,6 @@ tasks:
     with:
       repository: https://github.com/tunnckoCoreHQ/monarch.git
       ref: ${{ init.commit-sha }}
-      github-token: ${{ github.token }}
       preserve-git-dir: true
 
   - key: node

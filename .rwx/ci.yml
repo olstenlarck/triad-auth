@@ -116,7 +116,6 @@ tasks:
     with:
       repository: https://github.com/tunnckoCoreHQ/monarch.git
       ref: ${{ init.commit-sha }}
-      github-token: ${{ github.token }}
       # turbo --affected, the nightly publish, and the release PR read the history.
       preserve-git-dir: true
       fetch-full-depth: true
@@ -156,9 +155,10 @@ tasks:
     env: *turbo-env
     run: pnpm exec turbo run check $AFFECTED
 
-  # Every Vitest run writes JSON results, which RWX shows as test results.
+  # Every Vitest run writes JSON results, which RWX shows as test results. The ethscriptions-rescue
+  # tests start anvil from Foundry.
   - key: test
-    use: deps
+    use: [deps, foundry]
     tool-cache: ci-test
     env: *turbo-env
     run: |
