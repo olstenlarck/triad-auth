@@ -53,7 +53,7 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 
 ## CI and releases
 
-- CI runs on RWX from `.rwx/ci.yml`, and `/approve` comments reach `.rwx/approve.yml` through a GitHub webhook. There are no GitHub Actions workflows.
+- CI runs on RWX from `.rwx/ci.yml`. The old Depot and GitHub Actions workflows stay in `.depot/workflows-disabled/` and `.github/workflows-disabled/`, which neither service reads.
 - Every secret and OIDC token lives in an RWX vault locked to `master`, so pull request runs get none of them.
 - `rwx sandbox exec -- <command>` runs a command in the CI toolchain from `.rwx/sandbox.yml`.
 - Renovate opens every dependency pull request, from `renovate.json5`. Dependabot only raises security alerts, which Renovate reads.

@@ -1,0 +1,80 @@
+# Depot CI. Checks and tests every package, TypeScript and Solidity, on every pull request and every
+# push to master; turbo caches each package through Depot Cache. publish-nightly.yml,
+# prepare-publish.yml, and publish-prod.yml run after this workflow succeeds on master; see each file.
+#
+# SECURITY: both jobs run PR code with a read-only token, no secrets, and no OIDC token.
+
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    # Master pushes, manual master runs, and same-repository pull requests, Dependabot included.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+    runs-on: depot-ubuntu-24.04-4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so turbo --affected can compare against the base branch on pull requests.
+          fetch-depth: 0
+      - uses: ./.depot/actions/setup
+        with:
+          solidity: true
+      - run: pnpm exec turbo run check ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+
+  # The master ruleset requires ci / check, ci / test, and ci / build from Depot. Keep the job names.
+  test:
+    needs: check
+    permissions:
+      contents: read
+    runs-on: depot-ubuntu-24.04-4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so turbo --affected can compare against the base branch on pull requests.
+          fetch-depth: 0
+      - uses: ./.depot/actions/setup
+        with:
+          solidity: true
+      # Five forge runs start at once and race to install solc; compile one project first so the
+      # compiler is in place before turbo fans out.
+      - run: forge build --root solidity/template
+      - run: pnpm exec turbo run test ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+
+  # Builds the npm packages and the Solidity projects. Workers Builds builds the apps.
+  build:
+    needs: check
+    permissions:
+      contents: read
+    runs-on: depot-ubuntu-24.04-4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so turbo --affected can compare against the base branch on pull requests.
+          fetch-depth: 0
+      - uses: ./.depot/actions/setup
+        with:
+          solidity: true
+      # Five forge runs start at once and race to install solc; compile one project first so the
+      # compiler is in place before turbo fans out.
+      - run: forge build --root solidity/template
+      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./solidity/*' ${{ github.event_name == 'pull_request' && '--affected' || '' }}

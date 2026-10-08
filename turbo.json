@@ -11,7 +11,17 @@
   "concurrency": "4",
   "tasks": {
     "//#check": {
-      "inputs": ["*.md", "*.json", "*.ts", ".changeset/**", "scripts/**", ".zed/**", ".rwx/**"],
+      "inputs": [
+        "*.md",
+        "*.json",
+        "*.ts",
+        ".changeset/**",
+        "scripts/**",
+        ".depot/**",
+        ".github/**",
+        ".rwx/**",
+        ".zed/**"
+      ],
       "outputs": []
     },
     "check": {

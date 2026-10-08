@@ -1,0 +1,128 @@
+# Depot CI. Runs Socket Optimize on Monday at 06:00 UTC or manually. Verified overrides are pushed straight
+# to master by the PAT owner, a repository admin, so the push is a real push that runs ci and
+# needs no pull request. When the overrides fail verification, the diff is opened as a pull
+# request that needs attention. When there is nothing to push, an issue links the failed run.
+#
+# SECURITY: this job can read the Socket secret and the PAT. Keep the master-only guard: without
+# it, a manual run could execute modified workflow code with those credentials.
+
+name: socket-optimize
+
+on:
+  schedule:
+    # Mondays 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: socket-optimize
+  cancel-in-progress: false
+
+env:
+  BRANCH: socket-optimize
+  ATTENTION_TITLE: "socket optimize: needs attention"
+  FAILURE_TITLE: "socket optimize: run failed"
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  socket_optimize:
+    permissions:
+      contents: read
+    # Only the default branch may run this, including manual dispatches, so a modified branch cannot reach the secrets.
+    if: github.ref == 'refs/heads/master'
+    runs-on: depot-ubuntu-24.04-4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Avoid leaving a write credential in Git's local config.
+          persist-credentials: false
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec socket optimize
+        env:
+          SOCKET_SECURITY_API_TOKEN: ${{ secrets.SOCKET_SECURITY_API_TOKEN }}
+      # Socket CLI 1.1.167 writes overrides to package.json, a field pnpm 11 no longer reads. Move
+      # them to pnpm-workspace.yaml so they take effect. Keys are quoted because scoped names start
+      # with "@". An entry already in the overrides block is replaced, so a changed spec is kept.
+      # Delete this step once Socket writes the workspace file itself; its unreleased source does.
+      - run: |
+          if jq -e '.pnpm.overrides' package.json > /dev/null; then
+            grep -q '^overrides:' pnpm-workspace.yaml || printf '\noverrides:\n' >> pnpm-workspace.yaml
+            existing=$(awk '/^overrides:/ { block = 1; next } /^[^ ]/ { block = 0 } block && /^  / { sub(/^  "?/, ""); sub(/"?:.*/, ""); print }' pnpm-workspace.yaml)
+            jq -r '.pnpm.overrides | to_entries[] | "\(.key)\t\(.value)"' package.json |
+              while IFS=$'\t' read -r name spec; do
+                if grep -qxF "$name" <<< "$existing"; then
+                  pattern=$(printf '%s' "$name" | sed 's/[.[*^$]/\\&/g')
+                  sed -i "/^overrides:/,/^[^ ]/ s|^  \"\\{0,1\\}$pattern\"\\{0,1\\}:.*|  \"$name\": \"$spec\"|" pnpm-workspace.yaml
+                else
+                  sed -i "/^overrides:/a\\  \"$name\": \"$spec\"" pnpm-workspace.yaml
+                fi
+              done
+            jq 'del(.pnpm)' package.json > package.json.tmp && mv package.json.tmp package.json
+          fi
+      - id: diff
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Commit before verifying so a failed verification can still be pushed as a pull request.
+      - if: steps.diff.outputs.changed == 'true'
+        run: |
+          pnpm install --no-frozen-lockfile
+          git add -A
+          git commit --no-verify -m "chore(deps): apply socket optimize overrides"
+      - if: steps.diff.outputs.changed == 'true'
+        run: pnpm exec turbo run check --filter='!./solidity/*'
+      - if: steps.diff.outputs.changed == 'true'
+        run: pnpm exec turbo run test --filter='!./solidity/*'
+      - if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+        run: |
+          # Give Git push its credential only after verification passes. The pushed tree is exactly
+          # the verified one; if master moved meanwhile the push is rejected and the PR fallback runs.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin HEAD:master
+      - if: failure() && steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+        run: |
+          # Commit whatever exists if the run failed before the commit step.
+          git add -A
+          git diff --cached --quiet || git commit --no-verify -m "chore(deps): apply socket optimize overrides"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+          if gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" --json number >/dev/null 2>&1; then
+            gh pr comment "$BRANCH" --repo "$GITHUB_REPOSITORY" --body "Verification failed again: $DEPOT_JOB_URL"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base master --head "$BRANCH" \
+              --title "$ATTENTION_TITLE" \
+              --body "Socket Optimize produced overrides that failed verification: $DEPOT_JOB_URL
+
+          Read the failing check, point the broken override back at the original package in pnpm-workspace.yaml (optimize keeps any override that is not an @socketregistry spec), or fix the code the replacement exposed. Then approve and merge."
+          fi
+      - if: failure() && steps.diff.outputs.changed != 'true'
+        env:
+          # Depot CI tokens have no issues scope, so the PAT opens the issue.
+          GH_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+        run: |
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$FAILURE_TITLE\" in:title" --json number,title --jq ".[] | select(.title == \"$FAILURE_TITLE\") | .number" | head -1)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "Failed again: $DEPOT_JOB_URL"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$FAILURE_TITLE" \
+              --body "Socket Optimize failed before producing any changes: $DEPOT_JOB_URL
+
+          Fix the cause, then rerun it with \`depot ci dispatch --workflow socket-optimize.yml --ref master\` or from the Depot dashboard."
+          fi

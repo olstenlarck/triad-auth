@@ -8,6 +8,8 @@
 # SECURITY: every secret and OIDC token lives in a vault locked to master, so pull request runs
 # get none of them. monarch_nightly and monarch_prod each hold one OIDC token for npm.wgw.lol;
 # the Worker maps the nightly vault to the nightly dist-tag and the prod vault to latest.
+# monarch_master holds what both stages share, like the Cloudflare token and the OAuth apps. It is
+# named after the branch that unlocks it, not after a stage, so the prod tasks read it too.
 
 on:
   github:

@@ -1,0 +1,62 @@
+# Depot CI. After ci succeeds for a master push, deploys the apps that push changed through their
+# deploy:nightly scripts. Alchemy apps authenticate with the CLOUDFLARE_API_TOKEN Depot secret.
+
+name: deploy-nightly
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [master]
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+concurrency:
+  group: apps-deploy-nightly
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    permissions:
+      contents: read
+    runs-on: depot-ubuntu-24.04-4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.depot/actions/setup
+      # master takes squash merges, so the pushed commit's parent is the previous master. A direct
+      # push of several commits only counts the last one.
+      - name: Deploy the apps this push changed
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # github.sha is the current master head in workflow_run, not the commit ci checked.
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+          TURBO_SCM_BASE: ${{ github.event.workflow_run.head_sha }}^1
+          TURBO_SCM_HEAD: ${{ github.event.workflow_run.head_sha }}
+          # The badges.wgw.lol Worker's Depot organization token.
+          BADGES_DEPOT_TOKEN: ${{ secrets.BADGES_DEPOT_TOKEN }}
+          # The npm.wgw.lol Worker's VLT service tokens and upstream registry.
+          VLT_READ_TOKEN: ${{ secrets.VLT_READ_TOKEN }}
+          VLT_UPSTREAM_URL: ${{ secrets.VLT_UPSTREAM_URL }}
+          VLT_WRITE_TOKEN: ${{ secrets.VLT_WRITE_TOKEN }}
+          # The triad-auth secrets. The four Better Auth ones are the nightly variant, scoped to this workflow.
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          IDENTIFIER_SECRET: ${{ secrets.IDENTIFIER_SECRET }}
+          RATE_LIMIT_SECRET: ${{ secrets.RATE_LIMIT_SECRET }}
+          ENCRYPTION_SECRETS: ${{ secrets.ENCRYPTION_SECRETS }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+          TWITTER_CLIENT_ID: ${{ secrets.TWITTER_CLIENT_ID }}
+          TWITTER_CLIENT_SECRET: ${{ secrets.TWITTER_CLIENT_SECRET }}
+        # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
+        run: pnpm exec turbo run deploy:nightly --affected -- --yes
