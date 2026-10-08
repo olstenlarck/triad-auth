@@ -5,9 +5,8 @@
   "description": "Registry front worker for the vlt scope at npm.wgw.lol",
   "type": "module",
   "scripts": {
-    "build": "pnpm exec cf build",
     "check": "ultracite fix --type-aware --type-check",
-    "deploy:nightly": "node ../../scripts/cf-deploy.ts VLT_READ_TOKEN VLT_WRITE_TOKEN VLT_UPSTREAM_URL",
+    "deploy:nightly": "pnpm exec cf deploy",
     "dev": "pnpm exec cf dev",
     "test": "vitest run"
   },

@@ -46,42 +46,11 @@
     },
     "deploy:nightly": {
       "cache": false,
-      "passThroughEnv": [
-        "CLOUDFLARE_ACCOUNT_ID",
-        "CLOUDFLARE_API_TOKEN",
-        "COMMIT_SHA",
-        "VLT_READ_TOKEN",
-        "VLT_UPSTREAM_URL",
-        "VLT_WRITE_TOKEN",
-        "BETTER_AUTH_SECRET",
-        "IDENTIFIER_SECRET",
-        "RATE_LIMIT_SECRET",
-        "ENCRYPTION_SECRETS",
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-        "GITHUB_CLIENT_ID",
-        "GITHUB_CLIENT_SECRET",
-        "TWITTER_CLIENT_ID",
-        "TWITTER_CLIENT_SECRET"
-      ]
+      "passThroughEnv": ["COMMIT_SHA"]
     },
     "deploy:prod": {
       "cache": false,
-      "passThroughEnv": [
-        "CLOUDFLARE_ACCOUNT_ID",
-        "CLOUDFLARE_API_TOKEN",
-        "COMMIT_SHA",
-        "BETTER_AUTH_SECRET",
-        "IDENTIFIER_SECRET",
-        "RATE_LIMIT_SECRET",
-        "ENCRYPTION_SECRETS",
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-        "GITHUB_CLIENT_ID",
-        "GITHUB_CLIENT_SECRET",
-        "TWITTER_CLIENT_ID",
-        "TWITTER_CLIENT_SECRET"
-      ]
+      "passThroughEnv": ["COMMIT_SHA"]
     }
   }
 }

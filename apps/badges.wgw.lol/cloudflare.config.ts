@@ -11,9 +11,9 @@ export default defineConfig({
     previewUrls: false,
     observability: { enabled: true, headSamplingRate: 1 },
     env: {
-      // The deploy workflow passes the commit being deployed; local builds get "local".
+      // The deploy task passes the commit being deployed; local builds get "local".
       COMMIT_SHA: bindings.text(process.env.COMMIT_SHA ?? "local"),
-      // A Depot organization token for pcnr2v598s.
+      // A Depot organization token for pcnr2v598s; it lives on the Worker.
       BADGES_DEPOT_TOKEN: bindings.secret(),
     },
   },

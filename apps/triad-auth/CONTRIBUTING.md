@@ -37,7 +37,7 @@ Fill `.env` with local values. `pnpm run dev` runs `cf dev`, which runs `astro d
    ```
 
 4. Open a pull request into `master`. The RWX `ci` run checks and tests the affected packages. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
-5. Squash-merge. `deploy-nightly` runs after `ci` succeeds on `master`: it applies pending migrations to the nightly database, then builds and deploys the Worker with its secrets.
+5. Squash-merge. `deploy-nightly` runs after `ci` succeeds on `master`: it applies pending migrations to the nightly database, then builds and deploys the Worker.
 
 ## Releasing to production
 
@@ -60,11 +60,11 @@ Every page footer shows a `BUILD <sha>` link with the commit the running Worker 
 | `pnpm run deploy:prod` | `cf d1 migrations apply` on the production database, then `cf deploy` |
 | `pnpm run promote` | dispatches `monarch-deploy-prod` for `triad-auth` |
 
-`cf d1 migrations apply` applies the pending files in `migrations/` to the D1 database. `scripts/cf-deploy.ts` at the repository root then runs `cf deploy`, which builds the Worker and its static assets and uploads them with the ten secrets from the environment. RWX runs the deploy scripts. Do not run them by hand unless asked; a local deploy needs `CLOUDFLARE_API_TOKEN` and the ten secrets in the environment.
+`cf d1 migrations apply` applies the pending files in `migrations/` to the D1 database, then `cf deploy` builds the Worker and its static assets and uploads them. RWX runs the deploy scripts. Do not run them by hand unless asked.
 
 ## Secrets
 
-Each Worker needs the same ten secret names. `scripts/cf-deploy.ts` reads them from the environment at deploy time, so they live in RWX vaults locked to `master`. The first four in the table differ per Worker: the nightly values are in the `monarch_nightly` vault and the prod values in `monarch_prod`. The six provider values are in `monarch_master`, shared by both Workers, because one OAuth app per provider registers both callback origins. A missing secret fails the deploy before anything is uploaded. Set or rotate one with `rwx vaults secrets set --vault <vault> <NAME>=<value>`, then redeploy. A secret set on the Worker directly is overwritten by the next deploy.
+Each Worker needs the same ten secret names. They are set on the Worker and persist across deploys; the deploy scripts never touch them. The first four differ per Worker. The six provider values are shared by both Workers, because one OAuth app per provider registers both callback origins. Set or rotate one with `npx wrangler secret put <NAME> --name <worker>`; `cf` cannot set a single secret yet.
 
 | Name | Value |
 | --- | --- |
@@ -84,6 +84,6 @@ Register the callback URI `/api/auth/callback/<provider>` on both origins with e
 
 Done once per Cloudflare account. Skip this if both Workers already exist.
 
-Set the vault secrets, then deploy each Worker once from RWX: merge the app to `master` for nightly and run `pnpm run promote` for production. The D1 database ids are pinned in `cloudflare.config.ts` and the deploy scripts, so a new account needs new databases first: `cf d1 create triad-auth` and `cf d1 create triad-auth-nightly`. Create two proxied DNS records in the `wgw.lol` zone, `triad-auth-nightly` and `triad-auth`, so the route patterns resolve.
+Out of scope for now: these docs assume both Workers, both D1 databases, the routes, and the secrets already exist.
 
 No secrets live in GitHub. RWX runs the checks and the deploys.

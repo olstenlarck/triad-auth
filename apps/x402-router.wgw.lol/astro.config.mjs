@@ -14,7 +14,7 @@ export default defineConfig({
   site: "https://x402-router.wgw.lol",
   vite: {
     define: {
-      // The deploy workflow passes the commit being deployed; local builds get "local".
+      // The deploy task passes the commit being deployed; local builds get "local".
       "import.meta.env.COMMIT_SHA": JSON.stringify(process.env.COMMIT_SHA ?? "local"),
     },
     plugins: [tailwindcss()],

@@ -12,9 +12,9 @@ export default defineConfig({
     observability: { enabled: true, headSamplingRate: 1 },
     env: {
       ALLOWED_GITHUB_LOGIN: bindings.text("tunnckoCore"),
-      // The deploy workflow passes the commit being deployed; local builds get "local".
+      // The deploy task passes the commit being deployed; local builds get "local".
       COMMIT_SHA: bindings.text(process.env.COMMIT_SHA ?? "local"),
-      // VLT service tokens and the upstream registry come from the RWX monarch_master vault.
+      // VLT service tokens and the upstream registry live on the Worker; `.env` holds local values.
       VLT_READ_TOKEN: bindings.secret(),
       VLT_WRITE_TOKEN: bindings.secret(),
       VLT_UPSTREAM_URL: bindings.secret(),

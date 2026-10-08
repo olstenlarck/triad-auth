@@ -101,18 +101,6 @@ async function workerConfig(mode: string) {
   return resolved.worker;
 }
 
-const secretNames = [
-  "BETTER_AUTH_SECRET",
-  "IDENTIFIER_SECRET",
-  "RATE_LIMIT_SECRET",
-  "ENCRYPTION_SECRETS",
-  "GOOGLE_CLIENT_ID",
-  "GOOGLE_CLIENT_SECRET",
-  "GITHUB_CLIENT_ID",
-  "GITHUB_CLIENT_SECRET",
-  "TWITTER_CLIENT_ID",
-  "TWITTER_CLIENT_SECRET",
-];
 const productionDatabaseId = "40220009-d502-4afd-ab7b-54495016720f";
 const nightlyDatabaseId = "c4c8e874-a463-4c22-8389-8911627c055d";
 
@@ -188,26 +176,16 @@ describe("Better Auth schema tooling", () => {
     }
   });
 
-  it("declares the ten secrets in both modes", async () => {
-    for (const mode of ["production", "nightly"]) {
-      const env: Record<string, unknown> = (await workerConfig(mode))?.env ?? {};
-
-      for (const name of secretNames) {
-        expect(env[name]).toMatchObject({ type: "secret" });
-      }
-    }
-  });
-
   it("exposes generated schema, migration, and deployment commands", () => {
     expect(packageJson.scripts["db:generate"]).toBe(
       "pnpm exec auth generate --config src/better-auth/schema.ts --output .ignore/auth-schema.sql --yes",
     );
     expect(packageJson.scripts.build).toBe("pnpm exec cf build");
     expect(packageJson.scripts["deploy:nightly"]).toBe(
-      `pnpm exec cf d1 migrations apply ${nightlyDatabaseId} && node ../../scripts/cf-deploy.ts ${secretNames.join(" ")} -- --mode nightly`,
+      `pnpm exec cf d1 migrations apply ${nightlyDatabaseId} && pnpm exec cf deploy --mode nightly`,
     );
     expect(packageJson.scripts["deploy:prod"]).toBe(
-      `pnpm exec cf d1 migrations apply ${productionDatabaseId} && node ../../scripts/cf-deploy.ts ${secretNames.join(" ")} -- --mode production`,
+      `pnpm exec cf d1 migrations apply ${productionDatabaseId} && pnpm exec cf deploy --mode production`,
     );
     expect(packageJson.scripts.promote).toBe(
       "rwx dispatch monarch-deploy-prod --ref master --param app=triad-auth --wait",

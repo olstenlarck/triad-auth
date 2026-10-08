@@ -8,7 +8,7 @@
 # SECURITY: every secret and OIDC token lives in a vault locked to master, so pull request runs
 # get none of them. monarch_nightly and monarch_prod each hold one OIDC token for npm.wgw.lol;
 # the Worker maps the nightly vault to the nightly dist-tag and the prod vault to latest.
-# monarch_master holds what both stages share, like the Cloudflare token and the OAuth apps. It is
+# monarch_master holds what both stages share, like the npm token and the GitHub PAT. It is
 # named after the branch that unlocks it, not after a stage, so the prod tasks read it too.
 
 on:
@@ -372,26 +372,9 @@ tasks:
       TURBO_SCM_BASE: ${{ init.commit-sha }}^1
       TURBO_SCM_HEAD: ${{ init.commit-sha }}
       COMMIT_SHA: ${{ init.commit-sha }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vaults.monarch_master.secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ vaults.monarch_master.secrets.CLOUDFLARE_API_TOKEN }}
-      # The npm.wgw.lol Worker's VLT service tokens and upstream registry.
-      VLT_READ_TOKEN: ${{ vaults.monarch_master.secrets.VLT_READ_TOKEN }}
-      VLT_UPSTREAM_URL: ${{ vaults.monarch_master.secrets.VLT_UPSTREAM_URL }}
-      VLT_WRITE_TOKEN: ${{ vaults.monarch_master.secrets.VLT_WRITE_TOKEN }}
-      # The triad-auth secrets. The four Better Auth ones are the nightly variant.
-      BETTER_AUTH_SECRET: ${{ vaults.monarch_nightly.secrets.BETTER_AUTH_SECRET }}
-      IDENTIFIER_SECRET: ${{ vaults.monarch_nightly.secrets.IDENTIFIER_SECRET }}
-      RATE_LIMIT_SECRET: ${{ vaults.monarch_nightly.secrets.RATE_LIMIT_SECRET }}
-      ENCRYPTION_SECRETS: ${{ vaults.monarch_nightly.secrets.ENCRYPTION_SECRETS }}
-      GOOGLE_CLIENT_ID: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_ID }}
-      GOOGLE_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_SECRET }}
-      GITHUB_CLIENT_ID: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_ID }}
-      GITHUB_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_SECRET }}
-      TWITTER_CLIENT_ID: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_ID }}
-      TWITTER_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_SECRET }}
     # A master push deploys the apps it changed; the dispatch deploys one app, or every app.
-    # badges.wgw.lol is skipped: it still needs a Depot token, and the app is going away. --continue
-    # lets the other apps deploy when one fails.
+    # badges.wgw.lol is skipped: the app is going away. --continue lets the other apps deploy when
+    # one fails.
     run: |
       if [ -n "$APP" ]; then
         scope=(--filter="$APP")
@@ -412,19 +395,6 @@ tasks:
       TURBO_TELEMETRY_DISABLED: 1
       APP: ${{ init.app }}
       COMMIT_SHA: ${{ init.commit-sha }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vaults.monarch_master.secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ vaults.monarch_master.secrets.CLOUDFLARE_API_TOKEN }}
-      # The triad-auth secrets. The four Better Auth ones are the prod variant.
-      BETTER_AUTH_SECRET: ${{ vaults.monarch_prod.secrets.BETTER_AUTH_SECRET }}
-      IDENTIFIER_SECRET: ${{ vaults.monarch_prod.secrets.IDENTIFIER_SECRET }}
-      RATE_LIMIT_SECRET: ${{ vaults.monarch_prod.secrets.RATE_LIMIT_SECRET }}
-      ENCRYPTION_SECRETS: ${{ vaults.monarch_prod.secrets.ENCRYPTION_SECRETS }}
-      GOOGLE_CLIENT_ID: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_ID }}
-      GOOGLE_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_SECRET }}
-      GITHUB_CLIENT_ID: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_ID }}
-      GITHUB_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_SECRET }}
-      TWITTER_CLIENT_ID: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_ID }}
-      TWITTER_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_SECRET }}
     run: pnpm exec turbo run deploy:prod ${APP:+--filter="$APP"}
 
   # Runs Socket Optimize. Verified overrides are pushed straight to master by the PAT owner, a
