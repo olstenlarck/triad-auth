@@ -312,14 +312,9 @@ tasks:
   - key: release-pr
     if: ${{ init.master }}
     after: [check, test, test-solidity, build]
-    # packages:version runs the tests, and the ethscriptions-rescue tests start anvil from Foundry.
-    use: [deps, gh, foundry]
+    use: [deps, gh]
     cache: false
-    # packages:version runs turbo check and test again; they replay from this cache.
-    tool-cache: ci-release-pr
-    runner: *turbo-runner
     env:
-      TURBO_TELEMETRY_DISABLED: 1
       GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
     run: bash scripts/release-pr.sh
 
