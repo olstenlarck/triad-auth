@@ -305,4 +305,5 @@ tasks:
     env:
       TURBO_TELEMETRY_DISABLED: 1
       GITHUB_TOKEN: ${{ vaults.monarch_master.secrets.OLSTENLARCK_HQ_PAT }}
+      SOCKET_SECURITY_API_TOKEN: ${{ vaults.monarch_master.secrets.SOCKET_SECURITY_API_TOKEN }}
     run: bash scripts/socket-optimize.sh
