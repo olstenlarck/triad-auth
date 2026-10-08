@@ -17,8 +17,8 @@ export type PublishTag = "nightly" | "latest";
 // the token, and both vaults are locked to master of this repository, so the vault decides the
 // dist-tag: the monarch_nightly vault may write nightly and the monarch_prod vault may write latest.
 export const vaultTags: Record<string, PublishTag> = {
-  NIGHTLY_SUBJECT: "nightly",
-  PROD_SUBJECT: "latest",
+  "org:tckdev:vault:monarch_nightly": "nightly",
+  "org:tckdev:vault:monarch_prod": "latest",
 };
 
 const versionPatterns: Record<PublishTag, RegExp> = {

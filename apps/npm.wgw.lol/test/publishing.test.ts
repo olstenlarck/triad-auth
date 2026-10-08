@@ -91,7 +91,8 @@ function setDistTag(bearer: string, tag: string, version: string) {
 
 const invalidClaims: JWTPayload[] = [
   { sub: undefined },
-  { sub: "unknown-vault-subject" },
+  { sub: "org:tckdev:vault:monarch_master" },
+  { sub: "org:other:vault:monarch_nightly" },
   { iss: "https://identity.depot.dev" },
   { iss: "https://attacker.example" },
   { aud: "https://npm.wgw.lol" },
