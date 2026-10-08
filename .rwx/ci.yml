@@ -260,16 +260,31 @@ tasks:
       exit "$status"
 
   # Five forge runs start at once and race to install solc; compile one project first so the
-  # compiler is in place before turbo fans out.
+  # compiler is in place before turbo fans out. The filter keeps only the Solidity projects, the
+  # installed packages, and the root files turbo reads, so a push that changes only TypeScript is
+  # a cache hit and the task does not run. Without .git, turbo tests every Solidity project, which
+  # is what the filter already narrows to.
   - key: test-solidity
     use: [deps, foundry]
     after: check
     tool-cache: ci-test-solidity
     runner: *turbo-runner
-    env: *turbo-env
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+    filter:
+      - solidity
+      - node_modules
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - turbo.json
+      - tsconfig.json
+      - oxlint.config.ts
+      - oxfmt.config.ts
+      - patches
     run: |
       forge build --root solidity/template
-      pnpm exec turbo run test --filter='./solidity/*' $AFFECTED
+      pnpm exec turbo run test --filter='./solidity/*'
 
   # Builds the npm packages and the Solidity projects. Workers Builds builds the apps.
   - key: build
