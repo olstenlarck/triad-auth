@@ -33,13 +33,22 @@ runs:
         cache: pnpm
         path: |
           ~/.svm
+          ~/.foundry
           ${{ github.workspace }}/node_modules
+    # Foundry lives in ~/.foundry on the cache volume, so it installs only when the cached forge is
+    # another version. Pinned to the forge release used locally. 1.8 adds lint rules this code does
+    # not pass yet. The installer commit is the one foundry-toolchain v1.9.1 uses.
     - if: inputs.solidity == 'true'
-      uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
-      with:
-        # Pinned to the forge release used locally. 1.8 adds lint rules this code does not pass yet.
-        version: v1.7.1
-        cache: false
+      shell: bash
+      env:
+        FOUNDRY_VERSION: 1.7.1
+      run: |
+        export FOUNDRY_DIR="$HOME/.foundry"
+        if ! "$FOUNDRY_DIR/bin/forge" --version 2> /dev/null | grep -qx "forge Version: $FOUNDRY_VERSION"; then
+          curl -fsSL https://raw.githubusercontent.com/foundry-rs/foundryup/a27902ef04dcb43061fabf343365cb5afc95fc48/foundryup-init.sh | bash
+          "$FOUNDRY_DIR/bin/foundryup" --install "v$FOUNDRY_VERSION"
+        fi
+        echo "$FOUNDRY_DIR/bin" >> "$GITHUB_PATH"
     - uses: namespace-actions/setup-turbocache@a94b84c111f2cc781a4a83c4d07a99f2c63e33d6 # v0.0.3
     # No dependency builds: the packages that ship binaries resolve them at runtime.
     - run: pnpm install --frozen-lockfile --ignore-scripts
