@@ -1,0 +1,60 @@
+# Publishes stable versions of the unscoped packages to npmjs.com with latest, package tags, and
+# GitHub Releases. Runs after ci succeeds for the merged release PR commit, or manually on master to
+# publish whatever a failed release left missing. The @tunnckocore packages publish to VLT via
+# npm.wgw.lol from publish-prod.yml, and prepare-publish.yml keeps one release PR for both.
+#
+# SECURITY: runs only after a human merged the release PR or started it by hand on master. The job
+# token pushes the package tags and creates the GitHub Releases; NPM_TOKEN publishes.
+
+name: npm-publish-prod
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [master]
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  publish:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       startsWith(github.event.workflow_run.head_commit.message, 'chore: release packages'))
+    permissions:
+      contents: write
+    concurrency:
+      group: npm-publish-prod
+      cancel-in-progress: false
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          # The commit ci tested, not whatever master points at by now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # With pending changesets, changesets/action would version them and take over the release PR,
+      # which prepare-publish owns. Publish only when the release PR has consumed them.
+      - id: changesets
+        run: |
+          if compgen -G '.changeset/*.md' > /dev/null; then
+            echo "Not published: pending changesets; merge the release PR first" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo none=true >> "$GITHUB_OUTPUT"
+          fi
+      # The action does not use a shell for publish-script, so it must be one command.
+      # scripts/publish-prod.sh pushes the package tags with GITHUB_TOKEN and writes NPM_TOKEN to .npmrc.
+      - if: steps.changesets.outputs.none == 'true'
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          publish-script: pnpm run packages:publish npm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

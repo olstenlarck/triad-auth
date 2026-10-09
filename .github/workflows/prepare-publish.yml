@@ -1,0 +1,61 @@
+# After ci succeeds for a master push, opens or updates the release PR from pending
+# changesets. Publishing is not done here; publish-prod.yml does that after the release PR merges. Manual
+# dispatch on master recovers a skipped or failed update.
+#
+# SECURITY: no OIDC token, so nothing in this job can publish. The PAT is a repository secret used by
+# changesets/action so the release PR is a real user PR that receives checks.
+
+name: prepare-publish
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [master]
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+concurrency:
+  group: packages-prepare-publish
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    permissions:
+      contents: read
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          # The commit ci tested, not whatever master points at by now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # Runs can finish out of order. Only the run for the current master head may touch the release
+      # PR; an older run would version a tree that lacks the newer push's changesets.
+      - id: head
+        run: |
+          git fetch origin master
+          if [ "$(git rev-parse origin/master)" = "$(git rev-parse HEAD)" ]; then
+            echo current=true >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipped: master moved past this commit; the newer run maintains the release PR" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      # No publish-script, so the action only versions and maintains the release PR.
+      - if: steps.head.outputs.current == 'true'
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        # @changesets/changelog-github reads commit and PR data through the GitHub API.
+        env:
+          GITHUB_TOKEN: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+        with:
+          github-token: ${{ secrets.OLSTENLARCK_HQ_PAT }}
+          version-script: pnpm run packages:version
+          commit-message: "chore: release packages"
+          pr-title: "chore: release packages"

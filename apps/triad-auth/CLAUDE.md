@@ -13,7 +13,7 @@ Before a PR, run these sequentially and restart from the first command after any
 ## Branches and environments
 
 - `master` is the default branch. Pull requests merge into `master`.
-- The RWX `deploy-nightly` task deploys every `master` push that touches the app to the `triad-auth-nightly` Worker at `https://triad-auth-nightly.wgw.lol`, built with `--mode nightly`.
-- Production is the default `production` mode, the `triad-auth` Worker at `https://triad-auth.wgw.lol`. Cut a production release with `pnpm run promote`, which dispatches `monarch-deploy-prod` on RWX for this app on `master`. Run it only when the user asks.
-- Never run `pnpm run deploy:nightly` or `pnpm run deploy:prod` locally unless the user explicitly asks. RWX runs them.
+- The `deploy-nightly` workflow deploys every `master` push that touches the app to the `triad-auth-nightly` Worker at `https://triad-auth-nightly.wgw.lol`, built with `--mode nightly`.
+- Production is the default `production` mode, the `triad-auth` Worker at `https://triad-auth.wgw.lol`. Cut a production release with `pnpm run promote`, which dispatches the `deploy-prod` workflow for this app on `master`. Run it only when the user asks.
+- Never run `pnpm run deploy:nightly` or `pnpm run deploy:prod` locally unless the user explicitly asks. GitHub Actions runs them.
 - Each Worker has its own D1 database and its own secrets. See `CONTRIBUTING.md`.

@@ -19,7 +19,6 @@
         "scripts/**",
         ".depot/**",
         ".github/**",
-        ".rwx/**",
         ".zed/**"
       ],
       "outputs": []
@@ -46,11 +45,14 @@
     },
     "deploy:nightly": {
       "cache": false,
-      "passThroughEnv": ["COMMIT_SHA"]
+      "passThroughEnv": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "COMMIT_SHA"]
     },
     "deploy:prod": {
       "cache": false,
-      "passThroughEnv": ["COMMIT_SHA"]
+      "passThroughEnv": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "COMMIT_SHA"]
     }
+  },
+  "futureFlags": {
+    "githubActionsRemoteBaseRefFallback": true
   }
 }

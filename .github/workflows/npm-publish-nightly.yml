@@ -1,0 +1,71 @@
+# After ci succeeds for a master push, publishes nightly versions of the unscoped packages that
+# push changed to npmjs.com with NPM_TOKEN. The @tunnckocore packages publish to VLT via
+# npm.wgw.lol from publish-nightly.yml.
+#
+# SECURITY: only NPM_TOKEN, and only after ci passed on master; the read-only job token only lets
+# the changelog writer read commits and pull requests.
+
+name: npm-publish-nightly
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [master]
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    permissions:
+      contents: read
+      pull-requests: read
+    concurrency:
+      group: npm-publish-nightly
+      cancel-in-progress: false
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # Nightly publishes only what this push changed. Pending changesets for other packages stay
+      # untouched for their stable release. Packages are built in dependency order first, then
+      # published in dependency order.
+      # master takes squash merges, so the pushed commit's parent is the previous master.
+      - name: Publish nightlies for the unscoped packages this push changed
+        env:
+          # @changesets/changelog-github reads commit and PR data through the GitHub API.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Changed workspace packages and their dependents, read before snapshot versioning edits manifests.
+          changed=$(pnpm ls --filter "...[HEAD~1]" --json --depth -1 | jq -r '.[].name')
+          if ! compgen -G '.changeset/*.md' > /dev/null; then
+            echo "Not published: no pending changesets" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          pnpm exec changeset version --snapshot nightly
+          filters=()
+          published=()
+          for manifest in $(git diff --name-only -- 'packages/*/package.json'); do
+            name=$(jq -r .name "$manifest")
+            [[ $name != @tunnckocore/* ]] || continue
+            grep -qxF "$name" <<< "$changed" || continue
+            filters+=(--filter "$name")
+            published+=("$name@$(jq -r .version "$manifest")")
+          done
+          if [ "${#published[@]}" -eq 0 ]; then
+            echo "Not published: this push changed no unscoped package with a pending changeset" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          pnpm exec turbo run build "${filters[@]}"
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> "$HOME/.npmrc"
+          pnpm publish -r "${filters[@]}" --tag nightly --no-git-checks
+          printf 'Published %s with nightly\n' "${published[@]}" | tee -a "$GITHUB_STEP_SUMMARY"

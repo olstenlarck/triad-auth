@@ -1,0 +1,44 @@
+# After ci succeeds for a master push, deploys the apps that push changed through their
+# deploy:nightly scripts with the CLOUDFLARE_API_TOKEN secret.
+
+name: deploy-nightly
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [master]
+
+permissions: {}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+concurrency:
+  group: apps-deploy-nightly
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    permissions:
+      contents: read
+    runs-on: namespace-profile-monarch
+    steps:
+      - uses: namespacelabs/nscloud-checkout-action@66f2dc6f6c42a8ac6c4e53473c4840006822831e # v9.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # master takes squash merges, so the pushed commit's parent is the previous master. A direct
+      # push of several commits only counts the last one.
+      - name: Deploy the apps this push changed
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # github.sha is the current master head in workflow_run, not the commit ci checked.
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+          TURBO_SCM_BASE: ${{ github.event.workflow_run.head_sha }}^1
+          TURBO_SCM_HEAD: ${{ github.event.workflow_run.head_sha }}
+        run: pnpm exec turbo run deploy:nightly --affected

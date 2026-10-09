@@ -19,7 +19,7 @@ turbo run check --filter=triad-auth
 
 ## Deployment
 
-Triad runs as two Cloudflare Workers with two D1 databases, deployed with the Cloudflare CLI `cf` from RWX. Pull requests merge into `master`, and `deploy-nightly` deploys each merge that touches the app to `triad-auth-nightly` at `https://triad-auth-nightly.wgw.lol`. `pnpm run promote` deploys the `master` head to `triad-auth` at `https://triad-auth.wgw.lol`. Other branches do not deploy.
+Triad runs as two Cloudflare Workers with two D1 databases, deployed with the Cloudflare CLI `cf` from GitHub Actions. Pull requests merge into `master`, and `deploy-nightly` deploys each merge that touches the app to `triad-auth-nightly` at `https://triad-auth-nightly.wgw.lol`. `pnpm run promote` deploys the `master` head to `triad-auth` at `https://triad-auth.wgw.lol`. Other branches do not deploy.
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full flow, first-time setup, and secrets.
 

@@ -36,7 +36,7 @@ Fill `.env` with local values. `pnpm run dev` runs `cf dev`, which runs `astro d
    turbo run build --filter=triad-auth
    ```
 
-4. Open a pull request into `master`. The RWX `ci` run checks and tests the affected packages. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
+4. Open a pull request into `master`. The `ci` workflow checks and tests the affected packages. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
 5. Squash-merge. `deploy-nightly` runs after `ci` succeeds on `master`: it applies pending migrations to the nightly database, then builds and deploys the Worker.
 
 ## Releasing to production
@@ -47,7 +47,7 @@ Confirm nightly is healthy at `https://triad-auth-nightly.wgw.lol`, then:
 pnpm run promote
 ```
 
-This dispatches `monarch-deploy-prod` on RWX for this app on `master`. It applies pending migrations to the production database, then builds the `master` head and deploys the `triad-auth` Worker. `pnpm run apps:deploy:prod` from the repository root does the same for every app with a `deploy:prod` script.
+This dispatches the `deploy-prod` workflow for this app on `master`. It applies pending migrations to the production database, then builds the `master` head and deploys the `triad-auth` Worker. `pnpm run apps:deploy:prod` from the repository root does the same for every app with a `deploy:prod` script.
 
 Every page footer shows a `BUILD <sha>` link with the commit the running Worker was built from.
 
@@ -60,7 +60,7 @@ Every page footer shows a `BUILD <sha>` link with the commit the running Worker 
 | `pnpm run deploy:prod` | `cf d1 migrations apply` on the production database, then `cf deploy` |
 | `pnpm run promote` | dispatches `monarch-deploy-prod` for `triad-auth` |
 
-`cf d1 migrations apply` applies the pending files in `migrations/` to the D1 database, then `cf deploy` builds the Worker and its static assets and uploads them. RWX runs the deploy scripts. Do not run them by hand unless asked.
+`cf d1 migrations apply` applies the pending files in `migrations/` to the D1 database, then `cf deploy` builds the Worker and its static assets and uploads them. GitHub Actions runs the deploy scripts. Do not run them by hand unless asked.
 
 ## Secrets
 
@@ -86,4 +86,4 @@ Done once per Cloudflare account. Skip this if both Workers already exist.
 
 Out of scope for now: these docs assume both Workers, both D1 databases, the routes, and the secrets already exist.
 
-No secrets live in GitHub. RWX runs the checks and the deploys.
+No Worker secrets live in GitHub. GitHub Actions runs the checks and the deploys.

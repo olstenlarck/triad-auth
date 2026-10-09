@@ -188,7 +188,7 @@ describe("Better Auth schema tooling", () => {
       `pnpm exec cf d1 migrations apply ${productionDatabaseId} && pnpm exec cf deploy --mode production`,
     );
     expect(packageJson.scripts.promote).toBe(
-      "rwx dispatch monarch-deploy-prod --ref master --param app=triad-auth --wait",
+      "gh workflow run deploy-prod.yml --ref master -f app=triad-auth",
     );
     expect(packageJson.scripts.deploy).toBeUndefined();
     expect(packageJson.scripts["deploy:staging"]).toBeUndefined();
