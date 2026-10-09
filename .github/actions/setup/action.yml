@@ -1,5 +1,5 @@
 # Shared toolchain setup for the workflows on Namespace runners:
-# Socket firewall, pnpm, Node, optional Foundry, and the workspace install. Each workflow checks out
+# Socket firewall, Node, pnpm, optional Foundry, and the workspace install. Each workflow checks out
 # first, because this file comes from the checkout. The runner profile caches the toolchain and
 # action downloads, so the setup actions use no GitHub cache of their own.
 
@@ -17,27 +17,32 @@ runs:
     - uses: socketdev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
       with:
         mode: firewall-free
-    # pnpm's native binary at the packageManager version, without npm. The install runs below,
-    # after the cache volume is mounted.
-    - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
-      with:
-        install: false
     - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
         node-version: lts/*
         package-manager-cache: false
-    # The pnpm store sits on the cache volume, so pnpm copies every package into node_modules
-    # instead of hardlinking. Keeping node_modules on the volume too turns the install into a check.
+    # Everything below lives on the cache volume: pnpm and its store in ~/.pnpm, Foundry, the solc
+    # compilers, and node_modules. With node_modules cached, the install is only a check.
     - uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
       with:
-        cache: pnpm
         path: |
+          ~/.pnpm
           ~/.svm
           ~/.foundry
           ${{ github.workspace }}/node_modules
-    # Foundry lives in ~/.foundry on the cache volume, so it installs only when the cached forge is
-    # another version. Pinned to the forge release used locally. 1.8 adds lint rules this code does
-    # not pass yet. The installer commit is the one foundry-toolchain v1.9.1 uses.
+    # pnpm at the packageManager version, installed only when the cached one is another version.
+    - shell: bash
+      run: |
+        export PNPM_HOME="$HOME/.pnpm"
+        version=$(jq -r '.packageManager | sub("^pnpm@"; "")' package.json)
+        if [ "$("$PNPM_HOME/bin/pnpm" --version 2> /dev/null)" != "$version" ]; then
+          curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION="$version" SHELL=bash sh -
+        fi
+        echo "PNPM_HOME=$PNPM_HOME" >> "$GITHUB_ENV"
+        echo "$PNPM_HOME/bin" >> "$GITHUB_PATH"
+    # Foundry is pinned to the forge release used locally; 1.8 adds lint rules this code does not
+    # pass yet. It installs only when the cached forge is another version, with the installer commit
+    # foundry-toolchain v1.9.1 uses.
     - if: inputs.solidity == 'true'
       shell: bash
       env:
