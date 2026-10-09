@@ -26,10 +26,14 @@ runs:
       with:
         node-version: lts/*
         package-manager-cache: false
+    # The pnpm store sits on the cache volume, so pnpm copies every package into node_modules
+    # instead of hardlinking. Keeping node_modules on the volume too turns the install into a check.
     - uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
       with:
         cache: pnpm
-        path: ~/.svm
+        path: |
+          ~/.svm
+          ${{ github.workspace }}/node_modules
     - if: inputs.solidity == 'true'
       uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
       with:
