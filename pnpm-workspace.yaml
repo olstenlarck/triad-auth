@@ -83,6 +83,9 @@ catalogs:
     "better-auth": 1.7.0-rc.4
 
 overrides:
+  # One workerd for the whole workspace: cf and @cloudflare/vite-plugin pin different ones.
+  "workerd": "1.20260930.2"
+  "miniflare": "5.20260930.0-alpha"
   "is-unicode-supported": "npm:@socketregistry/is-unicode-supported@^1"
   "yocto-spinner": "npm:@socketregistry/yocto-spinner@^1"
   "shell-quote": "npm:shell-quote@^1"
