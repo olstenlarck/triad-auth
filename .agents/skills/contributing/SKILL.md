@@ -8,7 +8,7 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 ## Layout
 
 - TypeScript packages live in `packages/*`. Scoped `@tunnckocore/*` packages publish to the VLT registry at `npm.wgw.lol`. Unscoped packages publish to npmjs.com.
-- Cloudflare apps live in `apps/*`. Most deploy with Alchemy from `alchemy.run.ts`. An app can instead use `cloudflare.config.ts`, the typed config of the new Cloudflare CLI `cf` (beta): `cf build` runs Vite with the Cloudflare Vite plugin, and `cf deploy` deploys.
+- Cloudflare apps live in `apps/*`. Each one has a `cloudflare.config.ts`, the typed config of the Cloudflare CLI `cf` (beta): `cf build` runs Vite (or Astro) with the Cloudflare Vite plugin, and `cf deploy` deploys.
 - Solidity projects live in `solidity/*` and build with Foundry.
 - Chrome extensions live in `chrome-extensions/*`, load unpacked, and have only a `check` script.
 - The workspace runs on pnpm and Turborepo. TypeScript uses ultracite (oxlint, oxfmt, tsgolint) and Vitest.
@@ -42,12 +42,12 @@ description: How to develop in the monarch monorepo. Use before changing code, a
 
 ## New app
 
-- Create `apps/<name>` with `package.json`, `alchemy.run.ts`, and `tsconfig.json` that extends the root one.
+- Create `apps/<name>` with `package.json`, `cloudflare.config.ts`, and `tsconfig.json` that extends the root one. A plain Worker also needs a `vite.config.ts` with the `cloudflare()` plugin; an Astro app uses the `@astrojs/cloudflare` adapter instead.
 - Add `check` and `test` scripts.
 - The `deploy:nightly` script runs on every merge to `master`. It does not mean unstable.
 - A one-environment app, like `apps/npm.wgw.lol` or `apps/x402-router.wgw.lol`, has only `deploy:nightly`, and that script deploys production.
 - A two-environment app, like `apps/triad-auth`, has `deploy:nightly` for the nightly stage and `deploy:prod` for production. Its `promote` script dispatches `monarch-deploy-prod` on RWX, which runs `deploy:prod`.
-- For each secret: add it to the `monarch_master` RWX vault (or to `monarch_nightly` and `monarch_prod` when the two stages differ), pass it under `env` of the `deploy-nightly` and `deploy-prod` tasks in `.rwx/ci.yml`, and add it to `passThroughEnv` of the deploy tasks in `turbo.json`.
+- Worker secrets are set on the Worker once and persist across deploys. Deploy scripts only call `cf deploy`; never pass secrets through CI.
 - The app needs no workflow of its own.
 - Never run a deploy script locally unless the user asks.
 

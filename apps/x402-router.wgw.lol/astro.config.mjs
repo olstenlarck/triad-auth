@@ -1,9 +1,11 @@
+import cloudflare from "@astrojs/cloudflare";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, sessionDrivers } from "astro/config";
 
 // https://astro.build/config
-// Alchemy injects the Cloudflare adapter at deploy time; see alchemy.run.ts.
 export default defineConfig({
+  // The adapter reads cloudflare.config.ts.
+  adapter: cloudflare({ imageService: "passthrough" }),
   output: "server",
   session: { driver: sessionDrivers.lruCache() },
   security: {
@@ -12,7 +14,7 @@ export default defineConfig({
   site: "https://x402-router.wgw.lol",
   vite: {
     define: {
-      // The deploy workflow passes the commit being deployed; local builds get "local".
+      // The deploy task passes the commit being deployed; local builds get "local".
       "import.meta.env.COMMIT_SHA": JSON.stringify(process.env.COMMIT_SHA ?? "local"),
     },
     plugins: [tailwindcss()],

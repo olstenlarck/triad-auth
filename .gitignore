@@ -12,7 +12,6 @@ out/
 .astro/
 .wrangler/
 .cloudflare/
-.alchemy/
 .worktrees/
 *.env*
 *.env.*

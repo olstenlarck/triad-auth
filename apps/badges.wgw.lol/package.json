@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "check": "ultracite fix --type-aware --type-check",
-    "deploy:nightly": "pnpm exec alchemy deploy --stage prod",
+    "deploy:nightly": "pnpm exec cf deploy",
+    "dev": "pnpm exec cf dev",
     "test": "vitest run"
   },
   "dependencies": {
@@ -14,7 +15,10 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "catalog:",
     "@effect/vitest": "catalog:",
-    "alchemy": "catalog:"
+    "@types/node": "catalog:types",
+    "cf": "catalog:",
+    "vite": "catalog:"
   }
 }

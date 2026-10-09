@@ -6,21 +6,22 @@
   "type": "module",
   "scripts": {
     "astro": "pnpm exec astro",
+    "build": "pnpm exec cf build",
     "check": "ultracite fix --type-aware --type-check",
-    "deploy:nightly": "pnpm exec alchemy deploy --stage prod",
+    "deploy:nightly": "pnpm exec cf deploy",
     "dev": "pnpm exec astro dev",
     "test": "vitest run"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "catalog:",
     "@tailwindcss/vite": "4.3.3",
     "@tunnckocore/x402-router": "workspace:^",
     "astro": "catalog:",
     "tailwindcss": "4.3.3"
   },
   "devDependencies": {
-    "@alchemy.run/frontend-frameworks": "catalog:",
-    "alchemy": "catalog:",
-    "effect": "catalog:",
+    "@types/node": "catalog:types",
+    "cf": "catalog:",
     "typescript": "catalog:types"
   }
 }

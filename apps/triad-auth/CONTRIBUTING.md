@@ -4,25 +4,25 @@ Triad is a Better Auth OAuth/OIDC server on Cloudflare Workers, D1, and Astro. T
 
 ## Environments
 
-| Stage | Worker | D1 | Origin | Deployed by |
+| Mode | Worker | D1 | Origin | Deployed by |
 | --- | --- | --- | --- | --- |
 | `nightly` | `triad-auth-nightly` | `triad-auth-nightly` | `https://triad-auth-nightly.wgw.lol` | `deploy-nightly`, after every `master` push that touches the app |
-| `prod` | `triad-auth` | `triad-auth` | `https://triad-auth.wgw.lol` | `deploy-prod`, started by hand |
+| `production` | `triad-auth` | `triad-auth` | `https://triad-auth.wgw.lol` | `deploy-prod`, started by hand |
 
 `master` is the default branch. Every pull request targets it. Nothing deploys from a pull request or from any other branch.
 
-Both Workers are described by one `alchemy.run.ts`. The stack is a function of the Alchemy stage: `--stage prod` selects `triad-auth`, `--stage nightly` selects `triad-auth-nightly`, and any other stage gets its own `triad-auth-<stage>` Worker and database. The two Workers share nothing. Each has its own D1 database, its own secrets, and its own `AUTH_ORIGIN`. Alchemy keeps the stack state in the remote Cloudflare state store.
+Both Workers are described by one `cloudflare.config.ts`, the typed config of the Cloudflare CLI `cf` (beta). The config is a function of the mode: `--mode nightly` selects `triad-auth-nightly`, and every other mode, including the default `production`, selects `triad-auth`. The two Workers share nothing. Each has its own D1 database, its own secrets, and its own `AUTH_ORIGIN`.
 
 ## Local development
 
 ```sh
 pnpm install --frozen-lockfile
 cp .env.example .env
-pnpm run build
+pnpm run db:migrate:local
 pnpm run dev
 ```
 
-Fill `.env` with local values. `pnpm run dev` runs `alchemy dev`, which serves the Worker from `src/index.ts` with the secrets from `.env`, a local D1 database with the migrations applied, and the pages built into `dist/`. Run `pnpm run build` again after changing a page.
+Fill `.env` with local values. `pnpm run dev` runs `cf dev`, which runs `astro dev` through the Cloudflare Vite plugin: it serves the Worker from `src/index.ts` with the secrets from `.env` and local D1 storage in `.cloudflare/state/`. `db:migrate:local` applies the migrations to that same storage; the `cf` beta keeps running after it prints the result, so stop it with Ctrl-C.
 
 ## Making a change
 
@@ -37,7 +37,7 @@ Fill `.env` with local values. `pnpm run dev` runs `alchemy dev`, which serves t
    ```
 
 4. Open a pull request into `master`. The RWX `ci` run checks and tests the affected packages. Nothing deploys from a pull request. Enable auto-merge with `gh pr merge --auto --squash`; GitHub merges once the required checks pass, one approval is in, and review threads are resolved.
-5. Squash-merge. `deploy-nightly` runs after `ci` succeeds on `master`: it builds the pages, applies pending migrations to the nightly database, and uploads the Worker.
+5. Squash-merge. `deploy-nightly` runs after `ci` succeeds on `master`: it applies pending migrations to the nightly database, then builds and deploys the Worker.
 
 ## Releasing to production
 
@@ -47,24 +47,24 @@ Confirm nightly is healthy at `https://triad-auth-nightly.wgw.lol`, then:
 pnpm run promote
 ```
 
-This dispatches `monarch-deploy-prod` on RWX for this app on `master`. It builds the pages from the `master` head, applies pending migrations to the production database, and uploads the `triad-auth` Worker. `pnpm run apps:deploy:prod` from the repository root does the same for every app with a `deploy:prod` script.
+This dispatches `monarch-deploy-prod` on RWX for this app on `master`. It applies pending migrations to the production database, then builds the `master` head and deploys the `triad-auth` Worker. `pnpm run apps:deploy:prod` from the repository root does the same for every app with a `deploy:prod` script.
 
 Every page footer shows a `BUILD <sha>` link with the commit the running Worker was built from.
 
 ## Build and deploy scripts
 
-| Script                    | What it does                                            |
-| ------------------------- | ------------------------------------------------------- |
-| `pnpm run build`          | `astro build`: prerenders every page into `dist/`       |
-| `pnpm run deploy:nightly` | `pnpm run build`, then `alchemy deploy --stage nightly` |
-| `pnpm run deploy:prod`    | `pnpm run build`, then `alchemy deploy --stage prod`    |
-| `pnpm run promote`        | dispatches `monarch-deploy-prod` for `triad-auth`       |
+| Script | What it does |
+| --- | --- |
+| `pnpm run build` | `cf build`: bundles `src/index.ts` and prerenders every page |
+| `pnpm run deploy:nightly` | `cf d1 migrations apply` on the nightly database, then `cf deploy --mode nightly` |
+| `pnpm run deploy:prod` | `cf d1 migrations apply` on the production database, then `cf deploy` |
+| `pnpm run promote` | dispatches `monarch-deploy-prod` for `triad-auth` |
 
-`alchemy deploy` bundles `src/index.ts`, uploads `dist/` as the Worker's static assets, applies the pending files in `migrations/` to the stage's D1 database, and sets the secrets from the environment. RWX runs the deploy scripts. Do not run them by hand unless asked; a local deploy needs the `cf-equator` Alchemy profile and the ten secrets in the environment, and `alchemy deploy` reads `.env` from this folder, so a local deploy uploads the values in that file.
+`cf d1 migrations apply` applies the pending files in `migrations/` to the D1 database, then `cf deploy` builds the Worker and its static assets and uploads them. RWX runs the deploy scripts. Do not run them by hand unless asked.
 
 ## Secrets
 
-Each Worker needs the same ten secret names. The stack reads them from the environment at deploy time, so they live in RWX vaults locked to `master`. The first four in the table differ per Worker: the nightly values are in the `monarch_nightly` vault and the prod values in `monarch_prod`. The six provider values are in `monarch_master`, shared by both Workers, because one OAuth app per provider registers both callback origins. A missing secret fails the Alchemy plan before anything is uploaded. Set or rotate one with `rwx vaults secrets set --vault <vault> <NAME>=<value>`, then redeploy. A secret set on the Worker directly is overwritten by the next deploy.
+Each Worker needs the same ten secret names. They are set on the Worker and persist across deploys; the deploy scripts never touch them. The first four differ per Worker. The six provider values are shared by both Workers, because one OAuth app per provider registers both callback origins. Set or rotate one with `npx wrangler secret put <NAME> --name <worker>`; `cf` cannot set a single secret yet.
 
 | Name | Value |
 | --- | --- |
@@ -84,6 +84,6 @@ Register the callback URI `/api/auth/callback/<provider>` on both origins with e
 
 Done once per Cloudflare account. Skip this if both Workers already exist.
 
-Set the vault secrets, then deploy each stage once from RWX: merge the app to `master` for nightly and run `pnpm run promote` for production. Alchemy creates each stage's D1 database, Worker, and route, and applies the migrations. Create two proxied DNS records in the `wgw.lol` zone, `triad-auth-nightly` and `triad-auth`, so the route patterns resolve.
+Out of scope for now: these docs assume both Workers, both D1 databases, the routes, and the secrets already exist.
 
 No secrets live in GitHub. RWX runs the checks and the deploys.

@@ -8,7 +8,7 @@
 # SECURITY: every secret and OIDC token lives in a vault locked to master, so pull request runs
 # get none of them. monarch_nightly and monarch_prod each hold one OIDC token for npm.wgw.lol;
 # the Worker maps the nightly vault to the nightly dist-tag and the prod vault to latest.
-# monarch_master holds what both stages share, like the Cloudflare token and the OAuth apps. It is
+# monarch_master holds what both stages share, like the npm token and the GitHub PAT. It is
 # named after the branch that unlocks it, not after a stage, so the prod tasks read it too.
 
 on:
@@ -215,7 +215,6 @@ tasks:
     use: code
     filter: [package.json]
     run: |
-      # Not under /home/ubuntu: alchemy runs Bun when npm_execpath contains "bun", and "ubuntu" does.
       export PNPM_HOME=/opt/pnpm
       sudo mkdir -p "$PNPM_HOME" && sudo chown "$(id -un):$(id -gn)" "$PNPM_HOME"
       curl -fsSL https://get.pnpm.io/install.sh |
@@ -373,27 +372,9 @@ tasks:
       TURBO_SCM_BASE: ${{ init.commit-sha }}^1
       TURBO_SCM_HEAD: ${{ init.commit-sha }}
       COMMIT_SHA: ${{ init.commit-sha }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vaults.monarch_master.secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ vaults.monarch_master.secrets.CLOUDFLARE_API_TOKEN }}
-      # The npm.wgw.lol Worker's VLT service tokens and upstream registry.
-      VLT_READ_TOKEN: ${{ vaults.monarch_master.secrets.VLT_READ_TOKEN }}
-      VLT_UPSTREAM_URL: ${{ vaults.monarch_master.secrets.VLT_UPSTREAM_URL }}
-      VLT_WRITE_TOKEN: ${{ vaults.monarch_master.secrets.VLT_WRITE_TOKEN }}
-      # The triad-auth secrets. The four Better Auth ones are the nightly variant.
-      BETTER_AUTH_SECRET: ${{ vaults.monarch_nightly.secrets.BETTER_AUTH_SECRET }}
-      IDENTIFIER_SECRET: ${{ vaults.monarch_nightly.secrets.IDENTIFIER_SECRET }}
-      RATE_LIMIT_SECRET: ${{ vaults.monarch_nightly.secrets.RATE_LIMIT_SECRET }}
-      ENCRYPTION_SECRETS: ${{ vaults.monarch_nightly.secrets.ENCRYPTION_SECRETS }}
-      GOOGLE_CLIENT_ID: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_ID }}
-      GOOGLE_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_SECRET }}
-      GITHUB_CLIENT_ID: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_ID }}
-      GITHUB_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_SECRET }}
-      TWITTER_CLIENT_ID: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_ID }}
-      TWITTER_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_SECRET }}
     # A master push deploys the apps it changed; the dispatch deploys one app, or every app.
-    # badges.wgw.lol is skipped: it still needs a Depot token, and the app is going away. --continue
-    # lets the other apps deploy when one fails. Arguments after -- reach every deploy script;
-    # --yes answers the Alchemy prompts.
+    # badges.wgw.lol is skipped: the app is going away. --continue lets the other apps deploy when
+    # one fails.
     run: |
       if [ -n "$APP" ]; then
         scope=(--filter="$APP")
@@ -402,7 +383,7 @@ tasks:
       else
         scope=(--affected --filter='!badges.wgw.lol')
       fi
-      pnpm exec turbo run deploy:nightly "${scope[@]}" --continue -- --yes
+      pnpm exec turbo run deploy:nightly "${scope[@]}" --continue
 
   # Deploys apps to production through their deploy:prod scripts, only by dispatch. Without the
   # app param it deploys every app that has a deploy:prod script.
@@ -414,21 +395,7 @@ tasks:
       TURBO_TELEMETRY_DISABLED: 1
       APP: ${{ init.app }}
       COMMIT_SHA: ${{ init.commit-sha }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vaults.monarch_master.secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ vaults.monarch_master.secrets.CLOUDFLARE_API_TOKEN }}
-      # The triad-auth secrets. The four Better Auth ones are the prod variant.
-      BETTER_AUTH_SECRET: ${{ vaults.monarch_prod.secrets.BETTER_AUTH_SECRET }}
-      IDENTIFIER_SECRET: ${{ vaults.monarch_prod.secrets.IDENTIFIER_SECRET }}
-      RATE_LIMIT_SECRET: ${{ vaults.monarch_prod.secrets.RATE_LIMIT_SECRET }}
-      ENCRYPTION_SECRETS: ${{ vaults.monarch_prod.secrets.ENCRYPTION_SECRETS }}
-      GOOGLE_CLIENT_ID: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_ID }}
-      GOOGLE_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GOOGLE_CLIENT_SECRET }}
-      GITHUB_CLIENT_ID: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_ID }}
-      GITHUB_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.GITHUB_CLIENT_SECRET }}
-      TWITTER_CLIENT_ID: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_ID }}
-      TWITTER_CLIENT_SECRET: ${{ vaults.monarch_master.secrets.TWITTER_CLIENT_SECRET }}
-    # Arguments after -- reach every deploy script; --yes answers the Alchemy prompts.
-    run: pnpm exec turbo run deploy:prod ${APP:+--filter="$APP"} -- --yes
+    run: pnpm exec turbo run deploy:prod ${APP:+--filter="$APP"}
 
   # Runs Socket Optimize. Verified overrides are pushed straight to master by the PAT owner, a
   # repository admin. When the overrides fail verification, the diff is opened as a pull request
