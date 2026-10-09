@@ -21,12 +21,13 @@ runs:
       with:
         node-version: lts/*
         package-manager-cache: false
-    # Everything below lives on the cache volume: pnpm and its store in ~/.pnpm, Foundry, the solc
-    # compilers, and node_modules. With node_modules cached, the install is only a check.
+    # Everything below lives on the cache volume: pnpm and its store in ~/.pnpm, pnpm's lockfile
+    # verification results in ~/.cache/pnpm, Foundry, the solc compilers, and node_modules.
     - uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
       with:
         path: |
           ~/.pnpm
+          ~/.cache/pnpm
           ~/.svm
           ~/.foundry
           ${{ github.workspace }}/node_modules
