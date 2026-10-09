@@ -20,6 +20,7 @@
     "tailwindcss": "4.3.3"
   },
   "devDependencies": {
+    "@types/node": "catalog:types",
     "cf": "catalog:",
     "typescript": "catalog:types"
   }

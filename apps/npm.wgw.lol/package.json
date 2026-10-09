@@ -17,6 +17,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",
     "@effect/vitest": "catalog:",
+    "@types/node": "catalog:types",
     "cf": "catalog:",
     "vite": "catalog:"
   }
