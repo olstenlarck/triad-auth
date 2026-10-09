@@ -16,8 +16,6 @@ permissions: {}
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
-  # Pull requests read the Namespace remote cache and never write it.
-  TURBO_CACHE: ${{ github.event_name == 'pull_request' && 'local:rw,remote:r' || 'local:rw,remote:rw' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
