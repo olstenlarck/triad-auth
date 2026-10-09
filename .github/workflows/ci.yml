@@ -16,6 +16,8 @@ permissions: {}
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
+  # Pull requests run only what the branch changed; master runs everything.
+  AFFECTED: ${{ github.event_name == 'pull_request' && '--affected' || '' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -37,7 +39,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           solidity: true
-      - run: pnpm exec turbo run check ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+      - run: pnpm exec turbo run check $AFFECTED
 
   # The master ruleset requires ci / check, ci / test, and ci / build. Keep the job names.
   test:
@@ -57,7 +59,7 @@ jobs:
       # Five forge runs start at once and race to install solc; compile one project first so the
       # compiler is in place before turbo fans out.
       - run: forge build --root solidity/template
-      - run: pnpm exec turbo run test ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+      - run: pnpm exec turbo run test $AFFECTED
 
   # Builds the npm packages and the Solidity projects. Workers Builds builds the apps.
   build:
@@ -77,4 +79,4 @@ jobs:
       # Five forge runs start at once and race to install solc; compile one project first so the
       # compiler is in place before turbo fans out.
       - run: forge build --root solidity/template
-      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./solidity/*' ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./solidity/*' $AFFECTED
