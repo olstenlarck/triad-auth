@@ -9,8 +9,8 @@ name: ci
 on:
   push:
     branches: [master]
+  # Every base branch, so stacked pull requests get checks too.
   pull_request:
-    branches: [master]
 
 permissions: {}
 
