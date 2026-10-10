@@ -39,7 +39,7 @@ type Repo = {
 const repos: Record<string, Repo> = config;
 
 /** The check run's name on GitHub. A cold run adds " (cold)". */
-const CHECK = "ci";
+const CHECK = "monarch-ci";
 
 /** `owner/name` split at the first slash. */
 const split = (full: string) => {
