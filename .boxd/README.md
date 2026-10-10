@@ -38,7 +38,7 @@ fnm install && fnm default "$(cat .node-version)"
 # pnpm's own installer, at the version in packageManager
 curl -fsSL https://get.pnpm.io/install.sh |
   PNPM_VERSION="$(node -p "require('./package.json').packageManager.slice(5)")" sh -
-CI=1 pnpm install --frozen-lockfile
+CI=1 pnpm install --frozen-lockfile --ignore-scripts
 forge build --root solidity/template
 pnpm exec turbo run check test build          # warms the turbo cache
 exit
@@ -82,7 +82,7 @@ On GitHub, the Details link of a `boxd/*` check opens the check's own page. It s
 
 ## When a run fails
 
-The failed check's summary names the run's machine, for example `ci-3f1c9ab-41237`. The machine is kept for a day, then deleted. It hibernates ten minutes after the run, so until then it costs disk only.
+The failed check's summary names the run's machine, for example `ci-3f1c9ab-41237`. The machine is kept for a day, then deleted by a check that runs twice a day. It hibernates ten minutes after the run, so until then it costs disk only.
 
 ```sh
 boxd connect ci-3f1c9ab-41237

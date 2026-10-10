@@ -346,7 +346,7 @@ async function promote(repoName: string, machineId: string) {
   );
 }
 
-/** Runs hourly. Deletes the failed run machines that are older than a day, nothing newer. */
+/** Runs twice a day. Deletes the failed run machines that are older than a day, nothing newer. */
 async function sweep() {
   const cutoff = Date.now() - KEEP_FAILED_MS;
   for (const m of await boxd.machines.list()) {
@@ -418,5 +418,5 @@ for (const [repoName, repo] of Object.entries(repos)) {
     });
   }
 }
-every("1 hour", sweep);
+every("12 hours", sweep);
 console.log(`boxd-ci watching ${Object.keys(repos).join(", ")}`);
