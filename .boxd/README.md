@@ -1,6 +1,6 @@
 # CI on boxd
 
-Monarch's CI runs on [boxd](https://docs.boxd.sh/use-cases/ci-runners) machines. GitHub sends the event and shows the result. One boxd machine, `monarch-ci`, holds the automation in `ci.run.ts`. For every pull request and every push to `master` it restores a fresh isolated machine from the snapshot of master's last green run, checks out the commit, and runs the jobs in `ci.json` in order. The run reports one check, `monarch-ci`, with a table of every step and its seconds, and the name of the step that failed if one did. The per-job variant, one check per job, is kept as `ci.run-disabled.ts`. A green run on `master` saves its machine as the next snapshot, so the next run starts with that commit's `node_modules`, pnpm store, and turbo cache already on disk.
+Monarch's CI runs on [boxd](https://docs.boxd.sh/use-cases/ci-runners) machines. GitHub sends the event and shows the result. One boxd machine, `monarch-ci`, holds the automation in `ci.run.ts`. For every pull request and every push to `master` it restores a fresh isolated machine from the snapshot of master's last green run, checks out the commit, and runs the jobs in `ci.json` in order. Each job reports its own check run, `monarch-ci/check`, `monarch-ci/test`, `monarch-ci/test-solidity`, and `monarch-ci/build`, after `monarch-ci/setup` for the restore, checkout, and install. A variant that posts one check for the whole run is kept as `ci.run-disabled.ts`. A green run on `master` saves its machine as the next snapshot, so the next run starts with that commit's `node_modules`, pnpm store, and turbo cache already on disk.
 
 A green run's machine is deleted when the run ends. A failed run's machine is kept at least a day, so you can get into the failed state. See [When a run fails](#when-a-run-fails).
 
@@ -8,7 +8,7 @@ The turbo cache in the snapshot is CI's own. Laptops keep their local caches.
 
 Once a night the `cold` schedule runs master's head from a clean tree with `TURBO_FORCE=true`, to catch what a warm snapshot hides. It never promotes. The same schedule deletes failed machines older than a day.
 
-Re-run on the `monarch-ci` check, its own Re-run button in the Checks tab, and Re-run all checks on the pull request each run the commit again on a fresh machine.
+Every completed `monarch-ci/*` check has a Re-run this check button on its page in the Checks tab. It runs only that job again, on a fresh machine with the commit checked out, so a failed job can be rerun after its machine is gone. Re-run all checks on the pull request runs everything again.
 
 ## Setup, once
 
@@ -80,7 +80,7 @@ boxd machine list                                    # run machines are named ci
 boxd snapshots list                                  # monarch-master and monarch-master-b
 ```
 
-On GitHub, the Details link of the `monarch-ci` check opens the check's own page. It shows the step table and, on failure, which step failed and the machine to connect to. The log itself stays on that machine. There is no link to anything outside GitHub.
+On GitHub, the Details link of a `monarch-ci/*` check opens the check's own page. It shows the step table, the failing step's last 80 lines, and the machine to connect to. There is no link to anything outside GitHub.
 
 ## When a run fails
 
