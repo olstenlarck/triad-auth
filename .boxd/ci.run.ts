@@ -31,7 +31,8 @@ type Repo = {
   on: { push?: string[]; pull_request?: boolean };
   env?: Record<string, string>;
   setup: string[];
-  jobs: Record<string, string>;
+  /** A job is a command, or a command with the paths that make it run on a pull request. */
+  jobs: Record<string, string | { run: string; paths?: string[] }>;
   promote?: string;
   cold?: string;
 };
@@ -130,6 +131,49 @@ const tail = (rows: Row[]) => {
   return t ? `\`\`\`\n${t.slice(-60_000)}\n\`\`\`` : undefined;
 };
 
+/** A glob over repo paths: `solidity/**` matches everything under it, `*` stays in one segment. */
+const glob = (pattern: string) => {
+  const re = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*\//g, "\u0000")
+    .replace(/\*\*/g, "\u0001")
+    .replace(/\*/g, "[^/]*")
+    .replaceAll("\u0000", "(.*/)?")
+    .replaceAll("\u0001", ".*");
+  return new RegExp(`^${re}$`);
+};
+
+/** The files a pull request changes against its base, or null when GitHub can't list them all. */
+async function changedFiles(
+  gh: Awaited<ReturnType<typeof githubApp.client>>,
+  owner: string,
+  repo: string,
+  base: string,
+  head: string,
+) {
+  const files: string[] = [];
+  for (let page = 1; page <= 3; page++) {
+    const { data } = await gh.rest.repos.compareCommitsWithBasehead({
+      owner,
+      repo,
+      basehead: `${base}...${head}`,
+      per_page: 100,
+      page,
+    });
+    for (const f of data.files ?? []) {
+      files.push(f.filename);
+      if (f.previous_filename) {
+        files.push(f.previous_filename);
+      }
+    }
+    if ((data.files?.length ?? 0) < 100) {
+      return files;
+    }
+  }
+  // The compare API stops at 300 files. Past that, treat everything as changed.
+  return null;
+}
+
 async function ci(repoName: string, run: Run) {
   const repo = repos[repoName];
   const { owner, name } = split(repoName);
@@ -140,7 +184,16 @@ async function ci(repoName: string, run: Run) {
   const suffix = run.cold ? " (cold)" : "";
   const short7 = run.sha.slice(0, 7);
   const source = active(repoName);
-  const jobs = Object.entries(repo.jobs);
+  const allJobs = Object.entries(repo.jobs).map(
+    ([job, j]) => [job, typeof j === "string" ? { run: j } : j] as const,
+  );
+  // On a pull request, a job with `paths` runs only when the change touches one of them.
+  // Pushes to master and cold runs always run every job.
+  const changed = run.base ? await changedFiles(gh, owner, name, run.base, run.sha) : null;
+  const jobs = allJobs.filter(
+    ([, j]) => !(changed && j.paths) || j.paths.some((p) => changed.some((f) => glob(p).test(f))),
+  );
+  const notRun = allJobs.filter(([job]) => !jobs.some(([j]) => j === job)).map(([job]) => job);
   const machineName = `ci-${short7}-${Date.now() % 100_000}`;
   const keptHint =
     `\n\nThe machine \`${machineName}\` is kept for a day. \`boxd connect ${machineName}\`: ` +
@@ -175,6 +228,7 @@ async function ci(repoName: string, run: Run) {
     summaryTitle: string,
     rows: Row[],
     text?: string,
+    note = "",
   ) => {
     const id = open.get(title);
     if (id === undefined) {
@@ -190,7 +244,7 @@ async function ci(repoName: string, run: Run) {
       completed_at: now(),
       output: {
         title: summaryTitle,
-        summary: table(rows) + (conclusion === "failure" ? keptHint : ""),
+        summary: table(rows) + note + (conclusion === "failure" ? keptHint : ""),
         text: text ?? tail(rows),
       },
     });
@@ -261,10 +315,12 @@ async function ci(repoName: string, run: Run) {
       ok ? "success" : "failure",
       ok ? `ready in ${secs(t0)}s` : `failed: ${rows.find((r) => !r.ok)?.name ?? "?"}`,
       rows,
+      undefined,
+      notRun.length ? `\n\nNot run, nothing under their paths changed: ${notRun.join(", ")}.` : "",
     );
 
     // 3. The jobs, in order, on the same machine. The first failure skips the rest.
-    for (const [job, cmd] of jobs) {
+    for (const [job, j] of jobs) {
       if (!ok) {
         await finish(job, "skipped", "skipped: an earlier step failed", []);
         continue;
@@ -275,7 +331,7 @@ async function ci(repoName: string, run: Run) {
       }
       await start(id);
       const jr: Row[] = [];
-      ok = await step(jr, job, m.id, repo.workdir, cmd, env, say);
+      ok = await step(jr, job, m.id, repo.workdir, j.run, env, say);
       await finish(
         job,
         ok ? "success" : "failure",
@@ -310,7 +366,7 @@ async function ci(repoName: string, run: Run) {
       // Failed: keep it, but let it hibernate soon so it costs disk only. The nightly
       // sweep deletes it once it is a day old.
       else {
-        await boxd.machines.setAutoHibernateTimeout(machine, 600).catch(() => undefined);
+        await boxd.machines.setAutoHibernateTimeout(machine, 300).catch(() => undefined);
       }
     }
   }

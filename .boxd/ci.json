@@ -9,7 +9,16 @@
     "jobs": {
       "check": "pnpm exec turbo run check $AFFECTED",
       "test": "pnpm exec turbo run test --filter='!./solidity/*' $AFFECTED",
-      "test-solidity": "forge build --root solidity/template && pnpm exec turbo run test --filter='./solidity/*'",
+      "test-solidity": {
+        "run": "forge build --root solidity/template && pnpm exec turbo run test --filter='./solidity/*'",
+        "paths": [
+          "solidity/**",
+          "pnpm-lock.yaml",
+          "pnpm-workspace.yaml",
+          "turbo.json",
+          "patches/**"
+        ]
+      },
       "build": "forge build --root solidity/template && pnpm exec turbo run build --filter='./packages/*' --filter='./solidity/*' $AFFECTED"
     },
     "promote": "master",

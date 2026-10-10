@@ -1,6 +1,6 @@
 # CI on boxd
 
-Monarch's CI runs on [boxd](https://docs.boxd.sh/use-cases/ci-runners) machines. GitHub sends the event and shows the result. One boxd machine, `monarch-ci`, holds the automation in `ci.run.ts`. For every pull request and every push to `master` it restores a fresh isolated machine from the snapshot of master's last green run, checks out the commit, and runs the jobs in `ci.json` in order. Each job reports its own check run, `boxd/check`, `boxd/test`, `boxd/test-solidity`, and `boxd/build`, after `boxd/setup` for the restore, checkout, and install. A green run on `master` saves its machine as the next snapshot, so the next run starts with that commit's `node_modules`, pnpm store, and turbo cache already on disk.
+Monarch's CI runs on [boxd](https://docs.boxd.sh/use-cases/ci-runners) machines. GitHub sends the event and shows the result. One boxd machine, `monarch-ci`, holds the automation in `ci.run.ts`. For every pull request and every push to `master` it restores a fresh isolated machine from the snapshot of master's last green run, checks out the commit, and runs the jobs in `ci.json` in order. Each job reports its own check run, `boxd/check`, `boxd/test`, `boxd/test-solidity`, and `boxd/build`, after `boxd/setup` for the restore, checkout, and install. A job with `paths` in `ci.json`, like `test-solidity`, runs on a pull request only when the change touches one of them, and otherwise gets no check at all. Pushes to `master` run every job. A green run on `master` saves its machine as the next snapshot, so the next run starts with that commit's `node_modules`, pnpm store, and turbo cache already on disk.
 
 A green run's machine is deleted when the run ends. A failed run's machine is kept at least a day, so you can get into the failed state. See [When a run fails](#when-a-run-fails).
 
@@ -84,7 +84,7 @@ On GitHub, the Details link of a `boxd/*` check opens the check's own page. It s
 
 ## When a run fails
 
-The failed check's summary names the run's machine, for example `ci-3f1c9ab-41237`. The machine hibernates ten minutes after the run, so it costs disk only. The nightly cold run deletes the failed machines that are older than a day, so a machine lives between one and two days.
+The failed check's summary names the run's machine, for example `ci-3f1c9ab-41237`. The machine hibernates five minutes after the run, so it costs disk only. The nightly cold run deletes the failed machines that are older than a day, so a machine lives between one and two days.
 
 ```sh
 boxd connect ci-3f1c9ab-41237
