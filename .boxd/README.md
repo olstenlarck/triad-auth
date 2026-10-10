@@ -14,10 +14,10 @@ The Re-run button on a `boxd/*` check runs the whole run again for that commit.
 
 The boxd GitHub App must be installed on the `tunnckoCoreHQ` organization with access to this repository. An org admin does that from the GitHub App card on the console's Integrations page. The CLI has no command for the App itself. Once installed, `boxd manage integrations` lists it under the shared connections.
 
-Create the machine:
+Create the machine. boxd leaves auto-suspend off by default, so without the two timeouts the machine would stay running, and billed, for four idle hours after every run. With them it drops to standby five minutes after a run and hibernates after an hour. A GitHub event wakes it either way.
 
 ```sh
-boxd machine new monarch-ci --vcpu 2
+boxd machine new monarch-ci --vcpu 2 --auto-suspend-timeout 300 --auto-hibernate-timeout 3600
 boxd connect monarch-ci
 ```
 
@@ -52,7 +52,7 @@ Back on the laptop, save the first snapshot:
 boxd snapshots save monarch-ci monarch-master
 ```
 
-Then put the two files on the machine and start the automation. It stays on `monarch-ci`, which hibernates between events. boxd wakes it when GitHub sends one.
+Then put the two files on the machine and start the automation. It stays on `monarch-ci`, which suspends and then hibernates between events. boxd wakes it when GitHub sends one.
 
 ```sh
 boxd machine exec monarch-ci -- mkdir -p /home/boxd/ci
