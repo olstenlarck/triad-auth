@@ -10,10 +10,11 @@
 //      (checkout, node_modules, pnpm store, turbo cache, foundry)
 //   2. fetch and check out the commit, run the setup steps
 //   3. run the jobs in order on that machine, one GitHub check run each, and stop at the
-//      first failure
+//      first failure. Every step also appends to ~/ci.log on that machine.
 //   4. green on master: save the machine as the next snapshot version (two names,
 //      alternating, so the last one stays restorable while the next one saves).
-//      Every other machine is destroyed.
+//      A green machine is deleted. A failed machine is kept for two days, named in the
+//      failed check's summary, so `boxd connect <name>` lands in the failed state.
 //
 // The `cold` schedule runs master's head from a clean tree with turbo forced, to catch
 // what a warm snapshot hides. It never promotes.
@@ -52,6 +53,10 @@ type Row = { name: string; ok: boolean; s: string; tail?: string };
 
 /** git's empty tree. As $BASE on a cold run, every setup step sees a changed lockfile. */
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+/** Every step on a run machine appends to this file. */
+const LOG = "/home/boxd/ci.log";
+/** How long a failed run's machine stays around. */
+const KEEP_FAILED_MS = 48 * 3_600_000;
 
 /** Which of the two snapshot names jobs restore from, per repo. Survives restarts. */
 const state = object<{ active: Record<string, string> }>("boxd-ci");
@@ -84,6 +89,7 @@ function sh(
   });
 }
 
+/** Runs a step, appends its output to the machine's log, records a row, and prints a line. */
 async function step(
   rows: Row[],
   name: string,
@@ -94,7 +100,8 @@ async function step(
   say: (m: string) => void,
 ) {
   const t0 = performance.now();
-  const r = await sh(id, dir, script, env);
+  const logged = `set -o pipefail; { echo "=== ${name}"; ${script}; } 2>&1 | tee -a ${LOG}`;
+  const r = await sh(id, dir, logged, env);
   const out = `${r.stdout}\n${r.stderr}`.trim().split("\n");
   rows.push({
     name,
@@ -131,6 +138,10 @@ async function ci(repoName: string, run: Run) {
   const short7 = run.sha.slice(0, 7);
   const source = active(repoName);
   const jobs = Object.entries(repo.jobs);
+  const machineName = `ci-${short7}-${Date.now() % 100_000}`;
+  const keptHint =
+    `\n\nThe machine \`${machineName}\` is kept for two days. \`boxd connect ${machineName}\`: ` +
+    `the repo is at \`${repo.workdir}\` with ${short7} checked out, the full log at \`${LOG}\`.`;
 
   // One check run per job, plus one for the restore, checkout, and setup. `open` holds
   // the ones not completed yet, so an exception can close them all.
@@ -174,7 +185,11 @@ async function ci(repoName: string, run: Run) {
       status: "completed",
       conclusion,
       completed_at: now(),
-      output: { title: summaryTitle, summary: table(rows), text: text ?? tail(rows) },
+      output: {
+        title: summaryTitle,
+        summary: table(rows) + (conclusion === "failure" ? keptHint : ""),
+        text: text ?? tail(rows),
+      },
     });
   };
 
@@ -187,6 +202,7 @@ async function ci(repoName: string, run: Run) {
   };
 
   let machine: string | undefined;
+  let ok = false;
   let keep: string | undefined; // the machine to save as the next snapshot
   console.log(`\n▶ ${run.label} · ${short7} · from ${source}`);
   try {
@@ -201,7 +217,7 @@ async function ci(repoName: string, run: Run) {
     const rows: Row[] = [];
     const tr = performance.now();
     const m = await boxd.machines.create({
-      name: `ci-${short7}-${Date.now() % 100_000}`,
+      name: machineName,
       fromSnapshot: source,
       isolated: true,
     });
@@ -209,7 +225,7 @@ async function ci(repoName: string, run: Run) {
     // A large or fresh snapshot can answer before the machine is up.
     await boxd.machines.waitUntilReady(m.id);
     rows.push({ name: `restore from ${source}`, ok: true, s: secs(tr) });
-    say(`✓ restored from ${source}  (${secs(tr)}s)`);
+    say(`✓ restored from ${source} as ${machineName}  (${secs(tr)}s)`);
 
     // 2. Checkout and setup. $BASE is the snapshot's commit, so an unchanged lockfile skips
     //    the install. A cold run wipes the tree and makes $BASE the empty tree instead.
@@ -220,7 +236,7 @@ async function ci(repoName: string, run: Run) {
     const refs = [run.sha, run.base].filter(Boolean).join(" ");
     const auth = `git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_APP_TOKEN" | base64 -w0)"`;
     const clean = run.cold ? " && git clean -fdxq" : "";
-    let ok = await step(
+    ok = await step(
       rows,
       `checkout ${short7}`,
       m.id,
@@ -283,7 +299,14 @@ async function ci(repoName: string, run: Run) {
     }
   } finally {
     if (machine && machine !== keep) {
-      await boxd.machines.delete(machine).catch(() => undefined);
+      if (ok) {
+        await boxd.machines.delete(machine).catch(() => undefined);
+      }
+      // Failed: keep it, but let it hibernate soon so it costs disk only. The hourly sweep
+      // below deletes it after two days.
+      else {
+        await boxd.machines.setAutoHibernateTimeout(machine, 600).catch(() => undefined);
+      }
     }
   }
 
@@ -318,6 +341,18 @@ async function promote(repoName: string, machineId: string) {
   console.log(
     `        ★ saved as ${target}@${snap.version} in ${secs(t0)}s: the next job starts here`,
   );
+}
+
+/** Deletes failed run machines older than two days. Runs each hour the machine is awake. */
+async function sweep() {
+  const cutoff = Date.now() - KEEP_FAILED_MS;
+  for (const m of await boxd.machines.list()) {
+    if (!m.name.startsWith("ci-") || !m.createdAt || m.createdAt.getTime() > cutoff) {
+      continue;
+    }
+    console.log(`        sweep: deleting ${m.name}, failed more than two days ago`);
+    await boxd.machines.delete(m.id).catch(() => undefined);
+  }
 }
 
 type PushEvent = { ref: string; after: string; deleted?: boolean };
@@ -380,4 +415,5 @@ for (const [repoName, repo] of Object.entries(repos)) {
     });
   }
 }
+every("1 hour", sweep);
 console.log(`boxd-ci watching ${Object.keys(repos).join(", ")}`);
