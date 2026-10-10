@@ -2,11 +2,13 @@
 
 Monarch's CI runs on [boxd](https://docs.boxd.sh/use-cases/ci-runners) machines. GitHub sends the event and shows the result. One boxd machine, `monarch-ci`, holds the automation in `ci.run.ts`. For every pull request and every push to `master` it restores a fresh isolated machine from the snapshot of master's last green run, checks out the commit, and runs the jobs in `ci.json` in order. Each job reports its own check run, `boxd/check`, `boxd/test`, `boxd/test-solidity`, and `boxd/build`, after `boxd/setup` for the restore, checkout, and install. A green run on `master` saves its machine as the next snapshot, so the next run starts with that commit's `node_modules`, pnpm store, and turbo cache already on disk.
 
-A green run's machine is deleted when the run ends. A failed run's machine is kept for a day, so you can get into the failed state. See [When a run fails](#when-a-run-fails).
+A green run's machine is deleted when the run ends. A failed run's machine is kept at least a day, so you can get into the failed state. See [When a run fails](#when-a-run-fails).
 
 The turbo cache in the snapshot is CI's own. Laptops keep their local caches.
 
-Once a night the `cold` schedule runs master's head from a clean tree with `TURBO_FORCE=true`, to catch what a warm snapshot hides. It never promotes.
+Once a night the `cold` schedule runs master's head from a clean tree with `TURBO_FORCE=true`, to catch what a warm snapshot hides. It never promotes. The same schedule deletes failed machines older than a day.
+
+The Re-run button on a `boxd/*` check runs the whole run again for that commit.
 
 ## Setup, once
 
@@ -38,7 +40,7 @@ fnm install && fnm default "$(cat .node-version)"
 # pnpm's own installer, at the version in packageManager
 curl -fsSL https://get.pnpm.io/install.sh |
   PNPM_VERSION="$(node -p "require('./package.json').packageManager.slice(5)")" sh -
-CI=1 pnpm install --frozen-lockfile --ignore-scripts
+CI=1 pnpm install --frozen-lockfile
 forge build --root solidity/template
 pnpm exec turbo run check test build          # warms the turbo cache
 exit
@@ -82,7 +84,7 @@ On GitHub, the Details link of a `boxd/*` check opens the check's own page. It s
 
 ## When a run fails
 
-The failed check's summary names the run's machine, for example `ci-3f1c9ab-41237`. The machine is kept for a day, then deleted by a check that runs twice a day. It hibernates ten minutes after the run, so until then it costs disk only.
+The failed check's summary names the run's machine, for example `ci-3f1c9ab-41237`. The machine hibernates ten minutes after the run, so it costs disk only. The nightly cold run deletes the failed machines that are older than a day, so a machine lives between one and two days.
 
 ```sh
 boxd connect ci-3f1c9ab-41237
@@ -90,7 +92,7 @@ boxd connect ci-3f1c9ab-41237
 
 Inside, the repo is at `/home/boxd/work/monarch` with the failed commit checked out, and the whole run's output is in `/home/boxd/ci.log`, one `=== step` header per step. The log holds only this run. It is emptied when a run starts, so the one in the snapshot never grows. The toolchain, `node_modules`, and the turbo cache are the ones the run used. Rerun the failing command there.
 
-Delete the machine when done rather than waiting out the day. Every machine counts toward the organization's cap.
+Delete the machine when done rather than waiting for the sweep. Every machine counts toward the organization's cap.
 
 ```sh
 boxd machine remove ci-3f1c9ab-41237 -y

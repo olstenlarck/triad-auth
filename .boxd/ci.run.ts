@@ -14,11 +14,13 @@
 //      holds only this run: the log is emptied first.
 //   4. green on master: save the machine as the next snapshot version (two names,
 //      alternating, so the last one stays restorable while the next one saves).
-//      A green machine is deleted. A failed machine is kept for a day, named in the
-//      failed check's summary, so `boxd connect <name>` lands in the failed state.
+//      A green machine is deleted. A failed machine is kept, named in the failed
+//      check's summary, so `boxd connect <name>` lands in the failed state. The nightly
+//      cold run deletes failed machines older than a day.
 //
 // The `cold` schedule runs master's head from a clean tree with turbo forced, to catch
-// what a warm snapshot hides. It never promotes.
+// what a warm snapshot hides. It never promotes. Re-running a check from GitHub runs
+// the whole run again for that commit.
 import { boxd, every, githubApp, object } from "@boxd/run";
 
 import config from "./ci.json";
@@ -305,8 +307,8 @@ async function ci(repoName: string, run: Run) {
       if (ok) {
         await boxd.machines.delete(machine).catch(() => undefined);
       }
-      // Failed: keep it, but let it hibernate soon so it costs disk only. The sweep
-      // below deletes it a day later.
+      // Failed: keep it, but let it hibernate soon so it costs disk only. The nightly
+      // sweep deletes it once it is a day old.
       else {
         await boxd.machines.setAutoHibernateTimeout(machine, 600).catch(() => undefined);
       }
@@ -346,7 +348,7 @@ async function promote(repoName: string, machineId: string) {
   );
 }
 
-/** Runs twice a day. Deletes the failed run machines that are older than a day, nothing newer. */
+/** Deletes the failed run machines that are older than a day, nothing newer. Runs nightly. */
 async function sweep() {
   const cutoff = Date.now() - KEEP_FAILED_MS;
   for (const m of await boxd.machines.list()) {
@@ -359,6 +361,15 @@ async function sweep() {
 }
 
 type PushEvent = { ref: string; after: string; deleted?: boolean };
+type CheckRunEvent = {
+  action: string;
+  check_run: {
+    name: string;
+    head_sha: string;
+    check_suite: { head_branch: string | null };
+    pull_requests: Array<{ number: number; head: { ref: string }; base: { sha: string } }>;
+  };
+};
 type PullRequestEvent = {
   action: string;
   number: number;
@@ -403,9 +414,45 @@ for (const [repoName, repo] of Object.entries(repos)) {
       });
     });
   }
+  // The Re-run button on one of our checks runs the whole run again for that commit.
+  // GitHub lists no pull requests for a fork's commit, and its head_branch is null, so
+  // those fall through and return.
+  githubApp.on("check_run.rerequested", { repo: repoName }, async (e: CheckRunEvent) => {
+    const { name: checkName, head_sha: sha, check_suite, pull_requests } = e.check_run;
+    if (!checkName.startsWith("boxd/")) {
+      return;
+    }
+    const cold = checkName.endsWith(" (cold)");
+    const pr = pull_requests[0];
+    if (pr) {
+      await ci(repoName, {
+        sha,
+        ref: pr.head.ref,
+        label: `rerun of pull request #${pr.number}`,
+        isMain: false,
+        base: pr.base.sha,
+        cold,
+      });
+      return;
+    }
+    const branch = check_suite.head_branch;
+    if (!branch || !repo.on.push?.includes(branch)) {
+      return;
+    }
+    await ci(repoName, {
+      sha,
+      ref: branch,
+      label: `rerun of push to ${branch}`,
+      isMain: branch === repo.promote,
+      cold,
+    });
+  });
   if (repo.cold && repo.promote) {
     const branch = repo.promote;
     every(repo.cold, async () => {
+      await sweep().catch((e: unknown) =>
+        console.log(`✗ sweep: ${e instanceof Error ? e.message : String(e)}`),
+      );
       const gh = await githubApp.client();
       const { data } = await gh.rest.repos.getBranch({ owner, repo: name, branch });
       await ci(repoName, {
@@ -418,5 +465,4 @@ for (const [repoName, repo] of Object.entries(repos)) {
     });
   }
 }
-every("12 hours", sweep);
 console.log(`boxd-ci watching ${Object.keys(repos).join(", ")}`);
