@@ -62,9 +62,21 @@ const LOG = "/home/boxd/ci.log";
 /** How long a failed run's machine stays around. */
 const KEEP_FAILED_MS = 24 * 3_600_000;
 
-/** Which of the two snapshot names jobs restore from, per repo. Survives restarts. */
-const state = object<{ active: Record<string, string> }>("boxd-ci");
+type Inflight = { owner: string; name: string; checks: number[]; machine?: string };
+/** Which of the two snapshot names jobs restore from, per repo, and the runs in flight.
+    Survives restarts: boxd restarts this script on redeploy, fork, and integration changes,
+    which kills any run in progress. `recover` closes what such a run left behind. */
+const state = object<{ active: Record<string, string>; inflight: Record<string, Inflight> }>(
+  "boxd-ci",
+);
 state.active ??= {};
+state.inflight ??= {};
+const track = (key: string, r: Inflight) => {
+  state.inflight = { ...state.inflight, [key]: r };
+};
+const untrack = (key: string) => {
+  state.inflight = Object.fromEntries(Object.entries(state.inflight).filter(([k]) => k !== key));
+};
 // A stored name only counts while it belongs to the configured snapshot, so pointing a
 // repo at a new snapshot in ci.json takes effect.
 const active = (repo: string) => {
@@ -267,6 +279,7 @@ async function ci(repoName: string, run: Run) {
     for (const [job] of jobs) {
       await create(job, "queued");
     }
+    track(machineName, { owner, name, checks: [...open.values()] });
 
     // 1. One machine, restored from master's last green state, with the commit on top.
     //    Isolated: no boxd CLI, no integrations, so the code under test can't reach the
@@ -279,6 +292,7 @@ async function ci(repoName: string, run: Run) {
       isolated: true,
     });
     machine = m.id;
+    track(machineName, { owner, name, checks: [...open.values()], machine: m.id });
     // A large or fresh snapshot can answer before the machine is up.
     await boxd.machines.waitUntilReady(m.id);
     rows.push({ name: `restore from ${source}`, ok: true, s: secs(tr) });
@@ -359,6 +373,7 @@ async function ci(repoName: string, run: Run) {
       ).catch(() => undefined);
     }
   } finally {
+    untrack(machineName);
     if (machine && machine !== keep) {
       if (ok) {
         await boxd.machines.delete(machine).catch(() => undefined);
@@ -402,6 +417,45 @@ async function promote(repoName: string, machineId: string) {
   console.log(
     `        ★ saved as ${target}@${snap.version} in ${secs(t0)}s: the next job starts here`,
   );
+}
+
+/** Closes what a run killed by a restart left behind: its open checks and its machine. */
+async function recover() {
+  // SAFETY: `track` is the only writer of `state.inflight`, and it writes `Inflight` values.
+  const entries = Object.entries(state.inflight) as Array<[string, Inflight]>;
+  if (!entries.length) {
+    return;
+  }
+  const gh = await githubApp.client();
+  for (const [key, r] of entries) {
+    for (const id of r.checks) {
+      const current = await gh.rest.checks
+        .get({ owner: r.owner, repo: r.name, check_run_id: id })
+        .catch(() => null);
+      if (!current || current.data.status === "completed") {
+        continue;
+      }
+      await gh.rest.checks
+        .update({
+          owner: r.owner,
+          repo: r.name,
+          check_run_id: id,
+          status: "completed",
+          conclusion: "cancelled",
+          completed_at: now(),
+          output: {
+            title: "cancelled: the CI automation restarted during this run",
+            summary: "Use Re-run on this check to run it again.",
+          },
+        })
+        .catch(() => undefined);
+    }
+    if (r.machine) {
+      await boxd.machines.delete(r.machine).catch(() => undefined);
+    }
+    console.log(`recovered ${key}: checks cancelled${r.machine ? ", machine deleted" : ""}`);
+  }
+  state.inflight = {};
 }
 
 /** Deletes the failed run machines that are older than a day, nothing newer. Runs nightly. */
@@ -521,4 +575,7 @@ for (const [repoName, repo] of Object.entries(repos)) {
     });
   }
 }
+recover().catch((e: unknown) =>
+  console.log(`✗ recover: ${e instanceof Error ? e.message : String(e)}`),
+);
 console.log(`boxd-ci watching ${Object.keys(repos).join(", ")}`);

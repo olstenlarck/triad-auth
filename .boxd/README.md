@@ -63,7 +63,7 @@ boxd machine exec monarch-ci -- 'cd /home/boxd/ci && run ci.run.ts'
 
 ## Changing the CI
 
-`ci.json` and `ci.run.ts` live in this repo, but the automation reads its own copies on `monarch-ci`. After editing either one, copy it over and start the file again. Starting the same file again replaces the running automation in place.
+`ci.json` and `ci.run.ts` live in this repo, but the automation reads its own copies on `monarch-ci`. After editing either one, copy it over and start the file again. Starting the same file again replaces the running automation in place, which kills a run in progress. The new instance then cancels that run's checks on GitHub and deletes its machine, and Re-run on a cancelled check runs it again. Pushing the change to this repo also triggers a run, so deploy first, push second.
 
 ```sh
 boxd machine cp .boxd/ci.json monarch-ci:/home/boxd/ci/ci.json
