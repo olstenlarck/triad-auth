@@ -287,24 +287,29 @@ async function ci(repoName: string, run: Run) {
   let machine: string | undefined;
   let ok = false;
   let keep: string | undefined; // the machine to save as the next snapshot
+  let creating: Promise<{ id: string }> | undefined;
   console.log(`\n▶ ${run.label} · ${short7} · from ${source}`);
   try {
-    await create("setup", "in_progress");
-    for (const [job] of jobs) {
-      await create(job, "queued");
-    }
-    track(machineName, { owner, name, checks: [...open.values()] });
-
     // 1. One machine, restored from master's last green state, with the commit on top.
     //    Isolated: no boxd CLI, no integrations, so the code under test can't reach the
-    //    account. The App token is only in the fetch's environment.
+    //    account. The restore starts first, and the GitHub calls overlap with it: the
+    //    App token, and all the check runs at once.
     const rows: Row[] = [];
     const tr = performance.now();
-    const m = await boxd.machines.create({
+    const restore = boxd.machines.create({
       name: machineName,
       fromSnapshot: source,
       isolated: true,
     });
+    creating = restore;
+    const tokenPromise = githubApp.getToken();
+    tokenPromise.catch(() => undefined); // awaited below; this only keeps a failure from going unhandled
+    await Promise.all([
+      create("setup", "in_progress"),
+      ...jobs.map(([job]) => create(job, "queued")),
+    ]);
+    track(machineName, { owner, name, checks: [...open.values()] });
+    const m = await restore;
     machine = m.id;
     track(machineName, { owner, name, checks: [...open.values()], machine: m.id });
     // A large or fresh snapshot can answer before the machine is up.
@@ -314,7 +319,7 @@ async function ci(repoName: string, run: Run) {
 
     // 2. Checkout and setup. $BASE is the snapshot's commit, so an unchanged lockfile skips
     //    the install. A cold run wipes the tree and makes $BASE the empty tree instead.
-    const token = await githubApp.getToken();
+    const token = await tokenPromise;
     // The snapshot carries the previous green run's log. Start this machine's log empty.
     await sh(m.id, repo.workdir, `: > ${LOG}`);
     const base = run.cold
@@ -388,6 +393,13 @@ async function ci(repoName: string, run: Run) {
     }
   } finally {
     untrack(machineName);
+    // A failure before the restore finished still leaves a machine behind. Delete it.
+    if (!machine && creating) {
+      const m = await creating.catch(() => null);
+      if (m) {
+        await boxd.machines.delete(m.id).catch(() => undefined);
+      }
+    }
     if (machine && machine !== keep) {
       if (ok) {
         await boxd.machines.delete(machine).catch(() => undefined);
