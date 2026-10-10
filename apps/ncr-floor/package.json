@@ -1,0 +1,23 @@
+{
+  "name": "ncr-floor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NCR MVP floor: a Pi Durable agent on Workers AI that turns message bursts into one turn",
+  "type": "module",
+  "scripts": {
+    "check": "ultracite fix --type-aware --type-check",
+    "dev": "pnpm exec cf dev",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-durable": "catalog:",
+    "agents": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "catalog:",
+    "@types/node": "catalog:types",
+    "cf": "catalog:",
+    "vite": "catalog:"
+  }
+}
