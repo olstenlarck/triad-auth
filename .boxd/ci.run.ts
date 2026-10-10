@@ -52,6 +52,8 @@ type Run = {
   /** The pull request base. Set, the jobs run with turbo --affected against it. */
   base?: string;
   cold?: boolean;
+  /** Run only these jobs. Set by a re-run of one check. */
+  only?: string[];
 };
 type Row = { name: string; ok: boolean; s: string; tail?: string };
 
@@ -202,10 +204,18 @@ async function ci(repoName: string, run: Run) {
   // On a pull request, a job with `paths` runs only when the change touches one of them.
   // Pushes to master and cold runs always run every job.
   const changed = run.base ? await changedFiles(gh, owner, name, run.base, run.sha) : null;
-  const jobs = allJobs.filter(
+  const byPaths = allJobs.filter(
     ([, j]) => !(changed && j.paths) || j.paths.some((p) => changed.some((f) => glob(p).test(f))),
   );
+  // A re-run of one check runs that job alone, whatever its paths say.
+  const only = run.only ? allJobs.filter(([job]) => run.only?.includes(job)) : [];
+  const jobs = only.length ? only : byPaths;
   const notRun = allJobs.filter(([job]) => !jobs.some(([j]) => j === job)).map(([job]) => job);
+  const setupNote = only.length
+    ? `\n\nRe-run of ${jobs.map(([job]) => job).join(", ")} only.`
+    : notRun.length
+      ? `\n\nNot run, nothing under their paths changed: ${notRun.join(", ")}.`
+      : "";
   const machineName = `ci-${short7}-${Date.now() % 100_000}`;
   const keptHint =
     `\n\nThe machine \`${machineName}\` is kept for a day. \`boxd connect ${machineName}\`: ` +
@@ -260,7 +270,9 @@ async function ci(repoName: string, run: Run) {
         text: text ?? tail(rows),
       },
       // A button on the check's page. GitHub sends check_run.requested_action when clicked.
-      actions: [{ label: "Re-run", description: "Run this commit again", identifier: "rerun" }],
+      actions: [
+        { label: "Re-run this check", description: "Run only this job again", identifier: "rerun" },
+      ],
     });
   };
 
@@ -332,7 +344,7 @@ async function ci(repoName: string, run: Run) {
       ok ? `ready in ${secs(t0)}s` : `failed: ${rows.find((r) => !r.ok)?.name ?? "?"}`,
       rows,
       undefined,
-      notRun.length ? `\n\nNot run, nothing under their paths changed: ${notRun.join(", ")}.` : "",
+      setupNote,
     );
 
     // 3. The jobs, in order, on the same machine. The first failure skips the rest.
@@ -533,20 +545,28 @@ for (const [repoName, repo] of Object.entries(repos)) {
       });
     });
   }
-  // Re-run on one of our checks (check_run rerequested), our own Re-run button on a check's
-  // page (check_run requested_action), and "Re-run all checks" (check_suite) all run the
-  // whole run again for that commit. GitHub lists no pull requests for a fork's commit,
+  // Re-run on one of our checks (check_run rerequested) and the "Re-run this check" button
+  // on a check's page (check_run requested_action) run that one job again, on a fresh
+  // machine with the commit checked out. "Re-run all checks" (check_suite) runs everything. GitHub lists no pull requests for a fork's commit,
   // and its head_branch is null, so those fall through and return.
-  const rerun = async (sha: string, branch: string | null, prs: RerunPr[], cold: boolean) => {
+  const rerun = async (
+    sha: string,
+    branch: string | null,
+    prs: RerunPr[],
+    cold: boolean,
+    only?: string[],
+  ) => {
+    const what = only ? `rerun of ${only.join(", ")} for` : "rerun of";
     const pr = prs[0];
     if (pr) {
       await ci(repoName, {
         sha,
         ref: pr.head.ref,
-        label: `rerun of pull request #${pr.number}`,
+        label: `${what} pull request #${pr.number}`,
         isMain: false,
         base: pr.base.sha,
         cold,
+        only,
       });
       return;
     }
@@ -556,24 +576,34 @@ for (const [repoName, repo] of Object.entries(repos)) {
     await ci(repoName, {
       sha,
       ref: branch,
-      label: `rerun of push to ${branch}`,
-      isMain: branch === repo.promote,
+      label: `${what} push to ${branch}`,
+      // A single job can't stand for a green master, so it never promotes.
+      isMain: branch === repo.promote && !only,
       cold,
+      only,
     });
+  };
+  /** `boxd/test (cold)` → `{ cold: true, only: ["test"] }`. Setup has no job of its own. */
+  const parse = (checkName: string) => {
+    const cold = checkName.endsWith(" (cold)");
+    const job = checkName.slice("boxd/".length, cold ? -" (cold)".length : undefined);
+    return { cold, only: job === "setup" ? undefined : [job] };
   };
   githubApp.on("check_run.rerequested", { repo: repoName }, async (e: CheckRunEvent) => {
     const { name: checkName, head_sha, check_suite, pull_requests } = e.check_run;
     if (!checkName.startsWith("boxd/")) {
       return;
     }
-    await rerun(head_sha, check_suite.head_branch, pull_requests, checkName.endsWith(" (cold)"));
+    const { cold, only } = parse(checkName);
+    await rerun(head_sha, check_suite.head_branch, pull_requests, cold, only);
   });
   githubApp.on("check_run.requested_action", { repo: repoName }, async (e: CheckRunEvent) => {
     const { name: checkName, head_sha, check_suite, pull_requests } = e.check_run;
     if (!checkName.startsWith("boxd/") || e.requested_action?.identifier !== "rerun") {
       return;
     }
-    await rerun(head_sha, check_suite.head_branch, pull_requests, checkName.endsWith(" (cold)"));
+    const { cold, only } = parse(checkName);
+    await rerun(head_sha, check_suite.head_branch, pull_requests, cold, only);
   });
   githubApp.on("check_suite.rerequested", { repo: repoName }, async (e: CheckSuiteEvent) => {
     const { head_sha, head_branch, pull_requests } = e.check_suite;
