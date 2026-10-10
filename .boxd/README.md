@@ -2,7 +2,7 @@
 
 Monarch's CI runs on [boxd](https://docs.boxd.sh/use-cases/ci-runners) machines. GitHub sends the event and shows the result. One boxd machine, `monarch-ci`, holds the automation in `ci.run.ts`. For every pull request and every push to `master` it restores a fresh isolated machine from the snapshot of master's last green run, checks out the commit, and runs the jobs in `ci.json` in order. Each job reports its own check run, `boxd/check`, `boxd/test`, `boxd/test-solidity`, and `boxd/build`, after `boxd/setup` for the restore, checkout, and install. A green run on `master` saves its machine as the next snapshot, so the next run starts with that commit's `node_modules`, pnpm store, and turbo cache already on disk.
 
-A green run's machine is deleted when the run ends. A failed run's machine is kept for two days, so you can get into the failed state. See [When a run fails](#when-a-run-fails).
+A green run's machine is deleted when the run ends. A failed run's machine is kept for a day, so you can get into the failed state. See [When a run fails](#when-a-run-fails).
 
 The turbo cache in the snapshot is CI's own. Laptops keep their local caches.
 
@@ -25,7 +25,8 @@ Inside the machine, install the toolchain. The automation runs every step with `
 curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
 curl -fsSL https://foundry.paradigm.xyz | bash
 cat >> ~/.profile <<'EOF'
-export PATH="$HOME/.local/share/fnm:$HOME/.foundry/bin:$PATH"
+export PNPM_HOME="$HOME/.local/share/pnpm"
+export PATH="$PNPM_HOME:$HOME/.local/share/fnm:$HOME/.foundry/bin:$PATH"
 eval "$(fnm env)"
 EOF
 source ~/.profile
@@ -34,7 +35,9 @@ foundryup --install v1.7.1
 mkdir -p ~/work && cd ~/work
 git clone https://github.com/tunnckoCoreHQ/monarch.git && cd monarch
 fnm install && fnm default "$(cat .node-version)"
-npm install -g pnpm@11.21.0
+# pnpm's own installer, at the version in packageManager
+curl -fsSL https://get.pnpm.io/install.sh |
+  PNPM_VERSION="$(node -p "require('./package.json').packageManager.slice(5)")" sh -
 CI=1 pnpm install --frozen-lockfile
 forge build --root solidity/template
 pnpm exec turbo run check test build          # warms the turbo cache
@@ -79,7 +82,7 @@ On GitHub, the Details link of a `boxd/*` check opens the check's own page. It s
 
 ## When a run fails
 
-The failed check's summary names the run's machine, for example `ci-9599805-41237`. The machine is kept for two days. It hibernates ten minutes after the run, so it costs disk only, and an hourly sweep deletes it after two days.
+The failed check's summary names the run's machine, for example `ci-9599805-41237`. The machine is kept for a day, then deleted. It hibernates ten minutes after the run, so until then it costs disk only.
 
 ```sh
 boxd connect ci-9599805-41237
@@ -87,7 +90,7 @@ boxd connect ci-9599805-41237
 
 Inside, the repo is at `/home/boxd/work/monarch` with the failed commit checked out, and the whole run's output is in `/home/boxd/ci.log`, one `=== step` header per step. The toolchain, `node_modules`, and the turbo cache are the ones the run used. Rerun the failing command there.
 
-Delete the machine when done, or let the sweep do it. Every machine counts toward the organization's cap.
+Delete the machine when done rather than waiting out the day. Every machine counts toward the organization's cap.
 
 ```sh
 boxd machine remove ci-9599805-41237 -y

@@ -13,7 +13,7 @@
 //      first failure. Every step also appends to ~/ci.log on that machine.
 //   4. green on master: save the machine as the next snapshot version (two names,
 //      alternating, so the last one stays restorable while the next one saves).
-//      A green machine is deleted. A failed machine is kept for two days, named in the
+//      A green machine is deleted. A failed machine is kept for a day, named in the
 //      failed check's summary, so `boxd connect <name>` lands in the failed state.
 //
 // The `cold` schedule runs master's head from a clean tree with turbo forced, to catch
@@ -56,7 +56,7 @@ const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 /** Every step on a run machine appends to this file. */
 const LOG = "/home/boxd/ci.log";
 /** How long a failed run's machine stays around. */
-const KEEP_FAILED_MS = 48 * 3_600_000;
+const KEEP_FAILED_MS = 24 * 3_600_000;
 
 /** Which of the two snapshot names jobs restore from, per repo. Survives restarts. */
 const state = object<{ active: Record<string, string> }>("boxd-ci");
@@ -140,7 +140,7 @@ async function ci(repoName: string, run: Run) {
   const jobs = Object.entries(repo.jobs);
   const machineName = `ci-${short7}-${Date.now() % 100_000}`;
   const keptHint =
-    `\n\nThe machine \`${machineName}\` is kept for two days. \`boxd connect ${machineName}\`: ` +
+    `\n\nThe machine \`${machineName}\` is kept for a day. \`boxd connect ${machineName}\`: ` +
     `the repo is at \`${repo.workdir}\` with ${short7} checked out, the full log at \`${LOG}\`.`;
 
   // One check run per job, plus one for the restore, checkout, and setup. `open` holds
@@ -302,8 +302,8 @@ async function ci(repoName: string, run: Run) {
       if (ok) {
         await boxd.machines.delete(machine).catch(() => undefined);
       }
-      // Failed: keep it, but let it hibernate soon so it costs disk only. The hourly sweep
-      // below deletes it after two days.
+      // Failed: keep it, but let it hibernate soon so it costs disk only. The sweep
+      // below deletes it a day later.
       else {
         await boxd.machines.setAutoHibernateTimeout(machine, 600).catch(() => undefined);
       }
@@ -343,14 +343,14 @@ async function promote(repoName: string, machineId: string) {
   );
 }
 
-/** Deletes failed run machines older than two days. Runs each hour the machine is awake. */
+/** Deletes failed run machines older than a day. */
 async function sweep() {
   const cutoff = Date.now() - KEEP_FAILED_MS;
   for (const m of await boxd.machines.list()) {
     if (!m.name.startsWith("ci-") || !m.createdAt || m.createdAt.getTime() > cutoff) {
       continue;
     }
-    console.log(`        sweep: deleting ${m.name}, failed more than two days ago`);
+    console.log(`        sweep: deleting ${m.name}, failed more than a day ago`);
     await boxd.machines.delete(m.id).catch(() => undefined);
   }
 }
