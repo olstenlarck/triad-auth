@@ -259,6 +259,8 @@ async function ci(repoName: string, run: Run) {
         summary: table(rows) + note + (conclusion === "failure" ? keptHint : ""),
         text: text ?? tail(rows),
       },
+      // A button on the check's page. GitHub sends check_run.requested_action when clicked.
+      actions: [{ label: "Re-run", description: "Run this commit again", identifier: "rerun" }],
     });
   };
 
@@ -474,6 +476,7 @@ type PushEvent = { ref: string; after: string; deleted?: boolean };
 type RerunPr = { number: number; head: { ref: string }; base: { sha: string } };
 type CheckRunEvent = {
   action: string;
+  requested_action?: { identifier: string };
   check_run: {
     name: string;
     head_sha: string;
@@ -529,8 +532,9 @@ for (const [repoName, repo] of Object.entries(repos)) {
       });
     });
   }
-  // Re-run on one of our checks (check_run) and "Re-run all checks" (check_suite) both run
-  // the whole run again for that commit. GitHub lists no pull requests for a fork's commit,
+  // Re-run on one of our checks (check_run rerequested), our own Re-run button on a check's
+  // page (check_run requested_action), and "Re-run all checks" (check_suite) all run the
+  // whole run again for that commit. GitHub lists no pull requests for a fork's commit,
   // and its head_branch is null, so those fall through and return.
   const rerun = async (sha: string, branch: string | null, prs: RerunPr[], cold: boolean) => {
     const pr = prs[0];
@@ -559,6 +563,13 @@ for (const [repoName, repo] of Object.entries(repos)) {
   githubApp.on("check_run.rerequested", { repo: repoName }, async (e: CheckRunEvent) => {
     const { name: checkName, head_sha, check_suite, pull_requests } = e.check_run;
     if (!checkName.startsWith("boxd/")) {
+      return;
+    }
+    await rerun(head_sha, check_suite.head_branch, pull_requests, checkName.endsWith(" (cold)"));
+  });
+  githubApp.on("check_run.requested_action", { repo: repoName }, async (e: CheckRunEvent) => {
+    const { name: checkName, head_sha, check_suite, pull_requests } = e.check_run;
+    if (!checkName.startsWith("boxd/") || e.requested_action?.identifier !== "rerun") {
       return;
     }
     await rerun(head_sha, check_suite.head_branch, pull_requests, checkName.endsWith(" (cold)"));
