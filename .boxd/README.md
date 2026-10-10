@@ -14,10 +14,10 @@ Re-run on the `monarch-ci` check, its own Re-run button in the Checks tab, and R
 
 The boxd GitHub App must be installed on the `tunnckoCoreHQ` organization with access to this repository. An org admin does that from the GitHub App card on the console's Integrations page. The CLI has no command for the App itself. Once installed, `boxd manage integrations` lists it under the shared connections.
 
-Create the machine. boxd leaves auto-suspend off by default, so without the two timeouts the machine would stay running, and billed, for four idle hours after every run. With them it drops to standby five minutes after a run and hibernates after an hour. A GitHub event wakes it either way.
+Create the machine. boxd leaves auto-suspend off by default, so without the two timeouts the machine would stay running, and billed, for four idle hours after every run. With them it drops to standby a minute after a run and hibernates five minutes after, to disk cost only. A GitHub event wakes it either way, in under 100 ms.
 
 ```sh
-boxd machine new monarch-ci --vcpu 2 --auto-suspend-timeout 300 --auto-hibernate-timeout 3600
+boxd machine new monarch-ci --vcpu 2 --auto-suspend-timeout 60 --auto-hibernate-timeout 300
 boxd connect monarch-ci
 ```
 
