@@ -510,6 +510,13 @@ type PullRequestEvent = {
   };
 };
 
+/** `boxd/test (cold)` → `{ cold: true, only: ["test"] }`. Setup has no job of its own. */
+const parse = (checkName: string) => {
+  const cold = checkName.endsWith(" (cold)");
+  const job = checkName.slice("boxd/".length, cold ? -" (cold)".length : undefined);
+  return { cold, only: job === "setup" ? undefined : [job] };
+};
+
 for (const [repoName, repo] of Object.entries(repos)) {
   const { owner, name } = split(repoName);
   if (repo.on.push?.length) {
@@ -582,12 +589,6 @@ for (const [repoName, repo] of Object.entries(repos)) {
       cold,
       only,
     });
-  };
-  /** `boxd/test (cold)` → `{ cold: true, only: ["test"] }`. Setup has no job of its own. */
-  const parse = (checkName: string) => {
-    const cold = checkName.endsWith(" (cold)");
-    const job = checkName.slice("boxd/".length, cold ? -" (cold)".length : undefined);
-    return { cold, only: job === "setup" ? undefined : [job] };
   };
   githubApp.on("check_run.rerequested", { repo: repoName }, async (e: CheckRunEvent) => {
     const { name: checkName, head_sha, check_suite, pull_requests } = e.check_run;
