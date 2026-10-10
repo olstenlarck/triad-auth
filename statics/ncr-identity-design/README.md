@@ -58,13 +58,23 @@ and the agent loop that decides *when a turn exists*. Users never see turns.
 - **Mid-turn pivot** is the hardest case, and it comes from the **user
   side**. The user sends an open message, the identity starts replying, and
   while that reply is still streaming the user drops something that changes
-  the stakes ("my dad died"). The half-written reply is now answering the
-  old mood, so: **abort the stream, discard the identity's half-sent reply,
-  and re-dispatch the turn with the new message included.** If part of the
-  identity's reply already reached the user's screen before the abort, she
-  can't pretend it didn't — the re-dispatch should **own that fragment**
-  (e.g. "sorry, ignore what I was saying"). The same abort machinery is
-  general interruptibility — build it once and NCR falls out of it.
+  the stakes ("my dad died"). What's already streaming is now answering the
+  old mood, so three things happen:
+  1. **Stop generating** — kill the rest of the reply still being produced
+     server-side.
+  2. **Leave whatever was already sent alone** — in a chat you can't un-send
+     a bubble that reached the user's screen; it stays. "Discard" only ever
+     means the un-sent tail, never anything the user already saw.
+  3. **Send a new message** that handles the pivot — and the new turn's
+     context must include what already went out plus the new message, so she
+     doesn't repeat or contradict the half-bubble he's looking at (e.g.
+     "sorry, ignore what I was saying").
+
+  How much is already "out" depends on streaming style: small per-bubble
+  streaming means a lot may be sent; holding the whole reply server-side
+  until done means "nothing sent yet" is common and you can drop the lot.
+  The same abort machinery is general interruptibility — build it once and
+  NCR falls out of it.
 
 ---
 
@@ -103,8 +113,31 @@ but scales better.
 - Keep pi-durable as the durability engine and just mount R2 under it —
   **do not stack two durability layers.**
 - A single DO around 5–10 GB is fine for the MVP; shard later.
-- **Must verify:** pi-durable's real limits — how big a session can get
-  before it hurts, how it checkpoints, whether it assumes DO storage.
+
+### Verified limits (Oct 2026)
+
+- **DO SQLite cap: 10 GB** on Workers Paid (1 GB free). At the cap, writes
+  fail. Empty DB ≈ 12 KB. So our 5–10 GB guess is the literal ceiling —
+  R2 offload / sharding is what gets past it.
+- **Session size is self-bounding.** On SQLite, pi-durable keeps only the
+  working set in memory (active transcripts, live tasks, pending
+  submissions); the rest stays on disk. Active transcripts are bounded by
+  the model's context window — compaction summarizes old messages before
+  overflow — so even tens of thousands of messages fit.
+- **Per-session RAM ≈ 1.3 MB** (Rivet port figure) — hundreds of agents can
+  share one process. Order-of-magnitude, not a CF guarantee.
+- **Checkpointing:** everything visible is committed before it's shown —
+  half-streamed replies and running tool output too — with a default ~100 ms
+  minimum between progress commits. WAL, `synchronous = NORMAL`: commits
+  survive process crashes, but the newest may be lost on power/host failure.
+  A crash loses progress since the last commit.
+- **DO storage is official:** Cloudflare "PiHarness" is a beta integration
+  on DO SQLite + lifecycle wake-up handling. The portable SQLite/JSONL cores
+  run in a DO given the right facade.
+- **One process owns a storage at a time** — no cross-process locking.
+- **Still open:** exactly-once external actions are *not* guaranteed
+  (`requestId` dedupes admission; an external write can land before its ack
+  is stored — reconcile before retry).
 
 ---
 
@@ -207,17 +240,29 @@ starting scenario and a character card.
   platform then shows her as **deceased**, and the identities who knew her
   get a "she's gone" memory that **ripples through the social graph**
   (grief, mood shifts). Her absence becomes part of their story — nothing is
-  silently deleted from their files.
-- **Unpublish.** The reversible path: pull her back to private, the edit
-  lock lifts, rework her, republish. (Open question: is unpublish invisible
-  to the users who know her, or should there be a trace that she went away
-  and came back — and if her soul is edited, do the people who knew her
-  feel the change?)
-- **Total delete, with preservation.** The living her is gone (deceased to
-  the world), but the **platform preserves her files in cold storage.** This
-  is both a revival mechanism and a plain **backup**: her accumulated
-  sessions and whole lived life are valuable material the creator can mine,
-  update, or repurpose for something else — the life was never wasted.
+  silently deleted from their files. There is no separate "delete": the
+  platform never throws anything away, so her own files are always preserved
+  in cold storage. "Delete" was only the technical word for this; **kill is
+  the real one.** The preserved files remain a revival mechanism and a plain
+  backup — her accumulated sessions and whole lived life stay as material the
+  creator can mine, update, or repurpose, so the life is never wasted.
+  - **Required cause of death (platform setting).** The creator can't vanish
+    her silently — he must give a reason (accident, illness, moved away,
+    etc.). That reason **propagates to the network** as the in-world cause,
+    so others get not just "she's gone" but "she's gone, and here's what
+    happened." Like all hearsay, each identity receives it through their own
+    subjective lens — one grieves, one doubts it, one already heard a
+    different version — so mythology forms around the death.
+- **Unpublish.** Simply switch her back to private: she is no longer
+  public. The reversible path — the edit lock lifts, rework her, republish.
+  This is **visible at the platform level** — a status showing she has been
+  pulled — but the other identities do not register it in-world.
+- **Export + total delete (privacy).** Separate from the in-world death.
+  After killing her — with everything still preserved on the platform — the
+  creator can **export** her (take the whole lived life out as his own copy)
+  and then **totally delete** her from the platform, cold storage included.
+  This is the real, final wipe, and it exists for **privacy**: the creator's
+  and the user's right to have the data actually gone.
 
 ### Grace window (idea)
 
@@ -243,18 +288,18 @@ depth a richer one.)
 
 ## Open questions (recorded, not resolved)
 
-1. Unpublish visibility and soul-edit side effects (above).
-2. Revival fork: reincarnation vs. resurrection vs. total wipeout, and the
+1. Revival fork: reincarnation vs. resurrection vs. total wipeout, and the
    grace-window threshold.
-3. Text only, or voice soon?
+2. Text only, or voice soon?
 
 ### Unverified pi-durable behaviors
 
 - Whether a write entry with a `model` field actually reaches the model.
 - Whether `sleep(until)` survives DO hibernation without an alarm.
-- How many live chats one DO really handles.
-- Real session-size limits, checkpoint behavior, and storage assumptions
-  (see Storage section).
+- How many live chats one DO really handles. (Partial answer: ≈1.3 MB RAM
+  per session suggests many; see Storage → Verified limits.)
+- Session-size, checkpoint, and storage questions are now mostly answered —
+  see Storage → Verified limits.
 
 ---
 
