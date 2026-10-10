@@ -82,10 +82,10 @@ On GitHub, the Details link of a `boxd/*` check opens the check's own page. It s
 
 ## When a run fails
 
-The failed check's summary names the run's machine, for example `ci-9599805-41237`. The machine is kept for a day, then deleted. It hibernates ten minutes after the run, so until then it costs disk only.
+The failed check's summary names the run's machine, for example `ci-3f1c9ab-41237`. The machine is kept for a day, then deleted. It hibernates ten minutes after the run, so until then it costs disk only.
 
 ```sh
-boxd connect ci-9599805-41237
+boxd connect ci-3f1c9ab-41237
 ```
 
 Inside, the repo is at `/home/boxd/work/monarch` with the failed commit checked out, and the whole run's output is in `/home/boxd/ci.log`, one `=== step` header per step. The log holds only this run. It is emptied when a run starts, so the one in the snapshot never grows. The toolchain, `node_modules`, and the turbo cache are the ones the run used. Rerun the failing command there.
@@ -93,5 +93,5 @@ Inside, the repo is at `/home/boxd/work/monarch` with the failed commit checked 
 Delete the machine when done rather than waiting out the day. Every machine counts toward the organization's cap.
 
 ```sh
-boxd machine remove ci-9599805-41237 -y
+boxd machine remove ci-3f1c9ab-41237 -y
 ```

@@ -346,7 +346,7 @@ async function promote(repoName: string, machineId: string) {
   );
 }
 
-/** Deletes failed run machines older than a day. */
+/** Runs hourly. Deletes the failed run machines that are older than a day, nothing newer. */
 async function sweep() {
   const cutoff = Date.now() - KEEP_FAILED_MS;
   for (const m of await boxd.machines.list()) {
