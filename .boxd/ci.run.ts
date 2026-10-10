@@ -31,8 +31,7 @@ type Repo = {
   on: { push?: string[]; pull_request?: boolean };
   env?: Record<string, string>;
   setup: string[];
-  /** A job is a command, or a command with the paths that make it run on a pull request. */
-  jobs: Record<string, string | { run: string; paths?: string[] }>;
+  jobs: Record<string, string>;
   promote?: string;
   cold?: string;
 };
@@ -145,49 +144,6 @@ const tail = (rows: Row[]) => {
   return t ? `\`\`\`\n${t.slice(-60_000)}\n\`\`\`` : undefined;
 };
 
-/** A glob over repo paths: `solidity/**` matches everything under it, `*` stays in one segment. */
-const glob = (pattern: string) => {
-  const re = pattern
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*\//g, "\u0000")
-    .replace(/\*\*/g, "\u0001")
-    .replace(/\*/g, "[^/]*")
-    .replaceAll("\u0000", "(.*/)?")
-    .replaceAll("\u0001", ".*");
-  return new RegExp(`^${re}$`);
-};
-
-/** The files a pull request changes against its base, or null when GitHub can't list them all. */
-async function changedFiles(
-  gh: Awaited<ReturnType<typeof githubApp.client>>,
-  owner: string,
-  repo: string,
-  base: string,
-  head: string,
-) {
-  const files: string[] = [];
-  for (let page = 1; page <= 3; page++) {
-    const { data } = await gh.rest.repos.compareCommitsWithBasehead({
-      owner,
-      repo,
-      basehead: `${base}...${head}`,
-      per_page: 100,
-      page,
-    });
-    for (const f of data.files ?? []) {
-      files.push(f.filename);
-      if (f.previous_filename) {
-        files.push(f.previous_filename);
-      }
-    }
-    if ((data.files?.length ?? 0) < 100) {
-      return files;
-    }
-  }
-  // The compare API stops at 300 files. Past that, treat everything as changed.
-  return null;
-}
-
 async function ci(repoName: string, run: Run) {
   const repo = repos[repoName];
   const { owner, name } = split(repoName);
@@ -198,24 +154,11 @@ async function ci(repoName: string, run: Run) {
   const suffix = run.cold ? " (cold)" : "";
   const short7 = run.sha.slice(0, 7);
   const source = active(repoName);
-  const allJobs = Object.entries(repo.jobs).map(
-    ([job, j]) => [job, typeof j === "string" ? { run: j } : j] as const,
-  );
-  // On a pull request, a job with `paths` runs only when the change touches one of them.
-  // Pushes to master and cold runs always run every job.
-  const changed = run.base ? await changedFiles(gh, owner, name, run.base, run.sha) : null;
-  const byPaths = allJobs.filter(
-    ([, j]) => !(changed && j.paths) || j.paths.some((p) => changed.some((f) => glob(p).test(f))),
-  );
-  // A re-run of one check runs that job alone, whatever its paths say.
+  const allJobs = Object.entries(repo.jobs);
+  // A re-run of one check runs that job alone.
   const only = run.only ? allJobs.filter(([job]) => run.only?.includes(job)) : [];
-  const jobs = only.length ? only : byPaths;
-  const notRun = allJobs.filter(([job]) => !jobs.some(([j]) => j === job)).map(([job]) => job);
-  const setupNote = only.length
-    ? `\n\nRe-run of ${jobs.map(([job]) => job).join(", ")} only.`
-    : notRun.length
-      ? `\n\nNot run, nothing under their paths changed: ${notRun.join(", ")}.`
-      : "";
+  const jobs = only.length ? only : allJobs;
+  const setupNote = only.length ? `\n\nRe-run of ${jobs.map(([job]) => job).join(", ")} only.` : "";
   const machineName = `ci-${short7}-${Date.now() % 100_000}`;
   const keptHint =
     `\n\nThe machine \`${machineName}\` is kept for a day. \`boxd connect ${machineName}\`: ` +
@@ -353,7 +296,7 @@ async function ci(repoName: string, run: Run) {
     );
 
     // 3. The jobs, in order, on the same machine. The first failure skips the rest.
-    for (const [job, j] of jobs) {
+    for (const [job, cmd] of jobs) {
       if (!ok) {
         await finish(job, "skipped", "skipped: an earlier step failed", []);
         continue;
@@ -364,7 +307,7 @@ async function ci(repoName: string, run: Run) {
       }
       await start(id);
       const jr: Row[] = [];
-      ok = await step(jr, job, m.id, repo.workdir, j.run, env, say);
+      ok = await step(jr, job, m.id, repo.workdir, cmd, env, say);
       await finish(
         job,
         ok ? "success" : "failure",
