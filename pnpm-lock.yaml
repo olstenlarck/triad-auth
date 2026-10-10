@@ -391,10 +391,6 @@ importers:
   packages/ethscriptions-holders: {}
 
   packages/ethscriptions-rescue:
-    dependencies:
-      viem:
-        specifier: 'catalog:'
-        version: 2.56.9(typescript@7.0.2)(zod@4.6.5)
     devDependencies:
       tsdown:
         specifier: 'catalog:'
