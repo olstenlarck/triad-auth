@@ -88,7 +88,7 @@ The failed check's summary names the run's machine, for example `ci-9599805-4123
 boxd connect ci-9599805-41237
 ```
 
-Inside, the repo is at `/home/boxd/work/monarch` with the failed commit checked out, and the whole run's output is in `/home/boxd/ci.log`, one `=== step` header per step. The toolchain, `node_modules`, and the turbo cache are the ones the run used. Rerun the failing command there.
+Inside, the repo is at `/home/boxd/work/monarch` with the failed commit checked out, and the whole run's output is in `/home/boxd/ci.log`, one `=== step` header per step. The log holds only this run. It is emptied when a run starts, so the one in the snapshot never grows. The toolchain, `node_modules`, and the turbo cache are the ones the run used. Rerun the failing command there.
 
 Delete the machine when done rather than waiting out the day. Every machine counts toward the organization's cap.
 

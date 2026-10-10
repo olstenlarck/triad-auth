@@ -10,7 +10,8 @@
 //      (checkout, node_modules, pnpm store, turbo cache, foundry)
 //   2. fetch and check out the commit, run the setup steps
 //   3. run the jobs in order on that machine, one GitHub check run each, and stop at the
-//      first failure. Every step also appends to ~/ci.log on that machine.
+//      first failure. Every step also appends to ~/ci.log on that machine, which
+//      holds only this run: the log is emptied first.
 //   4. green on master: save the machine as the next snapshot version (two names,
 //      alternating, so the last one stays restorable while the next one saves).
 //      A green machine is deleted. A failed machine is kept for a day, named in the
@@ -230,6 +231,8 @@ async function ci(repoName: string, run: Run) {
     // 2. Checkout and setup. $BASE is the snapshot's commit, so an unchanged lockfile skips
     //    the install. A cold run wipes the tree and makes $BASE the empty tree instead.
     const token = await githubApp.getToken();
+    // The snapshot carries the previous green run's log. Start this machine's log empty.
+    await sh(m.id, repo.workdir, `: > ${LOG}`);
     const base = run.cold
       ? EMPTY_TREE
       : (await sh(m.id, repo.workdir, "git rev-parse HEAD")).stdout.trim();
