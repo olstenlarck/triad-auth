@@ -1,0 +1,18 @@
+{
+  "tunnckoCoreHQ/monarch": {
+    "snapshot": "monarch-master",
+    "workdir": "/home/boxd/work/monarch",
+    "on": { "push": ["master"], "pull_request": true },
+    "setup": [
+      "git diff --quiet \"$BASE\" HEAD -- pnpm-lock.yaml pnpm-workspace.yaml .npmrc patches || pnpm install --frozen-lockfile"
+    ],
+    "jobs": {
+      "check": "pnpm exec turbo run check $AFFECTED",
+      "test": "pnpm exec turbo run test --filter='!./solidity/*' $AFFECTED",
+      "test-solidity": "forge build --root solidity/template && pnpm exec turbo run test --filter='./solidity/*'",
+      "build": "forge build --root solidity/template && pnpm exec turbo run build --filter='./packages/*' --filter='./solidity/*' $AFFECTED"
+    },
+    "promote": "master",
+    "cold": "0 3 * * *"
+  }
+}
