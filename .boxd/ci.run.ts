@@ -424,7 +424,8 @@ async function promote(repoName: string, machineId: string) {
 /** Closes what a run killed by a restart left behind: its open checks and its machine. */
 async function recover() {
   // SAFETY: `track` is the only writer of `state.inflight`, and it writes `Inflight` values.
-  const entries = Object.entries(state.inflight);
+  // SAFETY: `track` is the only writer of `state.inflight`, and it writes `Inflight` values.
+  const entries = Object.entries(state.inflight) as Array<[string, Inflight]>;
   if (!entries.length) {
     return;
   }
