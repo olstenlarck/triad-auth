@@ -1,12 +1,10 @@
-# @tunnckocore/calc
+# zagora
 
-## 0.3.0
-
-### Minor Changes
-
-- [#102](https://github.com/tunnckoCoreHQ/monarch/pull/102) [`f0bd4be`](https://github.com/tunnckoCoreHQ/monarch/commit/f0bd4be2aceeb67a63d92bcee7f2ad9fa91ccd60) Thanks [@tunnckoCore](https://github.com/tunnckoCore)! - minor migration of the monorepo tooling - from Vite+ to Turborepo and Ultracite. VLT public tunnckocore-scoped packages
+## 1.0.0
 
 ### Patch Changes
+
+- [#119](https://github.com/tunnckoCoreHQ/monarch/pull/119) [`f281d75`](https://github.com/tunnckoCoreHQ/monarch/commit/f281d754d6ea76b079f327acb5090e7a8af6beeb) Thanks [@tunnckoCore](https://github.com/tunnckoCore)! - Clean up the source for the newly enabled lint rules. The behavior does not change.
 
 - [#129](https://github.com/tunnckoCoreHQ/monarch/pull/129) [`1ae84ff`](https://github.com/tunnckoCoreHQ/monarch/commit/1ae84ff6be313576eb16e5be5ad34b5c333cfe19) Thanks [@tunnckoCore](https://github.com/tunnckoCore)! - Publish a nightly of every package. The previous nightly run skipped some of them.
 
@@ -18,12 +16,6 @@
 
 - [#132](https://github.com/tunnckoCoreHQ/monarch/pull/132) [`f32cf23`](https://github.com/tunnckoCoreHQ/monarch/commit/f32cf23fa820c2b2ed8337dc47f6b56416870816) Thanks [@tunnckoCore](https://github.com/tunnckoCore)! - Add the license, Depot CI, and Socket Security badges to the README.
 
-## 0.2.0
+- [#124](https://github.com/tunnckoCoreHQ/monarch/pull/124) [`e01e236`](https://github.com/tunnckoCoreHQ/monarch/commit/e01e2363d16e36799f06b6802e3d264042ee5d8a) Thanks [@tunnckoCore](https://github.com/tunnckoCore)! - Point the `repository` field at the monorepo. npm checks it against the provenance of a trusted publish from GitHub Actions.
 
-### Minor Changes
-
-- bff9b54: Add tests for every calc operation, including signed zero, NaN, infinity, fractions, overflow, and underflow.
-
-### Patch Changes
-
-- 13bdea3: Add absolute() with number edge-case tests.
+- [#121](https://github.com/tunnckoCoreHQ/monarch/pull/121) [`feb6e65`](https://github.com/tunnckoCoreHQ/monarch/commit/feb6e65927e4a91c098363bf964c6e06e02e8bf0) Thanks [@tunnckoCore](https://github.com/tunnckoCore)! - Fix defects from the review of the zagora migration. A callable no longer exposes the configured env values through `~zagora`. The cache stores only the validated output, so a failed call leaves nothing in the cache, and a cache hit returns the stored output without validating it again. The `SpreadTuple` type makes only the trailing elements that accept `undefined` optional, so required tuple arguments stay required.
