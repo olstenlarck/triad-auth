@@ -17,7 +17,7 @@ The boxd GitHub App must be installed on the `tunnckoCoreHQ` organization with a
 Create the machine:
 
 ```sh
-boxd machine new monarch-ci --vcpu 4
+boxd machine new monarch-ci --vcpu 2
 boxd connect monarch-ci
 ```
 
