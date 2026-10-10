@@ -5,8 +5,11 @@ packages:
   - "solidity/*"
 
 allowBuilds:
+  '@google/genai': false
+  core-js-pure: false
   esbuild: true
   msgpackr-extract: true
+  protobufjs: false
   sharp: true
   workerd: true
 
@@ -64,6 +67,10 @@ catalogs:
     valibot: ^1.5.0
     '@standard-schema/spec': ^1.1.0
     badgen: 3.3.2
+    # Pi Durable and PiHarness are experimental; pin exact versions.
+    agents: 0.28.0
+    "@earendil-works/pi-ai": 1.1.0
+    "@earendil-works/pi-durable": 1.1.0
   types:
     "@cloudflare/workers-types": 5.20260928.1
     "@types/bun": ^1.4.2
