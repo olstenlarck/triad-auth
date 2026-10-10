@@ -422,7 +422,7 @@ async function promote(repoName: string, machineId: string) {
 /** Closes what a run killed by a restart left behind: its open checks and its machine. */
 async function recover() {
   // SAFETY: `track` is the only writer of `state.inflight`, and it writes `Inflight` values.
-  const entries = Object.entries(state.inflight) as Array<[string, Inflight]>;
+  const entries = Object.entries(state.inflight);
   if (!entries.length) {
     return;
   }
@@ -471,14 +471,19 @@ async function sweep() {
 }
 
 type PushEvent = { ref: string; after: string; deleted?: boolean };
+type RerunPr = { number: number; head: { ref: string }; base: { sha: string } };
 type CheckRunEvent = {
   action: string;
   check_run: {
     name: string;
     head_sha: string;
     check_suite: { head_branch: string | null };
-    pull_requests: Array<{ number: number; head: { ref: string }; base: { sha: string } }>;
+    pull_requests: RerunPr[];
   };
+};
+type CheckSuiteEvent = {
+  action: string;
+  check_suite: { head_sha: string; head_branch: string | null; pull_requests: RerunPr[] };
 };
 type PullRequestEvent = {
   action: string;
@@ -524,16 +529,11 @@ for (const [repoName, repo] of Object.entries(repos)) {
       });
     });
   }
-  // The Re-run button on one of our checks runs the whole run again for that commit.
-  // GitHub lists no pull requests for a fork's commit, and its head_branch is null, so
-  // those fall through and return.
-  githubApp.on("check_run.rerequested", { repo: repoName }, async (e: CheckRunEvent) => {
-    const { name: checkName, head_sha: sha, check_suite, pull_requests } = e.check_run;
-    if (!checkName.startsWith("boxd/")) {
-      return;
-    }
-    const cold = checkName.endsWith(" (cold)");
-    const pr = pull_requests[0];
+  // Re-run on one of our checks (check_run) and "Re-run all checks" (check_suite) both run
+  // the whole run again for that commit. GitHub lists no pull requests for a fork's commit,
+  // and its head_branch is null, so those fall through and return.
+  const rerun = async (sha: string, branch: string | null, prs: RerunPr[], cold: boolean) => {
+    const pr = prs[0];
     if (pr) {
       await ci(repoName, {
         sha,
@@ -545,7 +545,6 @@ for (const [repoName, repo] of Object.entries(repos)) {
       });
       return;
     }
-    const branch = check_suite.head_branch;
     if (!branch || !repo.on.push?.includes(branch)) {
       return;
     }
@@ -556,6 +555,17 @@ for (const [repoName, repo] of Object.entries(repos)) {
       isMain: branch === repo.promote,
       cold,
     });
+  };
+  githubApp.on("check_run.rerequested", { repo: repoName }, async (e: CheckRunEvent) => {
+    const { name: checkName, head_sha, check_suite, pull_requests } = e.check_run;
+    if (!checkName.startsWith("boxd/")) {
+      return;
+    }
+    await rerun(head_sha, check_suite.head_branch, pull_requests, checkName.endsWith(" (cold)"));
+  });
+  githubApp.on("check_suite.rerequested", { repo: repoName }, async (e: CheckSuiteEvent) => {
+    const { head_sha, head_branch, pull_requests } = e.check_suite;
+    await rerun(head_sha, head_branch, pull_requests, false);
   });
   if (repo.cold && repo.promote) {
     const branch = repo.promote;

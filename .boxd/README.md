@@ -8,7 +8,7 @@ The turbo cache in the snapshot is CI's own. Laptops keep their local caches.
 
 Once a night the `cold` schedule runs master's head from a clean tree with `TURBO_FORCE=true`, to catch what a warm snapshot hides. It never promotes. The same schedule deletes failed machines older than a day.
 
-The Re-run button on a `boxd/*` check runs the whole run again for that commit.
+Re-run on a `boxd/*` check, and Re-run all checks on the pull request, both run the whole run again for that commit.
 
 ## Setup, once
 
