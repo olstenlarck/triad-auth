@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #09090b;
+  --color-ink-2: #121214;
+  --color-ink-3: #1b1b1f;
+  --color-line: #27272a;
+  --color-line-2: #3f3f46;
+  --color-paper: #f4f4f0;
+  --color-muted: #8f8f86;
+  --color-acid: #d4ff3f;
+  --color-acid-2: #a8d400;
+  --color-blood: #ff4d4f;
+  --color-sky: #6bb6ff;
+  --font-sans: ui-sans-serif, system-ui, "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius-none: 0px;
+}
+
+@layer base {
+  html {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    min-height: 100dvh;
+  }
+  ::selection {
+    background: var(--color-acid);
+    color: var(--color-ink);
+  }
+  a {
+    text-decoration: none;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+    line-height: 0.95;
+  }
+  pre,
+  code {
+    font-family: var(--font-mono);
+  }
+  input,
+  textarea,
+  select {
+    font-family: var(--font-mono);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-sky);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .eyebrow {
+    @apply text-muted font-mono text-[11px] tracking-[0.18em] uppercase;
+  }
+  .hairline {
+    @apply border-line border;
+  }
+  .ledger > div {
+    @apply border-line grid grid-cols-[minmax(0,160px)_1fr] gap-4 border-b py-3 last:border-b-0;
+  }
+  .diff-add {
+    background: color-mix(in srgb, var(--color-acid) 12%, transparent);
+  }
+  .diff-del {
+    background: color-mix(in srgb, var(--color-blood) 14%, transparent);
+  }
+}

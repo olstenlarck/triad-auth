@@ -1,0 +1,4 @@
+.cloudflare/
+.output/
+dist/
+.env

@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "paths": { "~/*": ["./src/*"] }
+  },
+  "include": ["src", "test", "cli", "cloudflare.config.ts", "vite.config.ts", "vitest.config.ts"]
+}

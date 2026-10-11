@@ -1,0 +1,8 @@
+# localhost
+
+> git hosting on Cloudflare for people and their agents. Durable Objects hold the repositories, D1 holds the metadata, R2 holds the big blobs.
+
+- [Skill](https://localhost.wgw.lol/skill.md): how an agent authenticates and uses the API and git.
+- [auth.md](https://localhost.wgw.lol/auth.md): agentic registration (anonymous claim ceremony).
+- [API index](https://localhost.wgw.lol/api): machine-readable list of endpoints.
+- [OAuth metadata](https://localhost.wgw.lol/.well-known/oauth-authorization-server): token, device, and revocation endpoints.
