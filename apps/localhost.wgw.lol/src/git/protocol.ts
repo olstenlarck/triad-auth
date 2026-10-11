@@ -285,54 +285,65 @@ export async function uploadPack(
       ? await planPack(repo, wants, common, request.depth, request.shallow)
       : null;
 
+  // Every packet in order; the stream below pulls one at a time, so a slow client applies backpressure.
+  async function* packets(): AsyncGenerator<Uint8Array> {
+    if (request.depth !== undefined && plan) {
+      for (const sha of plan.shallow) {
+        if (!request.shallow.includes(sha)) {
+          yield pktLine(`shallow ${sha}`);
+        }
+      }
+      for (const sha of request.shallow) {
+        if (plan.commits.has(sha) && !plan.shallow.includes(sha)) {
+          yield pktLine(`unshallow ${sha}`);
+        }
+      }
+      yield FLUSH_PKT;
+    }
+    if (request.negotiating) {
+      for (const sha of common) {
+        yield pktLine(`ACK ${sha} common`);
+      }
+      const last = common.at(-1);
+      if (request.done) {
+        yield last ? pktLine(`ACK ${last}`) : pktLine("NAK");
+      } else {
+        if (last && !unknownHave) {
+          yield pktLine(`ACK ${last} ready`);
+        }
+        yield pktLine("NAK");
+      }
+    }
+    if (!(request.done && plan)) {
+      return;
+    }
+
+    const sources = sourcesFor(repo, plan.objects);
+    for await (const chunk of writePack(plan.objects.length, sources)) {
+      if (useSideband) {
+        yield* sideband(1, chunk);
+      } else {
+        yield chunk;
+      }
+    }
+    if (useSideband) {
+      yield FLUSH_PKT;
+    }
+  }
+
+  const iterator = packets();
+
   return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      if (request.depth !== undefined && plan) {
-        for (const sha of plan.shallow) {
-          if (!request.shallow.includes(sha)) {
-            controller.enqueue(pktLine(`shallow ${sha}`));
-          }
-        }
-        for (const sha of request.shallow) {
-          if (plan.commits.has(sha) && !plan.shallow.includes(sha)) {
-            controller.enqueue(pktLine(`unshallow ${sha}`));
-          }
-        }
-        controller.enqueue(FLUSH_PKT);
-      }
-      if (request.negotiating) {
-        for (const sha of common) {
-          controller.enqueue(pktLine(`ACK ${sha} common`));
-        }
-        const last = common.at(-1);
-        if (request.done) {
-          controller.enqueue(last ? pktLine(`ACK ${last}`) : pktLine("NAK"));
-        } else {
-          if (last && !unknownHave) {
-            controller.enqueue(pktLine(`ACK ${last} ready`));
-          }
-          controller.enqueue(pktLine("NAK"));
-        }
-      }
-      if (!(request.done && plan)) {
+    async pull(controller) {
+      const next = await iterator.next();
+      if (next.done) {
         controller.close();
         return;
       }
-
-      const sources = sourcesFor(repo, plan.objects);
-      for await (const chunk of writePack(plan.objects.length, sources)) {
-        if (useSideband) {
-          for (const packet of sideband(1, chunk)) {
-            controller.enqueue(packet);
-          }
-        } else {
-          controller.enqueue(chunk);
-        }
-      }
-      if (useSideband) {
-        controller.enqueue(FLUSH_PKT);
-      }
-      controller.close();
+      controller.enqueue(next.value);
+    },
+    cancel() {
+      return iterator.return(undefined).then(() => undefined);
     },
   });
 }

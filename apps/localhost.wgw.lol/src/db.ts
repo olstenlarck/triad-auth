@@ -639,14 +639,10 @@ export class Db {
     baseRef: string;
     headRef: string;
   }): Promise<PullRequest> {
-    const next = await this.d1
-      .prepare("select coalesce(max(number), 0) + 1 as n from pull_requests where repo_id = ?")
-      .bind(input.repoId)
-      .first<{ n: number }>();
     const pr: PullRequest = {
       id: `pr_${randomId(14)}`,
       repo_id: input.repoId,
-      number: next?.n ?? 1,
+      number: 0,
       title: input.title,
       body: input.body,
       author_id: input.authorId,
@@ -659,14 +655,13 @@ export class Db {
       updated_at: now(),
       merged_at: null,
     };
-    await this.d1
+    const row = await this.d1
       .prepare(
-        "insert into pull_requests (id, repo_id, number, title, body, author_id, base_ref, head_ref, state, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)",
+        "insert into pull_requests (id, repo_id, number, title, body, author_id, base_ref, head_ref, state, created_at, updated_at) select ?, ?, coalesce(max(number), 0) + 1, ?, ?, ?, ?, ?, 'open', ?, ? from pull_requests where repo_id = ? returning number",
       )
       .bind(
         pr.id,
         pr.repo_id,
-        pr.number,
         pr.title,
         pr.body,
         pr.author_id,
@@ -674,8 +669,10 @@ export class Db {
         pr.head_ref,
         pr.created_at,
         pr.updated_at,
+        pr.repo_id,
       )
-      .run();
+      .first<{ number: number }>();
+    pr.number = row?.number ?? 1;
 
     return pr;
   }

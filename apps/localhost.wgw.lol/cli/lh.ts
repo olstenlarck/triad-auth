@@ -95,7 +95,7 @@ function positional(args: string[]): string[] {
   const out: string[] = [];
   for (let index = 0; index < args.length; index++) {
     if (args[index].startsWith("--")) {
-      if (!["private", "public"].includes(args[index].slice(2))) {
+      if (!["private", "public", "plain"].includes(args[index].slice(2))) {
         index++;
       }
       continue;

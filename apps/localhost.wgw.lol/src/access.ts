@@ -23,17 +23,26 @@ export function exposedPathsFor(repo: Repo, rules: PathRule[], access: Access): 
   return rules.filter((rule) => rule.visibility === "public").map((rule) => rule.pattern);
 }
 
-export function pathIsExposed(path: string, exposed: string[]): boolean {
-  const clean = path.replace(/^\/+|\/+$/g, "");
+function trimSlashes(value: string): string {
+  return value.replace(/^\/+|\/+$/g, "");
+}
+
+// A directory listing may show the ancestors of an exposed path so a reader can navigate to it.
+// A file read must be the exposed path itself or sit below it: an ancestor name could be a file in
+// an older commit, and that file is private.
+export function pathIsExposed(
+  path: string,
+  exposed: string[],
+  kind: "directory" | "file",
+): boolean {
+  const clean = trimSlashes(path);
 
   return exposed.some((pattern) => {
-    const prefix = pattern.replace(/^\/+|\/+$/g, "");
+    const prefix = trimSlashes(pattern);
+    if (clean === prefix || clean.startsWith(`${prefix}/`)) {
+      return true;
+    }
 
-    return (
-      clean === prefix ||
-      clean.startsWith(`${prefix}/`) ||
-      prefix.startsWith(`${clean}/`) ||
-      clean === ""
-    );
+    return kind === "directory" && (clean === "" || prefix.startsWith(`${clean}/`));
   });
 }

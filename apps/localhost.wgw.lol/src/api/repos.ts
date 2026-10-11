@@ -293,7 +293,7 @@ repos.get("/:owner/:repo/commits/:sha", async (c) => {
 repos.get("/:owner/:repo/tree/:ref{.+}", async (c) => {
   const { repo, stub, hidden, exposed } = await viewFor(c, "exposed");
   const { ref, path } = await splitRefAndPath(stub, c.req.param("ref"), repo.default_branch);
-  if (exposed && !pathIsExposed(path, exposed)) {
+  if (exposed && !pathIsExposed(path, exposed, "directory")) {
     throw new HttpError(404, "not found", "not_found");
   }
   const entries = await stub.listPath(ref, path, { hidden });
@@ -301,7 +301,13 @@ repos.get("/:owner/:repo/tree/:ref{.+}", async (c) => {
     throw new HttpError(404, "path not found", "not_found");
   }
   const filtered = exposed
-    ? entries.filter((entry) => pathIsExposed(path ? `${path}/${entry.name}` : entry.name, exposed))
+    ? entries.filter((entry) =>
+        pathIsExposed(
+          path ? `${path}/${entry.name}` : entry.name,
+          exposed,
+          entry.kind === "dir" ? "directory" : "file",
+        ),
+      )
     : entries;
 
   return c.json({ ref, path, entries: filtered });
@@ -310,7 +316,7 @@ repos.get("/:owner/:repo/tree/:ref{.+}", async (c) => {
 repos.get("/:owner/:repo/blob/:ref{.+}", async (c) => {
   const { repo, stub, hidden, exposed } = await viewFor(c, "exposed");
   const { ref, path } = await splitRefAndPath(stub, c.req.param("ref"), repo.default_branch);
-  if (exposed && !pathIsExposed(path, exposed)) {
+  if (exposed && !pathIsExposed(path, exposed, "file")) {
     throw new HttpError(404, "not found", "not_found");
   }
   const file = await stub.readFile(ref, path, { hidden });
@@ -324,7 +330,7 @@ repos.get("/:owner/:repo/blob/:ref{.+}", async (c) => {
 repos.get("/:owner/:repo/raw/:ref{.+}", async (c) => {
   const { repo, stub, hidden, exposed, rules } = await viewFor(c, "exposed");
   const { ref, path } = await splitRefAndPath(stub, c.req.param("ref"), repo.default_branch);
-  if (exposed && !pathIsExposed(path, exposed)) {
+  if (exposed && !pathIsExposed(path, exposed, "file")) {
     throw new HttpError(404, "not found", "not_found");
   }
   const raw = await stub.rawFile(ref, path, { hidden });
@@ -578,7 +584,10 @@ repos.post("/:owner/:repo/pulls/:number/close", async (c) => {
 
 // Workers AI drafts a summary of the diff; the author decides whether to keep it.
 repos.post("/:owner/:repo/pulls/:number/summarize", async (c) => {
-  const { repo, stub, hidden } = await viewFor(c, "write");
+  const { repo, stub, rules } = await viewFor(c, "write");
+  // The summary is readable by everyone who can see the pull request, so it is built from the
+  // public view: private paths never reach the model.
+  const hidden = rules.filter((rule) => rule.visibility === "private").map((rule) => rule.pattern);
   const pr = await db().pullRequest(repo.id, Number(c.req.param("number")));
   if (!pr) {
     throw new HttpError(404, "pull request not found", "not_found");

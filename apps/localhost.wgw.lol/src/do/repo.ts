@@ -40,7 +40,15 @@ import {
   splitPath,
   writePath,
 } from "../git/tree";
-import { type LogEntry, isAncestor, log, mergeBase, peelToCommit, readCommit } from "../git/walk";
+import {
+  type LogEntry,
+  isAncestor,
+  log,
+  mergeBase,
+  peelToCommit,
+  reachableCommits,
+  readCommit,
+} from "../git/walk";
 
 // SQLite rows cap at 2 MB, so compressed objects above this size live in R2 under objects/<id>/<sha>.
 const INLINE_LIMIT = 1_500_000;
@@ -647,12 +655,17 @@ export class RepoObject extends DurableObject<AppEnv> implements Repository {
       });
     }
 
+    // Everything the base already reaches is left out, including side branches merged into head.
+    const inBase = await reachableCommits(this, [base], new Set(), 20_000);
     const commits: CommitView[] = [];
-    for (const entry of await log(this, head, 200)) {
-      if (entry.sha === ancestor) {
-        break;
+    for (const entry of await log(this, head, 400)) {
+      if (inBase.has(entry.sha)) {
+        continue;
       }
       commits.push({ sha: entry.sha, ...entry.commit });
+      if (commits.length >= 200) {
+        break;
+      }
     }
 
     return { base, head, mergeBase: ancestor, ahead: commits.length, changes, commits };
@@ -833,6 +846,7 @@ export class RepoObject extends DurableObject<AppEnv> implements Repository {
       updatedAt: Date.now(),
     });
 
+    const before = await this.listRefs();
     const wants = [...new Set(refs.values())];
     const lines = wants.map((sha, index) =>
       index === 0 ? `want ${sha} ofs-delta thin-pack agent=localhost/0.1\n` : `want ${sha}\n`,
@@ -868,9 +882,11 @@ export class RepoObject extends DurableObject<AppEnv> implements Repository {
         await this.put(object.sha, object.type, object.data, object.zdata);
       }
     }
+    // Expected old values come from before the fetch, so a push that landed meanwhile fails the
+    // import instead of being overwritten.
     const updates: RefUpdate[] = [];
     for (const [name, sha] of refs) {
-      updates.push({ name, oldSha: await this.getRef(name), newSha: sha });
+      updates.push({ name, oldSha: before.get(name) ?? null, newSha: sha });
     }
     await this.updateRefs(updates);
     if (headTarget && refs.has(headTarget)) {

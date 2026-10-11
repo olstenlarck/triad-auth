@@ -9,6 +9,9 @@ export const user = new Hono();
 
 user.get("/", async (c) => {
   const principal = await requirePrincipal(c);
+  if (principal.via !== "session" && !principal.scopes.has("user:read")) {
+    throw new HttpError(403, "user:read scope required", "forbidden");
+  }
   const owned = await db().reposOwnedBy(principal.user.id);
   // Private repositories show only to credentials that may read them.
   const repos = principal.scopes.has("repo:read")

@@ -100,7 +100,7 @@ export async function log(
 }
 
 // Commits reachable from `starts`, without expanding anything in `stopAt` (a client's shallow roots).
-async function reachableCommits(
+export async function reachableCommits(
   store: ObjectStore,
   starts: string[],
   stopAt: Set<string>,
