@@ -21,12 +21,12 @@ function globSegment(pattern: string, value: string): boolean {
   let star = -1;
   let mark = 0;
   while (v < value.length) {
-    if (p < pattern.length && (pattern[p] === "?" || pattern[p] === value[v])) {
-      p++;
-      v++;
-    } else if (p < pattern.length && pattern[p] === "*") {
+    if (p < pattern.length && pattern[p] === "*") {
       star = p++;
       mark = v;
+    } else if (p < pattern.length && (pattern[p] === "?" || pattern[p] === value[v])) {
+      p++;
+      v++;
     } else if (star !== -1) {
       p = star + 1;
       v = ++mark;

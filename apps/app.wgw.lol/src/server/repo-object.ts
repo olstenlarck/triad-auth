@@ -15,6 +15,7 @@ import { FLUSH, pkt, PktReader } from "../git/pktline";
 import { rulesOf } from "../git/projection";
 import { isService, parseAdvertisement, type Ref } from "../git/protocol";
 import { GitError, GitRepo, type RefUpdate, type Storage, type View } from "../git/repo";
+import { RULES_FILE } from "../git/rules";
 import type { RawObject } from "../git/store";
 import type { FileChange } from "../git/tree";
 import { deflate, inflate } from "../git/zlib";
@@ -400,6 +401,10 @@ export class Repo extends DurableObject<Env> {
         }
         const zdata = deflate(file.content);
         if (zdata.length > MAX_INLINE) {
+          // The rules reader reads only inline objects, as the push check in GitRepo requires.
+          if (file.path === RULES_FILE) {
+            throw new GitError(`${RULES_FILE} is too large`, 413);
+          }
           const sha = objectHash("blob", file.content);
           large.push({ sha, type: "blob", content: file.content, zdata });
         }

@@ -30,6 +30,10 @@ describe("git core limits", () => {
     expect(performance.now() - started).toBeLessThan(500);
     expect(rules.matches(`${"a".repeat(30)}b`, false)).toBe(true);
   });
+
+  it("matches a wildcard against a filename that contains a star", () => {
+    expect(new PrivateRules("*.pem\n").matches("*secret.pem", false)).toBe(true);
+  });
 });
 
 describe("mergeBase", () => {
