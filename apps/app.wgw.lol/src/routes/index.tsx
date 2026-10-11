@@ -1,0 +1,131 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+
+import { RepoList } from "~/components/repo-list";
+import { Kicker, Page, Terminal } from "~/components/site";
+import { Button } from "~/components/ui/button";
+import { api, type Repo } from "~/lib/api";
+
+export const Route = createFileRoute("/")({
+  loader: () => api<Repo[]>("/api/explore"),
+  component: Home,
+});
+
+const FEATURES = [
+  [
+    "Public and private paths, one repo",
+    "List paths in .gitprivate. Members clone everything; everyone else clones a public history where those paths never existed. Remove the line to publish.",
+  ],
+  [
+    "Environments and secrets",
+    "Production, staging, preview, development. Secrets are AES-GCM sealed in D1 and pulled by a scoped token: wgw env pull production.",
+  ],
+  [
+    "Pull requests, merged at the edge",
+    "Compare, review, comment, and merge without a CI box. Fast-forward when possible, a real three-way merge commit otherwise.",
+  ],
+  [
+    "Agents commit without a clone",
+    "POST files to /api/repos/:owner/:name/commits and get a commit back, with compare-and-swap on the branch tip.",
+  ],
+  [
+    "Import any git remote",
+    "GitHub, GitLab, Codeberg, anything that speaks smart HTTP. wgw talks git, not GitHub.",
+  ],
+  [
+    "Agent sign-in",
+    "AgentID for AgentMail inboxes, auth.md for any agent, and the device flow for the CLI.",
+  ],
+];
+
+const STACK = [
+  ["Durable Objects", "one SQLite object per repository: objects, refs, public projection"],
+  ["Workers", "smart HTTP git, REST API, auth"],
+  ["D1", "accounts, tokens, pull requests, environments"],
+  ["R2", "large blobs and an archive of every pushed pack"],
+  ["KV", "sign-in state and passkey challenges"],
+  ["Workers AI", "pull request summaries"],
+  ["Analytics Engine", "clone, fetch, and push counts"],
+];
+
+function Home() {
+  const repos = Route.useLoaderData();
+  return (
+    <>
+      <section className="border-b">
+        <Page className="grid gap-10 py-16 md:grid-cols-[1.2fr_1fr] md:py-24">
+          <div>
+            <Kicker>git hosting on cloudflare</Kicker>
+            <h1 className="mt-4 text-6xl leading-[0.9] font-black tracking-[-0.04em] md:text-8xl">
+              Git,
+              <br />
+              rewired
+              <br />
+              <span className="text-signal">for agents.</span>
+            </h1>
+            <p className="text-muted-foreground mt-6 max-w-xl text-lg">
+              Push, clone, review, and merge on Cloudflare's network. Every repository is its own
+              Durable Object. People sign in with Google and a passkey; agents sign in with AgentID
+              or auth.md.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button asChild size="lg">
+                <Link to="/login">Start a repository</Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <a href="/skill.md">Agent quickstart</a>
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-4 self-end">
+            <Terminal title="people">{`curl -fsSL https://app.wgw.lol/install.sh | sh
+wgw login
+wgw repo create hello
+git push wgw main`}</Terminal>
+            <Terminal title="agents">{`curl https://app.wgw.lol/skill.md
+curl https://app.wgw.lol/auth.md`}</Terminal>
+          </div>
+        </Page>
+      </section>
+      <section className="border-b">
+        <Page className="bg-border grid gap-px p-0 md:grid-cols-3">
+          {FEATURES.map(([title, text]) => (
+            <div key={title} className="bg-background p-6">
+              <h3 className="text-lg font-extrabold tracking-tight">{title}</h3>
+              <p className="text-muted-foreground mt-2 text-sm">{text}</p>
+            </div>
+          ))}
+        </Page>
+      </section>
+      <section className="border-b">
+        <Page className="grid gap-8 md:grid-cols-[1fr_2fr]">
+          <div>
+            <Kicker>what runs where</Kicker>
+            <h2 className="mt-3 text-3xl font-black tracking-tight">
+              Seven Cloudflare products, no servers.
+            </h2>
+          </div>
+          <dl className="bg-border grid gap-px border font-mono text-sm sm:grid-cols-2">
+            {STACK.map(([name, role]) => (
+              <div key={name} className="bg-background p-4">
+                <dt className="text-signal font-bold">{name}</dt>
+                <dd className="text-muted-foreground mt-1 text-xs">{role}</dd>
+              </div>
+            ))}
+          </dl>
+        </Page>
+      </section>
+      <Page>
+        <div className="mb-4 flex items-baseline justify-between">
+          <h2 className="text-2xl font-black tracking-tight">Recently pushed</h2>
+          <Link
+            to="/explore"
+            className="text-muted-foreground hover:text-foreground font-mono text-xs"
+          >
+            all public repositories →
+          </Link>
+        </div>
+        <RepoList repos={repos.slice(0, 10)} empty="No public repositories yet." />
+      </Page>
+    </>
+  );
+}
