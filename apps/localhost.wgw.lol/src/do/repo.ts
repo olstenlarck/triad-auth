@@ -13,6 +13,8 @@ import {
   encoder,
   isBinary,
   parseTag,
+  parseCommit,
+  parseTree,
 } from "../git/objects";
 import { compress, parsePack } from "../git/pack";
 import { PktReader } from "../git/pktline";
@@ -342,6 +344,25 @@ export class RepoObject extends DurableObject<AppEnv> implements Repository {
         const target = await this.get(command.newSha);
         if (command.name.startsWith("refs/heads/") && target?.type !== "commit") {
           return "branches must point to commits";
+        }
+        // Bounded connectivity: the tip's tree, its parents, and the root tree's entries must exist.
+        // A full walk per push would cost a repository traversal on the free plan.
+        if (target?.type === "commit") {
+          const commit = parseCommit(target.data);
+          const tree = await this.get(commit.tree);
+          if (tree?.type !== "tree") {
+            return "tip commit references a missing tree";
+          }
+          for (const parent of commit.parents) {
+            if (!(await this.has(parent))) {
+              return "tip commit references a missing parent";
+            }
+          }
+          for (const entry of parseTree(tree.data)) {
+            if (entry.mode !== "160000" && !(await this.has(entry.sha))) {
+              return `root tree references a missing object: ${entry.name}`;
+            }
+          }
         }
         // The default branch keeps its history: no force pushes over it.
         if (
