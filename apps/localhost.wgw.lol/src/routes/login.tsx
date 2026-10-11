@@ -1,10 +1,22 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+
+// Only same-origin paths may be used as a return target.
+function safePath(value: string): string {
+  return /^\/(?![/\\])/.test(value) ? value : "/";
+}
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { return_to: string; error?: string } => ({
-    return_to: typeof search.return_to === "string" ? search.return_to : "/",
+    return_to: typeof search.return_to === "string" ? safePath(search.return_to) : "/",
     error: typeof search.error === "string" ? search.error : undefined,
   }),
+  // The claim and device links route through here; a signed-in browser goes straight on.
+  beforeLoad: ({ context, search }) => {
+    if (context.user) {
+      // oxlint-disable-next-line typescript/only-throw-error -- TanStack Router control flow
+      throw redirect({ href: search.return_to });
+    }
+  },
   component: Login,
 });
 

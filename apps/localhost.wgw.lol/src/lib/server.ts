@@ -1,9 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 
-import { app } from "../api";
-import { currentRequest } from "../request-context";
-import { isRecord } from "../utils";
-
 // A JSON document as the REST API returns it. Server functions may only carry serializable data.
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -14,41 +10,21 @@ export interface ApiResult<T> {
   error: string | null;
 }
 
-// Loaders call the REST API in-process with the browser's cookies, so the UI and agents share one API.
-async function relay<T>(path: string): Promise<ApiResult<T>> {
-  const { request, env, ctx } = currentRequest();
-  const headers = new Headers({ accept: "application/json" });
-  const cookie = request.headers.get("cookie");
-  if (cookie) {
-    headers.set("cookie", cookie);
-  }
-  headers.set("origin", env.APP_ORIGIN);
-  const response = await app.fetch(
-    new Request(`${env.APP_ORIGIN}${path}`, { method: "GET", headers }),
-    env,
-    ctx,
-  );
-  const text = await response.text();
-  let parsed: unknown = null;
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    parsed = null;
-  }
-  const message = isRecord(parsed) && typeof parsed.message === "string" ? parsed.message : null;
-
-  // SAFETY: `path` names one of our own REST routes, and the caller names the JSON shape it answers with.
-  return {
-    ok: response.ok,
-    status: response.status,
-    data: response.ok ? (parsed as T) : null,
-    error: response.ok ? null : (message ?? `request failed with ${response.status}`),
-  };
+export interface SessionUser {
+  handle: string;
+  display_name: string;
+  kind: "human" | "agent";
+  avatar_url: string | null;
 }
 
+// Handler bodies run only on the server, so the dynamic import of ./relay never reaches the browser.
 const apiGet = createServerFn({ method: "GET" })
   .validator((path: string) => path)
-  .handler(({ data }) => relay<Json>(data));
+  .handler(async ({ data }) => {
+    const { relay } = await import("./relay");
+
+    return relay(data);
+  });
 
 // Loaders name the payload type of the endpoint they call once, here.
 export async function callApi<T>(path: string): Promise<ApiResult<T>> {
@@ -58,21 +34,20 @@ export async function callApi<T>(path: string): Promise<ApiResult<T>> {
   return result as ApiResult<T>;
 }
 
-export interface SessionUser {
-  handle: string;
-  display_name: string;
-  kind: "human" | "agent";
-  avatar_url: string | null;
-}
-
 export const getSessionUser = createServerFn({ method: "GET" }).handler(async () => {
-  const result = await relay<{ user: SessionUser }>("/auth/me");
+  const { relay } = await import("./relay");
+  const result = await relay("/auth/me");
+  const user =
+    result.data && typeof result.data === "object" && !Array.isArray(result.data)
+      ? result.data.user
+      : null;
 
-  return result.data?.user ?? null;
+  // SAFETY: /auth/me answers { user: SessionUser } when signed in.
+  return (user ?? null) as SessionUser | null;
 });
 
-export function buildInfo(): { commit: string } {
-  return { commit: currentRequest().env.COMMIT_SHA };
-}
+export const getBuildInfo = createServerFn({ method: "GET" }).handler(async () => {
+  const { buildInfo } = await import("./relay");
 
-export const getBuildInfo = createServerFn({ method: "GET" }).handler(() => buildInfo());
+  return buildInfo();
+});
