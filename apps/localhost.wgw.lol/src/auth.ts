@@ -21,6 +21,7 @@ export interface Principal {
   via: "session" | "token" | "agent";
   scopes: Set<string>;
   tokenRepoId: string | null;
+  tokenId: string | null;
 }
 
 export function parseCookies(header: string | null): Map<string, string> {
@@ -117,6 +118,7 @@ export async function authenticate(db: Db, request: Request): Promise<Principal 
       via: "token",
       scopes: parseScopes(token.scopes),
       tokenRepoId: token.repo_id,
+      tokenId: token.id,
     };
   }
 
@@ -124,7 +126,7 @@ export async function authenticate(db: Db, request: Request): Promise<Principal 
   if (sessionId) {
     const user = await db.sessionUser(sessionId);
     if (user) {
-      return { user, via: "session", scopes: allScopes(), tokenRepoId: null };
+      return { user, via: "session", scopes: allScopes(), tokenRepoId: null, tokenId: null };
     }
   }
 
@@ -134,6 +136,8 @@ export async function authenticate(db: Db, request: Request): Promise<Principal 
 export interface Access {
   role: Role | null;
   canRead: boolean;
+  // Sees private paths and full history: a role plus a credential that carries repo:read.
+  canReadPrivate: boolean;
   canWrite: boolean;
   canAdmin: boolean;
 }
@@ -142,12 +146,12 @@ export async function accessTo(db: Db, repo: Repo, principal: Principal | null):
   const role = await db.roleOf(repo, principal?.user.id ?? null);
   const scoped = (scope: Scope) => principal?.scopes.has(scope) ?? false;
   const repoAllowed = !principal?.tokenRepoId || principal.tokenRepoId === repo.id;
-  const canRead =
-    repo.visibility === "public" || (role !== null && scoped("repo:read") && repoAllowed);
+  const canReadPrivate = role !== null && scoped("repo:read") && repoAllowed;
+  const canRead = repo.visibility === "public" || canReadPrivate;
   const canWrite = (role === "write" || role === "admin") && scoped("repo:write") && repoAllowed;
   const canAdmin = role === "admin" && scoped("repo:admin") && repoAllowed;
 
-  return { role, canRead, canWrite, canAdmin };
+  return { role, canRead, canReadPrivate, canWrite, canAdmin };
 }
 
 export function newHandleFor(base: string): string {

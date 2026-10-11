@@ -155,7 +155,10 @@ export function parseTree(data: Uint8Array): TreeEntry[] {
   let offset = 0;
   while (offset < data.length) {
     const space = data.indexOf(0x20, offset);
-    const nul = data.indexOf(0, space);
+    const nul = space === -1 ? -1 : data.indexOf(0, space);
+    if (space <= offset || nul === -1 || nul + 21 > data.length) {
+      throw new Error("malformed tree entry");
+    }
     const mode = decoder.decode(data.subarray(offset, space));
     const name = decoder.decode(data.subarray(space + 1, nul));
     const sha = bytesToHex(data.subarray(nul + 1, nul + 21));

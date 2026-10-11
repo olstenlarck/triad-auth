@@ -31,8 +31,16 @@ import {
   inflateObject,
   writeObject,
 } from "../git/store";
-import { type Change, diffTrees, filterTree, readTree, resolvePath, writePath } from "../git/tree";
-import { type LogEntry, log, mergeBase, peelToCommit, readCommit } from "../git/walk";
+import {
+  type Change,
+  diffTrees,
+  filterTree,
+  readTree,
+  resolvePath,
+  splitPath,
+  writePath,
+} from "../git/tree";
+import { type LogEntry, isAncestor, log, mergeBase, peelToCommit, readCommit } from "../git/walk";
 
 // SQLite rows cap at 2 MB, so compressed objects above this size live in R2 under objects/<id>/<sha>.
 const INLINE_LIMIT = 1_500_000;
@@ -99,10 +107,19 @@ export interface ImportProgress {
   updatedAt: number;
 }
 
-function hiddenMatcher(hidden: string[]): (path: string) => boolean {
-  const prefixes = hidden.map((rule) => rule.replace(/^\/+/, "").replace(/\/+$/, ""));
+// Paths and rules are compared in one canonical form: no leading, trailing, or repeated slashes.
+function normalizePath(path: string): string {
+  return splitPath(path).join("/");
+}
 
-  return (path) => prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+function hiddenMatcher(hidden: string[]): (path: string) => boolean {
+  const prefixes = hidden.map(normalizePath).filter((prefix) => prefix.length > 0);
+
+  return (path) => {
+    const clean = normalizePath(path);
+
+    return prefixes.some((prefix) => clean === prefix || clean.startsWith(`${prefix}/`));
+  };
 }
 
 function sqlRow<T extends Record<string, SqlStorageValue>>(cursor: SqlStorageCursor<T>): T | null {
@@ -306,9 +323,25 @@ export class RepoObject extends DurableObject<AppEnv> implements Repository {
       }
       const body = await requestBytes(request);
       const protectedBranch = request.headers.get("x-lh-default-branch");
-      const check: CommandCheck = (command) => {
-        if (command.name === `refs/heads/${protectedBranch}` && command.newSha === EMPTY_SHA) {
+      const check: CommandCheck = async (command) => {
+        const isDefault = command.name === `refs/heads/${protectedBranch}`;
+        if (isDefault && command.newSha === EMPTY_SHA) {
           return "cannot delete the default branch";
+        }
+        if (command.newSha === EMPTY_SHA) {
+          return null;
+        }
+        const target = await this.get(command.newSha);
+        if (command.name.startsWith("refs/heads/") && target?.type !== "commit") {
+          return "branches must point to commits";
+        }
+        // The default branch keeps its history: no force pushes over it.
+        if (
+          isDefault &&
+          command.oldSha !== EMPTY_SHA &&
+          !(await isAncestor(this, command.oldSha, command.newSha))
+        ) {
+          return "non-fast-forward update of the default branch";
         }
 
         return null;
@@ -471,7 +504,7 @@ export class RepoObject extends DurableObject<AppEnv> implements Repository {
     }
     const commit = await readCommit(this, sha);
     const isHidden = hiddenMatcher(view.hidden);
-    const clean = path.replace(/^\/+|\/+$/g, "");
+    const clean = normalizePath(path);
     if (clean && isHidden(clean)) {
       return null;
     }
@@ -517,7 +550,7 @@ export class RepoObject extends DurableObject<AppEnv> implements Repository {
     if (!sha) {
       return null;
     }
-    const clean = path.replace(/^\/+|\/+$/g, "");
+    const clean = normalizePath(path);
     if (hiddenMatcher(view.hidden)(clean)) {
       return null;
     }
@@ -661,10 +694,10 @@ export class RepoObject extends DurableObject<AppEnv> implements Repository {
       content === null
         ? null
         : { sha: await writeObject(this, "blob", encoder.encode(content)), mode: "100644" };
-    const tree = await writePath(this, parentTree, path, blob);
-    if (tree === null) {
-      throw new Error("a commit needs at least one file");
-    }
+    // Removing the last file leaves an empty tree, which git accepts.
+    const tree =
+      (await writePath(this, parentTree, path, blob)) ??
+      (await writeObject(this, "tree", new Uint8Array()));
     const sha = await commitTree(this, { tree, parents: parent ? [parent] : [], author, message });
     await this.updateRefs([{ name: refName, oldSha: parent, newSha: sha }]);
     if (!parent && (await this.listRefs()).size === 1) {

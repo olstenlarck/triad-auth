@@ -1,10 +1,10 @@
 import type { Access } from "./auth";
 import type { PathRule, Repo } from "./db";
 
-// The paths a viewer cannot see. A public repo hides its private rules from readers without a role;
-// a private repo is hidden entirely unless the viewer has a role, except for paths marked public.
+// The paths a viewer cannot see. A public repo hides its private rules from readers who lack a role
+// or a credential with repo:read; a private repo is hidden entirely except for paths marked public.
 export function hiddenPathsFor(repo: Repo, rules: PathRule[], access: Access): string[] {
-  if (access.role !== null) {
+  if (access.canReadPrivate) {
     return [];
   }
   if (repo.visibility === "public") {
@@ -16,7 +16,7 @@ export function hiddenPathsFor(repo: Repo, rules: PathRule[], access: Access): s
 
 // For a private repo, the public rules are the only paths an anonymous viewer may see.
 export function exposedPathsFor(repo: Repo, rules: PathRule[], access: Access): string[] | null {
-  if (access.role !== null || repo.visibility === "public") {
+  if (access.canReadPrivate || repo.visibility === "public") {
     return null;
   }
 

@@ -4,7 +4,7 @@ import { SignJWT, importJWK, jwtVerify, type JWK } from "jose";
 
 import { SCOPES, hashUserCode, isScope, newToken, newUserCode } from "../auth";
 import { appEnv, db } from "../context";
-import { claimRegistrationToken, consumeDeviceCode, tokenExists } from "../db";
+import { claimRegistrationToken, consumeDeviceCode, registrationHasToken } from "../db";
 import {
   isRecord,
   randomBytes,
@@ -112,6 +112,7 @@ async function issueAccessToken(
   userId: string,
   scopes: string[],
   name: string,
+  registrationId: string | null = null,
 ): Promise<{ token: string; expiresIn: number; scope: string; id: string }> {
   const created = newToken();
   const row = await db().createToken({
@@ -120,6 +121,7 @@ async function issueAccessToken(
     prefix: created.prefix,
     hash: created.hash,
     scopes,
+    registrationId,
     expiresAt: now() + ACCESS_TOKEN_TTL,
   });
 
@@ -480,9 +482,10 @@ agentAuth.post("/oauth2/token", async (c) => {
       registration.user_id,
       POST_CLAIM_SCOPES,
       `agent ${registration.id.slice(4, 12)}`,
+      registration.id,
     );
     if (!(await claimRegistrationToken(appEnv().DB, registration.id, issued.id))) {
-      await db().deleteToken(registration.user_id, issued.id);
+      await db().deleteTokenRow(issued.id);
 
       return oauthError(
         c,
@@ -527,13 +530,14 @@ agentAuth.post("/oauth2/token", async (c) => {
       return oauthError(c, 400, "invalid_grant", "complete the claim ceremony first");
     }
     // Deleting the agent token under Settings revokes the registration as well.
-    if (!registration.token_id || !(await tokenExists(appEnv().DB, registration.token_id))) {
+    if (!registration.token_id || !(await registrationHasToken(appEnv().DB, registration.id))) {
       return oauthError(c, 400, "invalid_grant", "this registration was revoked; register again");
     }
     const issued = await issueAccessToken(
       registration.user_id,
       POST_CLAIM_SCOPES,
       `agent ${registration.id.slice(4, 12)}`,
+      registration.id,
     );
 
     return c.json({

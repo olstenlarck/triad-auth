@@ -172,29 +172,51 @@ export async function isAncestor(
   return false;
 }
 
-// The nearest common ancestor by committer time, or null for unrelated histories.
+// The best common ancestor: walk `b` toward the roots, stop at the first commits that `a` also
+// reaches, drop any that another candidate reaches, and prefer the newest of what remains.
+// Timestamps only break ties between independent candidates, never ancestry.
 export async function mergeBase(store: ObjectStore, a: string, b: string): Promise<string | null> {
   const fromA = await ancestors(store, a, 50_000);
+  const candidates: LogEntry[] = [];
   const seen = new Set<string>([b]);
-  const frontier: LogEntry[] = [{ sha: b, commit: await readCommit(store, b) }];
-  while (frontier.length > 0) {
-    frontier.sort((x, y) => y.commit.committer.time - x.commit.committer.time);
-    const next = frontier.shift();
-    if (!next) {
+  const queue = [b];
+  while (queue.length > 0 && candidates.length < 16) {
+    const sha = queue.shift();
+    if (sha === undefined) {
       break;
     }
-    if (fromA.has(next.sha)) {
-      return next.sha;
+    const commit = await readCommit(store, sha);
+    if (fromA.has(sha)) {
+      candidates.push({ sha, commit });
+      continue;
     }
-    for (const parent of next.commit.parents) {
+    for (const parent of commit.parents) {
       if (!seen.has(parent)) {
         seen.add(parent);
-        frontier.push({ sha: parent, commit: await readCommit(store, parent) });
+        queue.push(parent);
       }
     }
   }
+  if (candidates.length === 0) {
+    return null;
+  }
 
-  return null;
+  const independent: LogEntry[] = [];
+  for (const candidate of candidates) {
+    let dominated = false;
+    for (const other of candidates) {
+      if (other !== candidate && (await isAncestor(store, candidate.sha, other.sha))) {
+        dominated = true;
+        break;
+      }
+    }
+    if (!dominated) {
+      independent.push(candidate);
+    }
+  }
+  independent.sort((x, y) => y.commit.committer.time - x.commit.committer.time);
+
+  return independent[0]?.sha ?? candidates[0].sha;
 }
 
 async function collectTree(

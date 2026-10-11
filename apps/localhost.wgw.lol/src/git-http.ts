@@ -43,7 +43,7 @@ export function cloneUrls(
   }
   const snapshot = `${origin}/${repo.owner_handle}/${repo.name}.public.git`;
 
-  return { clone_url: access.role ? full : snapshot, public_clone_url: snapshot };
+  return { clone_url: access.canReadPrivate ? full : snapshot, public_clone_url: snapshot };
 }
 
 // Routes git smart HTTP to the repository's Durable Object after checking visibility and tokens.

@@ -72,6 +72,7 @@ type RepoView<T extends RepoContext> = T & {
 
 function viewFor(c: Context, level: "write" | "admin"): Promise<RepoView<WriterContext>>;
 function viewFor(c: Context, level: AccessLevel): Promise<RepoView<RepoContext>>;
+
 async function viewFor(c: Context, level: AccessLevel): Promise<RepoView<RepoContext>> {
   const context = await loadRepo(c, level);
   const rules = await db().pathRules(context.repo.id);
@@ -81,11 +82,36 @@ async function viewFor(c: Context, level: AccessLevel): Promise<RepoView<RepoCon
   return { ...context, rules, hidden, exposed, stub: repoStub(context.repo.id) };
 }
 
+// Splits `<ref>/<path>` from a tree, blob, or raw URL. Branch names may contain slashes, so the
+// longest leading run of segments that names an existing branch or tag wins; otherwise the first
+// segment is taken as a sha or unknown ref.
+async function splitRefAndPath(
+  stub: ReturnType<typeof repoStub>,
+  raw: string,
+  fallback: string,
+): Promise<{ ref: string; path: string }> {
+  const segments = raw.split("/").filter((segment) => segment.length > 0);
+  if (segments.length === 0) {
+    return { ref: fallback, path: "" };
+  }
+  const refs = await stub.refs();
+  const names = new Set([...refs.branches, ...refs.tags].map((entry) => entry.name));
+  for (let length = segments.length; length > 0; length--) {
+    const candidate = segments.slice(0, length).join("/");
+    if (names.has(candidate)) {
+      return { ref: candidate, path: segments.slice(length).join("/") };
+    }
+  }
+
+  return { ref: cleanRef(segments[0], fallback), path: segments.slice(1).join("/") };
+}
+
 // ---- repositories ----
 
 repos.get("/", async (c) => {
   const principal = await requirePrincipal(c).catch(() => null);
-  const list = await db().reposVisibleTo(principal?.user.id ?? null);
+  const reader = principal?.scopes.has("repo:read") ? principal.user.id : null;
+  const list = await db().reposVisibleTo(reader);
 
   return c.json({ repos: list.map(publicRepo) });
 });
@@ -103,6 +129,13 @@ repos.post("/", async (c) => {
     import_from?: string;
   }>(c);
   const name = (body.name ?? "").trim();
+  if (name.endsWith(".public")) {
+    throw new HttpError(
+      400,
+      "names ending in .public are reserved for snapshot remotes",
+      "invalid_request",
+    );
+  }
   if (!isValidSlug(name)) {
     throw new HttpError(
       400,
@@ -163,7 +196,16 @@ repos.get("/:owner/:repo", async (c) => {
     stub.importProgress(),
   ]);
   if (repo.import_status === "running" && importProgress.status !== "running") {
-    await db().updateRepo(repo.id, { import_status: importProgress.status });
+    // The import adopted the remote's HEAD; D1 follows it so protection and the UI agree.
+    const imported = refs.head.replace(/^refs\/heads\//, "");
+    const defaultBranch = refs.branches.some((branch) => branch.name === imported)
+      ? imported
+      : repo.default_branch;
+    await db().updateRepo(repo.id, {
+      import_status: importProgress.status,
+      default_branch: defaultBranch,
+    });
+    repo.default_branch = defaultBranch;
   }
 
   return c.json({
@@ -250,12 +292,11 @@ repos.get("/:owner/:repo/commits/:sha", async (c) => {
 
 repos.get("/:owner/:repo/tree/:ref{.+}", async (c) => {
   const { repo, stub, hidden, exposed } = await viewFor(c, "exposed");
-  const [ref, ...rest] = c.req.param("ref").split("/");
-  const path = rest.join("/");
+  const { ref, path } = await splitRefAndPath(stub, c.req.param("ref"), repo.default_branch);
   if (exposed && !pathIsExposed(path, exposed)) {
     throw new HttpError(404, "not found", "not_found");
   }
-  const entries = await stub.listPath(cleanRef(ref, repo.default_branch), path, { hidden });
+  const entries = await stub.listPath(ref, path, { hidden });
   if (!entries) {
     throw new HttpError(404, "path not found", "not_found");
   }
@@ -268,12 +309,11 @@ repos.get("/:owner/:repo/tree/:ref{.+}", async (c) => {
 
 repos.get("/:owner/:repo/blob/:ref{.+}", async (c) => {
   const { repo, stub, hidden, exposed } = await viewFor(c, "exposed");
-  const [ref, ...rest] = c.req.param("ref").split("/");
-  const path = rest.join("/");
+  const { ref, path } = await splitRefAndPath(stub, c.req.param("ref"), repo.default_branch);
   if (exposed && !pathIsExposed(path, exposed)) {
     throw new HttpError(404, "not found", "not_found");
   }
-  const file = await stub.readFile(cleanRef(ref, repo.default_branch), path, { hidden });
+  const file = await stub.readFile(ref, path, { hidden });
   if (!file) {
     throw new HttpError(404, "file not found", "not_found");
   }
@@ -282,13 +322,12 @@ repos.get("/:owner/:repo/blob/:ref{.+}", async (c) => {
 });
 
 repos.get("/:owner/:repo/raw/:ref{.+}", async (c) => {
-  const { repo, stub, hidden, exposed } = await viewFor(c, "exposed");
-  const [ref, ...rest] = c.req.param("ref").split("/");
-  const path = rest.join("/");
+  const { repo, stub, hidden, exposed, rules } = await viewFor(c, "exposed");
+  const { ref, path } = await splitRefAndPath(stub, c.req.param("ref"), repo.default_branch);
   if (exposed && !pathIsExposed(path, exposed)) {
     throw new HttpError(404, "not found", "not_found");
   }
-  const raw = await stub.rawFile(cleanRef(ref, repo.default_branch), path, { hidden });
+  const raw = await stub.rawFile(ref, path, { hidden });
   if (!raw) {
     throw new HttpError(404, "file not found", "not_found");
   }
@@ -296,7 +335,10 @@ repos.get("/:owner/:repo/raw/:ref{.+}", async (c) => {
   return new Response(raw.data, {
     headers: {
       "content-type": "application/octet-stream",
-      "cache-control": repo.visibility === "public" ? "public, max-age=60" : "private, no-store",
+      "cache-control":
+        repo.visibility === "public" && rules.length === 0
+          ? "public, max-age=60"
+          : "private, no-store",
       etag: `"${raw.sha}"`,
     },
   });

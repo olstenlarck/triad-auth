@@ -138,6 +138,7 @@ export async function parsePack(
   const objects: PackedObject[] = [];
   const byOffset = new Map<number, PackedObject>();
   const bySha = new Map<string, PackedObject>();
+  const deferred: Array<{ entryOffset: number; baseSha: string; delta: Uint8Array }> = [];
   let offset = 12;
   for (let index = 0; index < count; index++) {
     const entryOffset = offset;
@@ -163,18 +164,26 @@ export async function parsePack(
       if (!base) {
         throw new Error("ofs-delta base not found");
       }
-    } else if (typeCode === REF_DELTA) {
+    }
+    let pendingBase: string | null = null;
+    if (typeCode === REF_DELTA) {
       const baseSha = bytesToHex(pack.subarray(offset, offset + 20));
       offset += 20;
       base = bySha.get(baseSha) ?? (await resolveBase(baseSha));
       if (!base) {
-        throw new Error(`ref-delta base ${baseSha} not found`);
+        // A valid pack may place the base after its delta; resolve it once everything is read.
+        pendingBase = baseSha;
       }
     }
 
     const { data: inflated, consumed } = inflateAt(pack, offset);
     const zdata = pack.subarray(offset, offset + consumed);
     offset += consumed;
+
+    if (pendingBase) {
+      deferred.push({ entryOffset, baseSha: pendingBase, delta: inflated });
+      continue;
+    }
 
     let object: PackedObject;
     if (base) {
@@ -193,6 +202,28 @@ export async function parsePack(
     objects.push(object);
     byOffset.set(entryOffset, object);
     bySha.set(object.sha, object);
+  }
+
+  // Forward ref-deltas: apply in passes until every base is known or nothing moves.
+  let remaining = deferred;
+  while (remaining.length > 0) {
+    const next: typeof remaining = [];
+    for (const entry of remaining) {
+      const base = bySha.get(entry.baseSha) ?? (await resolveBase(entry.baseSha));
+      if (!base) {
+        next.push(entry);
+        continue;
+      }
+      const data = applyDelta(base.data, entry.delta);
+      const object: PackedObject = { type: base.type, data, sha: hashObject(base.type, data) };
+      objects.push(object);
+      byOffset.set(entry.entryOffset, object);
+      bySha.set(object.sha, object);
+    }
+    if (next.length === remaining.length) {
+      throw new Error(`ref-delta base ${next[0].baseSha} not found`);
+    }
+    remaining = next;
   }
 
   return objects;

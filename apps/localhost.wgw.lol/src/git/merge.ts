@@ -125,12 +125,14 @@ export async function mergeCommits(
   const ourTree = (await readCommit(store, base)).tree;
   const theirTree = (await readCommit(store, head)).tree;
   const result = await mergeTrees(store, baseTree, ourTree, theirTree);
-  if (result.conflicts.length > 0 || result.tree === null) {
+  if (result.conflicts.length > 0) {
     return { status: "conflict", sha: base, conflicts: result.conflicts };
   }
+  // Both sides may have removed every file; git allows a commit with an empty tree.
+  const tree = result.tree ?? (await writeObject(store, "tree", new Uint8Array()));
 
   const sha = await commitTree(store, {
-    tree: result.tree,
+    tree,
     parents: [base, head],
     author,
     message,

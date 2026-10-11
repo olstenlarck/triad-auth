@@ -46,6 +46,7 @@ export interface Token {
   hash: string;
   scopes: string;
   repo_id: string | null;
+  registration_id: string | null;
   expires_at: number | null;
   last_used_at: number | null;
   created_at: number;
@@ -248,6 +249,7 @@ export class Db {
     hash: string;
     scopes: string[];
     repoId?: string | null;
+    registrationId?: string | null;
     expiresAt?: number | null;
   }): Promise<Token> {
     const token: Token = {
@@ -258,13 +260,14 @@ export class Db {
       hash: input.hash,
       scopes: input.scopes.join(" "),
       repo_id: input.repoId ?? null,
+      registration_id: input.registrationId ?? null,
       expires_at: input.expiresAt ?? null,
       last_used_at: null,
       created_at: now(),
     };
     await this.d1
       .prepare(
-        "insert into tokens (id, user_id, name, prefix, hash, scopes, repo_id, expires_at, last_used_at, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, null, ?)",
+        "insert into tokens (id, user_id, name, prefix, hash, scopes, repo_id, registration_id, expires_at, last_used_at, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, null, ?)",
       )
       .bind(
         token.id,
@@ -274,6 +277,7 @@ export class Db {
         token.hash,
         token.scopes,
         token.repo_id,
+        token.registration_id,
         token.expires_at,
         token.created_at,
       )
@@ -311,11 +315,25 @@ export class Db {
     return results;
   }
 
+  async deleteTokenRow(id: string): Promise<void> {
+    await this.d1.prepare("delete from tokens where id = ?").bind(id).run();
+  }
+
+  // Revoking a token minted for an auth.md registration revokes every token of that registration.
   async deleteToken(userId: string, id: string): Promise<boolean> {
-    const result = await this.d1
-      .prepare("delete from tokens where id = ? and user_id = ?")
+    const row = await this.d1
+      .prepare("select registration_id from tokens where id = ? and user_id = ?")
       .bind(id, userId)
-      .run();
+      .first<{ registration_id: string | null }>();
+    if (!row) {
+      return false;
+    }
+    const statement = row.registration_id
+      ? this.d1
+          .prepare("delete from tokens where registration_id = ? and user_id = ?")
+          .bind(row.registration_id, userId)
+      : this.d1.prepare("delete from tokens where id = ? and user_id = ?").bind(id, userId);
+    const result = await statement.run();
 
     return (result.meta.changes ?? 0) > 0;
   }
@@ -929,10 +947,13 @@ export async function consumeDeviceCode(d1: D1Database, id: string): Promise<boo
   return (result.meta.changes ?? 0) > 0;
 }
 
-export async function tokenExists(d1: D1Database, id: string): Promise<boolean> {
+export async function registrationHasToken(
+  d1: D1Database,
+  registrationId: string,
+): Promise<boolean> {
   const row = await d1
-    .prepare("select id from tokens where id = ?")
-    .bind(id)
+    .prepare("select id from tokens where registration_id = ? limit 1")
+    .bind(registrationId)
     .first<{ id: string }>();
 
   return row !== null;

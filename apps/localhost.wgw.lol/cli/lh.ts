@@ -4,7 +4,7 @@
 //   lh login                      device flow; stores the token in ~/.config/lh/credentials.json
 //   lh whoami
 //   lh repo list | create <name> [--private] [--import <https url>] | delete <owner/repo>
-//   lh clone <owner/repo> [dir]   clones with the stored token
+//   lh clone <owner/repo> [dir]   clones; the token stays out of .git/config via `lh credential`
 //   lh pr list <owner/repo> | create <owner/repo> --head <branch> [--base <branch>] --title <t> [--body <b>]
 //   lh pr merge <owner/repo> <number> | close <owner/repo> <number>
 //   lh env list <owner/repo> | get <owner/repo> <env> | set <owner/repo> <env> KEY=value [KEY=value...]
@@ -226,15 +226,50 @@ async function main(argv: string[]): Promise<void> {
       }
       break;
     }
+    case "credential": {
+      // git credential helper protocol: answer `get` for our host with the stored token.
+      if (sub !== "get") {
+        return;
+      }
+      const input = await new Promise<string>((resolve) => {
+        let data = "";
+        process.stdin.setEncoding("utf-8");
+        process.stdin.on("data", (chunk) => {
+          data += String(chunk);
+        });
+        process.stdin.on("end", () => resolve(data));
+      });
+      const host = input
+        .split("\n")
+        .find((line) => line.startsWith("host="))
+        ?.slice(5);
+      const bearer = await token();
+      if (host === new URL(ORIGIN).host && bearer) {
+        process.stdout.write(`username=x\npassword=${bearer}\n`);
+      }
+      return;
+    }
     case "clone": {
+      // The token never lands in .git/config: the clone sends it as a one-off header, and the
+      // cloned repository asks this CLI for it through git's credential helper protocol.
       const bearer = await token();
       const spec = pos[0];
-      const url = bearer
-        ? `${ORIGIN.replace("://", `://x:${bearer}@`)}/${spec}.git`
-        : `${ORIGIN}/${spec}.git`;
-      const result = spawnSync("git", ["clone", url, ...(pos[1] ? [pos[1]] : [])], {
-        stdio: "inherit",
-      });
+      const url = `${ORIGIN}/${spec}.git`;
+      const basic = bearer ? Buffer.from(`x:${bearer}`).toString("base64") : null;
+      const auth = basic ? ["-c", `http.extraHeader=Authorization: Basic ${basic}`] : [];
+      const helper = `!${JSON.stringify(process.argv[0])} ${JSON.stringify(process.argv[1])} credential`;
+      const result = spawnSync(
+        "git",
+        [
+          ...auth,
+          "clone",
+          "--config",
+          `credential.helper=${helper}`,
+          url,
+          ...(pos[1] ? [pos[1]] : []),
+        ],
+        { stdio: "inherit" },
+      );
       return process.exit(result.status ?? 1);
     }
     case "pr": {

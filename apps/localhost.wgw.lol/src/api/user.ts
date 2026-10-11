@@ -9,7 +9,11 @@ export const user = new Hono();
 
 user.get("/", async (c) => {
   const principal = await requirePrincipal(c);
-  const repos = await db().reposOwnedBy(principal.user.id);
+  const owned = await db().reposOwnedBy(principal.user.id);
+  // Private repositories show only to credentials that may read them.
+  const repos = principal.scopes.has("repo:read")
+    ? owned
+    : owned.filter((repo) => repo.visibility === "public");
 
   return c.json({
     user: {
@@ -26,6 +30,9 @@ user.get("/", async (c) => {
 
 user.get("/tokens", async (c) => {
   const principal = await requirePrincipal(c);
+  if (principal.via !== "session" && !principal.scopes.has("user:read")) {
+    throw new HttpError(403, "user:read scope required to list tokens", "forbidden");
+  }
   const tokens = await db().tokensOf(principal.user.id);
 
   return c.json({
@@ -79,6 +86,10 @@ user.post("/tokens", async (c) => {
 
 user.delete("/tokens/:id", async (c) => {
   const principal = await requirePrincipal(c);
+  // A token may revoke itself; revoking other tokens takes a browser session.
+  if (principal.via !== "session" && principal.tokenId !== c.req.param("id")) {
+    throw new HttpError(403, "sign in to manage other tokens", "forbidden");
+  }
   if (!(await db().deleteToken(principal.user.id, c.req.param("id")))) {
     throw new HttpError(404, "token not found", "not_found");
   }
