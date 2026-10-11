@@ -1,0 +1,112 @@
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { Eye, GitFork, Lock } from "lucide-react";
+
+import { CopyField, Page } from "~/components/site";
+import { Badge } from "~/components/ui/badge";
+import { api, type RepoDetail } from "~/lib/api";
+
+export const Route = createFileRoute("/$owner/$repo")({
+  loader: ({ params }) =>
+    api<RepoDetail>(
+      `/api/repos/${encodeURIComponent(params.owner)}/${encodeURIComponent(params.repo)}`,
+    ),
+  component: RepoLayout,
+});
+
+function Tab({ to, label, exact }: { to: string; label: string; exact?: boolean }) {
+  const params = Route.useParams();
+  return (
+    <Link
+      to={to}
+      params={params}
+      activeOptions={{ exact: exact ?? false, includeSearch: false }}
+      className="text-muted-foreground hover:text-foreground [&.active]:border-signal [&.active]:text-foreground border-b-2 border-transparent px-1 pb-3 font-mono text-xs tracking-wider uppercase"
+    >
+      {label}
+    </Link>
+  );
+}
+
+function RepoLayout() {
+  const repo = Route.useLoaderData();
+  return (
+    <>
+      <div className="border-b">
+        <Page className="pb-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-mono text-2xl">
+              <Link
+                to="/$owner"
+                params={{ owner: repo.owner }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {repo.owner}
+              </Link>
+              <span className="text-muted-foreground"> / </span>
+              <Link
+                to="/$owner/$repo"
+                params={{ owner: repo.owner, repo: repo.name }}
+                className="font-bold"
+              >
+                {repo.name}
+              </Link>
+            </h1>
+            <Badge variant="outline" className="font-mono">
+              {repo.visibility === "private" ? <Lock className="size-3" /> : null}
+              {repo.visibility}
+            </Badge>
+            {repo.view === "public" && repo.visibility === "public" ? (
+              <Badge variant="outline" className="border-violet text-violet font-mono">
+                <Eye className="size-3" />
+                public view
+              </Badge>
+            ) : null}
+            {repo.hides_paths ? (
+              <Badge
+                variant="outline"
+                className="border-signal text-signal font-mono"
+                title={repo.private_rules ?? ""}
+              >
+                <Lock className="size-3" />
+                has private paths
+              </Badge>
+            ) : null}
+            {repo.forked_from === null ? null : (
+              <span className="text-muted-foreground flex items-center gap-1 font-mono text-xs">
+                <GitFork className="size-3" /> fork of {repo.forked_from}
+              </span>
+            )}
+            {repo.source === null ? null : (
+              <span className="text-muted-foreground font-mono text-xs">
+                imported from {repo.source}
+              </span>
+            )}
+            <div className="ml-auto w-full max-w-md">
+              <CopyField
+                label={repo.role === null ? "git" : "member"}
+                value={
+                  repo.role === null
+                    ? repo.clone_url
+                    : `git -c http.proactiveAuth=basic clone ${repo.clone_url}`
+                }
+              />
+            </div>
+          </div>
+          {repo.description === "" ? null : (
+            <p className="text-muted-foreground mt-3">{repo.description}</p>
+          )}
+          <nav className="mt-6 flex gap-6">
+            <Tab to="/$owner/$repo" label="Code" exact />
+            <Tab to="/$owner/$repo/commits" label="Commits" />
+            <Tab
+              to="/$owner/$repo/pulls"
+              label={`Pull requests${repo.open_pulls > 0 ? ` · ${repo.open_pulls}` : ""}`}
+            />
+            {repo.role === null ? null : <Tab to="/$owner/$repo/settings" label="Settings" />}
+          </nav>
+        </Page>
+      </div>
+      <Outlet />
+    </>
+  );
+}
