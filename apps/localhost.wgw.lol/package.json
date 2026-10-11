@@ -1,0 +1,46 @@
+{
+  "name": "localhost.wgw.lol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "localhost: a git host built on Cloudflare Durable Objects, D1, KV, R2, Queues, and Workers AI",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm exec cf build",
+    "check": "ultracite fix --type-aware --type-check",
+    "db:migrate:local": "pnpm exec cf d1 migrations apply ee6567b0-3234-4fcc-87fe-d9e6ff0c171c --dir migrations --local --persist-to .cloudflare/state",
+    "deploy:nightly": "pnpm exec cf d1 migrations apply ee6567b0-3234-4fcc-87fe-d9e6ff0c171c --dir migrations && pnpm exec cf deploy",
+    "dev": "pnpm exec cf dev",
+    "lh": "bun cli/lh.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@noble/hashes": "catalog:crypto",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/react-start": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "diff": "catalog:",
+    "hono": "catalog:",
+    "jose": "catalog:",
+    "lucide-react": "catalog:",
+    "pako": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tailwind-merge": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "catalog:",
+    "@cloudflare/workers-types": "catalog:types",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "catalog:types",
+    "@types/pako": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "cf": "catalog:",
+    "tailwindcss": "4.3.3",
+    "typescript": "catalog:types",
+    "vite": "catalog:"
+  }
+}

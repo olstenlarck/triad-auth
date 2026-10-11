@@ -26,6 +26,20 @@ minimumReleaseAgeExclude:
   - "@turbo/windows-64@2.11.7"
   - "@turbo/windows-arm64@2.11.7"
   - turbo@2.11.7
+  - '@tanstack/history@1.162.5'
+  - '@tanstack/react-router@1.170.42'
+  - '@tanstack/react-start-client@1.168.40'
+  - '@tanstack/react-start-rsc@0.1.60'
+  - '@tanstack/react-start-server@1.167.47'
+  - '@tanstack/react-start@1.168.61'
+  - '@tanstack/router-core@1.171.35'
+  - '@tanstack/router-generator@1.167.41'
+  - '@tanstack/router-plugin@1.168.43'
+  - '@tanstack/start-client-core@1.170.35'
+  - '@tanstack/start-plugin-core@1.171.50'
+  - '@tanstack/start-server-core@1.169.40'
+  - '@tanstack/start-storage-context@1.167.37'
+  - lucide-react@1.55.0
 
 catalogMode: prefer
 
@@ -64,6 +78,20 @@ catalogs:
     valibot: ^1.5.0
     '@standard-schema/spec': ^1.1.0
     badgen: 3.3.2
+    "@tanstack/react-start": ^1.168.61
+    "@tanstack/react-router": ^1.170.42
+    react: ^19.3.0
+    react-dom: ^19.3.0
+    "@types/react": ^19.3.0
+    "@types/react-dom": ^19.3.0
+    "@vitejs/plugin-react": ^6.1.2
+    pako: ^2.1.0
+    "@types/pako": ^2.0.4
+    diff: ^9.0.0
+    lucide-react: ^1.55.0
+    class-variance-authority: ^0.7.1
+    clsx: ^2.1.1
+    tailwind-merge: ^3.7.0
   types:
     "@cloudflare/workers-types": 5.20260928.1
     "@types/bun": ^1.4.2

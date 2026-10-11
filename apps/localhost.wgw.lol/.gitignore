@@ -1,0 +1,5 @@
+.cloudflare/
+.output/
+dist/
+.env
+src/routeTree.gen.ts
