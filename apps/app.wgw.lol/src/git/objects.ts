@@ -52,7 +52,10 @@ export function parseTree(content: Uint8Array): TreeEntry[] {
   let pos = 0;
   while (pos < content.length) {
     const space = content.indexOf(0x20, pos);
-    const nul = content.indexOf(0, space);
+    const nul = space === -1 ? -1 : content.indexOf(0, space);
+    if (space === -1 || nul === -1 || nul + 21 > content.length) {
+      throw new Error("malformed tree object");
+    }
     const mode = text(content.subarray(pos, space));
     const name = text(content.subarray(space + 1, nul));
     const sha = toHex(content.subarray(nul + 1, nul + 21));

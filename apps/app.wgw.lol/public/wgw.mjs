@@ -102,6 +102,7 @@ function parseArgs(argv) {
   return { positional, flags };
 }
 
+/** `raw: true` returns the body as text; `raw: "bytes"` returns it as a Buffer. */
 async function call(method, path, body, { raw = false, auth = true } = {}) {
   const headers = { accept: "application/json" };
   const key = token();
@@ -114,6 +115,9 @@ async function call(method, path, body, { raw = false, auth = true } = {}) {
     init.body = JSON.stringify(body);
   }
   const res = await fetch(`${HOST}${path}`, init);
+  if (res.ok && raw === "bytes") {
+    return Buffer.from(await res.arrayBuffer());
+  }
   const text = await res.text();
   if (!res.ok) {
     let message = text;
@@ -301,7 +305,7 @@ async function main() {
     case "cat": {
       const query = new URLSearchParams({ path: positional[0] ?? "", ref: flags.ref ?? "" });
       process.stdout.write(
-        await call("GET", `${base(flags)}/raw?${query}`, undefined, { raw: true }),
+        await call("GET", `${base(flags)}/raw?${query}`, undefined, { raw: "bytes" }),
       );
       return;
     }

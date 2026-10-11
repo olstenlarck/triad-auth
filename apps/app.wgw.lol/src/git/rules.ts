@@ -11,32 +11,63 @@ interface Pattern {
   dirOnly: boolean;
 }
 
-function segmentRegex(segment: string): RegExp {
-  const escaped = segment
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\?/g, "[^/]");
-  return new RegExp(`^${escaped}$`);
+/**
+ * Matches one segment against a pattern with `*` and `?`. It backtracks only to the last `*`, so
+ * the cost stays within pattern length times value length.
+ */
+function globSegment(pattern: string, value: string): boolean {
+  let p = 0;
+  let v = 0;
+  let star = -1;
+  let mark = 0;
+  while (v < value.length) {
+    if (p < pattern.length && (pattern[p] === "?" || pattern[p] === value[v])) {
+      p++;
+      v++;
+    } else if (p < pattern.length && pattern[p] === "*") {
+      star = p++;
+      mark = v;
+    } else if (star !== -1) {
+      p = star + 1;
+      v = ++mark;
+    } else {
+      return false;
+    }
+  }
+  while (p < pattern.length && pattern[p] === "*") {
+    p++;
+  }
+  return p === pattern.length;
 }
 
 function matchSegment(pattern: string, value: string): boolean {
-  return pattern === value || (/[*?]/.test(pattern) && segmentRegex(pattern).test(value));
+  return pattern === value || (/[*?]/.test(pattern) && globSegment(pattern, value));
 }
 
-function matchFrom(pattern: string[], pi: number, path: string[], si: number): boolean {
-  if (pi === pattern.length) {
-    return si === path.length;
-  }
-  if (pattern[pi] === "**") {
-    return (
-      matchFrom(pattern, pi + 1, path, si) ||
-      (si < path.length && matchFrom(pattern, pi, path, si + 1))
-    );
-  }
-  if (si === path.length) {
-    return false;
-  }
-  return matchSegment(pattern[pi], path[si]) && matchFrom(pattern, pi + 1, path, si + 1);
+/** Matches path segments against pattern segments. The memo keeps `**` runs polynomial. */
+function matchFrom(pattern: string[], path: string[]): boolean {
+  const failed = new Set<number>();
+  const width = path.length + 1;
+  const step = (pi: number, si: number): boolean => {
+    if (pi === pattern.length) {
+      return si === path.length;
+    }
+    const key = pi * width + si;
+    if (failed.has(key)) {
+      return false;
+    }
+    let result: boolean;
+    if (pattern[pi] === "**") {
+      result = step(pi + 1, si) || (si < path.length && step(pi, si + 1));
+    } else {
+      result = si < path.length && matchSegment(pattern[pi], path[si]) && step(pi + 1, si + 1);
+    }
+    if (!result) {
+      failed.add(key);
+    }
+    return result;
+  };
+  return step(0, 0);
 }
 
 function canReachBelow(pattern: string[], pi: number, path: string[], si: number): boolean {
@@ -76,7 +107,7 @@ export class PrivateRules {
   matches(path: string, isDir: boolean): boolean {
     const segments = path.split("/");
     return this.patterns.some(
-      (pattern) => (isDir || !pattern.dirOnly) && matchFrom(pattern.segments, 0, segments, 0),
+      (pattern) => (isDir || !pattern.dirOnly) && matchFrom(pattern.segments, segments),
     );
   }
 

@@ -5,6 +5,7 @@ import {
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
 import { Hono } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 import {
@@ -14,6 +15,7 @@ import {
   endSession,
   mintToken,
   parseScopes,
+  type Principal,
   requireUser,
   upgradeSession,
 } from "./auth";
@@ -64,18 +66,38 @@ async function rateLimit(c: AppContext, bucket: string): Promise<void> {
   }
 }
 
+// The sign-in state is bound to the browser that started it, so a captured callback URL cannot
+// sign in another browser.
+const STATE_COOKIE = "wgw_login";
+
 async function saveState(
   c: AppContext,
   state: LoginState,
 ): Promise<{ key: string; challenge: string }> {
   const key = randomToken(24);
   await c.env.CACHE.put(`login:${key}`, JSON.stringify(state), { expirationTtl: 600 });
+  setCookie(c, STATE_COOKIE, key, {
+    path: "/auth",
+    httpOnly: true,
+    secure: true,
+    sameSite: "Lax",
+    maxAge: 600,
+  });
   return { key, challenge: await pkceChallenge(state.verifier) };
 }
 
 async function takeState(c: AppContext, key: string | undefined): Promise<LoginState> {
   if (key === undefined) {
     throw new HttpError(400, "the sign-in state is missing", "invalid_request");
+  }
+  const bound = getCookie(c, STATE_COOKIE);
+  deleteCookie(c, STATE_COOKIE, { path: "/auth" });
+  if (bound !== key) {
+    throw new HttpError(
+      400,
+      "this sign-in started in another browser, start again",
+      "invalid_request",
+    );
   }
   const state = await c.env.CACHE.get<LoginState>(`login:${key}`, "json");
   if (state === null) {
@@ -313,12 +335,29 @@ login.post("/auth/logout", async (c) => {
   return c.json({ ok: true });
 });
 
+/** The person behind a browser session, full or pending. API tokens cannot manage passkeys. */
 function sessionUser(c: AppContext): User {
-  const user = c.get("principal")?.user ?? c.get("pendingUser");
-  if (user === null || user === undefined) {
+  const principal = c.get("principal");
+  if (principal !== null) {
+    if (principal.via !== "session") {
+      throw new HttpError(403, "manage passkeys in the browser", "forbidden");
+    }
+    return principal.user;
+  }
+  const pending = c.get("pendingUser");
+  if (pending === null) {
     throw new HttpError(401, "sign in first", "unauthorized");
   }
-  return user;
+  return pending;
+}
+
+/** Key management needs a session or a key without repository or environment limits. */
+function accountPrincipal(c: AppContext): Principal {
+  const principal = requireUser(c, "admin");
+  if (principal.repoId !== null || principal.environment !== null) {
+    throw new HttpError(403, "a limited key cannot manage keys", "forbidden");
+  }
+  return principal;
 }
 
 function rp(c: AppContext): { rpID: string; origin: string } {
@@ -484,6 +523,9 @@ login.post("/api/auth/passkey/authenticate/verify", async (c) => {
 
 login.delete("/api/auth/passkeys/:id", async (c) => {
   const principal = requireUser(c, "admin");
+  if (principal.via !== "session") {
+    throw new HttpError(403, "manage passkeys in the browser", "forbidden");
+  }
   const keys = await passkeysOf(c, principal.user.id);
   if (principal.user.provider === "google" && keys.length <= 1) {
     throw new HttpError(400, "Google accounts keep at least one passkey", "invalid_request");
@@ -641,7 +683,7 @@ interface KeyRow {
 }
 
 login.get("/api/keys", async (c) => {
-  const principal = requireUser(c, "admin");
+  const principal = accountPrincipal(c);
   const result = await c.env.DB.prepare(
     "SELECT id, name, kind, prefix, scopes, repo_id, environment, created_at, expires_at, last_used_at FROM tokens WHERE user_id = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC",
   )
@@ -651,7 +693,7 @@ login.get("/api/keys", async (c) => {
 });
 
 login.post("/api/keys", async (c) => {
-  const principal = requireUser(c, "admin");
+  const principal = accountPrincipal(c);
   const body = await c.req.json<{
     name?: string;
     scopes?: string[];
@@ -694,7 +736,7 @@ login.post("/api/keys", async (c) => {
 });
 
 login.delete("/api/keys/:id", async (c) => {
-  const principal = requireUser(c, "admin");
+  const principal = accountPrincipal(c);
   await c.env.DB.prepare("UPDATE tokens SET revoked_at = ? WHERE id = ? AND user_id = ?")
     .bind(now(), c.req.param("id"), principal.user.id)
     .run();

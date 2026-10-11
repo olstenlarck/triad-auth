@@ -12,7 +12,7 @@ interface AuthState {
   passkeys?: Array<{ id: string; name: string }>;
 }
 
-export const Route = createFileRoute("/login/passkey")({
+export const Route = createFileRoute("/login_/passkey")({
   validateSearch: (search: Record<string, unknown>): { return_to?: string } => ({
     return_to: typeof search.return_to === "string" ? search.return_to : undefined,
   }),

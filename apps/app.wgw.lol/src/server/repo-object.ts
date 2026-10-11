@@ -165,7 +165,14 @@ export class Repo extends DurableObject<Env> {
           sql.exec("SELECT 1 FROM objects WHERE sha = ?", sha).toArray().length > 0,
         write: (type, content) => {
           const sha = objectHash(type, content);
-          insert(sha, type, content.length, deflate(content));
+          if (raw(sha) === undefined) {
+            const zdata = deflate(content);
+            if (zdata.length > MAX_INLINE) {
+              // Large blobs must reach R2 first, through saveObjects; see commitFiles.
+              throw new GitError(`object ${sha} is too large to write inline`, 413);
+            }
+            insert(sha, type, content.length, zdata);
+          }
           this.remember(sha, { type, content });
           return sha;
         },
@@ -384,7 +391,24 @@ export class Repo extends DurableObject<Env> {
     person: Person,
     files: FileChange[],
   ) {
-    return guard(() => this.repo.commitFiles(branch, expected, message, person, files));
+    return guard(async () => {
+      // Store large blobs the way a push does, in R2, before the synchronous commit writes them.
+      const large: PackedObject[] = [];
+      for (const file of files) {
+        if (file.content === null) {
+          continue;
+        }
+        const zdata = deflate(file.content);
+        if (zdata.length > MAX_INLINE) {
+          const sha = objectHash("blob", file.content);
+          large.push({ sha, type: "blob", content: file.content, zdata });
+        }
+      }
+      if (large.length > 0) {
+        await this.storage().saveObjects(large);
+      }
+      return this.repo.commitFiles(branch, expected, message, person, files);
+    });
   }
 
   createBranch(name: string, from: string) {
@@ -430,9 +454,15 @@ export class Repo extends DurableObject<Env> {
 
   async destroy(): Promise<void> {
     for (const prefix of [`objects/${this.repoId}/`, `packs/${this.repoId}/`]) {
-      const listed = await this.env.GIT.list({ prefix });
-      if (listed.objects.length > 0) {
-        await this.env.GIT.delete(listed.objects.map((object) => object.key));
+      // Each listing returns one page. Deleting it moves the next keys to the front.
+      for (;;) {
+        const listed = await this.env.GIT.list({ prefix });
+        if (listed.objects.length > 0) {
+          await this.env.GIT.delete(listed.objects.map((object) => object.key));
+        }
+        if (!listed.truncated) {
+          break;
+        }
       }
     }
     await this.ctx.storage.deleteAll();

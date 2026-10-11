@@ -14,9 +14,10 @@ import { renderMarkdown } from "~/lib/markdown";
 import { type Pull, StateBadge } from "./pulls.index";
 
 interface PullDetail extends Pull {
+  /** Only `error` is set when a branch of the pull request is gone. */
   compare: {
-    commits: Commit[];
-    files: FileDiff[];
+    commits?: Commit[];
+    files?: FileDiff[];
     mergeable?: boolean;
     fastForward?: boolean;
     error?: string;
@@ -99,8 +100,8 @@ function PullView() {
       <Tabs defaultValue="conversation">
         <TabsList>
           <TabsTrigger value="conversation">Conversation</TabsTrigger>
-          <TabsTrigger value="commits">Commits · {pull.compare?.commits.length ?? 0}</TabsTrigger>
-          <TabsTrigger value="files">Files · {pull.compare?.files.length ?? 0}</TabsTrigger>
+          <TabsTrigger value="commits">Commits · {pull.compare?.commits?.length ?? 0}</TabsTrigger>
+          <TabsTrigger value="files">Files · {pull.compare?.files?.length ?? 0}</TabsTrigger>
         </TabsList>
         <TabsContent value="conversation" className="mt-4 flex flex-col gap-4">
           <div className="border">

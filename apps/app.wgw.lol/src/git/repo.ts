@@ -7,6 +7,7 @@ import {
   isTree,
   parseCommit,
   parseTag,
+  parseTree,
   serializeCommit,
   ZERO_SHA,
 } from "./objects";
@@ -22,6 +23,7 @@ import {
   reportStatus,
   type Service,
 } from "./protocol";
+import { RULES_FILE } from "./rules";
 import type { ObjectStore } from "./store";
 import { applyChanges, commitTree, type FileChange, lookupPath, readTree } from "./tree";
 import { ancestors, isAncestor, mergeBase, planPack } from "./walk";
@@ -181,11 +183,22 @@ export class GitRepo {
       }
     }
     const parts: Uint8Array[] = [];
-    let shallow: string[] = [];
+    const clientShallow = request.shallow.filter(
+      (sha) => this.objects.has(sha) && (view === "full" || this.isPublic(sha)),
+    );
     if (request.depth !== undefined) {
-      shallow = planPack(this.objects, request.wants, [], request.depth).shallow;
-      for (const sha of shallow) {
+      const update = planPack(
+        this.objects,
+        request.wants,
+        clientShallow,
+        request.depth,
+        clientShallow,
+      );
+      for (const sha of update.shallow) {
         parts.push(pkt(`shallow ${sha}\n`));
+      }
+      for (const sha of update.unshallow) {
+        parts.push(pkt(`unshallow ${sha}\n`));
       }
       parts.push(FLUSH);
     }
@@ -208,7 +221,13 @@ export class GitRepo {
       return concat(parts);
     }
     parts.push(pkt(common.length > 0 ? `ACK ${common.at(-1)}\n` : "NAK\n"));
-    const plan = planPack(this.objects, request.wants, common, request.depth);
+    const plan = planPack(
+      this.objects,
+      request.wants,
+      [...common, ...clientShallow],
+      request.depth,
+      clientShallow,
+    );
     parts.push(await this.pack(plan.objects));
     return concat(parts);
   }
@@ -232,10 +251,14 @@ export class GitRepo {
   async receivePack(body: Uint8Array): Promise<{ response: Bytes; updates: RefUpdate[] }> {
     const request = parseReceiveRequest(body);
     let unpackError: string | undefined;
+    const fresh = new Map<string, PackedObject>();
     if (request.pack.length > 0) {
       try {
         const objects = parsePack(request.pack, (sha) => this.objects.read(sha));
         await this.storage.saveObjects(objects);
+        for (const object of objects) {
+          fresh.set(object.sha, object);
+        }
       } catch (error) {
         unpackError = error instanceof Error ? error.message : "invalid pack";
       }
@@ -243,7 +266,10 @@ export class GitRepo {
     const results: RefResult[] = [];
     const updates: RefUpdate[] = [];
     for (const command of request.commands) {
-      const error = unpackError === undefined ? this.checkUpdate(command) : "unpacker error";
+      const error =
+        unpackError === undefined
+          ? (this.checkUpdate(command) ?? this.checkConnected(command.new, fresh))
+          : "unpacker error";
       results.push({ ref: command.ref, error });
       if (error === undefined) {
         updates.push({ ref: command.ref, old: command.old, new: command.new });
@@ -279,6 +305,71 @@ export class GitRepo {
       return "not a commit";
     }
     return undefined;
+  }
+
+  /**
+   * Checks that every object a pushed tip needs is present with the right type. Objects from this
+   * pack are walked; objects that were already stored count as complete, like git's own check.
+   */
+  private checkConnected(tip: string, fresh: Map<string, PackedObject>): string | undefined {
+    if (tip === ZERO_SHA) {
+      return undefined;
+    }
+    const typeOf = (sha: string) => fresh.get(sha)?.type ?? this.objects.raw(sha)?.type;
+    const stack: Array<{ sha: string; type: string }> = [{ sha: tip, type: typeOf(tip) ?? "" }];
+    const seen = new Set<string>();
+    try {
+      while (stack.length > 0) {
+        const { sha, type } = stack.pop()!;
+        if (seen.has(sha)) {
+          continue;
+        }
+        seen.add(sha);
+        const actual = typeOf(sha);
+        if (actual === undefined) {
+          return `missing object ${sha}`;
+        }
+        if (actual !== type) {
+          return `object ${sha} is a ${actual}, not a ${type}`;
+        }
+        const object = fresh.get(sha);
+        if (object === undefined) {
+          continue;
+        }
+        if (object.type === "commit") {
+          const commit = parseCommit(object.content);
+          const rules = this.rulesEntry(commit.tree, fresh);
+          if (rules !== undefined && this.objects.raw(rules)?.zdata === undefined) {
+            return `${RULES_FILE} is too large`;
+          }
+          stack.push(
+            { sha: commit.tree, type: "tree" },
+            ...commit.parents.map((parent) => ({ sha: parent, type: "commit" })),
+          );
+        } else if (object.type === "tree") {
+          for (const entry of parseTree(object.content)) {
+            if (entry.mode !== "160000") {
+              stack.push({ sha: entry.sha, type: isTree(entry.mode) ? "tree" : "blob" });
+            }
+          }
+        } else if (object.type === "tag") {
+          const tag = parseTag(object.content);
+          stack.push({ sha: tag.object, type: tag.type });
+        }
+      }
+    } catch {
+      return "malformed object";
+    }
+    return undefined;
+  }
+
+  private rulesEntry(tree: string, fresh: Map<string, PackedObject>): string | undefined {
+    const content = fresh.get(tree)?.content ?? this.objects.read(tree)?.content;
+    if (content === undefined) {
+      return undefined;
+    }
+    return parseTree(content).find((entry) => entry.name === RULES_FILE && !isTree(entry.mode))
+      ?.sha;
   }
 
   /** Applies ref updates in one transaction. The first branch pushed to an empty repo becomes HEAD. */

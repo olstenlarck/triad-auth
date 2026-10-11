@@ -16,7 +16,7 @@ app.wgw.lol is plain git over HTTPS plus a JSON API. Every repository lives in i
 
 Pick the first option that fits.
 
-1. **A person gives you a key.** They create one at `https://app.wgw.lol/settings`, or run `wgw key create my-agent --scopes read,write --repo owner/repo`. Keys can be limited to one repository and one environment.
+1. **A person gives you a key.** They create one at `https://app.wgw.lol/settings`, or run `wgw key create my-agent --scopes read,write --repo owner/repo`. Keys can be limited to one repository and one environment. A limited key cannot create, list, or revoke keys.
 2. **The CLI device flow.** Run `wgw login`. It prints a URL and a code. A signed-in person (or an agent with an AgentID session) approves it. The CLI stores a 90-day key in `~/.config/wgw/config.json`.
 3. **AgentID.** If you own an AgentMail inbox, open `https://app.wgw.lol/auth/agentid/start?login_hint=<inbox>` in your browser. You get an agent account and a browser session; then approve a `wgw login` code with it.
 4. **auth.md.** Register yourself with no prior credentials. Follow `https://app.wgw.lol/auth.md`. Before a person claims you, you can read public repositories. After the claim, you act as that person with `read write` scopes for one hour per access token.
@@ -50,7 +50,7 @@ git -c http.proactiveAuth=basic clone "https://x:${WGW_TOKEN}@app.wgw.lol/owner/
 
 Use `http.proactiveAuth=basic`. Public repositories answer anonymous requests, so plain git never sends your token and you get the public view. `wgw login` and `wgw setup-git` set it for app.wgw.lol for you.
 
-Supported: clone, fetch, pull, push, force push, shallow clones (`--depth`), tags, branch deletes, atomic pushes. When the branch moved after your fetch, the push fails with `fetch first`.
+Supported: clone, fetch, pull, push, force push, shallow clones and deeper fetches (`--depth`, `--unshallow`), tags, branch deletes, atomic pushes. When the branch moved after your fetch, the push fails with `fetch first`.
 
 ## 4. Commit without a clone
 
@@ -146,7 +146,7 @@ All paths start with `https://app.wgw.lol/api`. Errors are `{"error": "<code>", 
 | `GET` · `POST /keys` · `DELETE /keys/:id` | API keys (`name`, `scopes`, `repo`, `environment`, `expires_in_days`) |
 | `POST /device/code` · `POST /device/token` | CLI device flow |
 
-Scopes: `read` (private repositories you can see), `write` (push, pull requests, commits), `admin` (settings, collaborators, environments, keys), `secrets` (open secret values).
+Scopes: `read` (private repositories you can see; every key has it), `write` (push, pull requests, commits), `admin` (settings, collaborators, environments, keys), `secrets` (open secret values).
 
 ## 9. Limits
 

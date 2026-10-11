@@ -21,6 +21,16 @@ interface Entry {
   resolved?: PackedObject;
 }
 
+/** The largest object a pack may hold, and the most a pack may expand to in total. */
+export const MAX_OBJECT_SIZE = 64 * 1024 * 1024;
+export const MAX_EXPANDED_SIZE = 96 * 1024 * 1024;
+
+function checkSize(size: number): void {
+  if (size > MAX_OBJECT_SIZE) {
+    throw new Error(`object of ${size} bytes is over the ${MAX_OBJECT_SIZE} byte limit`);
+  }
+}
+
 export function applyDelta(base: Uint8Array, delta: Uint8Array): Uint8Array {
   let pos = 0;
   const readSize = () => {
@@ -29,7 +39,7 @@ export function applyDelta(base: Uint8Array, delta: Uint8Array): Uint8Array {
     let byte: number;
     do {
       byte = delta[pos++];
-      size |= (byte & 0x7f) << shift;
+      size += (byte & 0x7f) * 2 ** shift;
       shift += 7;
     } while (byte & 0x80);
     return size;
@@ -38,7 +48,9 @@ export function applyDelta(base: Uint8Array, delta: Uint8Array): Uint8Array {
   if (baseSize !== base.length) {
     throw new Error("delta base size mismatch");
   }
-  const out = new Uint8Array(readSize());
+  const resultSize = readSize();
+  checkSize(resultSize);
+  const out = new Uint8Array(resultSize);
   let outPos = 0;
   while (pos < delta.length) {
     const op = delta[pos++];
@@ -99,6 +111,7 @@ export function parsePack(
   const entries: Entry[] = [];
   const byOffset = new Map<number, Entry>();
   let pos = 12;
+  let expanded = 0;
   for (let i = 0; i < count; i++) {
     const offset = pos;
     let byte = pack[pos++];
@@ -122,6 +135,11 @@ export function parsePack(
     } else if (code === REF_DELTA) {
       entry.baseSha = toHex(pack.subarray(pos, pos + 20));
       pos += 20;
+    }
+    checkSize(size);
+    expanded += size;
+    if (expanded > MAX_EXPANDED_SIZE) {
+      throw new Error(`the pack expands past the ${MAX_EXPANDED_SIZE} byte limit`);
     }
     const { data, used } = inflateAt(pack, pos, size);
     entry.data = data;
@@ -174,6 +192,10 @@ export function parsePack(
       }
       type = base.type;
       content = applyDelta(base.content, entry.data);
+      expanded += content.length;
+      if (expanded > MAX_EXPANDED_SIZE) {
+        throw new Error(`the pack expands past the ${MAX_EXPANDED_SIZE} byte limit`);
+      }
     } else {
       type = TYPE_NAME[entry.code];
       content = entry.data;

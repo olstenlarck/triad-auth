@@ -144,6 +144,20 @@ describe("smart HTTP against real git", () => {
     expect(existsSync(join(out, "c.txt"))).toBe(true);
   });
 
+  it("deepens and unshallows a shallow clone", async () => {
+    const out = join(dir, "shallow");
+    await git(out, "fetch", "-q", "--depth", "2");
+    expect(await git(out, "rev-list", "--count", "HEAD")).toBe("2");
+    // A new commit on top makes the walk pass a commit the client has before its shallow one.
+    writeFileSync(join(src, "e.txt"), "e\n");
+    await git(src, "add", ".");
+    await git(src, "commit", "-q", "-m", "fourth");
+    await git(src, "push", "-q", `${base}/r.git`, "main");
+    await git(out, "fetch", "-q", "--unshallow");
+    expect(await git(out, "rev-list", "--count", "origin/main")).toBe("4");
+    await git(out, "fsck", "--strict");
+  });
+
   it("rejects a stale push", async () => {
     const out = join(dir, "stale");
     await git(dir, "clone", "-q", `${base}/r.git`, out);
@@ -173,7 +187,7 @@ describe("smart HTTP against real git", () => {
     expect(existsSync(join(pub, "keys.secret"))).toBe(false);
     await git(pub, "fsck", "--strict");
     const messages = (await git(pub, "log", "--format=%s")).split("\n");
-    expect(messages).toEqual(["embargoed advisory", "third", "second", "first"]);
+    expect(messages).toEqual(["embargoed advisory", "fourth", "third", "second", "first"]);
     // Commits before the rules keep their hashes.
     expect(await git(pub, "rev-parse", "HEAD~1")).toBe(await git(src, "rev-parse", "HEAD~2"));
 

@@ -48,6 +48,8 @@ export function advertiseRefs(service: Service, refs: Ref[], head: Ref | undefin
 
 export interface UploadRequest {
   wants: string[];
+  /** Commits the client already has as shallow boundaries. */
+  shallow: string[];
   depth?: number;
   /** True when the request ended right after the wants, before any have or done line. */
   wantsOnly: boolean;
@@ -57,7 +59,13 @@ export interface UploadRequest {
 
 export function parseUploadRequest(body: Uint8Array): UploadRequest {
   const reader = new PktReader(body);
-  const request: UploadRequest = { wants: [], haves: [], done: false, wantsOnly: false };
+  const request: UploadRequest = {
+    wants: [],
+    shallow: [],
+    haves: [],
+    done: false,
+    wantsOnly: false,
+  };
   for (;;) {
     const line = reader.nextLine();
     if (line === null || line === undefined) {
@@ -65,6 +73,8 @@ export function parseUploadRequest(body: Uint8Array): UploadRequest {
     }
     if (line.startsWith("want ")) {
       request.wants.push(line.slice(5, 45));
+    } else if (line.startsWith("shallow ")) {
+      request.shallow.push(line.slice(8, 48));
     } else if (line.startsWith("deepen ")) {
       request.depth = Number(line.slice(7));
     }

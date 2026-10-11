@@ -23,7 +23,11 @@ export function rulesOf(store: ObjectStore, tree: string): PrivateRules {
     return new PrivateRules("");
   }
   const blob = store.read(entry.sha);
-  return new PrivateRules(blob === undefined ? "" : text(blob.content));
+  if (blob === undefined) {
+    // Fail closed: rules that cannot be read must not publish the paths they hide.
+    throw new Error(`cannot read ${RULES_FILE} ${entry.sha}`);
+  }
+  return new PrivateRules(text(blob.content));
 }
 
 export function filterTree(

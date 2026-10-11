@@ -18,7 +18,7 @@ import { Route as NewRouteImport } from './routes/new'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as OwnerIndexRouteImport } from './routes/$owner/index'
 import { Route as OwnerRepoRouteRouteImport } from './routes/$owner/$repo/route'
-import { Route as LoginPasskeyRouteImport } from './routes/login.passkey'
+import { Route as LoginPasskeyRouteImport } from './routes/login_.passkey'
 import { Route as OwnerRepoIndexRouteImport } from './routes/$owner/$repo/index'
 import { Route as OwnerRepoBlobRouteImport } from './routes/$owner/$repo/blob'
 import { Route as OwnerRepoCommitsRouteImport } from './routes/$owner/$repo/commits'
@@ -74,9 +74,9 @@ const OwnerRepoRouteRoute = OwnerRepoRouteRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginPasskeyRoute = LoginPasskeyRouteImport.update({
-  id: '/passkey',
-  path: '/passkey',
-  getParentRoute: () => LoginRoute,
+  id: '/login_/passkey',
+  path: '/login/passkey',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const OwnerRepoIndexRoute = OwnerRepoIndexRouteImport.update({
   id: '/',
@@ -124,7 +124,7 @@ export interface FileRoutesByFullPath {
   '/claim': typeof ClaimRoute
   '/device': typeof DeviceRoute
   '/explore': typeof ExploreRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/new': typeof NewRoute
   '/settings': typeof SettingsRoute
   '/$owner/$repo': typeof OwnerRepoRouteRouteWithChildren
@@ -144,7 +144,7 @@ export interface FileRoutesByTo {
   '/claim': typeof ClaimRoute
   '/device': typeof DeviceRoute
   '/explore': typeof ExploreRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/new': typeof NewRoute
   '/settings': typeof SettingsRoute
   '/login/passkey': typeof LoginPasskeyRoute
@@ -164,11 +164,11 @@ export interface FileRoutesById {
   '/claim': typeof ClaimRoute
   '/device': typeof DeviceRoute
   '/explore': typeof ExploreRoute
-  '/login': typeof LoginRouteWithChildren
+  '/login': typeof LoginRoute
   '/new': typeof NewRoute
   '/settings': typeof SettingsRoute
   '/$owner/$repo': typeof OwnerRepoRouteRouteWithChildren
-  '/login/passkey': typeof LoginPasskeyRoute
+  '/login_/passkey': typeof LoginPasskeyRoute
   '/$owner/': typeof OwnerIndexRoute
   '/$owner/$repo/blob': typeof OwnerRepoBlobRoute
   '/$owner/$repo/commits': typeof OwnerRepoCommitsRoute
@@ -229,7 +229,7 @@ export interface FileRouteTypes {
     | '/new'
     | '/settings'
     | '/$owner/$repo'
-    | '/login/passkey'
+    | '/login_/passkey'
     | '/$owner/'
     | '/$owner/$repo/blob'
     | '/$owner/$repo/commits'
@@ -246,10 +246,11 @@ export interface RootRouteChildren {
   ClaimRoute: typeof ClaimRoute
   DeviceRoute: typeof DeviceRoute
   ExploreRoute: typeof ExploreRoute
-  LoginRoute: typeof LoginRouteWithChildren
+  LoginRoute: typeof LoginRoute
   NewRoute: typeof NewRoute
   SettingsRoute: typeof SettingsRoute
   OwnerRepoRouteRoute: typeof OwnerRepoRouteRouteWithChildren
+  LoginPasskeyRoute: typeof LoginPasskeyRoute
   OwnerIndexRoute: typeof OwnerIndexRoute
 }
 
@@ -318,12 +319,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerRepoRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login/passkey': {
-      id: '/login/passkey'
-      path: '/passkey'
+    '/login_/passkey': {
+      id: '/login_/passkey'
+      path: '/login/passkey'
       fullPath: '/login/passkey'
       preLoaderRoute: typeof LoginPasskeyRouteImport
-      parentRoute: typeof LoginRoute
+      parentRoute: typeof rootRouteImport
     }
     '/$owner/$repo/': {
       id: '/$owner/$repo/'
@@ -384,16 +385,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface LoginRouteChildren {
-  LoginPasskeyRoute: typeof LoginPasskeyRoute
-}
-
-const LoginRouteChildren: LoginRouteChildren = {
-  LoginPasskeyRoute: LoginPasskeyRoute,
-}
-
-const LoginRouteWithChildren = LoginRoute._addFileChildren(LoginRouteChildren)
-
 interface OwnerRepoRouteRouteChildren {
   OwnerRepoBlobRoute: typeof OwnerRepoBlobRoute
   OwnerRepoCommitsRoute: typeof OwnerRepoCommitsRoute
@@ -425,10 +416,11 @@ const rootRouteChildren: RootRouteChildren = {
   ClaimRoute: ClaimRoute,
   DeviceRoute: DeviceRoute,
   ExploreRoute: ExploreRoute,
-  LoginRoute: LoginRouteWithChildren,
+  LoginRoute: LoginRoute,
   NewRoute: NewRoute,
   SettingsRoute: SettingsRoute,
   OwnerRepoRouteRoute: OwnerRepoRouteRouteWithChildren,
+  LoginPasskeyRoute: LoginPasskeyRoute,
   OwnerIndexRoute: OwnerIndexRoute,
 }
 export const routeTree = rootRouteImport

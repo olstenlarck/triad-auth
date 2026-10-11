@@ -130,10 +130,13 @@ export async function authenticate(c: AppContext): Promise<void> {
           .run(),
       );
     }
+    // Every key can read what its owner can read; the other scopes add to that.
+    const scopes = parseScopes(row.scopes);
+    scopes.add("read");
     c.set("principal", {
       user,
       via: "token",
-      scopes: parseScopes(row.scopes),
+      scopes,
       repoId: row.repo_id,
       environment: row.environment,
       tokenId: row.id,
@@ -248,6 +251,7 @@ export async function mintToken(
     registrationId?: string;
   },
 ): Promise<MintedToken> {
+  const scopes = [...new Set<Scope>(["read", ...options.scopes])];
   const token = `${options.kind === "agent" ? "wgw_at" : "wgw"}_${randomToken(30)}`;
   const id = newId("tok");
   const prefix = token.slice(0, 12);
@@ -261,7 +265,7 @@ export async function mintToken(
       options.name,
       prefix,
       await sha256(token),
-      options.scopes.join(" "),
+      scopes.join(" "),
       options.repoId ?? null,
       options.environment ?? null,
       options.registrationId ?? null,

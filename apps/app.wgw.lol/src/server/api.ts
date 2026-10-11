@@ -72,8 +72,18 @@ const VAR_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 
 export const api = new Hono<AppEnv>();
 
+/** Repositories the caller may list. A repository-limited key sees only public ones and its own. */
+async function visibleRepos(c: AppContext, owner?: string): Promise<RepoRow[]> {
+  const principal = c.get("principal");
+  const repos = await listRepos(c.env, principal?.user ?? null, owner);
+  const limit = principal?.repoId ?? null;
+  return limit === null
+    ? repos
+    : repos.filter((repo) => repo.visibility === "public" || repo.id === limit);
+}
+
 api.get("/repos", async (c) => {
-  const repos = await listRepos(c.env, c.get("principal")?.user ?? null, c.req.query("owner"));
+  const repos = await visibleRepos(c, c.req.query("owner"));
   return c.json(repos.map((repo) => repoJson(repo, c.env.ORIGIN)));
 });
 
@@ -468,7 +478,11 @@ export async function afterPush(
   if (updates.length === 0) {
     return;
   }
-  await env.DB.prepare("UPDATE repos SET pushed_at = ? WHERE id = ?").bind(now(), repo.id).run();
+  // The first branch pushed to an empty repository becomes git's HEAD; keep D1 in step with it.
+  const head = unwrap(await repoStub(env, repo.id).refs("full")).head.replace(/^refs\/heads\//, "");
+  await env.DB.prepare("UPDATE repos SET pushed_at = ?, default_branch = ? WHERE id = ?")
+    .bind(now(), head, repo.id)
+    .run();
   await recordEvent(env, repo.id, actorId, "push", { updates });
   env.METRICS.writeDataPoint({
     blobs: ["push", `${repo.owner}/${repo.name}`],
@@ -694,7 +708,10 @@ api.post("/repos/:owner/:name/pulls/:number/summary", async (c) => {
   const grant = await loadRepo(c);
   need(grant, "write");
   const pull = await loadPull(c, grant);
-  const result = unwrap(await repoStub(c.env, grant.repo.id).compare("full", pull.base, pull.head));
+  // Anyone who can read the pull request reads the summary, so it sees only the public view.
+  const result = unwrap(
+    await repoStub(c.env, grant.repo.id).compare("public", pull.base, pull.head),
+  );
   const diff = result.files
     .map((file: FileDiff) => file.patch)
     .join("")
@@ -777,7 +794,8 @@ function checkEnvironmentScope(principal: Principal, environment: string): void 
 
 api.get("/repos/:owner/:name/environments", async (c) => {
   const grant = await loadRepo(c);
-  need(grant, "read");
+  const principal = need(grant, "read");
+  const only = principal.environment;
   const envs = await c.env.DB.prepare(
     "SELECT name, kind, created_at FROM environments WHERE repo_id = ? ORDER BY name",
   )
@@ -805,17 +823,20 @@ api.get("/repos/:owner/:name/environments", async (c) => {
       }));
   return c.json({
     repository: list(""),
-    environments: envs.results.map((item) => ({ ...item, variables: list(item.name) })),
+    environments: envs.results
+      .filter((item) => only === null || item.name === only)
+      .map((item) => ({ ...item, variables: list(item.name) })),
   });
 });
 
 api.post("/repos/:owner/:name/environments", async (c) => {
   const grant = await loadRepo(c);
-  need(grant, "admin");
+  const principal = need(grant, "admin");
   const input = await body<{ name?: string; kind?: string }>(c);
   if (!isName(input.name)) {
     throw new HttpError(400, "invalid environment name", "invalid_request");
   }
+  checkEnvironmentScope(principal, input.name);
   const kind = ENV_KINDS.has(input.kind ?? "") ? input.kind! : "development";
   await c.env.DB.prepare(
     "INSERT INTO environments (repo_id, name, kind, created_at) VALUES (?, ?, ?, ?) ON CONFLICT (repo_id, name) DO UPDATE SET kind = excluded.kind",
@@ -827,7 +848,8 @@ api.post("/repos/:owner/:name/environments", async (c) => {
 
 api.delete("/repos/:owner/:name/environments/:env", async (c) => {
   const grant = await loadRepo(c);
-  need(grant, "admin");
+  const principal = need(grant, "admin");
+  checkEnvironmentScope(principal, c.req.param("env"));
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM variables WHERE repo_id = ? AND environment = ?").bind(
       grant.repo.id,
@@ -927,7 +949,7 @@ api.get("/repos/:owner/:name/env", async (c) => {
 
 api.get("/users/:handle", async (c) => {
   const user = requireFound(await userByHandle(c.env, c.req.param("handle")), "user");
-  const repos = await listRepos(c.env, c.get("principal")?.user ?? null, user.handle);
+  const repos = await visibleRepos(c, user.handle);
   return c.json({
     ...publicUser(user),
     created_at: user.created_at,
