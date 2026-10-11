@@ -147,8 +147,8 @@ async function login(args: string[]): Promise<void> {
     method: "POST",
     body: form,
   });
-  // SAFETY: /oauth2/device_authorization on this service answers with the DeviceStart fields.
-  const device = (await start.json()) as DeviceStart;
+  // /oauth2/device_authorization on this service answers with the DeviceStart fields.
+  const device: DeviceStart = JSON.parse(await start.text());
   console.log(`Open ${device.verification_uri_complete}`);
   console.log(`Confirm the code ${device.user_code} after signing in. Waiting...`);
 
@@ -163,8 +163,8 @@ async function login(args: string[]): Promise<void> {
         device_code: device.device_code,
       }),
     });
-    // SAFETY: /oauth2/token on this service answers a token grant or an RFC 8628 error body.
-    const body = (await poll.json()) as DevicePoll;
+    // /oauth2/token on this service answers a token grant or an RFC 8628 error body.
+    const body: DevicePoll = JSON.parse(await poll.text());
     if (body.access_token) {
       const credentials = await readCredentials();
       credentials[ORIGIN] = { token: body.access_token, handle: body.handle };
